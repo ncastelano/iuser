@@ -19,7 +19,8 @@ import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import { useChatUnread } from '@/hooks/useChatUnread'
 import { useOrderStatusCounts, type OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
-import { useCartStore } from '@/store/useCartStore'
+import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
+import { hexToRgb } from '@/lib/color'
 import { useShellLive } from '@/hooks/useShellLive'
 import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
 import { switchVersion, versionLabel } from '@/versions/client'
@@ -326,6 +327,9 @@ const SHELL_BOTTOM = 'calc(102px + var(--staging-banner-h, 0px) + env(safe-area-
 const LOGO_RING = { border: '2px solid #fff', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
 const LOGO_IMG_SCALE = 1.15
 // Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
+// Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
+const CART_STRIP_PATHS = ['/comprar', '/lojas', '/produtos']
+const STRIP_H = 40
 const BAR_PATHS = ['/', '/comprar', '/lojas', '/produtos', '/servicos-disponiveis', '/carrinho', '/conversas', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
 
 // Foto do modo (perfil, logo da loja, foto do carro) — ou o ícone do modo quando não há imagem. Troca de modo = pequeno "estouro".
@@ -424,6 +428,8 @@ export default function ModeShell({ children }: {
     const [cartReady, setCartReady] = useState(false)
     useEffect(() => setCartReady(true), [])
     const topCart = cartReady ? Object.values(cartMap).reduce((a, items) => a + items.reduce((n, i) => n + i.quantity, 0), 0) : 0
+    const cartTotal = cartReady ? Object.values(cartMap).reduce((a, items) => a + items.reduce((n, i) => n + cartItemLineTotal(i), 0), 0) : 0
+    const surfaceRgb = hexToRgb(colors.surface)
 
     // Hub: abre pela ilha do topo ou pela foto da barra de baixo. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
@@ -561,6 +567,7 @@ export default function ModeShell({ children }: {
         : shellPath.startsWith('/carrinho') ? 'cart' : shellPath.startsWith('/conversas') ? 'chat' : shellPath === '/' ? 'home' : shellPath.startsWith('/radar') ? 'radar' : modeSelected ? 'me' : null
     // A barra de baixo só nas páginas "raiz"
     const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/')) && !(shellPath === '/conversas' && threadOpen)
+    const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
     const live = useShellLive(userId, orderCounts, topUnread, chatPath)
     const openHub = () => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }
     // Escolher um modo: marca como selecionado e abre a página dele (cada modo tem a sua)
@@ -600,8 +607,8 @@ export default function ModeShell({ children }: {
                 background: colors.background, zIndex: 2,
                 marginTop: NAV_H,
                 minHeight: `calc(100dvh - ${NAV_H})`,
-                paddingBottom: barShown ? SHELL_BOTTOM : 40,
-                ['--shell-bottom' as string]: barShown ? SHELL_BOTTOM : '0px',
+                paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${cartStrip ? STRIP_H : 0}px)` : 40,
+                ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${cartStrip ? STRIP_H : 0}px)` : '0px',
             }}
         >
             <div className="max-w-5xl mx-auto px-4 pt-2">
@@ -663,7 +670,33 @@ export default function ModeShell({ children }: {
         {barShown && (
             <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 z-40 pointer-events-none" style={{ bottom: BAR_BOTTOM }}>
                 <div className="max-w-md mx-auto px-3">
-                    <div className="pointer-events-auto relative flex items-center rounded-full px-1.5" style={{ height: BAR_H, background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: '0 12px 32px rgba(0,0,0,0.2)' }}>
+                    {/* Uma peça só: (faixa do carrinho, nas páginas de compra) + a barra. Vidro, como a ilha. */}
+                    <div className="pointer-events-auto relative" style={{
+                        background: surfaceRgb ? `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.82)` : colors.surface,
+                        backdropFilter: 'blur(16px) saturate(1.4)', WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
+                        border: `1px solid ${colors.border}`, boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+                        borderRadius: cartStrip ? 30 : 9999, transition: 'border-radius 300ms ease',
+                    }}>
+                        <button
+                            onClick={() => go('/carrinho')}
+                            aria-label={`Ver carrinho, ${topCart} ${topCart === 1 ? 'item' : 'itens'}`}
+                            tabIndex={cartStrip ? 0 : -1}
+                            aria-hidden={!cartStrip}
+                            className="w-full flex items-center gap-2 px-4 text-[13px] font-black overflow-hidden transition-all"
+                            style={{
+                                height: cartStrip ? STRIP_H : 0, opacity: cartStrip ? 1 : 0, color: colors.textPrimary,
+                                background: 'linear-gradient(90deg, rgba(249,115,22,0.16), rgba(220,38,38,0.16))',
+                                borderBottom: cartStrip ? `1px solid ${colors.border}` : 'none',
+                                borderRadius: '30px 30px 0 0', transitionDuration: '300ms',
+                            }}
+                        >
+                            <ShoppingCart size={16} style={{ color: '#f97316' }} className="flex-shrink-0" />
+                            <span className="flex-1 min-w-0 truncate text-left">Carrinho · {topCart} {topCart === 1 ? 'item' : 'itens'}</span>
+                            <span className="w-16 flex-shrink-0" aria-hidden />
+                            <span className="flex-1 min-w-0 text-right truncate" style={{ color: '#f97316' }}>{cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            <ChevronRight size={15} style={{ color: '#f97316' }} className="flex-shrink-0" />
+                        </button>
+                        <div className="flex items-center px-1.5" style={{ height: BAR_H }}>
                         <BarButton colors={colors} active={activeKey === 'cart'} label="Carrinho" onClick={() => go(topCart === 0 && ordersActive > 0 ? '/carrinho?aba=pedidos' : '/carrinho')} badge={activeKey === 'cart' ? 0 : topCart} orders={activeKey === 'cart' ? undefined : orderCounts}>
                             <ShoppingCart size={21} />
                         </BarButton>
@@ -693,6 +726,7 @@ export default function ModeShell({ children }: {
                                 <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
                             </span>
                         </button>
+                        </div>
                     </div>
                 </div>
             </nav>

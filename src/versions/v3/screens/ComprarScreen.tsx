@@ -420,22 +420,7 @@ export default function ComprarScreen() {
                 </>
             )}
 
-            {/* Carrinho: aparece quando tem item */}
-            {cartCount > 0 && (
-                <div className="fixed inset-x-0 bottom-[var(--shell-bottom,0px)] z-30 px-4 pb-4 pt-6 pointer-events-none" style={{ background: `linear-gradient(to top, ${colors.background} 55%, transparent)` }}>
-                    <div className="max-w-lg mx-auto pointer-events-auto">
-                        <button
-                            onClick={() => router.push('/carrinho')}
-                            className="w-full h-14 rounded-full px-5 flex items-center gap-3 text-white font-black text-sm transition active:scale-[0.98]"
-                            style={{ background: GRADIENT, boxShadow: '0 8px 24px #f9731655' }}
-                        >
-                            <span className="relative"><ShoppingCart size={20} /></span>
-                            <span className="flex-1 text-left">Ver carrinho · {cartCount} {cartCount === 1 ? 'item' : 'itens'}</span>
-                            <span>{brl(cartTotal)}</span>
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* O carrinho ("Ver carrinho · N itens · R$") agora faz parte da barra de baixo da casca (ModeShell): fundido a ela, sem fundo próprio */}
         </div>
     )
 }
