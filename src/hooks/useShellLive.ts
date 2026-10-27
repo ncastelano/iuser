@@ -59,20 +59,29 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
         return { kind: 'ride', title, sub: ride.status === 'pending' && ride.candidates > 0 ? 'Toque para escolher' : 'Toque para acompanhar', path: '/pedir-motorista', hot: ride.candidates > 0 || ride.arrived, color: '#f97316' }
     }
     const sp = storeNew?.products || 0, ss = storeNew?.services || 0
+    const CHAT_COLOR = '#22c55e'
+    // Pedidos de produtos, pedidos de serviço e mensagens: cada um na sua cor, lado a lado (com um tipo só, o texto é completo)
+    const kinds = [
+        { n: sp, one: 'pedido', many: 'pedidos', full1: 'pedido novo', fullN: 'pedidos novos', color: ORDER_COLORS.novo },
+        { n: ss, one: 'serviço', many: 'serviços', full1: 'serviço para aceitar', fullN: 'serviços para aceitar', color: SERVICE_COLOR },
+        { n: unread, one: 'mensagem', many: 'mensagens', full1: 'mensagem nova', fullN: 'mensagens novas', color: CHAT_COLOR },
+    ].filter((k) => k.n > 0)
     const storeLive: ShellLive | null = storeNew && sp + ss > 0
         ? {
             kind: 'store',
-            title: sp > 0 && ss > 0 ? `${sp} ${sp === 1 ? 'pedido' : 'pedidos'} · ${ss} ${ss === 1 ? 'serviço' : 'serviços'}` : sp > 0 ? `${sp} ${sp === 1 ? 'pedido novo' : 'pedidos novos'}` : `${ss} ${ss === 1 ? 'serviço para aceitar' : 'serviços para aceitar'}`,
+            title: kinds.map((k) => `${k.n} ${k.n === 1 ? k.one : k.many}`).join(' · '),
             sub: `${storeNew.name} · Toque para atender`, path: storeNew.path, hot: true,
-            color: sp > 0 ? ORDER_COLORS.novo : SERVICE_COLOR,
-            parts: [...(sp > 0 ? [{ text: `${sp} ${sp === 1 ? 'pedido' : 'pedidos'}${ss > 0 ? '' : sp === 1 ? ' novo' : ' novos'}`, color: ORDER_COLORS.novo }] : []), ...(ss > 0 ? [{ text: `${ss} ${ss === 1 ? 'serviço' : 'serviços'}${sp > 0 ? '' : ' para aceitar'}`, color: SERVICE_COLOR }] : [])],
+            color: kinds[0].color,
+            parts: kinds.map((k) => kinds.length === 1
+                ? { text: `${k.n} ${k.n === 1 ? k.full1 : k.fullN}`, color: k.color }
+                : { text: `${k.n} ${k.n === 1 ? k.one : k.many}`, color: k.color }),
         }
         : null
-    // No modo da loja os pedidos novos vêm ANTES das mensagens
+    // No modo da loja os pedidos novos vêm ANTES das mensagens (e as mensagens entram junto, se houver)
     if (storeLive && storeNew?.prefer) return storeLive
     if (orders.ready > 0) return { kind: 'order', title: orders.ready === 1 ? 'Seu pedido está pronto' : `${orders.ready} pedidos prontos`, sub: 'Toque para ver', path: '/carrinho?aba=pedidos', hot: true, color: ORDER_COLORS.pronto }
-    if (unread > 0) return { kind: 'chat', title: `${unread} ${unread === 1 ? 'mensagem nova' : 'mensagens novas'}`, sub: 'Toque para responder', path: chatPath, hot: true, color: '#22c55e' }
     if (storeLive) return storeLive
+    if (unread > 0) return { kind: 'chat', title: `${unread} ${unread === 1 ? 'mensagem nova' : 'mensagens novas'}`, sub: 'Toque para responder', path: chatPath, hot: true, color: CHAT_COLOR }
     const going = orders.pending + orders.preparing
     if (going > 0) return { kind: 'order', title: orders.preparing > 0 ? 'Pedido em preparo' : 'Pedido enviado', sub: 'Toque para acompanhar', path: '/carrinho?aba=pedidos', color: orders.preparing > 0 ? ORDER_COLORS.preparo : ORDER_COLORS.novo }
     return null
