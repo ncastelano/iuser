@@ -493,7 +493,8 @@ export default function CatalogoClientPage() {
         // perde nem sobrescreve a outra.
         addItem(ownerSlug, storeDetails, cartProduct as any, comment, addons.length > 0 ? addons : undefined)
 
-        toast.success(`Produto adicionado${comment || addons.length > 0 ? ' com personalização!' : '!'}`)
+        // 3.0: o aviso cobria a peça de baixo; o retorno visual já está no selo/quantidade do produto e na faixa da sacola
+        if (!insideShell) toast.success(`Produto adicionado${comment || addons.length > 0 ? ' com personalização!' : '!'}`)
         void cartAddedFeedback()
         setShowAddCommentModal(false)
         setPendingProduct(null)
