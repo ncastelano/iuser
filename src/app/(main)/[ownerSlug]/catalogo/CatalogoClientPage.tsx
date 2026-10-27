@@ -14,7 +14,7 @@ import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
-import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera } from 'lucide-react'
+import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
@@ -90,6 +90,7 @@ export default function CatalogoClientPage() {
     const [error, setError] = useState<string | null>(null)
     const [mounted, setMounted] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({})   // categorias recolhidas (buscando, tudo abre)
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
     const [showProductModal, setShowProductModal] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
@@ -1320,27 +1321,45 @@ export default function CatalogoClientPage() {
                         </div>
                     ) : (
                         <div className="flex flex-col gap-6">
-                            {Object.entries(groupedFilteredProducts).map(([category, categoryProducts]) => (
+                            {Object.entries(groupedFilteredProducts).map(([category, categoryProducts], groupIndex, allGroups) => {
+                                const isCollapsed = !searchQuery.trim() && !!collapsedCats[category]
+                                const allCollapsed = allGroups.every(([c]) => collapsedCats[c])
+                                const toggle = () => setCollapsedCats(prev => ({ ...prev, [category]: !prev[category] }))
+                                return (
                                 <div key={category} className="flex flex-col gap-3">
-                                    {/* 3.0: com uma categoria só, o título ("Geral") não diz nada */}
-                                    {!(insideShell && Object.keys(groupedFilteredProducts).length <= 1) && (
-                                        insideShell && isPromoCategory(category) ? (
-                                            <h4 className="flex items-center gap-2 px-1 text-xl font-black leading-none" style={{ color: '#dc2626' }}>
-                                                <Flame size={22} /> {category}
-                                                <span className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(220,38,38,0.4), transparent)' }} />
-                                            </h4>
-                                        ) : insideShell ? (
-                                            <h4 className="flex items-center gap-2 px-1 text-xl font-black leading-none" style={{ color: colors.textPrimary }}>
-                                                {category}
-                                                <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>{categoryProducts.length}</span>
-                                                <span className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${colors.border}, transparent)` }} />
-                                            </h4>
-                                        ) : (
-                                            <h4 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                                {category}
-                                            </h4>
-                                        )
+                                    {groupIndex === 0 && allGroups.length > 1 && !searchQuery.trim() && (
+                                        <div className="flex items-center justify-between gap-2 px-1">
+                                            <span className="text-[11px] font-bold" style={{ color: textColor }}>{allGroups.length} categorias</span>
+                                            <button
+                                                onClick={() => setCollapsedCats(Object.fromEntries(allGroups.map(([c]) => [c, !allCollapsed])))}
+                                                className="h-8 px-3 rounded-full text-[11px] font-black flex items-center gap-1 transition active:scale-95"
+                                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                            >
+                                                <ChevronsUpDown size={13} /> {allCollapsed ? 'Expandir todas' : 'Recolher todas'}
+                                            </button>
+                                        </div>
                                     )}
+                                    {/* 3.0: com uma categoria só, o título ("Geral") não diz nada */}
+                                    {!(insideShell && allGroups.length <= 1) && (
+                                        <button type="button" onClick={toggle} aria-expanded={!isCollapsed} className="w-full flex items-center gap-2 px-1 text-left transition active:opacity-70">
+                                            {insideShell && isPromoCategory(category) ? (
+                                                <span className="flex-1 min-w-0 flex items-center gap-2 text-xl font-black leading-none" style={{ color: '#dc2626' }}>
+                                                    <Flame size={22} /> {category}
+                                                    <span className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(220,38,38,0.4), transparent)' }} />
+                                                </span>
+                                            ) : insideShell ? (
+                                                <span className="flex-1 min-w-0 flex items-center gap-2 text-xl font-black leading-none" style={{ color: colors.textPrimary }}>
+                                                    {category}
+                                                    <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>{categoryProducts.length}</span>
+                                                    <span className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${colors.border}, transparent)` }} />
+                                                </span>
+                                            ) : (
+                                                <span className="flex-1 min-w-0 text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>{category}</span>
+                                            )}
+                                            <ChevronDown size={insideShell ? 20 : 14} className="flex-shrink-0 transition-transform" style={{ color: insideShell && isPromoCategory(category) ? '#dc2626' : '#f97316', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
+                                        </button>
+                                    )}
+                                    {!(isCollapsed && !(insideShell && allGroups.length <= 1)) && (
                                     <div className={insideShell ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-4'}>
                                         {categoryProducts.map((product) => {
                                 const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
@@ -1589,8 +1608,10 @@ export default function CatalogoClientPage() {
                                 )
                             })}
                                     </div>
+                                    )}
                                 </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>
