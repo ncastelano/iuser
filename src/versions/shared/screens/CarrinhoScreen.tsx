@@ -1323,7 +1323,14 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     }, [myPurchases])
 
     const surfaceRgb = hexToRgb(colors.surface)
-    const cardStyle = {
+    // 3.0: cartões sólidos, no mesmo desenho da ilha e da barra (fundo da página, borda e sombra leve); 2.0: vidro sobre o fundo animado
+    const cardStyle = v3 ? {
+        background: colors.surface,
+        border: `1px solid ${colors.border}`,
+        boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
+        borderRadius: '1.5rem',
+        padding: '1.25rem',
+    } : {
         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
@@ -1628,10 +1635,10 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     <>
                         <PageTabs tabs={tabs} />
                         {activeTab === 'carrinho' && storeSlugs.length > 0 && (
-                            <div className="mt-3 flex items-center justify-between gap-3 px-1">
-                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>
+                            <div className="mt-3 flex items-center justify-between gap-3 pl-4 pr-1.5 h-12 rounded-full" style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: '0 6px 20px rgba(0,0,0,0.08)' }}>
+                                <p className="text-xs font-bold min-w-0 truncate" style={{ color: colors.textSecondary }}>
                                     {storeSlugs.length} {storeSlugs.length === 1 ? 'loja' : 'lojas'} · {cartItemCount} {cartItemCount === 1 ? 'item' : 'itens'} ·{' '}
-                                    <span className="font-black" style={{ color: colors.textPrimary }}>R$ {cartGrandTotal.toFixed(2)}</span>
+                                    <span className="font-black text-sm" style={{ color: '#f97316' }}>R$ {cartGrandTotal.toFixed(2)}</span>
                                 </p>
                                 <button
                                     onClick={() => {
@@ -1668,7 +1675,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     {/* Seção Carrinho - visível apenas quando activeTab === 'carrinho' */}
                     {activeTab === 'carrinho' && (
                         <section id="section-carrinho" className="scroll-mt-24">
-                            <div className="flex items-center gap-2 mb-4">
+                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <ShoppingCart size={16} />
                                 </div>
@@ -2164,7 +2171,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                                             return (
                                                 <div key={slug}>
-                                                    <div className="rounded-3xl mb-4 overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, opacity: isStoreOpen ? 1 : 0.92 }}>
+                                                    <div className="rounded-3xl mb-4 overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: '0 8px 24px rgba(0,0,0,0.07)', opacity: isStoreOpen ? 1 : 0.92 }}>
                                                         {/* Loja: logo, nome e como está */}
                                                         <div className="p-3.5 flex items-center gap-3">
                                                             <button onClick={() => router.push(`/${slug}`)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
@@ -2440,7 +2447,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     {/* Seção Pedidos - visível apenas quando activeTab === 'pedidos' */}
                     {currentUserId && activeTab === 'pedidos' && (
                         <section id="section-pedidos" className="scroll-mt-24">
-                            <div className="flex items-center gap-2 mb-4">
+                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <Package size={16} />
                                 </div>
@@ -2475,7 +2482,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     {/* Seção Avaliações - visível apenas quando activeTab === 'avaliacoes' */}
                     {currentUserId && activeTab === 'avaliacoes' && (
                         <section id="section-avaliar" className="scroll-mt-24">
-                            <div className="flex items-center gap-2 mb-4">
+                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <Star size={16} />
                                 </div>
