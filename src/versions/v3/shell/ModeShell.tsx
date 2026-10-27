@@ -75,7 +75,7 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
     return (
         <div
             className="rounded-2xl"
-            style={selected ? { background: 'rgba(255,255,255,0.22)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
+            style={selected ? { background: 'rgba(255,255,255,0.3)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
         >
             <button
                 onClick={() => onSelect(mode)}
@@ -610,7 +610,7 @@ export default function ModeShell({ children }: {
         </div>
 
         {/* Faixa do topo: cobre o que rola por baixo da ilha */}
-        <div aria-hidden className="fixed top-0 left-0 right-0 z-30" style={{ height: NAV_H, background: colors.background }} />
+        <div aria-hidden className="fixed top-0 left-0 right-0 z-30 pointer-events-none" style={{ height: NAV_H, background: `linear-gradient(to bottom, ${colors.background} 35%, transparent)` }} />
 
         {/* ILHA: foto do modo + cumprimento — ou o que está vivo agora (corrida, pedido, mensagens). Tocar abre o hub (ou vai ao que está vivo). */}
         <div className="fixed left-0 right-0 z-40 pointer-events-none" style={{ top: ISLAND_TOP }}>
@@ -619,15 +619,18 @@ export default function ModeShell({ children }: {
                     className="pointer-events-auto flex items-center gap-2.5 rounded-full pl-2 pr-2"
                     style={{
                         height: ISLAND_H,
-                        background: live ? '#111827' : colors.surface,
-                        border: `1px solid ${live ? '#111827' : colors.border}`,
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+                        // Vidro: transparente, com o que passa por baixo desfocado, borda e brilho brancos (escura só quando há algo vivo)
+                        background: live ? 'rgba(17,24,39,0.88)' : 'rgba(255,255,255,0.3)',
+                        backdropFilter: 'blur(16px) saturate(1.5)',
+                        WebkitBackdropFilter: 'blur(16px) saturate(1.5)',
+                        border: '1px solid rgba(255,255,255,0.75)',
+                        boxShadow: '0 0 0 1px rgba(255,255,255,0.35), 0 6px 26px rgba(255,255,255,0.65), 0 8px 24px rgba(0,0,0,0.10)',
                         opacity: drawerOpen ? 0 : 1,
                         transition: 'opacity 200ms ease, background 300ms ease',
                     }}
                 >
-                    <button onClick={openHub} aria-label={idle.label} className="flex-shrink-0 rounded-full">
-                        <ModeAvatar userId={userId} image={idle.image} noRing={idle.noRing} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
+                    <button onClick={openHub} aria-label={idle.label} className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2.5px #fff, 0 2px 8px rgba(0,0,0,0.22)' }}>
+                        <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
                     </button>
                     <button
                         onClick={() => (live ? go(live.path) : openHub())}
@@ -645,11 +648,11 @@ export default function ModeShell({ children }: {
                         ) : (
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{idle.line1}</span>
-                                <span className="block text-[15px] font-black truncate leading-tight" style={{ color: colors.textPrimary }}>{idle.line2}</span>
+                                <span className="block text-[15px] font-black truncate leading-tight" style={{ color: colors.textPrimary, textShadow: '0 1px 8px rgba(255,255,255,0.6)' }}>{idle.line2}</span>
                             </>
                         )}
                     </button>
-                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: live ? 'rgba(255,255,255,0.16)' : `${colors.border}66`, color: live ? '#fff' : colors.textPrimary }}>
+                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: live ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.55)', border: live ? undefined : '1px solid rgba(255,255,255,0.8)', color: live ? '#fff' : colors.textPrimary }}>
                         <ChevronDown size={18} />
                     </button>
                 </div>
