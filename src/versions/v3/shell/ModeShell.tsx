@@ -6,7 +6,7 @@
 // A barra de baixo só aparece nas páginas "raiz" (as de tela cheia, mapas e conversa aberta ficam livres). O conteúdo entra como `children`.
 'use client'
 
-import { ReactNode, Suspense, useEffect, useState } from 'react'
+import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
     Store as StoreIcon, Car, MessageCircle, ShoppingCart, User, LogIn, ChevronRight, ChevronDown, X, Check, Search, RotateCcw, MapPin,
@@ -530,6 +530,17 @@ export default function ModeShell({ children }: {
 
     // Página atual (a 3.0 serve /carrinho por /v3/carrinho e a home por /v3; o endereço visível é o canônico)
     const shellPath = (pathname || '').replace(/^\/v3(?=\/|$)/, '') || '/'
+    // Ao ir para o carrinho, a página SOBE a partir da barra (cresce de baixo para cima) em vez de só aparecer
+    const prevShellPath = useRef<string | null>(null)
+    const [rising, setRising] = useState(false)
+    useLayoutEffect(() => { // antes da pintura: a página nova nunca aparece inteira por um instante
+        const prev = prevShellPath.current
+        prevShellPath.current = shellPath
+        if (prev === null || prev.startsWith('/carrinho') || !shellPath.startsWith('/carrinho')) return
+        setRising(true)
+        const t = setTimeout(() => setRising(false), 750)
+        return () => clearTimeout(t)
+    }, [shellPath])
     // Na página do modo escolhido (painel do perfil, loja, veículo...), a foto da barra também fica marcada
     const modeSelected = !!userId && dataLoaded && !!pathname && modePath(activeMode, drawerData) === pathname
     const activeKey: 'cart' | 'chat' | 'home' | 'radar' | 'me' | null = drawerOpen ? 'me'
@@ -566,7 +577,11 @@ export default function ModeShell({ children }: {
     const idle = headerView
     return (
         <>
-        <style>{`@keyframes shellPop { 0% { transform: scale(0.55); opacity: 0.4 } 100% { transform: scale(1); opacity: 1 } }`}</style>
+        <style>{`
+            @keyframes shellPop { 0% { transform: scale(0.55); opacity: 0.4 } 100% { transform: scale(1); opacity: 1 } }
+            @keyframes shellRise { 0% { clip-path: inset(100% 0 0 0 round 36px); transform: translateY(46px); } 100% { clip-path: inset(0% 0 0 0 round 0px); transform: translateY(0); } }
+            @media (prefers-reduced-motion: reduce) { .shell-rise-off { animation: none } }
+        `}</style>
         <Suspense fallback={null}><ChatThreadWatcher onChange={setThreadOpen} /></Suspense>
 
         {/* A página: abaixo da ilha; sem cartão deslizando (o menu virou o hub) */}
@@ -578,6 +593,7 @@ export default function ModeShell({ children }: {
                 minHeight: `calc(100dvh - ${NAV_H})`,
                 paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${cartStrip ? STRIP_H : 0}px)` : 40,
                 ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${cartStrip ? STRIP_H : 0}px)` : '0px',
+                animation: rising ? 'shellRise 700ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
             }}
         >
             <div className="max-w-5xl mx-auto px-4 pt-2">
