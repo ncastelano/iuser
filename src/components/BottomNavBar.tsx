@@ -113,13 +113,13 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
                             <span aria-hidden className="absolute left-1/2 -translate-x-1/2 rounded-full transition-all" style={{ bottom: 5, width: active === 'me' ? 16 : 0, height: 3, background: '#f97316' }} />
                         </button>
 
-                        {/* iUser no centro: leva à aba que reúne tudo (a home); já nela, volta ao topo */}
+                        {/* iUser no centro: leva à aba que reúne tudo (a home); já nela, volta ao topo. Ancorada pelo FUNDO da barra: quando a faixa do carrinho aparece em cima, a logo fica onde estava */}
                         <button
                             onClick={onHome}
                             aria-label="iUser: tudo do iUser"
                             aria-current={active === 'home' ? 'page' : undefined}
                             className="absolute left-1/2 rounded-full transition active:scale-90"
-                            style={{ width: 62, height: 62, top: -22, transform: 'translateX(-50%)', background: colors.background, padding: 4, boxShadow: `0 8px 20px rgba(249,115,22,0.35), 0 0 0 ${active === 'home' ? 2 : 0}px #f97316` }}
+                            style={{ width: 62, height: 62, bottom: 22, transform: 'translateX(-50%)', background: colors.background, padding: 4, boxShadow: `0 8px 20px rgba(249,115,22,0.35), 0 0 0 ${active === 'home' ? 2 : 0}px #f97316` }}
                         >
                             <span className="block w-full h-full rounded-full" style={LOGO_RING}>
                                 <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
