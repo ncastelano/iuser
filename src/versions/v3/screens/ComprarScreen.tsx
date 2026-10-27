@@ -19,6 +19,8 @@ import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 import StoreImageCard from '@/components/StoreImageCard'
 import { Spinner } from '@/components/Spinner'
 import { notifyChatMessage } from '@/lib/notifyRideStatus'
+import { usePagedRotation } from '@/hooks/usePagedRotation'
+import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
 import {
     isQuickAddable, matchesQuery, sortTrending, limitPerStore, loadShop, servicePriceLabel, serviceCta, sortServices,
     type ShopData, type ShopProduct, type ShopService,
@@ -30,7 +32,7 @@ const PAGE = 24
 const catList = categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social')
 const brl = (n: number | null) => (n == null ? '' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))
 
-function Section({ colors, icon: Icon, title, subtitle, onAll, children }: { colors: ThemeColors; icon: any; title: string; subtitle?: string; onAll?: () => void; children: React.ReactNode }) {
+function Section({ colors, icon: Icon, title, subtitle, onAll, allLabel = 'Ver todas', children }: { colors: ThemeColors; icon: any; title: string; subtitle?: string; onAll?: () => void; allLabel?: string; children: React.ReactNode }) {
     return (
         <section className="mt-6">
             <div className="flex items-end justify-between gap-3 mb-2.5">
@@ -38,7 +40,7 @@ function Section({ colors, icon: Icon, title, subtitle, onAll, children }: { col
                     <h2 className="flex items-center gap-1.5 text-base font-black" style={{ color: colors.textPrimary }}><Icon size={16} style={{ color: '#f97316' }} /> {title}</h2>
                     {subtitle && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{subtitle}</p>}
                 </div>
-                {onAll && <button onClick={onAll} className="text-xs font-black flex items-center gap-0.5 flex-shrink-0" style={{ color: colors.accent }}>Ver todas <ChevronRight size={13} /></button>}
+                {onAll && <button onClick={onAll} className="text-xs font-black flex items-center gap-0.5 flex-shrink-0" style={{ color: colors.accent }}>{allLabel} <ChevronRight size={13} /></button>}
             </div>
             {children}
         </section>
@@ -169,6 +171,8 @@ export default function ComprarScreen() {
 
     const back = () => (window.history.length > 1 ? router.back() : router.push('/'))
     const searching = query.trim().length > 0
+    // "Todos os produtos": poucos por vez (4), que passam sozinhos, deslizando ou pelos pontinhos — como "Produtos em destaque"; o resto fica no "Ver todos"
+    const allProducts = usePagedRotation(view?.products.length ?? 0, 4)
 
     // categorias que têm loja primeiro
     const orderedCats = useMemo(() => {
@@ -403,11 +407,14 @@ export default function ComprarScreen() {
                         <Section colors={colors} icon={Users} title="Profissionais" subtitle="Serviços de pessoas, com valor combinado" onAll={() => router.push('/servicos-disponiveis?tipo=profissionais')}>{serviceRow(view.peopleServices)}</Section>
                     )}
                     {view.products.length > 0 && (
-                        <Section colors={colors} icon={Package} title="Todos os produtos" subtitle={`${view.products.length} ${view.products.length === 1 ? 'produto' : 'produtos'}`}>
-                            {grid(view.products.slice(0, limit))}
-                            {view.products.length > limit && (
-                                <button onClick={() => setLimit((l) => l + PAGE)} className="mt-3 w-full h-11 rounded-full text-sm font-black" style={{ background: soft, color: colors.textPrimary }}>Ver mais</button>
-                            )}
+                        <Section colors={colors} icon={Package} title="Todos os produtos" subtitle={`${view.products.length} ${view.products.length === 1 ? 'produto' : 'produtos'}`} allLabel="Ver todos" onAll={() => router.push('/produtos')}>
+                            <div {...allProducts.handlers}>
+                                <div key={allProducts.page} className={allProducts.dir > 0 ? 'page-in-next' : 'page-in-prev'} style={{ touchAction: 'pan-y' }}>
+                                    {grid(view.products.slice(allProducts.visibleRange[0], allProducts.visibleRange[1]))}
+                                </div>
+                            </div>
+                            <PageDots pages={allProducts.pages} page={allProducts.page} onGo={allProducts.goTo} label="Ver produtos, página" />
+                            <style>{PAGE_SLIDE_CSS}</style>
                         </Section>
                     )}
                 </>
