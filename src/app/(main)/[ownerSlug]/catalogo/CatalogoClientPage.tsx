@@ -20,6 +20,7 @@ import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHou
 import { toast } from 'sonner'
 import HeaderSearchInput from './HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
+import CatalogoSkeleton from './CatalogoSkeleton'
 import { hexToRgb } from '@/lib/color'
 import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
@@ -1044,14 +1045,8 @@ export default function CatalogoClientPage() {
 
     // ========== RENDER ==========
     if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
-                <div className="text-center">
-                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando catálogo...</p>
-                </div>
-            </div>
-        )
+        // esqueleto com a forma do catálogo (3.0: grade + peça de baixo; 2.0: lista em linhas)
+        return <div style={{ background: colors.background, minHeight: insideShell ? undefined : '100dvh' }}><CatalogoSkeleton v3={insideShell} /></div>
     }
 
     if (error || !storeInfo || !ownerSlug) {
