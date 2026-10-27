@@ -395,10 +395,10 @@ export default function ComprarScreen() {
                         </Section>
                     )}
                     {view.trending.length > 0 && (
-                        <Section colors={colors} icon={Flame} title="Em alta" subtitle="O que mais sai agora">{productRow(view.trending)}</Section>
+                        <Section colors={colors} icon={Flame} title="Em alta" subtitle="O que mais sai agora" onAll={() => router.push('/produtos?ordem=alta')}>{productRow(view.trending)}</Section>
                     )}
                     {view.fresh.length > 0 && (
-                        <Section colors={colors} icon={Sparkles} title="Novidades" subtitle="Chegou há pouco">{productRow(view.fresh)}</Section>
+                        <Section colors={colors} icon={Sparkles} title="Novidades" subtitle="Chegou há pouco" onAll={() => router.push('/produtos?ordem=novidades')}>{productRow(view.fresh)}</Section>
                     )}
                     {view.storeServices.length > 0 && (
                         <Section colors={colors} icon={CalendarCheck} title="Serviços para agendar" subtitle="Marque um horário em lojas e estúdios" onAll={() => router.push('/servicos-disponiveis?tipo=agendar')}>{serviceRow(view.storeServices)}</Section>

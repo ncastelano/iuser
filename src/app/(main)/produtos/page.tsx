@@ -1,11 +1,12 @@
 // app/(main)/produtos/page.tsx
 //
 // Todos os produtos do iUser (de lojas e de perfis), no mesmo cartão em linha da home: foto de um lado, texto do outro.
-// "Produtos em destaque" da home leva pra cá pelo botão "ver produtos".
+// "Produtos em destaque" da home leva pra cá pelo botão "ver produtos". `?ordem=alta` ("Em alta" do /comprar: os mais vistos) e
+// `?ordem=novidades` ("Novidades": os publicados há menos tempo) trocam o título e a ordem; sem `ordem`, os mais vistos.
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Package } from 'lucide-react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
@@ -21,8 +22,19 @@ const PAGE_SIZE = 24
 
 const formatPrice = (price: number | null) => (price == null ? null : price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))
 
+const ORDENS = {
+    alta: { title: 'Em alta' },
+    novidades: { title: 'Novidades' },
+}
+
 export default function ProdutosPage() {
+    return <Suspense fallback={null}><Produtos /></Suspense>
+}
+
+function Produtos() {
     const router = useRouter()
+    const ordemParam = useSearchParams().get('ordem')
+    const ordem = ordemParam === 'alta' || ordemParam === 'novidades' ? ordemParam : null
     const v3 = useInsideShell()
     const { colors } = useTheme()
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -37,10 +49,11 @@ export default function ProdutosPage() {
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
-        const list = products || []
+        const base = products || []
+        const list = ordem === 'novidades' ? [...base].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()) : base
         if (!q) return list
         return list.filter((p) => p.name?.toLowerCase().includes(q) || p.storeName?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q))
-    }, [products, search])
+    }, [products, search, ordem])
 
     useEffect(() => { setShown(PAGE_SIZE) }, [search])
 
@@ -58,9 +71,9 @@ export default function ProdutosPage() {
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <Header
-                    title="Produtos"
+                    title={ordem ? ORDENS[ordem].title : 'Produtos'}
                     showBack
-                    onBack={() => router.push('/')}
+                    onBack={() => (ordem && window.history.length > 1 ? router.back() : router.push('/'))}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}

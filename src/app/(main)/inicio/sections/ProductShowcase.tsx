@@ -31,6 +31,8 @@ export interface ProductCard {
     description?: string
     durationMinutes: number | null
     viewCount: number
+    /** Quando foi publicado (ISO), para ordenar por novidades */
+    createdAt?: string | null
     rating: number
     reviewCount: number
     storeName: string
@@ -247,6 +249,7 @@ export async function loadProductCards(): Promise<ProductCard[]> {
             description: prod.description,
             durationMinutes: prod.duration_minutes ?? null,
             viewCount: prod.view_count ?? 0,
+            createdAt: prod.created_at ?? null,
             rating: Number(avg.toFixed(1)),
             reviewCount: count,
             storeName,
