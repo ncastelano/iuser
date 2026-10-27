@@ -25,8 +25,6 @@ import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched
 import { switchVersion, versionLabel } from '@/versions/client'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-// O hub aberto tem a mesma cor da ilha quando há algo vivo (azul-escuro)
-const MENU_BG = '#111827'
 
 const toPublicImage = (bucket: string, path: string | null | undefined) => {
     if (!path) return null
@@ -79,15 +77,15 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
     return (
         <div
             className="rounded-2xl"
-            style={selected ? { background: 'rgba(255,255,255,0.3)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
+            style={selected ? { background: 'var(--hub-soft)', boxShadow: 'inset 0 0 0 1.5px #f97316' } : undefined}
         >
             <div className="flex items-center">
                 <button
                     onClick={() => onSelect(mode)}
                     aria-pressed={selected}
-                    className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-2.5 rounded-2xl text-left transition hover:bg-[var(--hub-soft)] active:bg-[var(--hub-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                 >
-                    <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                    <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'var(--hub-soft)' }}>
                         {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : icon}
                     </span>
                     <span className="min-w-0 flex-1">
@@ -104,8 +102,8 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
                 {selected && (
                     <button
                         onClick={() => onSelect(mode)}
-                        className="mr-3 flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                        style={{ background: '#fff', color: MENU_BG }}
+                        className="mr-3 flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                        style={{ background: '#f97316', color: '#fff' }}
                     >
                         Painel
                     </button>
@@ -122,8 +120,8 @@ function DrawerPill({ onClick, children, solid = false }: { onClick: () => void;
     return (
         <button
             onClick={onClick}
-            className="flex-1 py-2 rounded-full text-xs font-black transition hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            style={solid ? { background: '#fff', color: MENU_BG } : { background: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.45)' }}
+            className="flex-1 py-2 rounded-full text-xs font-black transition hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+            style={solid ? { background: '#f97316', color: '#fff' } : { background: 'var(--hub-soft)', color: 'var(--hub-fg)', border: '1px solid var(--hub-line)' }}
         >
             {children}
         </button>
@@ -135,10 +133,10 @@ function DrawerCta({ icon, title, desc, onClick }: { icon: ReactNode; title: str
     return (
         <button
             onClick={onClick}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            style={{ border: '1.5px dashed rgba(255,255,255,0.6)' }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition hover:bg-[var(--hub-soft)] active:bg-[var(--hub-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+            style={{ border: '1.5px dashed var(--hub-line)' }}
         >
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>{icon}</span>
+            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>{icon}</span>
             <span className="min-w-0 flex-1">
                 <span className="block text-sm font-black leading-tight truncate">{title}</span>
                 <span className="block text-xs opacity-90 truncate">{desc}</span>
@@ -149,7 +147,7 @@ function DrawerCta({ icon, title, desc, onClick }: { icon: ReactNode; title: str
 }
 
 function DrawerLabel({ children }: { children: ReactNode }) {
-    return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest text-white/80">{children}</p>
+    return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest opacity-80">{children}</p>
 }
 
 function MenuDrawerContent({ data, active, recent, onSelect, onGo, onSwitchVersion }: {
@@ -163,7 +161,7 @@ function MenuDrawerContent({ data, active, recent, onSelect, onGo, onSwitchVersi
 }) {
     // Cada grupo é um painel separado, com o seu título
     const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
-        <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
+        <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
             <DrawerLabel>{title}</DrawerLabel>
             <div className="flex flex-col gap-1.5">{children}</div>
         </section>
@@ -178,14 +176,14 @@ function MenuDrawerContent({ data, active, recent, onSelect, onGo, onSwitchVersi
                         mode={`motorista:${v.slug}`}
                         active={active}
                         onSelect={onSelect}
-                        icon={<Car size={20} color="#fff" />}
+                        icon={<Car size={20} color="#f97316" />}
                         image={v.photo}
                         title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
                         desc={data.driverActive ? 'Motorista ativado' : 'Motorista desligado'}
                         dot={data.driverActive ? '#4ade80' : '#fca5a5'}
                     />
                 )) : (
-                    <DrawerCta icon={<Car size={20} color="#fff" />} title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />
+                    <DrawerCta icon={<Car size={20} color="#f97316" />} title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />
                 )}
             </Panel>
 
@@ -196,7 +194,7 @@ function MenuDrawerContent({ data, active, recent, onSelect, onGo, onSwitchVersi
                         mode={`loja:${st.slug}`}
                         active={active}
                         onSelect={onSelect}
-                        icon={<StoreIcon size={20} color="#fff" />}
+                        icon={<StoreIcon size={20} color="#f97316" />}
                         image={st.logo}
                         title={st.name}
                         desc={st.open ? 'Aberta agora' : 'Fechada agora'}
@@ -209,7 +207,7 @@ function MenuDrawerContent({ data, active, recent, onSelect, onGo, onSwitchVersi
                         )}
                     />
                 )) : (
-                    <DrawerCta icon={<StoreIcon size={20} color="#fff" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} />
+                    <DrawerCta icon={<StoreIcon size={20} color="#f97316" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} />
                 )}
             </Panel>
 
@@ -227,8 +225,8 @@ function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (pa
             <button
                 type="button"
                 onClick={() => onGo('/')}
-                className="mt-4 w-full rounded-full px-4 py-3 flex items-center gap-3 text-white font-black text-sm transition active:scale-[0.98]"
-                style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)' }}
+                className="mt-4 w-full rounded-full px-4 py-3 flex items-center gap-3 font-black text-sm transition active:scale-[0.98]"
+                style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
             >
                 <Search size={20} className="flex-shrink-0" />
                 <span className="flex-1 text-left">Procurar e explorar</span>
@@ -238,7 +236,7 @@ function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (pa
                             <span
                                 key={`${r.type}-${r.id}`}
                                 className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-black flex-shrink-0"
-                                style={{ marginLeft: i === 0 ? 0 : -10, background: 'rgba(255,255,255,0.35)', boxShadow: `0 0 0 2px ${MENU_BG}` }}
+                                style={{ marginLeft: i === 0 ? 0 : -10, background: 'var(--hub-soft)', boxShadow: '0 0 0 2px var(--hub-bg)' }}
                                 title={r.name}
                             >
                                 {r.imageUrl ? <img src={r.imageUrl} alt="" className="w-full h-full object-cover" /> : (r.name || '?').charAt(0).toUpperCase()}
@@ -259,10 +257,10 @@ function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
             type="button"
             disabled={busy}
             onClick={async () => { setBusy(true); try { await onSwitch() } finally { /* a página recarrega */ } }}
-            className="mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left text-white transition active:scale-[0.98] disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.28)' }}
+            className="mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition active:scale-[0.98] disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+            style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
         >
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
+            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
                 <RotateCcw size={18} />
             </span>
             <span className="min-w-0 flex-1">
@@ -277,14 +275,14 @@ function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
 function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
     return (
         <div className="w-full flex flex-col px-3 pb-6">
-            <section className="mt-1 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
+            <section className="mt-1 rounded-3xl p-2 pb-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
                 <DrawerLabel>Modo visitante</DrawerLabel>
                 <div className="flex flex-col gap-1.5">
                     <DrawerRow
                         mode="visitante"
                         active="visitante"
                         onSelect={() => onClose()}
-                        icon={<User size={20} color="#fff" />}
+                        icon={<User size={20} color="#f97316" />}
                         title="Visitante"
                         desc="Navegando sem conta"
                         dot="#fde68a"
@@ -292,11 +290,11 @@ function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { rece
                 </div>
             </section>
 
-            <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
+            <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
                 <DrawerLabel>Minha conta</DrawerLabel>
                 <div className="flex flex-col gap-1.5">
-                    <DrawerCta icon={<LogIn size={20} color="#fff" />} title="Entrar" desc="Já tenho conta no iUser" onClick={() => onGo('/login')} />
-                    <DrawerCta icon={<User size={20} color="#fff" />} title="Criar conta" desc="Grátis, leva um minuto" onClick={() => onGo('/cadastrar')} />
+                    <DrawerCta icon={<LogIn size={20} color="#f97316" />} title="Entrar" desc="Já tenho conta no iUser" onClick={() => onGo('/login')} />
+                    <DrawerCta icon={<User size={20} color="#f97316" />} title="Criar conta" desc="Grátis, leva um minuto" onClick={() => onGo('/cadastrar')} />
                 </div>
             </section>
 
@@ -349,33 +347,34 @@ function HubProfileTop({ slug, avatarUrl, userId, colors, popToken, unread, chat
     return (
         <div className="flex-shrink-0">
             <div className="flex items-center gap-2.5 pl-2 pr-2" style={{ height: ISLAND_H }}>
-                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.9)' }}>
+                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px var(--hub-line)' }}>
                     <ModeAvatar userId={userId} image={avatarUrl} noRing={true} modeIcon={<User size={20} color="#fff" />} popToken={popToken} colors={colors} />
                 </span>
                 <span className="flex-1 min-w-0">
-                    <span className="block text-[11px] truncate text-white/80">Bem-vindo de volta</span>
-                    <span className="block text-[15px] font-black truncate leading-tight text-white">{slug ? `@${slug}` : 'Meu perfil'}</span>
+                    <span className="block text-[11px] truncate opacity-80">Bem-vindo de volta</span>
+                    <span className="block text-[15px] font-black truncate leading-tight ">{slug ? `@${slug}` : 'Meu perfil'}</span>
                 </span>
                 <button
                     onClick={onPanel}
-                    className="flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                    style={{ background: '#fff', color: MENU_BG }}
+                    className="flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                    style={{ background: '#f97316', color: '#fff' }}
                 >
                     Painel
                 </button>
-                <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
                     <X size={19} />
                 </button>
             </div>
             <div className="px-3 pb-3 flex flex-col gap-2">
-                <div className="flex gap-2">
-                    {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
-                    <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Editar</DrawerPill>
-                </div>
+                {slug && (
+                    <div className="flex gap-2">
+                        <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>
+                    </div>
+                )}
                 <button
                     onClick={() => onGo(chatPath)}
-                    className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black text-white transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                    style={{ background: unread > 0 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.3)' }}
+                    className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                    style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
                 >
                     <MessageCircle size={16} className="flex-shrink-0" />
                     <span className="flex-1 text-left truncate">{unread > 0 ? `${unread} ${unread === 1 ? 'mensagem não lida' : 'mensagens não lidas'}` : 'Conversas'}</span>
@@ -651,7 +650,7 @@ export default function ModeShell({ children }: {
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>{live.sub}</span>
                                 <span className="flex items-center gap-1.5 min-w-0">
-                                    <span className="relative flex-shrink-0 w-2 h-2"><span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: '#f97316', opacity: 0.6 }} /><span className="absolute inset-0 rounded-full" style={{ background: '#f97316' }} /></span>
+                                    <span className="relative flex-shrink-0 w-2 h-2"><span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: live.kind === 'chat' ? '#22c55e' : '#f97316', opacity: 0.6 }} /><span className="absolute inset-0 rounded-full" style={{ background: live.kind === 'chat' ? '#22c55e' : '#f97316' }} /></span>
                                     <span className="text-sm font-black truncate" style={{ color: '#fff' }}>{live.title}</span>
                                 </span>
                             </>
@@ -700,7 +699,14 @@ export default function ModeShell({ children }: {
                         role="dialog"
                         aria-label="Menu do iUser"
                         style={{
-                            background: MENU_BG,
+                            background: colors.background,
+                            border: `1px solid ${colors.border}`,
+                            color: colors.textPrimary,
+                            ['--hub-bg' as string]: colors.background,
+                            ['--hub-fg' as string]: colors.textPrimary,
+                            ['--hub-soft' as string]: `${colors.border}40`,
+                            ['--hub-panel' as string]: colors.surface,
+                            ['--hub-line' as string]: colors.border,
                             borderRadius: 28,
                             maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
                             display: 'flex', flexDirection: 'column',
@@ -726,14 +732,14 @@ export default function ModeShell({ children }: {
                             />
                         ) : (
                         <div className="flex items-center gap-2.5 pl-2 pr-2 flex-shrink-0" style={{ height: ISLAND_H }}>
-                                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.9)' }}>
+                                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px var(--hub-line)' }}>
                                     <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
                                 </span>
                                 <span className="flex-1 min-w-0">
-                                    <span className="block text-[11px] truncate text-white/80">{idle.line1}</span>
-                                    <span className="block text-[15px] font-black truncate leading-tight text-white">{idle.line2}</span>
+                                    <span className="block text-[11px] truncate opacity-80">{idle.line1}</span>
+                                    <span className="block text-[15px] font-black truncate leading-tight">{idle.line2}</span>
                                 </span>
-                                <button onClick={() => setDrawerOpen(false)} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                                <button onClick={() => setDrawerOpen(false)} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
                                     <X size={19} />
                                 </button>
                             </div>
