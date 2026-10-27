@@ -530,6 +530,70 @@ export default function AtalhoCompromissosDaLoja({
                     </>
     )
 
+    // 3.0: o mesmo desenho do cartão "Pedidos na loja" — números coloridos, botões em pílula e linhas com a cor do estado na lateral
+    const todayStr = new Date().toDateString()
+    const todayCount = storeAppointments.filter((a) => a.status === 'confirmed' && new Date(`${a.date}T12:00:00`).toDateString() === todayStr).length
+    const upcoming = storeAppointments
+        .filter((a) => a.status === 'confirmed' && new Date(`${a.date}T${a.time}`).getTime() >= Date.now() - 60 * 60 * 1000)
+        .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`))
+        .slice(0, 6)
+    const bodyV3 = (
+        <>
+            <div className="grid grid-cols-3 gap-2">
+                {([
+                    { label: 'Hoje', n: todayCount, color: '#d97706' },
+                    { label: 'Na agenda', n: confirmedCount, color: '#7c3aed' },
+                    { label: 'Feitos', n: completedCount, color: '#2563eb' },
+                ]).map((t) => (
+                    <div key={t.label} className="rounded-2xl py-2.5 px-1 flex flex-col items-center gap-0.5" style={{ background: `${t.color}${t.n > 0 ? '1f' : '10'}`, border: `1px solid ${t.color}${t.n > 0 ? '40' : '20'}` }}>
+                        <span className="text-xl font-black leading-none" style={{ color: t.n > 0 ? t.color : textSecondary }}>{t.n}</span>
+                        <span className="text-[9px] font-black uppercase tracking-wide" style={{ color: t.n > 0 ? t.color : textSecondary }}>{t.label}</span>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+                <Link href={agendaHref} className="h-10 rounded-full text-[13px] font-black flex items-center justify-center transition active:scale-95" style={{ background: '#f97316', color: '#fff', textDecoration: 'none' }}>Ver agenda</Link>
+                <Link href="/compromissos/agendar" className="h-10 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: `${borderColor}40`, color: textPrimary, textDecoration: 'none' }}><Plus size={14} /> Novo compromisso</Link>
+            </div>
+
+            {upcoming.length === 0 ? (
+                <div className="rounded-xl p-5 text-center" style={{ background: `${borderColor}20`, border: `1px dashed ${borderColor}` }}>
+                    <p className="text-sm font-bold" style={{ color: textPrimary }}>Nenhum serviço na agenda pela frente</p>
+                    <p className="text-xs mt-1" style={{ color: textSecondary }}>Os serviços que você aceitar em Pedidos na loja aparecem aqui.</p>
+                </div>
+            ) : (
+                <div className="flex flex-col gap-2">
+                    {upcoming.map((a) => {
+                        const person = people.get(a.customer_id)
+                        const isToday = new Date(`${a.date}T12:00:00`).toDateString() === todayStr
+                        const dateStr = new Date(`${a.date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).replace('.', '')
+                        return (
+                            <Link
+                                key={a.id}
+                                href={agendaHref}
+                                className="w-full rounded-2xl flex items-center gap-3 px-3.5 py-3 transition active:scale-[0.99]"
+                                style={{ background: colors.surface, border: `1px solid ${borderColor}`, borderLeft: '4px solid #7c3aed', textDecoration: 'none' }}
+                            >
+                                <span className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 text-sm font-black" style={{ background: `${borderColor}60`, color: textPrimary }}>
+                                    {person?.avatarUrl ? <img src={person.avatarUrl} alt="" className="w-full h-full object-cover" /> : (a.customer_slug || '?').charAt(0).toUpperCase()}
+                                </span>
+                                <span className="min-w-0 flex-1 flex flex-col gap-0.5">
+                                    <span className="flex items-center gap-2 min-w-0">
+                                        <span className="text-sm font-black truncate" style={{ color: textPrimary }}>@{a.customer_slug}</span>
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide flex-shrink-0" style={{ background: '#7c3aed1f', color: '#7c3aed' }}>{isToday ? 'Hoje' : dateStr}</span>
+                                    </span>
+                                    <span className="text-xs truncate" style={{ color: textSecondary }}>{a.service_name}{a.duration_minutes ? ` · ${a.duration_minutes} min` : ''}</span>
+                                </span>
+                                <span className="text-sm font-black tabular-nums flex-shrink-0" style={{ color: textPrimary }}>{formatTime(a.time)}</span>
+                            </Link>
+                        )
+                    })}
+                </div>
+            )}
+        </>
+    )
+
     // 3.0: o mesmo cartão de seção das outras partes do painel
     if (v3) {
         return (
@@ -537,12 +601,11 @@ export default function AtalhoCompromissosDaLoja({
             <V3Section
                 title="Agenda da loja"
                 subtitle={<><span style={{ color: '#7c3aed', fontWeight: 800 }}>{confirmedCount}</span> na agenda · <span style={{ color: '#2563eb', fontWeight: 800 }}>{completedCount}</span> feito{completedCount !== 1 ? 's' : ''}</>}
-                badge={storeAppointments.length > 0 ? <span className="text-xs font-black px-2.5 py-1 rounded-full text-white flex-shrink-0" style={{ background: V3_GRADIENT }}>{storeAppointments.length}</span> : undefined}
                 expanded={isExpanded}
                 onToggle={() => setIsExpanded(!isExpanded)}
                 className="mb-6"
             >
-                {body}
+                {bodyV3}
             </V3Section>
 
             {/* Estilos do scroll */}

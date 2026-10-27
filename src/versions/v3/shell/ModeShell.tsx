@@ -159,7 +159,7 @@ function DrawerLabel({ children }: { children: ReactNode }) {
 function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, onSwitchVersion }: {
     onSwitchVersion: () => Promise<void>
     /** Pedidos de cada loja (novos, em preparo, prontos) */
-    storeOrders: Record<string, { pending: number; preparing: number; ready: number }>
+    storeOrders: Record<string, { pending: number; preparing: number; ready: number; services: number }>
     data: DrawerData
     /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
@@ -198,7 +198,7 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
             {/* Só o cartão da loja (sem o título "Modo loja"): Ver loja + Painel e, embaixo, os pedidos */}
             <>
                 {data.stores.length > 0 ? data.stores.map((st) => {
-                    const o = storeOrders[st.id] || { pending: 0, preparing: 0, ready: 0 }
+                    const o = storeOrders[st.id] || { pending: 0, preparing: 0, ready: 0, services: 0 }
                     const going = o.preparing + o.ready
                     return (
                         <DrawerRow
@@ -228,10 +228,17 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
                                 >
                                     <ShoppingBag size={16} className="flex-shrink-0" />
                                     <span className="flex-1 text-left truncate">
-                                        {o.pending > 0 ? `${o.pending} ${o.pending === 1 ? 'pedido novo' : 'pedidos novos'}${going > 0 ? ` · ${going} em andamento` : ''}` : going > 0 ? `${going} ${going === 1 ? 'pedido em andamento' : 'pedidos em andamento'}` : 'Pedidos'}
+                                        {o.pending + o.services > 0
+                                            ? [o.pending > 0 ? `${o.pending} ${o.pending === 1 ? 'pedido novo' : 'pedidos novos'}` : '', o.services > 0 ? `${o.services} ${o.services === 1 ? 'serviço' : 'serviços'}` : '', going > 0 ? `${going} em andamento` : ''].filter(Boolean).join(' · ')
+                                            : going > 0 ? `${going} ${going === 1 ? 'pedido em andamento' : 'pedidos em andamento'}` : 'Pedidos'}
                                     </span>
-                                    {o.pending > 0
-                                        ? <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{o.pending > 99 ? '99+' : o.pending}</span>
+                                    {o.pending + o.services > 0
+                                        ? (
+                                            <span className="flex items-center gap-1 flex-shrink-0">
+                                                {o.pending > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{o.pending > 99 ? '99+' : o.pending}</span>}
+                                                {o.services > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#14b8a6' }}>{o.services > 99 ? '99+' : o.services}</span>}
+                                            </span>
+                                        )
                                         : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
                                 </button>
                             )}
@@ -456,7 +463,7 @@ export default function ModeShell({ children }: {
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
     const [dataLoaded, setDataLoaded] = useState(false)
     // Pedidos de cada loja da pessoa (novos, em preparo, prontos): aparecem no cartão da loja do menu
-    const [storeOrders, setStoreOrders] = useState<Record<string, { pending: number; preparing: number; ready: number }>>({})
+    const [storeOrders, setStoreOrders] = useState<Record<string, { pending: number; preparing: number; ready: number; services: number }>>({})
     // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>'
     const [activeMode, setActiveMode] = useState('perfil')
     // Com uma loja escolhida no menu, as conversas já abrem na sala dessa loja (?sala=<slug>)
@@ -519,13 +526,17 @@ export default function ModeShell({ children }: {
         let cancelled = false
         const load = async () => {
             if (document.hidden && !drawerOpen) return
-            const { data } = await supabase.from('orders').select('store_id, status').in('store_id', storeIdsKey.split(',')).in('status', ['pending', 'preparing', 'ready'])
+            const ids = storeIdsKey.split(',')
+            const [{ data }, { data: svc }] = await Promise.all([
+                supabase.from('orders').select('store_id, status').in('store_id', ids).in('status', ['pending', 'preparing', 'ready']),
+                // pedidos de SERVIÇO (agendamentos que a loja ainda precisa aceitar)
+                supabase.from('appointments').select('store_id').in('store_id', ids).eq('status', 'pending'),
+            ])
             if (cancelled || !data) return
-            const next: Record<string, { pending: number; preparing: number; ready: number }> = {}
-            for (const r of data as { store_id: string; status: 'pending' | 'preparing' | 'ready' }[]) {
-                const o = next[r.store_id] || (next[r.store_id] = { pending: 0, preparing: 0, ready: 0 })
-                o[r.status] += 1
-            }
+            const next: Record<string, { pending: number; preparing: number; ready: number; services: number }> = {}
+            const slot = (id: string) => next[id] || (next[id] = { pending: 0, preparing: 0, ready: 0, services: 0 })
+            for (const r of data as { store_id: string; status: 'pending' | 'preparing' | 'ready' }[]) slot(r.store_id)[r.status] += 1
+            for (const r of (svc || []) as { store_id: string }[]) slot(r.store_id).services += 1
             setStoreOrders(next)
         }
         load()
@@ -613,9 +624,9 @@ export default function ModeShell({ children }: {
     // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha
     const storeNew = (() => {
         const modeSlug = activeMode.startsWith('loja:') ? activeMode.slice(5) : null
-        const st = (modeSlug && drawerData.stores.find((x) => x.slug === modeSlug)) || drawerData.stores.find((x) => (storeOrders[x.id]?.pending || 0) > 0)
+        const st = (modeSlug && drawerData.stores.find((x) => x.slug === modeSlug)) || drawerData.stores.find((x) => (storeOrders[x.id]?.pending || 0) + (storeOrders[x.id]?.services || 0) > 0)
         if (!st) return null
-        return { count: storeOrders[st.id]?.pending || 0, name: st.name, path: `/painel-loja/${encodeURIComponent(st.slug)}`, prefer: !!modeSlug && st.slug === modeSlug }
+        return { products: storeOrders[st.id]?.pending || 0, services: storeOrders[st.id]?.services || 0, name: st.name, path: `/painel-loja/${encodeURIComponent(st.slug)}`, prefer: !!modeSlug && st.slug === modeSlug }
     })()
     const live = useShellLive(userId, orderCounts, topUnread, chatPath, storeNew)
     const openHub = () => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }
@@ -703,7 +714,14 @@ export default function ModeShell({ children }: {
                                 <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{live.sub}</span>
                                 <span className="flex items-center gap-1.5 min-w-0">
                                     <span className="relative flex-shrink-0 w-2 h-2"><span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: live.color, opacity: 0.6 }} /><span className="absolute inset-0 rounded-full" style={{ background: live.color }} /></span>
-                                    <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{live.title}</span>
+                                    {live.parts
+                                        ? live.parts.map((pt, i) => (
+                                            <span key={i} className="flex items-center gap-1 min-w-0">
+                                                {i > 0 && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: pt.color }} />}
+                                                <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{pt.text}</span>
+                                            </span>
+                                        ))
+                                        : <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{live.title}</span>}
                                 </span>
                             </>
                         ) : (

@@ -10,10 +10,12 @@ import { supabase } from '@/lib/supabase/client'
 
 export type ShellLiveKind = 'ride' | 'order' | 'chat' | 'store'
 // `color` = a cor do aviso na ilha (as dos pedidos: novos verde, em preparo amarelo, prontos roxo; finalizados azul)
-export interface ShellLive { kind: ShellLiveKind; title: string; sub?: string; path: string; hot?: boolean; color: string }
-/** Pedidos NOVOS da loja que a pessoa atende: `prefer` = a ilha está no modo dessa loja, então eles vêm antes das mensagens */
-export interface StoreNewOrders { count: number; name: string; path: string; prefer: boolean }
+export interface ShellLive { kind: ShellLiveKind; title: string; sub?: string; path: string; hot?: boolean; color: string; /** vários avisos lado a lado, cada um na sua cor (ex.: pedidos de produtos e de serviços) */ parts?: { text: string; color: string }[] }
+/** Pedidos NOVOS da loja que a pessoa atende (produtos e serviços a aceitar): `prefer` = a ilha está no modo dessa loja, então eles vêm antes das mensagens */
+export interface StoreNewOrders { products: number; services: number; name: string; path: string; prefer: boolean }
 export const ORDER_COLORS = { novo: '#22c55e', preparo: '#eab308', pronto: '#a855f7', finalizado: '#3b82f6' } as const
+/** Pedidos de SERVIÇO (agendamentos a aceitar): cor própria, para a ilha diferenciar de pedidos de produtos */
+export const SERVICE_COLOR = '#14b8a6'
 
 interface ActiveRide { status: string; enRoute: boolean; arrived: boolean; started: boolean; candidates: number }
 
@@ -56,8 +58,15 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
             : ride.started ? 'Em viagem' : ride.arrived ? 'O motorista chegou' : ride.enRoute ? 'Motorista a caminho' : 'Motorista escolhido'
         return { kind: 'ride', title, sub: ride.status === 'pending' && ride.candidates > 0 ? 'Toque para escolher' : 'Toque para acompanhar', path: '/pedir-motorista', hot: ride.candidates > 0 || ride.arrived, color: '#f97316' }
     }
-    const storeLive: ShellLive | null = storeNew && storeNew.count > 0
-        ? { kind: 'store', title: `${storeNew.count} ${storeNew.count === 1 ? 'pedido novo' : 'pedidos novos'}`, sub: `${storeNew.name} · Toque para atender`, path: storeNew.path, hot: true, color: ORDER_COLORS.novo }
+    const sp = storeNew?.products || 0, ss = storeNew?.services || 0
+    const storeLive: ShellLive | null = storeNew && sp + ss > 0
+        ? {
+            kind: 'store',
+            title: sp > 0 && ss > 0 ? `${sp} ${sp === 1 ? 'pedido' : 'pedidos'} · ${ss} ${ss === 1 ? 'serviço' : 'serviços'}` : sp > 0 ? `${sp} ${sp === 1 ? 'pedido novo' : 'pedidos novos'}` : `${ss} ${ss === 1 ? 'serviço para aceitar' : 'serviços para aceitar'}`,
+            sub: `${storeNew.name} · Toque para atender`, path: storeNew.path, hot: true,
+            color: sp > 0 ? ORDER_COLORS.novo : SERVICE_COLOR,
+            parts: [...(sp > 0 ? [{ text: `${sp} ${sp === 1 ? 'pedido' : 'pedidos'}${ss > 0 ? '' : sp === 1 ? ' novo' : ' novos'}`, color: ORDER_COLORS.novo }] : []), ...(ss > 0 ? [{ text: `${ss} ${ss === 1 ? 'serviço' : 'serviços'}${sp > 0 ? '' : ' para aceitar'}`, color: SERVICE_COLOR }] : [])],
+        }
         : null
     // No modo da loja os pedidos novos vêm ANTES das mensagens
     if (storeLive && storeNew?.prefer) return storeLive

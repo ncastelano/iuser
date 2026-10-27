@@ -124,7 +124,7 @@ def free_slot(dur):
         h, m = int(r['hora'][:2]), int(r['hora'][3:5])
         busy.setdefault(r['dia'], []).append((h * 60 + m, h * 60 + m + int(r['dur'])))
     for _ in range(60):
-        day = (datetime.now() + timedelta(days=R.randint(1, 21))).date()
+        day = (datetime.now() + timedelta(days=R.randint(1, 60))).date()
         start = R.choice(range(11 * 60, 21 * 60 + 1, 30))
         if any(start < e and b < start + dur for b, e in busy.get(str(day), [])):
             continue
@@ -316,8 +316,8 @@ def attend_service_cycle(speed):
             as_user(r['customer_id'], f"select report_appointment_deposit({esc(r['id'])}::uuid);")
             log('  💸 cliente informou a entrada do agendamento')
     for r in q_local(f"""select a.id, a.customer_id, a.service_name from appointments a where a.store_id = {esc(STORE['id'])}::uuid and a.status = 'confirmed'
-                         and a.updated_at < now() - interval '40 seconds' order by random() limit 2"""):
-        if R.random() > min(1, 0.15 * speed):
+                         and a.updated_at < now() - interval '6 minutes' order by random() limit 2"""):   # fica na agenda uns minutos antes de ser feito
+        if R.random() > min(1, 0.06 * speed):
             continue
         try:
             as_user(STORE['owner_id'], f"select complete_appointment({esc(r['id'])}::uuid);")
@@ -358,9 +358,9 @@ def loop(every, fn, stop):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--burst', type=int, default=6, help='pedidos feitos de uma vez ao começar')
-    ap.add_argument('--every', type=float, default=25, help='segundos entre um pedido e o próximo')
-    ap.add_argument('--appts-every', type=float, default=90, help='segundos entre um agendamento e o próximo')
-    ap.add_argument('--chat-every', type=float, default=22, help='segundos entre uma pergunta de cliente e a próxima')
+    ap.add_argument('--every', type=float, default=12, help='segundos entre um pedido e o próximo')
+    ap.add_argument('--appts-every', type=float, default=40, help='segundos entre um pedido de serviço (agendamento) e o próximo')
+    ap.add_argument('--chat-every', type=float, default=15, help='segundos entre uma pergunta de cliente e a próxima')
     ap.add_argument('--speed', type=float, default=1.0, help='multiplicador do ritmo do atendimento (2 = o dobro de rápido)')
     ap.add_argument('--manual', action='store_true', help='só chegam pedidos e agendamentos; quem atende (e responde) é a pessoa, pelo app')
     ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick'])
