@@ -162,7 +162,7 @@ def loop(every, fn, stop):
     def run():
         while not stop.is_set():
             safe(fn)
-            stop.wait(every * R.uniform(0.6, 1.4))
+            stop.wait(every * R.uniform(0.9, 1.1))
     t = threading.Thread(target=run, daemon=True)
     t.start()
     return t

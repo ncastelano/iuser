@@ -9,7 +9,7 @@
 import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
-    Store as StoreIcon, Car, MessageCircle, User, LogIn, ChevronRight, ChevronDown, X, Search, RotateCcw,
+    Store as StoreIcon, Car, MessageCircle, User, LogIn, ChevronRight, ChevronDown, X, Search, RotateCcw, ShoppingBag,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -65,13 +65,15 @@ function modePath(mode: string, data: DrawerData): string {
 
 // Linha de um modo no menu: mostra a imagem do modo (foto do perfil, logo da loja, foto do carro) ou, sem imagem, o ícone.
 // Nada some nem aparece aqui — a animação de troca acontece só no topo da página (seção "Bem-vindo").
-function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, actions, extra }: {
+function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, actions, extra, hidePanel = false }: {
     mode: string; active: string; icon: ReactNode; image?: string | null; title: string; desc?: string; dot?: string
     onSelect: (mode: string) => void
     /** Botões extras embaixo da linha (ex.: "Ver loja" e "Editar") */
     actions?: ReactNode
     /** Linha de aviso embaixo dos botões (ex.: mensagens não lidas) */
     extra?: ReactNode
+    /** Sem o botão "Painel" à direita (quando o painel já está entre os botões de baixo) */
+    hidePanel?: boolean
 }) {
     const selected = active === mode
     return (
@@ -96,10 +98,10 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
                             </span>
                         )}
                     </span>
-                    {!selected && <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
+                    {(!selected || hidePanel) && <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
                 </button>
                 {/* Modo selecionado: o botão "Painel" leva ao painel dele (o mesmo destino de tocar no cartão) */}
-                {selected && (
+                {selected && !hidePanel && (
                     <button
                         onClick={() => onSelect(mode)}
                         className="mr-3 flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
@@ -150,8 +152,10 @@ function DrawerLabel({ children }: { children: ReactNode }) {
     return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest opacity-80">{children}</p>
 }
 
-function MenuDrawerContent({ data, active, recent, onSelect, onGo, onSwitchVersion }: {
+function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, onSwitchVersion }: {
     onSwitchVersion: () => Promise<void>
+    /** Pedidos de cada loja (novos, em preparo, prontos) */
+    storeOrders: Record<string, { pending: number; preparing: number; ready: number }>
     data: DrawerData
     /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
@@ -187,29 +191,50 @@ function MenuDrawerContent({ data, active, recent, onSelect, onGo, onSwitchVersi
                 )}
             </Panel>
 
-            <Panel title="Modo loja">
-                {data.stores.length > 0 ? data.stores.map((st) => (
-                    <DrawerRow
-                        key={st.id}
-                        mode={`loja:${st.slug}`}
-                        active={active}
-                        onSelect={onSelect}
-                        icon={<StoreIcon size={20} color="#f97316" />}
-                        image={st.logo}
-                        title={st.name}
-                        desc={st.open ? 'Aberta agora' : 'Fechada agora'}
-                        dot={st.open ? '#4ade80' : '#fca5a5'}
-                        actions={(
-                            <>
-                                <DrawerPill onClick={() => onGo(`/${st.slug}`)}>Ver loja</DrawerPill>
-                                <DrawerPill solid onClick={() => onGo(`/painel-loja/${encodeURIComponent(st.slug)}`)}>Editar</DrawerPill>
-                            </>
-                        )}
-                    />
-                )) : (
+            {/* Só o cartão da loja (sem o título "Modo loja"): Ver loja + Painel e, embaixo, os pedidos */}
+            <section className="mt-4 rounded-3xl p-2 flex flex-col gap-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
+                {data.stores.length > 0 ? data.stores.map((st) => {
+                    const o = storeOrders[st.id] || { pending: 0, preparing: 0, ready: 0 }
+                    const going = o.preparing + o.ready
+                    return (
+                        <DrawerRow
+                            key={st.id}
+                            mode={`loja:${st.slug}`}
+                            active={active}
+                            onSelect={onSelect}
+                            hidePanel
+                            icon={<StoreIcon size={20} color="#f97316" />}
+                            image={st.logo}
+                            title={st.name}
+                            desc={st.open ? 'Aberta agora' : 'Fechada agora'}
+                            dot={st.open ? '#4ade80' : '#fca5a5'}
+                            actions={(
+                                <>
+                                    <DrawerPill onClick={() => onGo(`/${st.slug}`)}>Ver loja</DrawerPill>
+                                    <DrawerPill solid onClick={() => onSelect(`loja:${st.slug}`)}>Painel</DrawerPill>
+                                </>
+                            )}
+                            extra={(
+                                <button
+                                    onClick={() => onGo(`/painel-loja/${encodeURIComponent(st.slug)}`)}
+                                    className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                                    style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
+                                >
+                                    <ShoppingBag size={16} className="flex-shrink-0" />
+                                    <span className="flex-1 text-left truncate">
+                                        {o.pending > 0 ? `${o.pending} ${o.pending === 1 ? 'pedido novo' : 'pedidos novos'}${going > 0 ? ` · ${going} em andamento` : ''}` : going > 0 ? `${going} ${going === 1 ? 'pedido em andamento' : 'pedidos em andamento'}` : 'Pedidos'}
+                                    </span>
+                                    {o.pending > 0
+                                        ? <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#3b82f6' }}>{o.pending > 99 ? '99+' : o.pending}</span>
+                                        : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
+                                </button>
+                            )}
+                        />
+                    )
+                }) : (
                     <DrawerCta icon={<StoreIcon size={20} color="#f97316" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} />
                 )}
-            </Panel>
+            </section>
 
 
             <DrawerExplorar recent={recent} onGo={onGo} />
@@ -424,6 +449,8 @@ export default function ModeShell({ children }: {
     }, [])
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
     const [dataLoaded, setDataLoaded] = useState(false)
+    // Pedidos de cada loja da pessoa (novos, em preparo, prontos): aparecem no cartão da loja do menu
+    const [storeOrders, setStoreOrders] = useState<Record<string, { pending: number; preparing: number; ready: number }>>({})
     // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>'
     const [activeMode, setActiveMode] = useState('perfil')
     // Com uma loja escolhida no menu, as conversas já abrem na sala dessa loja (?sala=<slug>)
@@ -479,6 +506,25 @@ export default function ModeShell({ children }: {
         })().catch(() => { if (!cancelled) setDataLoaded(true) /* o menu só mostra o perfil */ })
         return () => { cancelled = true }
     }, [userId, profileLoading])
+
+    const storeIdsKey = drawerData.stores.map((st) => st.id).join(',')
+    useEffect(() => {
+        if (!drawerOpen || !storeIdsKey) return
+        let cancelled = false
+        const load = async () => {
+            const { data } = await supabase.from('orders').select('store_id, status').in('store_id', storeIdsKey.split(',')).in('status', ['pending', 'preparing', 'ready'])
+            if (cancelled || !data) return
+            const next: Record<string, { pending: number; preparing: number; ready: number }> = {}
+            for (const r of data as { store_id: string; status: 'pending' | 'preparing' | 'ready' }[]) {
+                const o = next[r.store_id] || (next[r.store_id] = { pending: 0, preparing: 0, ready: 0 })
+                o[r.status] += 1
+            }
+            setStoreOrders(next)
+        }
+        load()
+        const t = setInterval(load, 20_000)
+        return () => { cancelled = true; clearInterval(t) }
+    }, [drawerOpen, storeIdsKey])
 
     // Fecha com ESC e trava a rolagem da página enquanto o menu está aberto
     useEffect(() => {
@@ -745,6 +791,7 @@ export default function ModeShell({ children }: {
                                     data={drawerData}
                                     active={activeMode}
                                     recent={recent}
+                                    storeOrders={storeOrders}
                                     onSelect={selectMode}
                                     onGo={goAndClose}
                                     onSwitchVersion={onSwitchVersion}
