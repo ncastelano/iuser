@@ -28,7 +28,7 @@ import {
   Info,
 } from "lucide-react";
 import { Spinner } from '@/components/Spinner'
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import { createSquareImage } from "@/lib/image";
 import { useProfile } from "@/app/contexts/ProfileContext";
