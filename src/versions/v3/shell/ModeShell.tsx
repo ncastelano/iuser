@@ -9,8 +9,7 @@
 import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
-    Store as StoreIcon, Car, MessageCircle, ShoppingCart, User, LogIn, ChevronRight, ChevronDown, X, Check, Search, RotateCcw, MapPin,
-    CalendarCheck, Home as HomeIcon, Users, Radar, ShoppingBag, Briefcase, Package,
+    Store as StoreIcon, Car, MessageCircle, User, LogIn, ChevronRight, ChevronDown, X, Search, RotateCcw,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -66,11 +65,13 @@ function modePath(mode: string, data: DrawerData): string {
 
 // Linha de um modo no menu: mostra a imagem do modo (foto do perfil, logo da loja, foto do carro) ou, sem imagem, o ícone.
 // Nada some nem aparece aqui — a animação de troca acontece só no topo da página (seção "Bem-vindo").
-function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, actions }: {
+function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, actions, extra }: {
     mode: string; active: string; icon: ReactNode; image?: string | null; title: string; desc?: string; dot?: string
     onSelect: (mode: string) => void
-    /** Botões extras embaixo da linha (ex.: "Ver loja" e "Painel") */
+    /** Botões extras embaixo da linha (ex.: "Ver loja" e "Editar") */
     actions?: ReactNode
+    /** Linha de aviso embaixo dos botões (ex.: mensagens não lidas) */
+    extra?: ReactNode
 }) {
     const selected = active === mode
     return (
@@ -78,27 +79,38 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
             className="rounded-2xl"
             style={selected ? { background: 'rgba(255,255,255,0.3)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
         >
-            <button
-                onClick={() => onSelect(mode)}
-                aria-pressed={selected}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
-                    {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : icon}
-                </span>
-                <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black leading-tight truncate">{title}</span>
-                    {desc && (
-                        <span className="flex items-center gap-1.5 text-xs opacity-90 truncate">
-                            {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}
-                        </span>
-                    )}
-                </span>
-                {selected
-                    ? <span className="flex-shrink-0 w-6 h-6 rounded-full bg-white flex items-center justify-center" title="Modo selecionado"><Check size={14} color="#dc2626" strokeWidth={3} /></span>
-                    : <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
-            </button>
+            <div className="flex items-center">
+                <button
+                    onClick={() => onSelect(mode)}
+                    aria-pressed={selected}
+                    className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                    <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                        {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : icon}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black leading-tight truncate">{title}</span>
+                        {desc && (
+                            <span className="flex items-center gap-1.5 text-xs opacity-90 truncate">
+                                {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}
+                            </span>
+                        )}
+                    </span>
+                    {!selected && <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
+                </button>
+                {/* Modo selecionado: o botão "Painel" leva ao painel dele (o mesmo destino de tocar no cartão) */}
+                {selected && (
+                    <button
+                        onClick={() => onSelect(mode)}
+                        className="mr-3 flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                        style={{ background: '#fff', color: '#dc2626' }}
+                    >
+                        Painel
+                    </button>
+                )}
+            </div>
             {actions && <div className="flex gap-2 px-3 pb-2.5 pt-0.5">{actions}</div>}
+            {extra && <div className="px-3 pb-2.5">{extra}</div>}
         </div>
     )
 }
@@ -138,8 +150,10 @@ function DrawerLabel({ children }: { children: ReactNode }) {
     return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest text-white/80">{children}</p>
 }
 
-function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, onGo, onClose, onSwitchVersion }: {
+function MenuDrawerContent({ slug, avatarUrl, data, active, recent, unread, chatPath, onSelect, onGo, onClose, onSwitchVersion }: {
     onSwitchVersion: () => Promise<void>
+    /** Mensagens não lidas e a página das conversas (aviso dentro do cartão do perfil) */
+    unread: number; chatPath: string
     slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
     /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
@@ -216,6 +230,19 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
                             {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
                             <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Editar</DrawerPill>
                         </>
+                    )}
+                    extra={(
+                        <button
+                            onClick={() => onGo(chatPath)}
+                            className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black text-white transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                            style={{ background: unread > 0 ? 'rgba(17,24,39,0.55)' : 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.35)' }}
+                        >
+                            <MessageCircle size={16} className="flex-shrink-0" />
+                            <span className="flex-1 text-left truncate">{unread > 0 ? `${unread} ${unread === 1 ? 'mensagem não lida' : 'mensagens não lidas'}` : 'Conversas'}</span>
+                            {unread > 0
+                                ? <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center" style={{ background: '#16a34a' }}>{unread > 99 ? '99+' : unread}</span>
+                                : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
+                        </button>
                     )}
                 />
             </Panel>
@@ -308,7 +335,6 @@ function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { rece
 
             <DrawerExplorar recent={recent} onGo={onGo} />
             <DrawerVersionSwitch onSwitch={onSwitchVersion} />
-            <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
     )
 }
@@ -345,28 +371,6 @@ function ModeAvatar({ userId, image, noRing, modeIcon, popToken, colors, size = 
                 {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : modeIcon}
             </span>
         </PlanAvatarRing>
-    )
-}
-
-// Atalhos do hub: o que há no iUser, a um toque
-const HUB_SHORTCUTS: { label: string; path: string; icon: ReactNode }[] = [
-    { label: 'Comprar', path: '/comprar', icon: <ShoppingBag size={20} /> },
-    { label: 'Radar', path: '/radar', icon: <Radar size={20} /> },
-    { label: 'Compromissos', path: '/compromissos', icon: <CalendarCheck size={20} /> },
-    { label: 'Comunidades', path: '/comunidade', icon: <Users size={20} /> },
-    { label: 'Imóveis', path: '/imoveis', icon: <HomeIcon size={20} /> },
-    { label: 'Fazer serviços', path: '/procurar-servico', icon: <Briefcase size={20} /> },
-]
-function HubShortcuts({ onGo }: { onGo: (path: string) => void }) {
-    return (
-        <section className="mt-1 grid grid-cols-3 gap-2">
-            {HUB_SHORTCUTS.map((a) => (
-                <button key={a.path} onClick={() => onGo(a.path)} className="rounded-2xl py-3 px-1 flex flex-col items-center gap-1.5 text-white text-[11px] font-black transition active:scale-95" style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.2)' }}>
-                    {a.icon}
-                    <span className="leading-tight text-center">{a.label}</span>
-                </button>
-            ))}
-        </section>
     )
 }
 
@@ -704,8 +708,6 @@ export default function ModeShell({ children }: {
                             </button>
                         </div>
                         <div className="overflow-y-auto overscroll-contain flex-1 min-h-0">
-                            {/* Atalhos primeiro: o que há no iUser, a um toque */}
-                            <div className="px-3 pb-1"><HubShortcuts onGo={goAndClose} /></div>
                             {!userId && (
                                 <VisitorDrawerContent recent={recent} onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
                             )}
@@ -716,6 +718,8 @@ export default function ModeShell({ children }: {
                                     data={drawerData}
                                     active={activeMode}
                                     recent={recent}
+                                    unread={topUnread}
+                                    chatPath={chatPath}
                                     onSelect={selectMode}
                                     onGo={goAndClose}
                                     onClose={() => setDrawerOpen(false)}
