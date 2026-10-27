@@ -1073,51 +1073,22 @@ export default function CatalogoClientPage() {
                 </div>
             )}
 
-            <main className="relative z-10 min-h-dvh pb-32">
+            <main className="relative z-10 min-h-dvh" style={{ paddingBottom: insideShell ? 'calc(150px + var(--staging-banner-h, 0px))' : '8rem' }}>
 
-                {/* ===== 3.0: cabeçalho sólido (voltar, loja e como está, busca e categorias), no desenho da ilha e da barra ===== */}
+                {/* ===== 3.0: o topo é só o título da loja e as categorias (nada flutuante). Voltar, loja e busca ficam na peça de baixo, fundidos à sacola. ===== */}
                 {insideShell ? (
-                    <div className="sticky z-20 px-3 pt-1.5 pb-2.5" style={{ top: 'var(--shell-top, 0px)', background: colors.background }}>
-                        <div className="flex items-center gap-2.5">
-                            <button
-                                onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push(`/${ownerSlug}`))}
-                                aria-label="Voltar"
-                                className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition active:scale-95"
-                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
-                            >
-                                <ArrowLeft size={19} />
-                            </button>
-                            <button onClick={() => router.push(`/${ownerSlug}`)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
-                                <span className="w-11 h-11 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT }}>
-                                    {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
-                                </span>
-                                <span className="min-w-0">
-                                    <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{storeInfo.name}</span>
-                                    <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>
-                                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isStoreOpen ? '#16a34a' : '#ef4444' }} />
-                                        <span className="truncate">
-                                            {isStoreOpen
-                                                ? `Aberta agora${(() => { const h = getTodayHoursText(storeInfo.business_hours); return h ? ` · ${h === '00:00 - 00:00' ? '24 horas' : h}` : '' })()}`
-                                                : nextAvailable ? `Fechada · abre ${nextAvailable.day} às ${nextAvailable.open}` : 'Fechada agora'}
-                                        </span>
-                                    </span>
-                                </span>
-                            </button>
-                        </div>
-                        <div className="mt-2.5 flex items-center gap-2 px-4 rounded-full h-11" style={{ background: `${colors.border}40` }}>
-                            <Search size={17} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
-                            <input
-                                ref={searchInputRef}
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Buscar nesta loja"
-                                className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
-                                style={{ color: colors.textPrimary }}
-                            />
-                            {searchQuery && <button onClick={() => setSearchQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={16} /></button>}
-                        </div>
+                    <div className="px-4 pt-3 pb-1">
+                        <h1 className="text-xl font-black leading-tight tracking-tight" style={{ color: colors.textPrimary }}>{storeInfo.name}</h1>
+                        <p className="mt-0.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isStoreOpen ? '#16a34a' : '#ef4444' }} />
+                            <span className="truncate">
+                                {isStoreOpen
+                                    ? `Aberta agora${(() => { const h = getTodayHoursText(storeInfo.business_hours); return h ? ` · ${h === '00:00 - 00:00' ? '24 horas' : h}` : '' })()}`
+                                    : nextAvailable ? `Fechada · abre ${nextAvailable.day} às ${nextAvailable.open}` : 'Fechada agora'}
+                            </span>
+                        </p>
                         {categories.length > 1 && (
-                            <div className="mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3 pb-0.5">
+                            <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5">
                                 {categories.map((cat) => {
                                     const on = selectedCategory === cat.name
                                     return (
@@ -1125,11 +1096,7 @@ export default function CatalogoClientPage() {
                                             key={cat.name}
                                             onClick={() => setSelectedCategory(cat.name)}
                                             className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-black whitespace-nowrap flex-shrink-0 transition active:scale-95"
-                                            style={{
-                                                background: on ? '#f9731614' : colors.background,
-                                                color: on ? '#ea580c' : colors.textPrimary,
-                                                border: `1.5px solid ${on ? '#f97316' : colors.border}`,
-                                            }}
+                                            style={{ background: on ? '#f9731614' : colors.background, color: on ? '#ea580c' : colors.textPrimary, border: `1.5px solid ${on ? '#f97316' : colors.border}` }}
                                         >
                                             {cat.name}
                                             <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={{ background: on ? '#f97316' : `${colors.border}66`, color: on ? '#fff' : colors.textSecondary }}>{cat.count}</span>
@@ -1369,7 +1336,7 @@ export default function CatalogoClientPage() {
                                             className="rounded-3xl overflow-hidden flex flex-col cursor-pointer text-left transition active:scale-[0.99]"
                                             style={{ background: colors.surface, border: `1px solid ${isSelected ? '#22c55e' : colors.border}`, boxShadow: '0 6px 18px rgba(0,0,0,0.06)', opacity: soldOut ? 0.6 : 1 }}
                                         >
-                                            <div className="relative aspect-square overflow-hidden" style={{ background: GRADIENT }}>
+                                            <div className="relative aspect-[5/4] overflow-hidden" style={{ background: GRADIENT }}>
                                                 {product.image_url || storeInfo?.logo_url
                                                     ? <img src={product.image_url || storeInfo?.logo_url || ''} alt="" className={`w-full h-full ${product.image_url ? 'object-cover' : 'object-contain p-6'}`} loading="lazy" />
                                                     : <span className="absolute inset-0 flex items-center justify-center text-white/90 text-4xl font-black">{storeInfo?.name?.trim().charAt(0).toUpperCase() || '?'}</span>}
@@ -1594,10 +1561,17 @@ export default function CatalogoClientPage() {
 
                 {/* ===== BOTÃO FLUTUANTE - SACOLA (agora no lado esquerdo; busca vive no header, igual à home) ===== */}
                 <div style={insideShell
-                    ? { position: 'fixed', bottom: 'calc(14px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 448, margin: '0 auto', zIndex: 998 }
+                    ? {
+                        // UMA peça só (como a barra de baixo do app): sacola em cima e, embaixo, voltar + loja + busca
+                        position: 'fixed', bottom: 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 448, margin: '0 auto', zIndex: 998,
+                        background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 30, boxShadow: '0 12px 32px rgba(0,0,0,0.2)', overflow: 'hidden',
+                    }
                     : { position: 'fixed', bottom: 32, left: 16, zIndex: 998, maxWidth: 'calc(100vw - 32px)' }}>
+                    {/* 3.0: a sacola só aparece com itens (compacta, como a faixa do carrinho da barra); sem itens, só a linha de baixo */}
+                    {(!insideShell || bagItems.length > 0) && (
                     <CatalogBag
                         v3={insideShell}
+                        bare={insideShell}
                         bagItems={bagItems}
                         isExpanded={isBagExpanded}
                         onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
@@ -2026,6 +2000,39 @@ export default function CatalogoClientPage() {
                             </>
                         ) : null}
                     />
+                    )}
+                    {insideShell && (
+                        <div className="flex items-center gap-2 px-2" style={{ height: 62, borderTop: bagItems.length > 0 ? `1px solid ${colors.border}` : 'none' }}>
+                            <button
+                                onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push(`/${ownerSlug}`))}
+                                aria-label="Voltar"
+                                className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition active:scale-95"
+                                style={{ background: `${colors.border}55`, color: colors.textPrimary }}
+                            >
+                                <ArrowLeft size={19} />
+                            </button>
+                            <button
+                                onClick={() => router.push(`/${ownerSlug}`)}
+                                aria-label={`Loja ${storeInfo.name}`}
+                                className="relative flex-shrink-0 w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-white font-black transition active:scale-95"
+                                style={{ background: GRADIENT, boxShadow: `0 0 0 2px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}
+                            >
+                                {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
+                            </button>
+                            <div className="flex-1 min-w-0 flex items-center gap-2 px-3.5 h-11 rounded-full" style={{ background: `${colors.border}40` }}>
+                                <Search size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                <input
+                                    ref={searchInputRef}
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Buscar na loja"
+                                    className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
+                                    style={{ color: colors.textPrimary }}
+                                />
+                                {searchQuery && <button onClick={() => setSearchQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={15} /></button>}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* ===== MODAL DE ADICIONAR (observação sempre; adicionais se a loja habilitar) ===== */}

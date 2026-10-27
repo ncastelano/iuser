@@ -121,7 +121,7 @@ export default function CatalogBag({
         <div className="relative" style={fullWidth ? { width: '100%' } : undefined}>
             <div
                 className={`transition-all duration-300 overflow-hidden ${bare ? '' : v3 ? 'rounded-3xl cursor-pointer' : 'rounded-2xl shadow-2xl cursor-pointer'}`}
-                style={v3 && !bare ? {
+                style={v3 && bare ? { background: 'transparent', border: 'none', boxShadow: 'none', width: '100%' } : v3 ? {
                     background: colors.background,
                     border: `1px solid ${totalItems > 0 ? '#f97316' : colors.border}`,
                     boxShadow: '0 10px 28px rgba(0,0,0,0.16)',
@@ -140,11 +140,12 @@ export default function CatalogBag({
                     com a barra de baixo (ícone + total + Finalizar), então some daqui. */}
                 {!(isExpanded && !checkoutContent) && (
                     <div
-                        className={`flex items-center gap-2 ${v3 ? 'px-3 h-14' : 'p-2'}`}
+                        className={`flex items-center gap-2 ${v3 ? 'px-3 h-11' : 'p-2'}`}
+                        style={v3 ? { background: 'linear-gradient(90deg, rgba(249,115,22,0.16), rgba(220,38,38,0.16))' } : undefined}
                         onClick={onToggleExpanded}
                     >
                         <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden"
+                            className={`${v3 ? 'w-8 h-8' : 'w-10 h-10'} rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden`}
                             style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textSecondary }}
                         >
                             {badgeIcon}
