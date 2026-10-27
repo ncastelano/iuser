@@ -6,7 +6,7 @@
 'use client'
 
 import { Fragment, type ReactNode } from 'react'
-import { Bike, Car, CheckCircle2, ChevronRight, Hand, Navigation2, Radar, Star, TrendingUp, Volume2, VolumeX, History } from 'lucide-react'
+import { Bike, Car, Package, CheckCircle2, ChevronRight, Hand, Navigation2, Radar, Star, TrendingUp, Volume2, VolumeX, History } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
 const ORANGE = '#f97316'
@@ -23,7 +23,7 @@ function Switch({ on, color = ORANGE, label, onClick, busy }: { on: boolean; col
 
 export default function DriverPanelHome({
     colors, driverStatus, driverModeActive, togglingMode, onToggleMode, missingCount, onContinueSignup,
-    rides, candidacies, hasAccepted, goTab,
+    rides, deliveries = 0, candidacies, hasAccepted, acceptedIsDelivery = false, incoming = [], goTab,
     vehicleLabel, vehicles, pricingLabel, tariffLines, reviewsAvg, reviewsCount, ridesDone,
     alertSound, onToggleAlert, voiceNav, onToggleVoice, deliveryRadius, onDeliveryRadius,
     debt, invite, onDeliveries,
@@ -35,7 +35,14 @@ export default function DriverPanelHome({
     onToggleMode: () => void
     missingCount: number
     onContinueSignup: () => void
+    /** corridas de passageiro/objeto/animal esperando */
     rides: number
+    /** entregas de LOJA abertas (pedidos de loja que o motorista pode entregar) */
+    deliveries?: number
+    /** a corrida aceita é uma entrega de loja (leva à Central de entregas) */
+    acceptedIsDelivery?: boolean
+    /** as mais recentes dos dois tipos, juntas */
+    incoming?: { id: string; kind: 'ride' | 'delivery'; title: string; sub: string; price: number | null; at: string }[]
     candidacies: number
     hasAccepted: boolean
     goTab: (t: Tab) => void
@@ -123,33 +130,24 @@ export default function DriverPanelHome({
             {section('Agora', (
                 <div className="flex flex-col gap-2.5">
                     {hasAccepted && (
-                        <button onClick={() => goTab('aceita')} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: '#16a34a18', border: '1.5px solid #16a34a66' }}>
-                            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: '#16a34a' }}><CheckCircle2 size={20} /></span>
+                        <button onClick={() => (acceptedIsDelivery && onDeliveries ? onDeliveries() : goTab('aceita'))} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: '#16a34a18', border: '1.5px solid #16a34a66' }}>
+                            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: '#16a34a' }}>{acceptedIsDelivery ? <Package size={20} /> : <CheckCircle2 size={20} />}</span>
                             <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Você tem uma corrida aceita</span>
+                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{acceptedIsDelivery ? 'Você tem uma entrega em andamento' : 'Você tem uma corrida aceita'}</span>
                                 <span className="block text-xs" style={{ color: '#16a34a' }}>Toque para abrir e continuar</span>
                             </span>
                             <ChevronRight size={16} style={{ color: '#16a34a' }} />
                         </button>
                     )}
-                    {onDeliveries && (
-                        <button onClick={onDeliveries} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99] text-white" style={{ background: 'linear-gradient(135deg,#f97316,#be123c)', boxShadow: '0 6px 18px #f9731640' }}>
-                            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.22)' }}><Bike size={20} /></span>
-                            <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-black">Central de entregas</span>
-                                <span className="block text-xs opacity-90">Entregas das lojas, sua mochila e a rota guiada</span>
-                            </span>
-                            <ChevronRight size={16} />
-                        </button>
-                    )}
                     <div className="grid grid-cols-2 gap-2.5">
                         {([
-                            { id: 'solicitacoes' as Tab, n: rides, label: 'Solicitações', hint: rides === 1 ? 'corrida esperando' : 'corridas esperando', icon: Radar },
-                            { id: 'candidaturas' as Tab, n: candidacies, label: 'Me candidatei', hint: candidacies === 1 ? 'aguardando resposta' : 'aguardando resposta', icon: Hand },
+                            { id: 'solicitacoes' as Tab | 'entregas', n: rides, label: 'Corridas', hint: rides === 1 ? 'passageiro esperando' : 'esperando você', icon: Radar },
+                            ...(onDeliveries ? [{ id: 'entregas' as Tab | 'entregas', n: deliveries, label: 'Entregas de lojas', hint: deliveries === 1 ? 'pedido para entregar' : 'pedidos para entregar', icon: Package }] : []),
+                            { id: 'candidaturas' as Tab | 'entregas', n: candidacies, label: 'Me candidatei', hint: 'aguardando resposta', icon: Hand },
                         ]).map((t) => {
                             const Icon = t.icon
                             return (
-                                <button key={t.id} onClick={() => goTab(t.id)} className="rounded-2xl p-3.5 text-left transition active:scale-[0.98]" style={{ background: soft }}>
+                                <button key={t.id} onClick={() => (t.id === 'entregas' ? onDeliveries?.() : goTab(t.id as Tab))} className="rounded-2xl p-3.5 text-left transition active:scale-[0.98]" style={{ background: soft }}>
                                     <span className="flex items-center justify-between">
                                         <span className="text-3xl font-black leading-none" style={{ color: t.n > 0 ? ORANGE : colors.textPrimary }}>{t.n}</span>
                                         <Icon size={18} style={{ color: colors.textSecondary }} />
@@ -160,6 +158,22 @@ export default function DriverPanelHome({
                             )
                         })}
                     </div>
+                    {/* As mais recentes dos dois tipos juntas: corrida de passageiro e entrega de loja */}
+                    {incoming.length > 0 && (
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Chegando agora</span>
+                            {incoming.map((it) => (
+                                <button key={it.id} onClick={() => (it.kind === 'delivery' && onDeliveries ? onDeliveries() : goTab('solicitacoes'))} className="w-full rounded-2xl px-3 py-2.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: soft }}>
+                                    <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: it.kind === 'delivery' ? '#16a34a' : ORANGE }}>{it.kind === 'delivery' ? <Package size={17} /> : <Car size={17} />}</span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="flex items-center gap-1.5"><span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full" style={{ background: it.kind === 'delivery' ? '#16a34a22' : `${ORANGE}22`, color: it.kind === 'delivery' ? '#16a34a' : ORANGE }}>{it.kind === 'delivery' ? 'Entrega' : 'Corrida'}</span><span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{it.title}</span></span>
+                                        <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{it.sub}</span>
+                                    </span>
+                                    {it.price != null && <span className="text-sm font-black flex-shrink-0" style={{ color: '#16a34a' }}>R$ {it.price.toFixed(2).replace('.', ',')}</span>}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             ))}
 

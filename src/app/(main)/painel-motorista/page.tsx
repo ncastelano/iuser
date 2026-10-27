@@ -24,7 +24,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import InviteButton from '@/components/InviteButton'
-import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab } from '@/components/AceitarCorridas/AceitarCorridas'
+import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab, type DriverRequestsSummary } from '@/components/AceitarCorridas/AceitarCorridas'
 import { callAdminApi } from '@/lib/callAdminApi'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useInsideShell } from '@/components/InsideShell'
@@ -158,7 +158,7 @@ function PainelMotoristaContent() {
 
     // Abas que eram do /aceitar-corridas (Solicitações de motorista / Me candidatei /
     // Corrida aceita) — o conteúdo vem do mesmo componente, embutido aqui.
-    const [rideSummary, setRideSummary] = useState({ rides: 0, candidacies: 0, hasAccepted: false })
+    const [rideSummary, setRideSummary] = useState<DriverRequestsSummary>({ rides: 0, deliveries: 0, candidacies: 0, hasAccepted: false, acceptedIsDelivery: false, incoming: [] })
     const [rideSummaryLoaded, setRideSummaryLoaded] = useState(false)
     const rideTabFromPanel: Record<string, AceitarCorridasTab> = { solicitacoes: 'servicos', candidaturas: 'candidatos', aceita: 'aceita' }
     const handleRideTabChange = useCallback((t: AceitarCorridasTab) => {
@@ -763,7 +763,7 @@ function PainelMotoristaContent() {
             { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
             ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
             { id: 'entregas', label: 'Entregas', icon: Bike, isActive: false, onClick: () => router.push('/entregas'), badge: null },
-            { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: rideSummary.rides > 0 ? { count: rideSummary.rides } : null },
+            { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: rideSummary.rides + rideSummary.deliveries > 0 ? { count: rideSummary.rides + rideSummary.deliveries } : null },
             // "Me candidatei" só aparece quando tem algo nela (candidatura pendente) ou há corrida aceita.
             ...(rideSummary.candidacies > 0 || rideSummary.hasAccepted ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null }] : []),
             {
@@ -814,6 +814,13 @@ function PainelMotoristaContent() {
                         />
                     )}
 
+                    {/* Na aba Painel (3.0) o mesmo carregador roda ESCONDIDO só para alimentar os números de "Agora" (corridas, entregas de lojas, candidaturas) e a lista "Chegando agora" */}
+                    {!loading && !showLogin && !showActivationWizard && activeTab === 'painel' && v3 && (
+                        <div hidden aria-hidden>
+                            <AceitarCorridas embedded tab="servicos" onTabChange={() => {}} onSummaryChange={setRideSummary} onRegisterVehicle={() => {}} />
+                        </div>
+                    )}
+
                     {!loading && !showLogin && (
                         <div className="flex flex-col gap-5">
                             {activeTab === 'painel' && v3 && (
@@ -826,6 +833,9 @@ function PainelMotoristaContent() {
                                     missingCount={missingFields.length}
                                     onContinueSignup={() => { setShowActivationWizard(true); setActiveTab('veiculo') }}
                                     rides={rideSummary.rides}
+                                    deliveries={rideSummary.deliveries}
+                                    acceptedIsDelivery={rideSummary.acceptedIsDelivery}
+                                    incoming={rideSummary.incoming}
                                     candidacies={rideSummary.candidacies}
                                     hasAccepted={rideSummary.hasAccepted}
                                     goTab={setActiveTab}

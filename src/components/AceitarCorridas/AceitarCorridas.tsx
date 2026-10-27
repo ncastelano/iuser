@@ -214,6 +214,10 @@ function rideStopsOf(ride: { stop1_lat: number | null; stop1_lng: number | null;
 
 const MAX_CANDIDATES = 5
 
+/** O que o painel do motorista mostra em "Agora": corridas de passageiro/objeto/animal e ENTREGAS de loja, separadas, e as mais recentes dos dois tipos juntas */
+export interface IncomingPreview { id: string; kind: 'ride' | 'delivery'; title: string; sub: string; price: number | null; at: string }
+export interface DriverRequestsSummary { rides: number; deliveries: number; candidacies: number; hasAccepted: boolean; acceptedIsDelivery: boolean; incoming: IncomingPreview[] }
+
 interface RideCardData extends RideRow {
     requesterName: string | null
     requesterSlug: string | null
@@ -288,7 +292,7 @@ export interface AceitarCorridasProps {
     tab?: AceitarCorridasTab
     onTabChange?: (tab: AceitarCorridasTab) => void
     // Contagens/estado pras abas do painel (badges e "Corrida aceita").
-    onSummaryChange?: (summary: { rides: number; candidacies: number; hasAccepted: boolean }) => void
+    onSummaryChange?: (summary: DriverRequestsSummary) => void
     // Abrir o cadastro de veículo (no painel: troca pra aba Meu veículo).
     onRegisterVehicle?: () => void
 }
@@ -589,11 +593,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         // (quem já estava ligado de antes, sem a sincronização, é corrigido aqui).
         if (contextUserId) supabase
             .from('driver_pricing')
-            .select('live_location_sync, driver_mode_active')
+            .select('live_location_sync, driver_mode_active, live_lat, live_lng')
             .eq('driver_id', contextUserId)
             .maybeSingle()
             .then(({ data }) => {
                 const modeOn = !!data?.driver_mode_active
+                // Sem GPS do aparelho (permissão negada, teste local, desktop) vale a última posição ao vivo gravada: sem ela as entregas de loja (medidas pela distância) nem apareceriam
+                if (modeOn && !gpsFixRef.current && (data as any)?.live_lat != null && (data as any)?.live_lng != null) setDriverCoords([Number((data as any).live_lng), Number((data as any).live_lat)])
                 if (modeOn && !data?.live_location_sync) {
                     supabase.from('driver_pricing').update({ live_location_sync: true }).eq('driver_id', contextUserId).then(() => {})
                 }
@@ -940,9 +946,18 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
     // Avisa o painel (quando embutido) pra ele montar as mesmas abas com os badges.
     useEffect(() => {
-        onSummaryChange?.({ rides: radiusRides.length, candidacies: candidacies.length, hasAccepted: !!acceptedRide })
+        const deliveries = radiusRides.filter((r) => !!r.order_id)
+        const rideKinds = radiusRides.filter((r) => !r.order_id)
+        const label: Record<string, string> = { pessoa: 'Passageiro', objeto: 'Objeto', animal: 'Animal' }
+        const incoming: IncomingPreview[] = [...radiusRides]
+            .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+            .slice(0, 4)
+            .map((r) => r.order_id
+                ? { id: r.id, kind: 'delivery' as const, title: r.storeName || 'Entrega de loja', sub: `Entrega · ${shortAddress(r.destination_address)}`, price: r.offered_price != null ? Number(r.offered_price) : null, at: String(r.created_at) }
+                : { id: r.id, kind: 'ride' as const, title: `${label[r.ride_type] || 'Corrida'} · ${shortAddress(r.origin_address)}`, sub: `até ${shortAddress(r.destination_address)}`, price: r.offered_price != null ? Number(r.offered_price) : null, at: String(r.created_at) })
+        onSummaryChange?.({ rides: rideKinds.length, deliveries: deliveries.length, candidacies: candidacies.length, hasAccepted: !!acceptedRide, acceptedIsDelivery: !!acceptedRide?.order_id, incoming })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [radiusRides.length, candidacies.length, !!acceptedRide])
+    }, [radiusRides, candidacies.length, !!acceptedRide, acceptedRide?.order_id])
 
     const applyToRide = async (ride: RideCardData, price: number) => {
         if (price <= 0) {
