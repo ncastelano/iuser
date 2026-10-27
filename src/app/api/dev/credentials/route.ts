@@ -1,4 +1,4 @@
-// GET /api/dev/credentials?as=owner|client — só no ambiente LOCAL de desenvolvimento: e-mail + senha de teste da conta que uma das telas da
+// GET /api/dev/credentials?as=owner|client|driver-<chave> — só no ambiente LOCAL de desenvolvimento: e-mail + senha de teste da conta que uma das telas da
 // página /tres-telas deve abrir (dono da pizzaria ou cliente em destaque). Em qualquer outro ambiente: 404.
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
@@ -15,5 +15,7 @@ export async function GET(req: Request) {
         if (!u?.user?.email) return NextResponse.json({ error: 'dono sem e-mail' }, { status: 404 })
         return NextResponse.json({ email: u.user.email, password: DEV_TEST_PASSWORD })
     }
-    return NextResponse.json({ error: 'as=owner|client' }, { status: 400 })
+    const drv = who?.match(/^driver-([a-z]+)$/)
+    if (drv) return NextResponse.json({ email: `entregador-${drv[1]}@staging.iuser.test`, password: DEV_TEST_PASSWORD })   // motoristas iUser (seed-entregadores.mjs)
+    return NextResponse.json({ error: 'as=owner|client|driver-<chave>' }, { status: 400 })
 }

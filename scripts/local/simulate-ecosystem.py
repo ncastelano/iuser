@@ -106,6 +106,8 @@ STATE = {'appt_age': {}, 'ride_tick': {}}
 # Donos que atendem à mão no app (admin-teste, a Pizzaria Forno de Ouro): o simulador NÃO aceita pedidos nem confirma agendamentos das lojas deles
 MANUAL_OWNERS = ('c86da741-189b-4eab-a347-08166081b31a',)
 MANUAL_SQL = ','.join(f"'{x}'" for x in MANUAL_OWNERS)
+# Motoristas que entregam para a Pizzaria Forno de Ouro (seed-entregadores.mjs) agem só pelo simulador da pizzaria; entrega de loja (order_id) também
+PIZZA_DRIVERS_SQL = "(select u.id from auth.users u where u.email like 'entregador-%@staging.iuser.test')"
 
 
 # ---------------------------------------------------------------- ações das pessoas
@@ -455,7 +457,8 @@ def refresh_drivers():
     """Mantém os motoristas ativos com posição fresca (e se mexendo um pouco)."""
     psql(['-c', """update driver_pricing set
         live_lat = coalesce(live_lat, -8.7625) + (random() - 0.5) * 0.002, live_lng = coalesce(live_lng, -63.9040) + (random() - 0.5) * 0.002,
-        live_updated_at = now(), live_location_sync = true where driver_mode_active"""])
+        live_updated_at = now(), live_location_sync = true where driver_mode_active
+        and driver_id not in (select u.id from auth.users u where u.email like 'entregador-%@staging.iuser.test')"""])
 
 
 def request_rides(target):
@@ -484,11 +487,12 @@ def request_rides(target):
 
 def drive_rides():
     # 1) motoristas livres se candidatam às corridas pendentes
-    pend = q_local("select id, distance_km, origin_lat, origin_lng from ride_requests where status = 'pending' order by created_at")
+    pend = q_local("select id, distance_km, origin_lat, origin_lng from ride_requests where status = 'pending' and order_id is null order by created_at")
     if pend:
-        free = q_local("""select dp.driver_id as id, p.name from driver_pricing dp join profiles p on p.id = dp.driver_id where dp.driver_mode_active and dp.driver_id not in (__R__)
+        free = q_local(("""select dp.driver_id as id, p.name from driver_pricing dp join profiles p on p.id = dp.driver_id where dp.driver_mode_active and dp.driver_id not in (__R__)
+            and dp.driver_id not in """ + PIZZA_DRIVERS_SQL + """
             and not exists (select 1 from ride_requests r where r.driver_id = dp.driver_id and r.status = 'accepted')
-            and (select count(*) from ride_applications a where a.applicant_id = dp.driver_id and a.status = 'pending') < 2 order by random() limit 6""".replace('__R__', RESERVED_SQL))
+            and (select count(*) from ride_applications a where a.applicant_id = dp.driver_id and a.status = 'pending') < 2 order by random() limit 6""").replace('__R__', RESERVED_SQL))
         for d in free:
             r = R.choice(pend)
             price = round(7 + float(r['distance_km'] or 3) * 2.1 + R.random() * 2, 2)
@@ -510,7 +514,7 @@ def drive_rides():
             log(f"  ✗ escolha de motorista falhou: {str(e).splitlines()[0][:110]}")
     # 3) corridas aceitas andam um passo por tick
     for r in q_local("""select id, driver_id, requester_id, destination_lat, destination_lng, driver_en_route, driver_arrived_at is not null as arrived, ride_started_at is not null as started
-        from ride_requests where status = 'accepted' and driver_id is not null"""):
+        from ride_requests where status = 'accepted' and driver_id is not null and order_id is null"""):
         did, rid = r['driver_id'], r['id']
         try:
             if not r['driver_en_route']:

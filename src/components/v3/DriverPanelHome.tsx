@@ -6,7 +6,7 @@
 'use client'
 
 import { Fragment, type ReactNode } from 'react'
-import { Car, CheckCircle2, ChevronRight, Hand, Navigation2, Radar, Star, TrendingUp, Volume2, VolumeX, History } from 'lucide-react'
+import { Bike, Car, CheckCircle2, ChevronRight, Hand, Navigation2, Radar, Star, TrendingUp, Volume2, VolumeX, History } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
 const ORANGE = '#f97316'
@@ -26,7 +26,7 @@ export default function DriverPanelHome({
     rides, candidacies, hasAccepted, goTab,
     vehicleLabel, vehicles, pricingLabel, tariffLines, reviewsAvg, reviewsCount, ridesDone,
     alertSound, onToggleAlert, voiceNav, onToggleVoice, deliveryRadius, onDeliveryRadius,
-    debt, invite,
+    debt, invite, onDeliveries,
 }: {
     colors: any
     driverStatus: 'inactive' | 'incomplete' | 'active'
@@ -56,6 +56,8 @@ export default function DriverPanelHome({
     onDeliveryRadius: (km: number | null) => void
     debt?: ReactNode
     invite?: ReactNode
+    /** Abre a Central de entregas (/entregas): entregas das lojas, mochila e rota guiada */
+    onDeliveries?: () => void
 }) {
     const soft = `${colors.border}30`
     const stateColor = driverStatus === 'active' ? '#16a34a' : driverStatus === 'incomplete' ? '#ca8a04' : colors.textSecondary
@@ -128,6 +130,16 @@ export default function DriverPanelHome({
                                 <span className="block text-xs" style={{ color: '#16a34a' }}>Toque para abrir e continuar</span>
                             </span>
                             <ChevronRight size={16} style={{ color: '#16a34a' }} />
+                        </button>
+                    )}
+                    {onDeliveries && (
+                        <button onClick={onDeliveries} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99] text-white" style={{ background: 'linear-gradient(135deg,#f97316,#be123c)', boxShadow: '0 6px 18px #f9731640' }}>
+                            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.22)' }}><Bike size={20} /></span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-black">Central de entregas</span>
+                                <span className="block text-xs opacity-90">Entregas das lojas, sua mochila e a rota guiada</span>
+                            </span>
+                            <ChevronRight size={16} />
                         </button>
                     )}
                     <div className="grid grid-cols-2 gap-2.5">

@@ -42,7 +42,7 @@ export async function POST() {
                 const text = reservationNoticeText(data.reason || '', data.mode, { total: data.reason === 'driver_payment_reported' && data.amount != null ? Number(data.amount) : order ? Number(order.total_amount) : null, minutes: cfg?.reservation_timeout_minutes ?? null })
                 const tag = `delivery-notice-${ev.id}`
                 if (text.customer && d.customer_id) await sendPushToUser(d.customer_id, { ...text.customer, url: '/carrinho?aba=pedidos', tag: `${tag}-c` })
-                if (text.driver && data.driver_id) await sendPushToUser(data.driver_id, { ...text.driver, url: '/aceitar-corridas', tag: `${tag}-d` })
+                if (text.driver && data.driver_id) await sendPushToUser(data.driver_id, { ...text.driver, url: '/entregas', tag: `${tag}-d` })
                 if (text.store && store?.owner_id) await sendPushToUser(store.owner_id, { ...text.store, tag: `${tag}-s` })
                 continue
             }

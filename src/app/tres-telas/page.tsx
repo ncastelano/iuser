@@ -1,6 +1,6 @@
 // /tres-telas — OBSERVAÇÃO EM 3 TELAS (só no ambiente LOCAL de desenvolvimento). Três celulares lado a lado, cada um com uma pessoa diferente usando o app
 // enquanto o simulador da pizzaria (scripts/local/simulate-pizzaria.py) faz tudo sozinho: o DONO da loja (painel da pizzaria), o MOTOBOY (a página
-// "minhas entregas", com a rota) e o CLIENTE (acompanhando os pedidos dele). Embaixo, o que está acontecendo (o log do simulador). Serve para ver onde
+// "Central de entregas" do motorista iUser, com a rota guiada) e o CLIENTE (acompanhando os pedidos dele). Embaixo, o que está acontecendo (o log do simulador). Serve para ver onde
 // melhorar, adicionar ou tirar coisas sem precisar clicar. Cada tela abre num endereço próprio (owner.localhost / client.localhost / driver.localhost)
 // para ter a SUA sessão (todos sob `tela.localhost`, o MESMO "site": se fossem sites diferentes o navegador bloquearia o cookie de login dentro do quadro).
 // A página se abre sozinha em painel.tela.localhost. Em qualquer outro ambiente esta página só mostra um aviso.
@@ -11,7 +11,8 @@ import { isLocalDevOnly } from '@/lib/devOnly'
 
 const W = 390, H = 800
 interface Courier { id: string; name: string; token: string; stops: number; deliveredLastHour: number }
-interface Observer { store: string; couriers: Courier[]; readyWaiting: number; log: string[] }
+interface Driver { id: string; key: string; name: string; capacity: number; stops: number; deliveredLastHour: number }
+interface Observer { store: string; couriers: Courier[]; drivers: Driver[]; readyWaiting: number; log: string[] }
 
 function Phone({ title, subtitle, color, scale, children }: { title: string; subtitle: string; color: string; scale: number; children: React.ReactNode }) {
     return (
@@ -31,8 +32,8 @@ export default function TresTelasPage() {
     const [ok, setOk] = useState<boolean | null>(null)
     const [origin, setOrigin] = useState<{ proto: string; port: string } | null>(null)
     const [obs, setObs] = useState<Observer | null>(null)
-    const [follow, setFollow] = useState<string>('auto')          // 'auto' = o motoboy que está com entregas na mochila
-    const [shown, setShown] = useState<string | null>(null)       // motoboy exibido agora
+    const [follow, setFollow] = useState<string>('dani')          // a Dani é a entregadora em destaque; 'auto' = quem está com mais entregas na mochila
+    const [shown, setShown] = useState<string | null>('dani')      // motorista exibido agora (chave: dani, leo, rafa, tito)
     const [tick, setTick] = useState(0)                           // recarrega a tela do motoboy de tempos em tempos
     const [scale, setScale] = useState(0.6)
     const [showLog, setShowLog] = useState(true)
@@ -58,10 +59,10 @@ export default function TresTelasPage() {
         if (!obs) return
         if (follow !== 'auto') { setShown(follow); return }
         setShown((cur) => {
-            const curC = obs.couriers.find((c) => c.id === cur)
-            if (curC && curC.stops > 0) return cur
-            const busiest = [...obs.couriers].sort((a, b) => b.stops - a.stops)[0]
-            return busiest && busiest.stops > 0 ? busiest.id : (curC ? cur : obs.couriers[0]?.id ?? null)
+            const curD = obs.drivers.find((d) => d.key === cur)
+            if (curD && curD.stops > 0) return cur
+            const busiest = [...obs.drivers].sort((a, b) => b.stops - a.stops)[0]
+            return busiest && busiest.stops > 0 ? busiest.key : (curD ? cur : obs.drivers[0]?.key ?? null)
         })
     }, [obs, follow])
 
@@ -71,14 +72,14 @@ export default function TresTelasPage() {
     }, [showLog])
     useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }) }, [obs?.log])
 
-    const courier = obs?.couriers.find((c) => c.id === shown) || null
+    const driver = obs?.drivers?.find((d) => d.key === shown) || null
     const base = (sub: string) => (origin ? `${origin.proto}//${sub}.tela.localhost:${origin.port}` : '')
     const urls = useMemo(() => ({
         owner: `${base('owner')}/dev-login?as=owner&to=${encodeURIComponent('/painel-loja/pizzaria-forno-de-ouro')}`,
         client: `${base('client')}/dev-login?as=client&to=${encodeURIComponent('/carrinho?aba=pedidos')}`,
-        driver: courier ? `${base('driver')}/entregador/${courier.token}` : null,
+        driver: driver ? `${base('driver')}/dev-login?as=driver-${driver.key}&to=${encodeURIComponent('/entregas')}` : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [origin, courier?.token])
+    }), [origin, driver?.key])
 
     if (ok === false) return <div style={{ padding: 40, fontFamily: 'sans-serif' }}>Esta ferramenta só existe no ambiente local de desenvolvimento.</div>
     if (ok === null || !origin) return null
@@ -88,11 +89,11 @@ export default function TresTelasPage() {
         <div style={{ minHeight: '100dvh', background: '#0b1220', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', padding: '14px 28px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
                 <b style={{ fontSize: 17 }}>⚡ Observação em 3 telas</b>
-                <span style={{ fontSize: 12, opacity: 0.6 }}>{obs ? `${obs.store} · ${obs.readyWaiting} entrega(s) pronta(s) esperando motoboy` : 'conectando…'}</span>
+                <span style={{ fontSize: 12, opacity: 0.6 }}>{obs ? `${obs.store} · ${obs.readyWaiting} entrega(s) pronta(s) esperando motorista` : 'conectando…'}</span>
                 <span style={{ flex: 1 }} />
-                <span style={{ fontSize: 12, opacity: 0.6 }}>Motoboy:</span>
+                <span style={{ fontSize: 12, opacity: 0.6 }}>Motorista:</span>
                 <button style={chip(follow === 'auto')} onClick={() => setFollow('auto')}>Auto</button>
-                {obs?.couriers.map((c) => <button key={c.id} style={chip(follow === c.id)} onClick={() => setFollow(c.id)}>{c.name.split(' ')[0]}{c.stops > 0 ? ` · ${c.stops}` : ''}</button>)}
+                {obs?.drivers?.map((d) => <button key={d.key} style={chip(follow === d.key)} onClick={() => setFollow(d.key)}>{d.name.split(' ')[0]}{d.stops > 0 ? ` · ${d.stops}/${d.capacity}` : ''}</button>)}
                 <button style={chip(false)} onClick={() => setTick((n) => n + 1)}>Recarregar</button>
                 <button style={chip(showLog)} onClick={() => setShowLog((v) => !v)}>Log</button>
             </div>
@@ -101,8 +102,8 @@ export default function TresTelasPage() {
                 <Phone title="Dono da loja" subtitle="admin-teste · painel da pizzaria" color="#22c55e" scale={scale}>
                     <iframe title="dono" src={urls.owner} style={{ width: W, height: H, border: 0 }} />
                 </Phone>
-                <Phone title="Motoboy" subtitle={courier ? `${courier.name} · ${courier.stops} na mochila · ${courier.deliveredLastHour} entregues na última hora` : 'sem motoboy'} color="#f97316" scale={scale}>
-                    {urls.driver ? <iframe key={`${courier?.id}-${tick}`} title="motoboy" src={urls.driver} style={{ width: W, height: H, border: 0 }} /> : <div style={{ padding: 30, color: '#64748b' }}>Cadastre os motoboys: node scripts/local/seed-motoboys.mjs</div>}
+                <Phone title="Motorista iUser" subtitle={driver ? `${driver.name} · ${driver.stops}/${driver.capacity} na mochila · ${driver.deliveredLastHour} entregues na última hora` : 'sem motorista'} color="#f97316" scale={scale}>
+                    {urls.driver ? <iframe key={driver?.key} title="motorista" src={urls.driver} style={{ width: W, height: H, border: 0 }} /> : <div style={{ padding: 30, color: '#64748b' }}>Cadastre os motoristas: node scripts/local/seed-entregadores.mjs</div>}
                 </Phone>
                 <Phone title="Cliente" subtitle="Gabriela Carvalho · acompanhando os pedidos" color="#3b82f6" scale={scale}>
                     <iframe title="cliente" src={urls.client} style={{ width: W, height: H, border: 0 }} />

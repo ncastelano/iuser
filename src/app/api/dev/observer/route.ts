@@ -23,11 +23,28 @@ export async function GET() {
         deliveredLastHour: (delivered || []).filter((a: any) => a.employee_id === e.id).length,
     }))
 
+    // Motoristas iUser (seed-entregadores.mjs): quantas entregas da loja estão na mochila agora e quantas já fizeram na última hora
+    const { data: authList } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 })
+    const drvUsers = (authList?.users || []).filter((u) => /^entregador-[a-z]+@staging\.iuser\.test$/.test(u.email || ''))
+    const drvIds = drvUsers.map((u) => u.id)
+    const [{ data: veh }, { data: prof }, { data: rides }, { data: ridesDone }] = drvIds.length ? await Promise.all([
+        supabaseAdmin.from('driver_vehicles').select('driver_id, delivery_capacity').in('driver_id', drvIds),
+        supabaseAdmin.from('profiles').select('id, name').in('id', drvIds),
+        supabaseAdmin.from('ride_requests').select('driver_id').in('driver_id', drvIds).eq('status', 'accepted').not('order_id', 'is', null),
+        supabaseAdmin.from('ride_requests').select('driver_id').in('driver_id', drvIds).eq('status', 'completed').not('order_id', 'is', null).gte('updated_at', new Date(Date.now() - 3600_000).toISOString()),
+    ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }] as any
+    const drivers = drvUsers.map((u) => ({
+        id: u.id, key: (u.email || '').split('@')[0].replace('entregador-', ''), name: (prof || []).find((p: any) => p.id === u.id)?.name || u.email,
+        capacity: (veh || []).find((v: any) => v.driver_id === u.id)?.delivery_capacity ?? 1,
+        stops: (rides || []).filter((r: any) => r.driver_id === u.id).length,
+        deliveredLastHour: (ridesDone || []).filter((r: any) => r.driver_id === u.id).length,
+    }))
+
     let log: string[] = []
     try {
         const raw = await readFile(process.env.PIZZARIA_SIM_LOG || '/tmp/sim-pizzaria.log', 'utf8')
         log = raw.split('\n').filter(Boolean).slice(-60)
     } catch { /* simulador ainda não rodou */ }
 
-    return NextResponse.json({ store: store.name, couriers, readyWaiting: (ready || []).length, log })
+    return NextResponse.json({ store: store.name, couriers, drivers, readyWaiting: (ready || []).length, log })
 }

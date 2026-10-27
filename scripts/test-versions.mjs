@@ -57,6 +57,7 @@ test('troca de versão: página equivalente ou home válida, sem 404', () => {
     assert.equal(equivalentPath('v2', '/painel-loja/minha-loja'), '/')
   assert.equal(equivalentPath('v2', '/flash'), '/')
   assert.equal(equivalentPath('v2', '/pessoas'), '/')
+  assert.equal(equivalentPath('v2', '/entregas'), '/')
   assert.equal(equivalentPath('v2', '/editar-loja/minha-loja'), '/')
     assert.equal(equivalentPath('v2', '/veiculo/abc'), '/')
 })

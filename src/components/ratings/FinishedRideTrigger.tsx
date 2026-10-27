@@ -24,7 +24,7 @@ export function FinishedRideTrigger() {
 
         const { data: completedRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, driver_id')
+            .select('id, requester_id, driver_id, order_id')
             .or(`requester_id.eq.${userId},driver_id.eq.${userId}`)
             .eq('status', 'completed')
 
@@ -42,7 +42,8 @@ export function FinishedRideTrigger() {
         const reviewedIds = new Set((myReviews || []).map((r) => r.ride_request_id))
         const dismissedIds = new Set(JSON.parse(localStorage.getItem('dismissed_ride_reviews') || '[]'))
 
-        const unreviewed = completedRides.filter((r) => !reviewedIds.has(r.id) && !dismissedIds.has(r.id) && r.driver_id)
+        // Entrega de pedido de loja: quem avalia é o cliente (a compra); o motorista não é chamado a avaliar a cada entrega da central de entregas
+        const unreviewed = completedRides.filter((r) => !reviewedIds.has(r.id) && !dismissedIds.has(r.id) && r.driver_id && !(r.order_id && r.driver_id === userId))
 
         if (unreviewed.length === 0) {
             setPending([])

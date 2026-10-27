@@ -12,6 +12,10 @@ mesma) atende:
     com VÁRIAS entregas de uma vez: a loja junta os pedidos prontos que cabem na mochila (--bag) e ficam perto uns dos outros (--reach km), espera um pouco para
     juntar mais (--wait s) e atribui a rota (delivery_assignments, em ordem do mais perto); o motoboy pega todos e entrega um por um (o tempo de cada trecho
     vem da distância; --time-scale comprime o relógio), pelo MESMO endpoint que a página /entregador/<token> usa. Depois a loja finaliza, o cliente agradece e avalia.
+  - MOTORISTAS iUSER (padrão): a loja usa o entregador do iUser (node scripts/local/seed-entregadores.mjs: Dani, Léo, Rafa e Tito, cada um com a sua "mochila"
+    = quantas entregas cabem). Quando a loja aceita o pedido a entrega aparece para eles (/entregas) e cada um ACEITA se quiser (disposição própria), dentro do que
+    cabe e perto das que já pegou; vai à loja, espera o pedido ficar PRONTO, pega todos de uma vez e entrega um por um na ordem do mais perto, concluindo pelo
+    MESMO caminho do app (complete_ride). --manual-drivers dani deixa a Dani para a pessoa mexer na mão (/entregas). --employees volta aos motoboys da loja.
   Com --manual só chegam pedidos/agendamentos (nada é atendido): quem atende é a pessoa, pelo app. --no-couriers volta ao jeito antigo (pronto → entregue).
 O simulador do ecossistema (simulate-ecosystem.py) NÃO mexe nessa loja.
 
@@ -62,7 +66,10 @@ APPT_NOTES = {'Rodízio': (2, 8), 'Ambiente VIP': (6, 20)}
 
 STORE = {}
 COURIERS = []
-CFG = {'couriers': True, 'bag': 6.0, 'max_stops': 5, 'reach': 3.5, 'wait': 45.0, 'load': 20.0, 'scale': 6.0, 'app': os.environ.get('APP_URL', 'http://localhost:3100')}
+IUSER_DRIVERS = []
+DRV = {}   # estado em memória de cada motorista iUser (posição, quando saiu, quando entregou o último)
+EAGER = {'dani': 0.85, 'leo': 0.6, 'rafa': 0.75, 'tito': 0.45}   # disposição de cada um para aceitar uma entrega que aparece
+CFG = {'mode': 'iuser', 'manual_drivers': [], 'couriers': True, 'bag': 6.0, 'max_stops': 5, 'reach': 3.5, 'wait': 45.0, 'load': 20.0, 'scale': 6.0, 'app': os.environ.get('APP_URL', 'http://localhost:3100')}
 FEATURED_EMAIL = 'cliente-007@staging.iuser.test'   # a cliente que a página /tres-telas acompanha (pede com frequência)
 FEATURED = None
 STORE_POS = (-8.7580, -63.8995)
@@ -88,7 +95,14 @@ def load():
     COURIERS = q_local(f"select id, name, access_token from employees where store_id = {esc(STORE['id'])}::uuid and is_active order by created_at")
     f = q_local(f"select p.id, p.\"profileSlug\" as slug, p.name from profiles p join auth.users u on u.id = p.id where u.email = {esc(FEATURED_EMAIL)}")
     FEATURED = f[0] if f else None
-    if CFG['couriers'] and not COURIERS:
+    IUSER_DRIVERS.clear()
+    IUSER_DRIVERS.extend(q_local("""select p.id, p.name, split_part(split_part(u.email, '@', 1), '-', 2) as key, coalesce(v.delivery_capacity, 1) as cap
+        from profiles p join auth.users u on u.id = p.id join driver_vehicles v on v.driver_id = p.id
+        where u.email like 'entregador-%@staging.iuser.test' order by u.email"""))
+    if CFG['mode'] == 'iuser' and not IUSER_DRIVERS:
+        CFG['mode'] = 'employees'
+        log('(sem motoristas iUser: rode  node scripts/local/seed-entregadores.mjs — usando os motoboys da loja)')
+    if CFG['mode'] == 'employees' and CFG['couriers'] and not COURIERS:
         CFG['couriers'] = False
         log('(sem motoboys cadastrados: rode  node scripts/local/seed-motoboys.mjs  — entregas vão direto de pronto para entregue)')
 
@@ -453,6 +467,124 @@ def run_couriers(speed=1.0):
         log(f"  📦 {courier['name']} entregou o pedido {nxt['order_id'][:8]} (R$ {float(nxt['total_amount']):.2f}) — faltam {len(stops) - 1} na rota".replace('.', ','))
 
 
+# ---------------------------------------------------------------- motoristas iUSER: aceitam se quiserem, dentro da mochila, e entregam pelo app
+def drv_pos(d):
+    st = DRV.setdefault(d['id'], {})
+    if 'pos' not in st:
+        r = q_local(f"select live_lat, live_lng from driver_pricing where driver_id = {esc(d['id'])}::uuid")
+        st['pos'] = (float(r[0]['live_lat']), float(r[0]['live_lng'])) if r and r[0]['live_lat'] is not None else STORE_POS
+    return st['pos']
+
+
+def drv_move(d, to):
+    """O motorista anda: a posição ao vivo dele (a que a loja e o cliente veem) passa a ser a do ponto novo."""
+    DRV.setdefault(d['id'], {})['pos'] = to
+    psql(['-c', f"update driver_pricing set live_lat = {to[0]}, live_lng = {to[1]}, live_updated_at = now() where driver_id = {esc(d['id'])}::uuid"])
+
+
+def drv_rides(d):
+    return q_local(f"""select r.id, r.order_id, r.recipient_name, r.destination_lat, r.destination_lng, r.origin_lat, r.origin_lng, r.offered_price,
+        r.driver_en_route, r.driver_arrived_at, r.ride_started_at, extract(epoch from now() - r.created_at) as age, o.status as order_status, o.buyer_id
+        from ride_requests r join orders o on o.id = r.order_id
+        where r.driver_id = {esc(d['id'])}::uuid and r.status = 'accepted' and o.store_id = {esc(STORE['id'])}::uuid order by r.created_at""")
+
+
+def drop_stale_rides():
+    """Entrega de pedido que já foi encerrado por outro caminho (finalizado/recusado) não serve mais: sai da lista e da mochila de todos."""
+    psql(['-c', f"""update ride_requests r set status = 'cancelled', cancelled_by = 'requester' from orders o
+        where o.id = r.order_id and o.store_id = {esc(STORE['id'])}::uuid and r.status in ('pending','accepted') and o.status in ('paid','rejected','cancelled')"""])
+
+
+def drivers_accept(speed=1.0):
+    """Cada motorista online olha as entregas abertas e aceita as que quiser (disposição própria), se couber na mochila e ficar perto das que já pegou."""
+    drop_stale_rides()
+    offers = q_local(f"""select r.id, r.destination_lat, r.destination_lng, r.offered_price, r.recipient_name, extract(epoch from now() - r.created_at) as age
+        from ride_requests r join orders o on o.id = r.order_id where r.status = 'pending' and r.driver_id is null and o.store_id = {esc(STORE['id'])}::uuid order by r.created_at""")
+    if not offers:
+        return
+    for d in sorted(IUSER_DRIVERS, key=lambda _d: R.random()):
+        if d['key'] in CFG['manual_drivers']:
+            continue
+        mine = drv_rides(d)
+        if any(m['ride_started_at'] for m in mine) or len(mine) >= int(d['cap']):
+            continue
+        mine_pts = [(float(m['destination_lat']), float(m['destination_lng'])) for m in mine]
+        for o in offers:
+            if len(mine) >= int(d['cap']):
+                break
+            if o.get('taken'):
+                continue
+            if float(o['age']) < R.uniform(3, 14) / max(CFG.get('scale', 1), 1):   # leva uns segundos para olhar a entrega nova
+                continue
+            if mine_pts and min(hav_km(mine_pts[0], (float(o['destination_lat']), float(o['destination_lng']))), 99) > CFG['reach']:
+                continue
+            if R.random() > EAGER.get(d['key'], 0.6):
+                continue
+            try:
+                as_user(d['id'], f"insert into ride_applications (ride_request_id, applicant_id, proposed_price) values ({esc(o['id'])}::uuid, {esc(d['id'])}::uuid, {o['offered_price']});")
+            except Exception as e:  # noqa: BLE001
+                msg = str(e)
+                if 'delivery_capacity_full' in msg or 'mochila' in msg.lower():
+                    break
+                continue   # outro motorista chegou antes, ou o banco recusou
+            o['taken'] = True
+            mine.append(o); mine_pts.append((float(o['destination_lat']), float(o['destination_lng'])))
+            log(f"  🛵 {d['name']} aceitou a entrega para {o['recipient_name'] or 'cliente'} (R$ {float(o['offered_price']):.2f}; mochila {len(mine)}/{d['cap']})".replace('.', ','))
+
+
+def drivers_run(speed=1.0):
+    """Quem aceitou: vai à loja, espera o pedido ficar pronto, pega todos de uma vez e entrega um por um (o mais perto primeiro)."""
+    sc = CFG['scale']
+    for d in IUSER_DRIVERS:
+        if d['key'] in CFG['manual_drivers']:
+            continue
+        rides = drv_rides(d)
+        if not rides:
+            DRV.setdefault(d['id'], {}).pop('left', None)
+            continue
+        st = DRV.setdefault(d['id'], {})
+        ids = ','.join(esc(r['id']) + '::uuid' for r in rides)
+        started = [r for r in rides if r['ride_started_at']]
+        if not started:
+            if not rides[0]['driver_en_route']:
+                if time.time() - st.setdefault('accepted_at', time.time()) < CFG['wait'] / 3 / sc * 2:
+                    continue   # junta mais uma entrega antes de sair, se aparecer
+                psql(['-c', f"update ride_requests set driver_en_route = true, driver_departed_at = now() where id in ({ids})"])
+                st['left'] = time.time()
+                log(f"  🛵 {d['name']} saiu para a loja ({len(rides)} entrega(s) aceita(s))")
+                continue
+            if not rides[0]['driver_arrived_at']:
+                trip = max(6.0, hav_km(drv_pos(d), STORE_POS) / 28.0 * 3600.0 / sc)
+                if time.time() - st.setdefault('left', time.time()) < trip:
+                    continue
+                drv_move(d, STORE_POS)
+                psql(['-c', f"update ride_requests set driver_arrived_at = now() where id in ({ids})"])
+                st['arrived'] = time.time()
+                log(f"  🛵 {d['name']} chegou na loja e espera o pedido")
+                continue
+            if all(r['order_status'] == 'ready' for r in rides) and time.time() - st.get('arrived', 0) >= CFG['load'] / sc:
+                psql(['-c', f"update ride_requests set ride_started_at = now() where id in ({ids})"])
+                for r in rides:
+                    owner_say(r['buyer_id'], f"Seu pedido saiu para entrega com {d['name']}! 🛵")
+                st['last_leg'] = time.time()
+                log(f"  🛵 {d['name']} pegou {len(rides)} pedido(s) e saiu para entregar")
+            continue
+        # entregando: o próximo é o mais perto de onde está
+        here = drv_pos(d)
+        nxt = min(started, key=lambda r: hav_km(here, (float(r['destination_lat']), float(r['destination_lng']))))
+        dest = (float(nxt['destination_lat']), float(nxt['destination_lng']))
+        leg = max(8.0, hav_km(here, dest) / 28.0 * 3600.0 / sc)
+        if time.time() - st.setdefault('last_leg', time.time()) < leg:
+            continue
+        drv_move(d, dest)
+        as_user(d['id'], f"select complete_ride({esc(nxt['id'])}::uuid, {dest[0]}, {dest[1]});")
+        st['last_leg'] = time.time()
+        owner_say(nxt['buyer_id'], 'Entregue! Bom apetite. 🍕')
+        if R.random() < 0.8:
+            say(nxt['buyer_id'], nxt['buyer_id'], R.choice(AFTER_PAID_CUSTOMER))
+        log(f"  📦 {d['name']} entregou para {nxt['recipient_name'] or 'cliente'} (R$ {float(nxt['offered_price']):.2f}) — faltam {len(started) - 1} na mochila".replace('.', ','))
+
+
 def featured_order():
     """A cliente em destaque (a que a página /tres-telas acompanha) pede com frequência, sempre entrega."""
     if FEATURED:
@@ -461,7 +593,9 @@ def featured_order():
 
 def cycle_tick(speed):
     fns = [attend_orders, attend_appointments, attend_service_cycle]
-    if CFG['couriers']:
+    if CFG['mode'] == 'iuser':
+        fns += [drivers_accept, drivers_run]
+    elif CFG['couriers']:
         fns += [dispatch_batches, run_couriers]
     for fn in fns:
         try:
@@ -504,14 +638,16 @@ def main():
     ap.add_argument('--load', type=float, default=20.0, help='segundos (do relógio comprimido) que o motoboy leva para carregar a mochila')
     ap.add_argument('--time-scale', type=float, default=6.0, help='comprime o relógio das viagens (6 = 6x mais rápido que a vida real)')
     ap.add_argument('--featured-every', type=float, default=55.0, help='segundos entre um pedido e outro da cliente em destaque (cliente-007)')
+    ap.add_argument('--employees', action='store_true', help='usa os motoboys da loja (tabela employees) em vez dos motoristas iUser')
+    ap.add_argument('--manual-drivers', default='', help='motoristas iUser que NÃO são simulados (a pessoa mexe na mão em /entregas), ex.: dani,leo')
     ap.add_argument('--no-couriers', action='store_true', help='sem motoboys: entrega vai direto de pronto para entregue')
     ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick', 'featured'])
     a = ap.parse_args()
-    CFG.update(couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
+    CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()], couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
     load()
     if a.once:
         return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order}[a.once])
-    log(f"{STORE['name']}: {len(GOODS)} produtos, {len(SERVICES)} serviços, {len(CUSTOMERS)} clientes. " + ('Os pedidos chegam como PENDENTES — quem atende é você.' if a.manual else 'A loja atende sozinha: aceita, prepara, ' + (f"manda os motoboys ({len(COURIERS)}; mochila {CFG['bag']:g}, até {CFG['max_stops']} entregas por saída)" if CFG['couriers'] else 'entrega') + ', responde e o cliente avalia.'))
+    log(f"{STORE['name']}: {len(GOODS)} produtos, {len(SERVICES)} serviços, {len(CUSTOMERS)} clientes. " + ('Os pedidos chegam como PENDENTES — quem atende é você.' if a.manual else 'A loja atende sozinha: aceita, prepara, ' + (f"os motoristas iUser pegam as entregas ({', '.join(d['name'].split()[0] + ' ' + str(d['cap']) for d in IUSER_DRIVERS)}; mochila = entregas ao mesmo tempo)" if CFG['mode'] == 'iuser' else f"manda os motoboys ({len(COURIERS)}; mochila {CFG['bag']:g}, até {CFG['max_stops']} entregas por saída)" if CFG['couriers'] else 'entrega') + ', responde e o cliente avalia.'))
     for _ in range(a.burst):
         safe(make_order)
         time.sleep(0.4)
