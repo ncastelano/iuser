@@ -231,6 +231,18 @@ REQUESTS = [
     ('massageador', 'Massagem relaxante para dor nas costas no meu escritório.', 'Rua Tenreiro Aranha, 90, Centro, Porto Velho - RO'),
     ('psicologa', 'Busco psicóloga para acompanhamento semanal, de preferência online à noite.', 'Atendimento online'),
 ]
+# Pedidos de madrugada (tipo "outro" com nome próprio): quem trabalha à noite (seed-24h.mjs) se candidata a eles
+NIGHT_REQUESTS = [
+    ('outro', 'Preciso de um vigilante para a obra da minha casa, das 19h às 6h, a semana toda.', 'Rua Rafael Vaz e Silva, 410, São Cristóvão, Porto Velho - RO', 'Vigilante noturno'),
+    ('outro', 'Babá para pernoite neste sábado: duas crianças de 3 e 6 anos, saio às 20h e volto de manhã.', 'Rua das Palmeiras, 230, Porto Velho - RO', 'Babá noturna'),
+    ('outro', 'Cuidadora para minha mãe de 82 anos, plantão de noite, com experiência em medicação.', 'Rua José Bonifácio, 120, Olaria, Porto Velho - RO', 'Cuidadora noturna'),
+    ('outro', 'Segurança para uma festa de aniversário, 80 convidados, das 21h às 3h.', 'Av. Calama, 880, Embratel, Porto Velho - RO', 'Segurança para evento'),
+    ('outro', 'Fiquei trancado para fora de casa, preciso de chaveiro agora.', 'Av. Sete de Setembro, 900, Porto Velho - RO', 'Chaveiro 24h'),
+    ('outro', 'Carro com pane na BR-364, preciso de guincho o quanto antes.', 'Av. Jorge Teixeira, 1500, Industrial, Porto Velho - RO', 'Guincho 24h'),
+    ('outro', 'Preciso de técnica de enfermagem para plantão em casa durante a noite, paciente acamado.', 'Rua Campos Sales, 45, Centro, Porto Velho - RO', 'Técnica de enfermagem (noite)'),
+    ('outro', 'Cuidar do meu cachorro com pernoite enquanto viajo na quinta e na sexta.', 'Av. Rio Madeira, 700, Mato Grosso, Porto Velho - RO', 'Pet sitter com pernoite'),
+    ('eletricista', 'Caiu a energia de metade da casa de madrugada, preciso de eletricista de emergência.', 'Rua Euclides da Cunha, 77, Liberdade, Porto Velho - RO', None),
+]
 REQ_NOTES = ['Posso receber a partir das 14h.', 'Urgente, se possível ainda hoje.', 'Material por minha conta.', 'Combinamos o valor antes.', None, None]
 CHAT_MORE = ['Pessoal, alguém já usou o agendamento do iUser?', 'Acabei de fazer um pedido e o frete foi rapidinho', 'Quem tem indicação de mecânico de confiança?', 'Bom dia, comunidade! ☀️',
              'Hoje é dia de feira, quem vai?', 'Esse app tá ajudando muito meu negócio', 'Passando pra agradecer as dicas de ontem', 'Alguém sabe se a padaria do centro abre domingo?',
@@ -256,26 +268,34 @@ def approx_coords(addr):
 
 def post_service_request():
     p = R.choice(POOL.customers)
-    t, desc, addr = R.choice(REQUESTS)
+    custom = None
+    if R.random() < 0.35:
+        t, desc, addr, custom = R.choice(NIGHT_REQUESTS)
+    else:
+        t, desc, addr = R.choice(REQUESTS)
     note = R.choice(REQ_NOTES)
     c = approx_coords(addr)
     # ~60% dos pedidos têm foto (geradas por scripts/local/seed-request-photos.mjs, uma por tipo de serviço)
-    photos = f"array['http://127.0.0.1:54321/storage/v1/object/public/service-request-photos/sim/{t}-{R.randint(1, 2)}.jpg']" if R.random() < 0.6 else "'{}'"
-    as_user(p['id'], f"""insert into service_requests (requester_id, service_type, location_address, location_needs_access, description, notes, photo_urls, status, approx_lat, approx_lng)
-        values ({esc(p['id'])}::uuid, {esc(t)}, {esc(addr)}, {'true' if R.random() < 0.2 else 'false'}, {esc(desc)}, {esc(note) if note else 'null'}, {photos}, 'pending', {c[0] if c else 'null'}, {c[1] if c else 'null'});""")
-    log(f"  🧰 {p['name']} publicou um pedido de {t} em Procurar serviço")
+    photos = f"array['http://127.0.0.1:54321/storage/v1/object/public/service-request-photos/sim/{t}-{R.randint(1, 2)}.jpg']" if (R.random() < 0.6 and t != 'outro') else "'{}'"
+    as_user(p['id'], f"""insert into service_requests (requester_id, service_type, custom_service, location_address, location_needs_access, description, notes, photo_urls, status, approx_lat, approx_lng)
+        values ({esc(p['id'])}::uuid, {esc(t)}, {esc(custom) if custom else 'null'}, {esc(addr)}, {'true' if R.random() < 0.2 else 'false'}, {esc(desc)}, {esc(note) if note else 'null'}, {photos}, 'pending', {c[0] if c else 'null'}, {c[1] if c else 'null'});""")
+    log(f"  🧰 {p['name']} publicou um pedido de {custom or t} em Procurar serviço")
     return p, t
 
 
 def apply_to_service_request():
-    row = q_local("select id, service_type, requester_id from service_requests where status = 'pending' order by random() limit 1")
+    row = q_local("select id, service_type, custom_service, requester_id from service_requests where status = 'pending' order by random() limit 1")
     if not row or not POOL.owners:
         return
     r = row[0]
-    o = R.choice([x for x in POOL.owners if x['id'] != r['requester_id']] or POOL.owners)
+    night = [x for x in POOL.owners if str(x.get('slug') or '').startswith('noite-') and x['id'] != r['requester_id']]
+    if night and (r.get('custom_service') or r['service_type'] == 'eletricista') and R.random() < 0.85:
+        o = R.choice(night)  # pedido de madrugada: quem trabalha à noite responde
+    else:
+        o = R.choice([x for x in POOL.owners if x['id'] != r['requester_id']] or POOL.owners)
     try:
         as_user(o['id'], f"insert into service_applications (service_request_id, applicant_id, status) values ({esc(r['id'])}::uuid, {esc(o['id'])}::uuid, 'pending');")
-        log(f"  🤝 {o['name']} se candidatou a um pedido de {r['service_type']}")
+        log(f"  🤝 {o['name']} se candidatou a um pedido de {r.get('custom_service') or r['service_type']}")
     except Exception as e:  # noqa: BLE001
         msg = str(e).splitlines()[0][:110]
         if 'duplicate' not in msg:
