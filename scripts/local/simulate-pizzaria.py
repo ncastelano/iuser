@@ -8,7 +8,11 @@ mesma) atende:
     loja responde; a loja também avisa em cada etapa do pedido e o cliente agradece;
   - ATENDIMENTO: pedido pendente → a loja aceita (ou recusa, raramente) → em preparo → pronto / saiu para entrega → entregue (pago) → o cliente
     recebe, comenta no chat e AVALIA a compra; agendamentos pendentes são confirmados (entrada Pix confirmada) e, no dia, marcados como feitos.
-  Com --manual só chegam pedidos/agendamentos (nada é atendido): quem atende é a pessoa, pelo app.
+  - MOTOBOYS: pedido de ENTREGA pronto não vai mais "do nada" para entregue. Os entregadores da loja (tabela employees; node scripts/local/seed-motoboys.mjs) saem
+    com VÁRIAS entregas de uma vez: a loja junta os pedidos prontos que cabem na mochila (--bag) e ficam perto uns dos outros (--reach km), espera um pouco para
+    juntar mais (--wait s) e atribui a rota (delivery_assignments, em ordem do mais perto); o motoboy pega todos e entrega um por um (o tempo de cada trecho
+    vem da distância; --time-scale comprime o relógio), pelo MESMO endpoint que a página /entregador/<token> usa. Depois a loja finaliza, o cliente agradece e avalia.
+  Com --manual só chegam pedidos/agendamentos (nada é atendido): quem atende é a pessoa, pelo app. --no-couriers volta ao jeito antigo (pronto → entregue).
 O simulador do ecossistema (simulate-ecosystem.py) NÃO mexe nessa loja.
 
   node scripts/local/seed-pizzaria.mjs                       # (uma vez) cria a loja, o cardápio e os serviços
@@ -17,7 +21,7 @@ O simulador do ecossistema (simulate-ecosystem.py) NÃO mexe nessa loja.
   python3 -u scripts/local/simulate-pizzaria.py --manual     # só chegam pedidos; você atende
   python3 scripts/local/simulate-pizzaria.py --once order    # só um pedido (ou: --once appointment | chat | tick)
 """
-import argparse, json, os, random, re, sys, threading, time
+import argparse, json, math, os, random, re, sys, threading, time, urllib.request
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -57,6 +61,11 @@ COMMENTS = ['Sem cebola, por favor', 'Capricha no queijo', 'Cortar em 12 fatias'
 APPT_NOTES = {'Rodízio': (2, 8), 'Ambiente VIP': (6, 20)}
 
 STORE = {}
+COURIERS = []
+CFG = {'couriers': True, 'bag': 6.0, 'max_stops': 5, 'reach': 3.5, 'wait': 45.0, 'load': 20.0, 'scale': 6.0, 'app': os.environ.get('APP_URL', 'http://localhost:3100')}
+FEATURED_EMAIL = 'cliente-007@staging.iuser.test'   # a cliente que a página /tres-telas acompanha (pede com frequência)
+FEATURED = None
+STORE_POS = (-8.7580, -63.8995)
 CUSTOMERS = []
 GOODS = []
 ADDONS = {}
@@ -64,7 +73,7 @@ SERVICES = []
 
 
 def load():
-    global STORE, CUSTOMERS, GOODS, ADDONS, SERVICES
+    global STORE, CUSTOMERS, GOODS, ADDONS, SERVICES, COURIERS, FEATURED
     s = q_local(f"select id, name, \"storeSlug\" as slug, owner_id, logo_url from stores where \"storeSlug\" = {esc(SLUG)}")
     if not s:
         sys.exit('Loja não encontrada: rode antes  node scripts/local/seed-pizzaria.mjs')
@@ -76,10 +85,16 @@ def load():
     for a in q_local(f"select id, product_id from product_addons where store_id = {esc(STORE['id'])}::uuid and is_active"):
         ADDONS.setdefault(a['product_id'], []).append(a['id'])
     SERVICES = q_local(f"select id, name, price, category, coalesce(duration_minutes, 60) as dur from products where store_id = {esc(STORE['id'])}::uuid and is_active and type = 'service' and listing_type = 'sale'")
+    COURIERS = q_local(f"select id, name, access_token from employees where store_id = {esc(STORE['id'])}::uuid and is_active order by created_at")
+    f = q_local(f"select p.id, p.\"profileSlug\" as slug, p.name from profiles p join auth.users u on u.id = p.id where u.email = {esc(FEATURED_EMAIL)}")
+    FEATURED = f[0] if f else None
+    if CFG['couriers'] and not COURIERS:
+        CFG['couriers'] = False
+        log('(sem motoboys cadastrados: rode  node scripts/local/seed-motoboys.mjs  — entregas vão direto de pronto para entregue)')
 
 
-def make_order():
-    c = R.choice(CUSTOMERS)
+def make_order(c=None, force_delivery=False):
+    c = c or R.choice(CUSTOMERS)
     pizzas = [g for g in GOODS if g['category'] in ('Pizzas tradicionais', 'Pizzas especiais', 'Pizzas doces')]
     combos = [g for g in GOODS if g['category'] == 'Promoções']
     drinks = [g for g in GOODS if g['category'] == 'Refrigerantes e bebidas']
@@ -100,9 +115,10 @@ def make_order():
         chosen = R.sample(ids, min(len(ids), R.choice([0, 0, 1, 1, 2, 3]))) if ids else []
         items.append({'product_id': g['id'], 'quantity': R.choice([1, 1, 1, 2]) if g['category'] == 'Refrigerantes e bebidas' else 1,
                       'comment': R.choice(COMMENTS) if g['has_addons'] else None, 'addons': [{'id': a} for a in chosen]})
-    deliver = R.random() < 0.65
+    deliver = force_delivery or R.random() < 0.65
     pay = R.choice(['pix', 'pix', 'cartao', 'cartao', 'dinheiro'])
     street, lat, lng = R.choice(STREETS)
+    lat, lng = lat + R.uniform(-0.006, 0.006), lng + R.uniform(-0.006, 0.006)   # cada casa num ponto (os pedidos prontos formam grupos perto e longe)
     addr = f"{street}, {R.randint(100, 2500)}, Porto Velho - RO" if deliver else 'null'
     change = 'null'
     if pay == 'dinheiro':
@@ -112,7 +128,7 @@ def make_order():
            f"{esc(addr) if deliver else 'null'}, {lat if deliver else 'null'}, {lng if deliver else 'null'}, {change}, {contactless}, null, gen_random_uuid());")
     d = json.loads(last_line(as_user(c['id'], sql)))
     total = float(d['total_amount'])
-    log(f"🍕 pedido de {c['name']}: {len(items)} item(ns), {'entrega' if deliver else 'retirada'}, {pay} — R$ {total:.2f}".replace('.', ','))
+    log(f"🍕 pedido de {c['name']}{' ★' if FEATURED and c['id'] == FEATURED['id'] else ''}: {len(items)} item(ns), {'entrega' if deliver else 'retirada'}, {pay} — R$ {total:.2f}".replace('.', ','))
 
 
 def free_slot(dur):
@@ -179,6 +195,7 @@ GENERIC = ['Oi! Em que posso ajudar? 😊', 'Claro, pode falar!', 'Estamos à di
 THANKS = ['Obrigado!', 'Valeu, vou pedir!', 'Perfeito, obrigada!', 'Show, fechado então', 'Muito obrigado pelo atendimento 🙏']
 AFTER_ACCEPT = ['Pedido recebido! Já estamos preparando a sua pizza. 🍕', 'Oi! Seu pedido foi aceito e já vai para o forno. 🔥', 'Pedido confirmado! Em breve ele estará pronto. 🍕']
 AFTER_READY_DELIVERY = ['Seu pedido saiu para entrega! 🛵 Chega em instantes.', 'Pizza quentinha a caminho! 🛵']
+AFTER_READY_COURIER = ['Seu pedido está pronto! O motoboy já vai sair com ele. 🛵', 'Pronto! Só esperando o motoboy pegar a rota. 🍕🛵']
 AFTER_READY_PICKUP = ['Seu pedido está pronto! Pode retirar no balcão. 🍕', 'Pronto! Pode vir buscar, está quentinho. 🍕']
 AFTER_PAID_CUSTOMER = ['Chegou quentinha, obrigado!', 'Recebi! Estava deliciosa 😋', 'Tudo certo, muito obrigada!', 'Chegou rapidinho, parabéns!', 'Peguei aqui, valeu!']
 REVIEWS_GOOD = ['Pizza maravilhosa, massa leve e bem recheada!', 'Chegou quentinha e rápido. Recomendo!', 'A melhor pizza da cidade, sem dúvida.', 'Adorei os ingredientes extras, ficou do jeito que pedi.', 'Atendimento excelente e entrega no tempo.', 'Borda recheada perfeita!', '']
@@ -264,9 +281,11 @@ def attend_orders(speed):
         if R.random() < min(1, 0.12 * speed):
             set_status(o, 'ready')
             delivery = o['delivery_option'] == 'entrega'
-            owner_say(o['buyer_id'], R.choice(AFTER_READY_DELIVERY if delivery else AFTER_READY_PICKUP))
-            log(f"  🏪 pedido {o['id'][:8]} pronto → {'saiu para entrega' if delivery else 'aguardando retirada'}")
+            owner_say(o['buyer_id'], R.choice((AFTER_READY_COURIER if CFG['couriers'] else AFTER_READY_DELIVERY) if delivery else AFTER_READY_PICKUP))
+            log(f"  🏪 pedido {o['id'][:8]} pronto → {('aguardando o motoboy' if CFG['couriers'] else 'saiu para entrega') if delivery else 'aguardando retirada'}")
     for o in store_orders('ready', int(n(30))):
+        if CFG['couriers'] and o['delivery_option'] == 'entrega' and float(o['age']) < 900:
+            continue   # a entrega é com o motoboy (se ficar parado 15 min sem rota, a loja finaliza por aqui)
         if R.random() < min(1, 0.14 * speed):
             set_status(o, 'paid')
             if R.random() < 0.7:
@@ -328,8 +347,123 @@ def attend_service_cycle(speed):
             log(f"  ✗ serviço {r['id'][:8]}: {str(e).splitlines()[0][:100]}")
 
 
+# ---------------------------------------------------------------- motoboys: levar o MÁXIMO que dá numa saída
+def hav_km(a, b):
+    r = 6371.0
+    la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 2 * r * math.asin(min(1, math.sqrt(h)))
+
+
+def nearest_route(stops):
+    """Ordem de entrega: do mais perto da loja, sempre indo ao próximo mais perto do ponto atual."""
+    left, here, out = list(stops), STORE_POS, []
+    while left:
+        nxt = min(left, key=lambda o: hav_km(here, (float(o['delivery_lat']), float(o['delivery_lng']))))
+        out.append(nxt)
+        here = (float(nxt['delivery_lat']), float(nxt['delivery_lng']))
+        left.remove(nxt)
+    return out
+
+
+def dispatch_batches(speed=1.0):
+    """Motoboy livre + pedidos prontos de entrega: monta a saída com o máximo que cabe na mochila e fica perto entre si."""
+    busy = {r['employee_id'] for r in q_local(f"select distinct employee_id from delivery_assignments where store_id = {esc(STORE['id'])}::uuid and status in ('pending','in_transit')")}
+    idle = [c for c in COURIERS if c['id'] not in busy]
+    if not idle:
+        return
+    ready = q_local(f"""select o.id, o.checkout_id, o.buyer_id, o.delivery_lat, o.delivery_lng, extract(epoch from now() - o.updated_at) as age,
+        (select coalesce(sum(case when p.category in ('Pizzas tradicionais','Pizzas especiais','Pizzas doces','Promoções') then oi.quantity else 0.25 * oi.quantity end), 1)
+           from order_items oi left join products p on p.id = oi.product_id where oi.order_id = o.id) as units
+        from orders o where o.store_id = {esc(STORE['id'])}::uuid and o.status = 'ready' and o.delivery_option = 'entrega' and o.delivery_lat is not null
+          and not exists (select 1 from delivery_assignments da where da.checkout_id = o.checkout_id) order by o.updated_at""")
+    coming = q_local(f"select count(*) as n from orders where store_id = {esc(STORE['id'])}::uuid and status in ('pending','preparing') and delivery_option = 'entrega'")[0]['n']
+    for courier in idle:
+        if not ready:
+            break
+        seed = ready[0]
+        pos = lambda o: (float(o['delivery_lat']), float(o['delivery_lng']))
+        batch, units = [seed], float(seed['units'])
+        for o in sorted(ready[1:], key=lambda o: hav_km(pos(seed), pos(o))):
+            if len(batch) >= CFG['max_stops'] or units + float(o['units']) > CFG['bag']:
+                continue
+            if hav_km(pos(seed), pos(o)) > CFG['reach']:
+                break
+            batch.append(o); units += float(o['units'])
+        full = units >= CFG['bag'] * 0.8 or len(batch) >= CFG['max_stops']
+        waited = float(seed['age']) >= CFG['wait'] / max(1.0, 1.0)
+        nothing_more = int(coming) == 0 and float(seed['age']) >= CFG['wait'] / 4
+        if not (full or waited or nothing_more):
+            continue   # vale esperar: tem mais pedido a caminho de ficar pronto e a mochila ainda tem espaço
+        route = nearest_route(batch)
+        vals = ','.join(f"({esc(STORE['id'])}::uuid, {esc(courier['id'])}::uuid, {esc(o['checkout_id'])}::uuid, {i + 1}, 'pending')" for i, o in enumerate(route))
+        as_user(STORE['owner_id'], f"insert into delivery_assignments (store_id, employee_id, checkout_id, sequence_order, status) values {vals};")
+        km = 0.0; here = STORE_POS
+        for o in route:
+            km += hav_km(here, pos(o)); here = pos(o)
+        log(f"  🛵 {courier['name']} vai sair com {len(route)} entrega(s) ({units:.1f}/{CFG['bag']:g} na mochila, ~{km:.1f} km de rota): " + ' → '.join(o['id'][:6] for o in route))
+        ready = [o for o in ready if o not in batch]
+
+
+def courier_status(courier, assignment_id, status):
+    """O motoboy marca peguei/entreguei pelo MESMO endpoint da página /entregador/<token> (se o app não responder, grava direto no banco)."""
+    try:
+        req = urllib.request.Request(f"{CFG['app']}/api/courier/{courier['access_token']}/status", data=json.dumps({'assignmentId': assignment_id, 'status': status}).encode(),
+                                     headers={'Content-Type': 'application/json'}, method='POST')
+        urllib.request.urlopen(req, timeout=8).read()
+    except Exception as e:  # noqa: BLE001
+        stamp = "picked_up_at = coalesce(picked_up_at, now())" if status == 'in_transit' else "picked_up_at = coalesce(picked_up_at, now()), delivered_at = now()"
+        psql(['-c', f"update delivery_assignments set status = {esc(status)}, {stamp} where id = {esc(assignment_id)}::uuid"])
+        log(f"  (app não respondeu — {str(e)[:50]} — gravei direto no banco)")
+
+
+def run_couriers(speed=1.0):
+    rows = q_local(f"""select da.id, da.employee_id, da.sequence_order, da.status, da.created_at::text as created,
+        extract(epoch from now() - da.created_at) as since_assign, extract(epoch from now() - da.picked_up_at) as since_pick,
+        o.id as order_id, o.buyer_id, o.delivery_lat, o.delivery_lng, o.total_amount, o.status as order_status
+        from delivery_assignments da join orders o on o.checkout_id = da.checkout_id
+        where da.store_id = {esc(STORE['id'])}::uuid and da.status in ('pending','in_transit') order by da.employee_id, da.sequence_order""")
+    by = {}
+    for r in rows:
+        by.setdefault(r['employee_id'], []).append(r)
+    for emp_id, stops in by.items():
+        courier = next((c for c in COURIERS if c['id'] == emp_id), None)
+        if not courier:
+            continue
+        pending = [s for s in stops if s['status'] == 'pending']
+        if pending:   # ainda na loja: carrega a mochila e sai com todos de uma vez
+            if min(float(s['since_assign']) for s in pending) >= CFG['load'] / CFG['scale'] and all(s['order_status'] == 'ready' for s in pending):
+                for s in pending:
+                    courier_status(courier, s['id'], 'in_transit')
+                    owner_say(s['buyer_id'], f"Seu pedido saiu para entrega com {courier['name']}! 🛵")
+                log(f"  🛵 {courier['name']} pegou {len(pending)} pedido(s) e saiu para entregar")
+            continue
+        nxt = stops[0]   # todos já a caminho: o próximo da rota
+        done = q_local(f"""select da.sequence_order, extract(epoch from now() - da.delivered_at) as since, o.delivery_lat, o.delivery_lng from delivery_assignments da join orders o on o.checkout_id = da.checkout_id
+            where da.employee_id = {esc(emp_id)}::uuid and da.status = 'delivered' and da.created_at = {esc(nxt['created'])}::timestamptz order by da.sequence_order desc limit 1""")
+        prev_pos, waited = (STORE_POS, float(nxt['since_pick'])) if not done else ((float(done[0]['delivery_lat']), float(done[0]['delivery_lng'])), float(done[0]['since']))
+        leg = max(8.0, hav_km(prev_pos, (float(nxt['delivery_lat']), float(nxt['delivery_lng']))) / 28.0 * 3600.0 / CFG['scale'])   # ~28 km/h de moto na cidade, relógio comprimido
+        if waited < leg:
+            continue
+        courier_status(courier, nxt['id'], 'delivered')
+        as_user(STORE['owner_id'], f"update orders set status = 'paid' where id = {esc(nxt['order_id'])}::uuid;")
+        owner_say(nxt['buyer_id'], 'Entregue! Bom apetite. 🍕')
+        if R.random() < 0.8:
+            say(nxt['buyer_id'], nxt['buyer_id'], R.choice(AFTER_PAID_CUSTOMER))
+        log(f"  📦 {courier['name']} entregou o pedido {nxt['order_id'][:8]} (R$ {float(nxt['total_amount']):.2f}) — faltam {len(stops) - 1} na rota".replace('.', ','))
+
+
+def featured_order():
+    """A cliente em destaque (a que a página /tres-telas acompanha) pede com frequência, sempre entrega."""
+    if FEATURED:
+        make_order(FEATURED, force_delivery=True)
+
+
 def cycle_tick(speed):
-    for fn in (attend_orders, attend_appointments, attend_service_cycle):
+    fns = [attend_orders, attend_appointments, attend_service_cycle]
+    if CFG['couriers']:
+        fns += [dispatch_batches, run_couriers]
+    for fn in fns:
         try:
             fn(speed)
         except Exception as e:  # noqa: BLE001
@@ -363,12 +497,21 @@ def main():
     ap.add_argument('--chat-every', type=float, default=15, help='segundos entre uma pergunta de cliente e a próxima')
     ap.add_argument('--speed', type=float, default=1.0, help='multiplicador do ritmo do atendimento (2 = o dobro de rápido)')
     ap.add_argument('--manual', action='store_true', help='só chegam pedidos e agendamentos; quem atende (e responde) é a pessoa, pelo app')
-    ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick'])
+    ap.add_argument('--bag', type=float, default=6.0, help='quanto cabe na mochila do motoboy (uma pizza = 1; bebida/porção = 0,25)')
+    ap.add_argument('--max-stops', type=int, default=5, help='no máximo quantas entregas numa saída')
+    ap.add_argument('--reach', type=float, default=3.5, help='km: só junta pedidos até essa distância do primeiro da rota')
+    ap.add_argument('--wait', type=float, default=45.0, help='segundos que o pedido pronto espera para juntar mais entregas antes de sair')
+    ap.add_argument('--load', type=float, default=20.0, help='segundos (do relógio comprimido) que o motoboy leva para carregar a mochila')
+    ap.add_argument('--time-scale', type=float, default=6.0, help='comprime o relógio das viagens (6 = 6x mais rápido que a vida real)')
+    ap.add_argument('--featured-every', type=float, default=55.0, help='segundos entre um pedido e outro da cliente em destaque (cliente-007)')
+    ap.add_argument('--no-couriers', action='store_true', help='sem motoboys: entrega vai direto de pronto para entregue')
+    ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick', 'featured'])
     a = ap.parse_args()
+    CFG.update(couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
     load()
     if a.once:
-        return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed)}[a.once])
-    log(f"{STORE['name']}: {len(GOODS)} produtos, {len(SERVICES)} serviços, {len(CUSTOMERS)} clientes. " + ('Os pedidos chegam como PENDENTES — quem atende é você.' if a.manual else 'A loja atende sozinha: aceita, prepara, entrega, responde e o cliente avalia.'))
+        return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order}[a.once])
+    log(f"{STORE['name']}: {len(GOODS)} produtos, {len(SERVICES)} serviços, {len(CUSTOMERS)} clientes. " + ('Os pedidos chegam como PENDENTES — quem atende é você.' if a.manual else 'A loja atende sozinha: aceita, prepara, ' + (f"manda os motoboys ({len(COURIERS)}; mochila {CFG['bag']:g}, até {CFG['max_stops']} entregas por saída)" if CFG['couriers'] else 'entrega') + ', responde e o cliente avalia.'))
     for _ in range(a.burst):
         safe(make_order)
         time.sleep(0.4)
@@ -377,6 +520,7 @@ def main():
     stop = threading.Event()
     loop(a.every, make_order, stop)
     loop(a.appts_every, make_appointment, stop)
+    loop(a.featured_every, featured_order, stop)
     if not a.manual:
         loop(a.chat_every, customer_asks, stop)
         loop(5, lambda: cycle_tick(a.speed), stop)

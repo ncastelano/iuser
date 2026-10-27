@@ -58,6 +58,8 @@ const IGNORED_ROUTES = [
     '/meus-imoveis',
     '/flash', // feed de pessoas em tela cheia (3.0)
     '/pessoas', // página de pessoas (3.0)
+    '/tres-telas', // ferramenta de desenvolvimento (só local): observação em 3 telas
+    '/dev-login', // ferramenta de desenvolvimento (só local): entra com a conta de teste
 ]
 
 // ===== PREFIXOS IGNORADOS =====
