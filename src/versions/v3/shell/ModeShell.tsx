@@ -20,7 +20,6 @@ import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import { useChatUnread } from '@/hooks/useChatUnread'
 import { useOrderStatusCounts, type OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
-import { hexToRgb } from '@/lib/color'
 import { useShellLive } from '@/hooks/useShellLive'
 import BottomNavBar, { BAR_SPACE, STRIP_H } from '@/components/BottomNavBar'
 import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
@@ -400,7 +399,6 @@ export default function ModeShell({ children }: {
     useEffect(() => setCartReady(true), [])
     const topCart = cartReady ? Object.values(cartMap).reduce((a, items) => a + items.reduce((n, i) => n + i.quantity, 0), 0) : 0
     const cartTotal = cartReady ? Object.values(cartMap).reduce((a, items) => a + items.reduce((n, i) => n + cartItemLineTotal(i), 0), 0) : 0
-    const surfaceRgb = hexToRgb(colors.surface)
 
     // Hub: abre pela ilha do topo ou pela foto da barra de baixo. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
@@ -588,7 +586,7 @@ export default function ModeShell({ children }: {
         </div>
 
         {/* Faixa do topo: cobre o que rola por baixo da ilha */}
-        <div aria-hidden className="fixed top-0 left-0 right-0 z-30 pointer-events-none" style={{ height: NAV_H, background: `linear-gradient(to bottom, ${colors.background} 35%, transparent)` }} />
+        <div aria-hidden className="fixed top-0 left-0 right-0 z-30 pointer-events-none" style={{ height: NAV_H, background: `linear-gradient(to bottom, ${colors.background} 70%, transparent)` }} />
 
         {/* ILHA: foto do modo + cumprimento — ou o que está vivo agora (corrida, pedido, mensagens). Tocar abre o hub (ou vai ao que está vivo). */}
         <div className="fixed left-0 right-0 z-40 pointer-events-none" style={{ top: ISLAND_TOP }}>
@@ -597,12 +595,10 @@ export default function ModeShell({ children }: {
                     className="pointer-events-auto flex items-center gap-2.5 rounded-full pl-2 pr-2"
                     style={{
                         height: ISLAND_H,
-                        // Vidro: transparente, com o que passa por baixo desfocado, borda e brilho brancos (escura só quando há algo vivo)
-                        background: live ? 'rgba(17,24,39,0.88)' : 'rgba(255,255,255,0.3)',
-                        backdropFilter: 'blur(16px) saturate(1.5)',
-                        WebkitBackdropFilter: 'blur(16px) saturate(1.5)',
-                        border: '1px solid rgba(255,255,255,0.75)',
-                        boxShadow: '0 0 0 1px rgba(255,255,255,0.35), 0 6px 26px rgba(255,255,255,0.65), 0 8px 24px rgba(0,0,0,0.10)',
+                        // Sólida, da cor do fundo das páginas (escura só quando há algo vivo)
+                        background: live ? '#111827' : colors.background,
+                        border: `1px solid ${live ? '#111827' : colors.border}`,
+                        boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
                         opacity: drawerOpen ? 0 : 1,
                         transition: 'opacity 200ms ease, background 300ms ease',
                     }}
@@ -626,11 +622,11 @@ export default function ModeShell({ children }: {
                         ) : (
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{idle.line1}</span>
-                                <span className="block text-[15px] font-black truncate leading-tight" style={{ color: colors.textPrimary, textShadow: '0 1px 8px rgba(255,255,255,0.6)' }}>{idle.line2}</span>
+                                <span className="block text-[15px] font-black truncate leading-tight" style={{ color: colors.textPrimary }}>{idle.line2}</span>
                             </>
                         )}
                     </button>
-                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: live ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.55)', border: live ? undefined : '1px solid rgba(255,255,255,0.8)', color: live ? '#fff' : colors.textPrimary }}>
+                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: live ? 'rgba(255,255,255,0.16)' : `${colors.border}66`, color: live ? '#fff' : colors.textPrimary }}>
                         <ChevronDown size={18} />
                     </button>
                 </div>

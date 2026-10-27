@@ -8,7 +8,6 @@
 import { ReactNode } from 'react'
 import { ChevronRight, MapPin, MessageCircle, ShoppingCart } from 'lucide-react'
 import type { OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
-import { hexToRgb } from '@/lib/color'
 
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 export const BAR_BOTTOM = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
@@ -32,7 +31,7 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
                 {children}
                 {badge > 0 && pulse && !active && <span aria-hidden className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full animate-ping pointer-events-none" style={{ background: badgeColor, opacity: 0.55 }} />}
                 {badge > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: `0 0 0 2px ${colors.surface}` }}>
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: `0 0 0 2px ${colors.background}` }}>
                         {badge > 99 ? '99+' : badge}
                     </span>
                 )}
@@ -40,7 +39,7 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
             {ordersOn && orders && (
                 <span className="absolute left-1/2 -translate-x-1/2 flex items-center gap-[3px] pointer-events-none" style={{ bottom: 4 }} aria-label="Pedidos em andamento">
                     {([['pending', '#3b82f6'], ['preparing', '#eab308'], ['ready', '#a855f7']] as const).map(([k, color]) => (
-                        orders[k] > 0 ? <span key={k} className="min-w-[14px] h-[14px] px-[3px] rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: color, boxShadow: `0 0 0 1.5px ${colors.surface}` }}>{orders[k] > 9 ? '9+' : orders[k]}</span> : null
+                        orders[k] > 0 ? <span key={k} className="min-w-[14px] h-[14px] px-[3px] rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: color, boxShadow: `0 0 0 1.5px ${colors.background}` }}>{orders[k] > 9 ? '9+' : orders[k]}</span> : null
                     ))}
                 </span>
             )}
@@ -67,17 +66,16 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     onRadar: () => void
     onAvatar: () => void
 }) {
-    const surfaceRgb = hexToRgb(colors.surface)
     const ordersActive = orderCounts.pending + orderCounts.preparing + orderCounts.ready
     const strip = showCartStrip && cartCount > 0
     return (
         <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 z-40 pointer-events-none" style={{ bottom: BAR_BOTTOM }}>
             <div className="max-w-md mx-auto px-3">
-                {/* Uma peça só: (faixa do carrinho, nas páginas de compra) + a barra. Vidro, como a ilha. */}
+                {/* Uma peça só: (faixa do carrinho, nas páginas de compra) + a barra. Sólida, como a ilha. */}
                 <div className="pointer-events-auto relative" style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.82)`,
-                    backdropFilter: 'blur(16px) saturate(1.4)', WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
-                    border: `1px solid ${colors.border}`, boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+                    // Sólida, da cor do fundo das páginas (igual à ilha)
+                    background: colors.background,
+                    border: `1px solid ${colors.border}`, boxShadow: '0 10px 28px rgba(0,0,0,0.14)',
                     borderRadius: strip ? 30 : 9999, transition: 'border-radius 300ms ease',
                 }}>
                     <button
@@ -121,7 +119,7 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
                             aria-label="iUser: tudo do iUser"
                             aria-current={active === 'home' ? 'page' : undefined}
                             className="absolute left-1/2 rounded-full transition active:scale-90"
-                            style={{ width: 62, height: 62, top: -22, transform: 'translateX(-50%)', background: colors.surface, padding: 4, boxShadow: `0 8px 20px rgba(249,115,22,0.35), 0 0 0 ${active === 'home' ? 2 : 0}px #f97316` }}
+                            style={{ width: 62, height: 62, top: -22, transform: 'translateX(-50%)', background: colors.background, padding: 4, boxShadow: `0 8px 20px rgba(249,115,22,0.35), 0 0 0 ${active === 'home' ? 2 : 0}px #f97316` }}
                         >
                             <span className="block w-full h-full rounded-full" style={LOGO_RING}>
                                 <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
