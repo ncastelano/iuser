@@ -65,7 +65,7 @@ function modePath(mode: string, data: DrawerData): string {
 
 // Linha de um modo no menu: mostra a imagem do modo (foto do perfil, logo da loja, foto do carro) ou, sem imagem, o ícone.
 // Nada some nem aparece aqui — a animação de troca acontece só no topo da página (seção "Bem-vindo").
-function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, actions, extra, hidePanel = false }: {
+function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, actions, extra, hidePanel = false, card = false }: {
     mode: string; active: string; icon: ReactNode; image?: string | null; title: string; desc?: string; dot?: string
     onSelect: (mode: string) => void
     /** Botões extras embaixo da linha (ex.: "Ver loja" e "Editar") */
@@ -74,12 +74,16 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
     extra?: ReactNode
     /** Sem o botão "Painel" à direita (quando o painel já está entre os botões de baixo) */
     hidePanel?: boolean
+    /** O cartão é o próprio contêiner (borda e fundo), sem painel em volta */
+    card?: boolean
 }) {
     const selected = active === mode
     return (
         <div
-            className="rounded-2xl"
-            style={selected ? { background: 'var(--hub-soft)', boxShadow: 'inset 0 0 0 1.5px #f97316' } : undefined}
+            className={card ? 'rounded-3xl mt-4' : 'rounded-2xl'}
+            style={card
+                ? { background: 'var(--hub-panel)', border: `1px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, boxShadow: selected ? 'inset 0 0 0 1px #f97316' : undefined }
+                : selected ? { background: 'var(--hub-soft)', boxShadow: 'inset 0 0 0 1.5px #f97316' } : undefined}
         >
             <div className="flex items-center">
                 <button
@@ -192,7 +196,7 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
             </Panel>
 
             {/* Só o cartão da loja (sem o título "Modo loja"): Ver loja + Painel e, embaixo, os pedidos */}
-            <section className="mt-4 rounded-3xl p-2 flex flex-col gap-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
+            <>
                 {data.stores.length > 0 ? data.stores.map((st) => {
                     const o = storeOrders[st.id] || { pending: 0, preparing: 0, ready: 0 }
                     const going = o.preparing + o.ready
@@ -203,6 +207,7 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
                             active={active}
                             onSelect={onSelect}
                             hidePanel
+                            card
                             icon={<StoreIcon size={20} color="#f97316" />}
                             image={st.logo}
                             title={st.name}
@@ -232,9 +237,9 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
                         />
                     )
                 }) : (
-                    <DrawerCta icon={<StoreIcon size={20} color="#f97316" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} />
+                    <div className="mt-4"><DrawerCta icon={<StoreIcon size={20} color="#f97316" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} /></div>
                 )}
-            </section>
+            </>
 
 
             <DrawerExplorar recent={recent} onGo={onGo} />

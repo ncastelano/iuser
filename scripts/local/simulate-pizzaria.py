@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
-"""Movimento da Pizzaria Forno de Ouro (conta admin-teste) — SÓ no Supabase LOCAL.
+"""Movimento da Pizzaria Forno de Ouro (conta admin-teste) — SÓ no Supabase LOCAL. CICLO COMPLETO, do pedido à avaliação.
 
-Clientes de teste fazem PEDIDOS (pizzas com ingredientes extras, refrigerantes, combos, entrega ou retirada, Pix/cartão/dinheiro) e
-AGENDAMENTOS (rodízios e Ambiente VIP, com a entrada de 30% já informada por Pix) na loja da pessoa dona (admin-teste). Cada cliente age COMO ELE
-MESMO (papel `authenticated` + JWT), então RLS, gatilhos e RPCs valem de verdade. Quem ATENDE é você, pelo app: aceitar/recusar o pedido,
-"saiu para entrega", concluir, confirmar a entrada do agendamento, marcar "serviço feito". O simulador do ecossistema (simulate-ecosystem.py)
-NÃO mexe nos pedidos nem nos agendamentos dessa loja.
+Clientes de teste agem COMO ELES MESMOS (papel `authenticated` + JWT: RLS, gatilhos e RPCs valem) e a loja (a conta admin-teste, também como ela
+mesma) atende:
+  - PEDIDOS: chegam a cada --every s (pizzas com adicionais, entrega/retirada, Pix/cartão/dinheiro) e AGENDAMENTOS (rodízio, Ambiente VIP) a cada --appts-every s;
+  - CONVERSAS: clientes puxam conversa com a loja (entrega no bairro, ingredientes, horário do rodízio, reserva do Ambiente VIP, tempo do pedido) e a
+    loja responde; a loja também avisa em cada etapa do pedido e o cliente agradece;
+  - ATENDIMENTO: pedido pendente → a loja aceita (ou recusa, raramente) → em preparo → pronto / saiu para entrega → entregue (pago) → o cliente
+    recebe, comenta no chat e AVALIA a compra; agendamentos pendentes são confirmados (entrada Pix confirmada) e, no dia, marcados como feitos.
+  Com --manual só chegam pedidos/agendamentos (nada é atendido): quem atende é a pessoa, pelo app.
+O simulador do ecossistema (simulate-ecosystem.py) NÃO mexe nessa loja.
 
-  node scripts/local/seed-pizzaria.mjs                     # (uma vez) cria a loja, o cardápio e os serviços
-  python3 -u scripts/local/simulate-pizzaria.py            # 6 pedidos de uma vez e depois um a cada ~25 s (Ctrl-C para parar)
-  python3 -u scripts/local/simulate-pizzaria.py --burst 10 --every 15 --appts-every 60
-  python3 scripts/local/simulate-pizzaria.py --once order  # só um pedido (ou: --once appointment)
+  node scripts/local/seed-pizzaria.mjs                       # (uma vez) cria a loja, o cardápio e os serviços
+  python3 -u scripts/local/simulate-pizzaria.py              # ciclo completo (Ctrl-C para parar)
+  python3 -u scripts/local/simulate-pizzaria.py --burst 0 --every 30 --appts-every 120 --speed 1
+  python3 -u scripts/local/simulate-pizzaria.py --manual     # só chegam pedidos; você atende
+  python3 scripts/local/simulate-pizzaria.py --once order    # só um pedido (ou: --once appointment | chat | tick)
 """
 import argparse, json, os, random, re, sys, threading, time
 from datetime import datetime, timedelta
@@ -18,6 +23,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import psql, q_local  # noqa: E402
 
+UUID = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 R = random.Random()
 LOCK = threading.Lock()
 SLUG = 'pizzaria-forno-de-ouro'
@@ -151,6 +157,164 @@ def make_appointment():
     log(f"📅 agendamento de {c['name']}: {svc['name']} para {people} pessoas em {day.strftime('%d/%m')} {hour:02d}:{minute:02d}{paid}")
 
 
+# ---------------------------------------------------------------- conversas
+ASKS = [('Vocês entregam no bairro {b}?', 'entrega'), ('Quanto tempo demora uma pizza grande?', 'tempo'), ('A pizza de camarão tem lactose?', 'lactose'),
+        ('Dá pra fazer meio a meio?', 'meio'), ('Qual o horário do rodízio hoje?', 'rodizio'), ('Vocês reservam o Ambiente VIP no sábado?', 'vip'),
+        ('Tem opção sem glúten?', 'gluten'), ('Aceitam cartão na entrega?', 'cartao'), ('Posso trocar a borda depois de pedir?', 'borda'), ('Qual o valor do Ambiente VIP para 15 pessoas?', 'vip'),
+        ('Vocês têm cardápio infantil?', 'rodizio'), ('Está aberto agora?', 'aberto')]
+BAIRROS = ['Centro', 'Embratel', 'Olaria', 'Caiari', 'São Cristóvão', 'Pedrinhas', 'Liberdade', 'Industrial']
+ANSWERS = {
+    'entrega': 'Entregamos sim! A taxa é R$ 7,00 fixa em toda a cidade e a entrega leva uns 40 minutos. 🛵',
+    'tempo': 'A pizza grande fica pronta em uns 30 a 40 minutos, já com a entrega. 🍕',
+    'lactose': 'Tem sim, o catupiry e a mussarela têm lactose. Posso sugerir a Margherita sem queijo extra, é só pedir nas observações!',
+    'meio': 'Dá sim! Escolha dois sabores tradicionais e avise nas observações do pedido que fazemos meio a meio, sem custo extra.',
+    'rodizio': 'O rodízio roda todos os dias das 11h às 23h e dura 2 horas. Adulto R$ 69,90, criança R$ 39,90 e premium com bebida à vontade R$ 94,90. 🍕',
+    'vip': 'Temos o Ambiente VIP para até 20 pessoas! É só agendar pelo app, na página da loja. A entrada é de 30% e o restante você acerta no dia.',
+    'gluten': 'Ainda não temos massa sem glúten, mas a Pepperoni e a Margherita podem sair em formato de calzone no forno a lenha. Quer?',
+    'cartao': 'Aceitamos cartão (débito e crédito), Pix e dinheiro na entrega. Leve o troco combinado que a gente já separa. 💳',
+    'borda': 'Se o pedido ainda não estiver no forno dá sim! Me avise aqui rapidinho que eu troco para você.',
+    'aberto': 'Estamos abertos todos os dias, das 11h às 23h59. Pode pedir! 🍕',
+}
+GENERIC = ['Oi! Em que posso ajudar? 😊', 'Claro, pode falar!', 'Estamos à disposição, é só pedir pelo app. 🍕']
+THANKS = ['Obrigado!', 'Valeu, vou pedir!', 'Perfeito, obrigada!', 'Show, fechado então', 'Muito obrigado pelo atendimento 🙏']
+AFTER_ACCEPT = ['Pedido recebido! Já estamos preparando a sua pizza. 🍕', 'Oi! Seu pedido foi aceito e já vai para o forno. 🔥', 'Pedido confirmado! Em breve ele estará pronto. 🍕']
+AFTER_READY_DELIVERY = ['Seu pedido saiu para entrega! 🛵 Chega em instantes.', 'Pizza quentinha a caminho! 🛵']
+AFTER_READY_PICKUP = ['Seu pedido está pronto! Pode retirar no balcão. 🍕', 'Pronto! Pode vir buscar, está quentinho. 🍕']
+AFTER_PAID_CUSTOMER = ['Chegou quentinha, obrigado!', 'Recebi! Estava deliciosa 😋', 'Tudo certo, muito obrigada!', 'Chegou rapidinho, parabéns!', 'Peguei aqui, valeu!']
+REVIEWS_GOOD = ['Pizza maravilhosa, massa leve e bem recheada!', 'Chegou quentinha e rápido. Recomendo!', 'A melhor pizza da cidade, sem dúvida.', 'Adorei os ingredientes extras, ficou do jeito que pedi.', 'Atendimento excelente e entrega no tempo.', 'Borda recheada perfeita!', '']
+REVIEWS_OK = ['Boa, mas demorou um pouquinho.', 'Gostoso, só veio um pouco morna.', 'Bom custo-benefício.']
+
+_conv_cache = {}
+
+
+def conv_with(customer_id):
+    """Conversa (cliente ↔ loja): abre ou retoma pelo próprio cliente (RPC start_conversation) e guarda o id."""
+    if customer_id not in _conv_cache:
+        out = as_user(customer_id, f"select start_conversation(null, {esc(STORE['id'])}::uuid);")
+        _conv_cache[customer_id] = re.findall(UUID, out)[-1]
+    return _conv_cache[customer_id]
+
+
+def say(sender_id, customer_id, text):
+    cid = conv_with(customer_id)
+    as_user(sender_id, f"insert into direct_messages (conversation_id, sender_id, content) values ({esc(cid)}::uuid, {esc(sender_id)}::uuid, {esc(text)});")
+
+
+def owner_say(customer_id, text):
+    say(STORE['owner_id'], customer_id, text)
+
+
+def customer_asks():
+    c = R.choice(CUSTOMERS)
+    q, _ = R.choice(ASKS)
+    q = q.format(b=R.choice(BAIRROS))
+    say(c['id'], c['id'], q)
+    log(f"💬 {c['name']} pergunta à loja: “{q}”")
+
+
+def chat_tick(limit=3):
+    """A loja responde quem escreveu e ainda não foi respondido; o cliente às vezes agradece."""
+    rows = q_local(f"""select c.id, c.customer_id, m.content, (select count(*) from direct_messages x where x.conversation_id = c.id) as n, m.sender_id, extract(epoch from now() - m.created_at) as age
+        from conversations c join lateral (select * from direct_messages d where d.conversation_id = c.id order by d.created_at desc limit 1) m on true
+        where c.store_id = {esc(STORE['id'])}::uuid and m.created_at > now() - interval '40 minutes' order by random() limit 30""")
+    done = 0
+    for r in rows:
+        if done >= limit:
+            break
+        age = float(r['age'])
+        if r['sender_id'] != STORE['owner_id'] and age > 8:
+            text = r['content'].lower()
+            key = next((k for k, w in (('entrega', 'entreg'), ('tempo', 'demora'), ('lactose', 'lactose'), ('meio', 'meio a meio'), ('rodizio', 'rod'), ('vip', 'vip'), ('gluten', 'glúten'),
+                                       ('cartao', 'cartão'), ('borda', 'borda'), ('aberto', 'aberto')) if w in text), None)
+            if key is None and ('quanto tempo' in text or 'demora' in text):
+                key = 'tempo'
+            reply = ANSWERS.get(key) if key else (R.choice(['De nada! 🍕', 'Por nada, volte sempre!', 'Disponha! 😊']) if any(t in text for t in ('obrigad', 'valeu', 'show', 'perfeito', 'recebi', 'chegou', 'peguei')) else R.choice(GENERIC))
+            owner_say(r['customer_id'], reply)
+            log(f"  🏪 loja responde a {text[:40]!r}: “{reply[:60]}”")
+            done += 1
+        elif r['sender_id'] == STORE['owner_id'] and 10 < age < 120 and int(r['n']) < 4 and R.random() < 0.4:
+            say(r['customer_id'], r['customer_id'], R.choice(THANKS))
+            log('  💬 cliente agradece')
+            done += 1
+
+
+# ---------------------------------------------------------------- atendimento (o ciclo do pedido)
+def store_orders(status, min_age):
+    return q_local(f"""select o.id, o.buyer_id, o.delivery_option, o.total_amount, extract(epoch from now() - o.updated_at) as age from orders o
+        where o.store_id = {esc(STORE['id'])}::uuid and o.status = {esc(status)} and o.updated_at < now() - interval '{min_age} seconds' order by o.updated_at limit 12""")
+
+
+def set_status(order, status):
+    as_user(STORE['owner_id'], f"update orders set status = {esc(status)} where id = {esc(order['id'])}::uuid;")
+
+
+def attend_orders(speed):
+    n = lambda t: t / speed
+    for o in store_orders('pending', 12):
+        if R.random() < min(1, 0.35 * speed):
+            if R.random() < 0.03:
+                set_status(o, 'rejected')
+                owner_say(o['buyer_id'], 'Desculpe, acabou um ingrediente do seu pedido e não conseguimos atender agora. Foi mal! Peça de novo daqui a pouco. 🙏')
+                log(f"  🏪 pedido {o['id'][:8]} recusado")
+            else:
+                set_status(o, 'preparing')
+                owner_say(o['buyer_id'], R.choice(AFTER_ACCEPT))
+                log(f"  🏪 pedido {o['id'][:8]} aceito → em preparo")
+    for o in store_orders('preparing', int(n(40))):
+        if R.random() < min(1, 0.12 * speed):
+            set_status(o, 'ready')
+            delivery = o['delivery_option'] == 'entrega'
+            owner_say(o['buyer_id'], R.choice(AFTER_READY_DELIVERY if delivery else AFTER_READY_PICKUP))
+            log(f"  🏪 pedido {o['id'][:8]} pronto → {'saiu para entrega' if delivery else 'aguardando retirada'}")
+    for o in store_orders('ready', int(n(30))):
+        if R.random() < min(1, 0.14 * speed):
+            set_status(o, 'paid')
+            if R.random() < 0.7:
+                say(o['buyer_id'], o['buyer_id'], R.choice(AFTER_PAID_CUSTOMER))
+            log(f"  📦 pedido {o['id'][:8]} entregue (R$ {float(o['total_amount']):.2f})".replace('.', ','))
+    # o cliente recebeu: comenta/avalia a compra
+    rows = q_local(f"""select o.id, o.buyer_id, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
+        from orders o where o.store_id = {esc(STORE['id'])}::uuid and o.status = 'paid' and o.updated_at < now() - interval '{int(n(12))} seconds' and o.updated_at > now() - interval '3 hours'
+          and not exists (select 1 from product_reviews r where r.order_id = o.id) order by random() limit 4""")
+    for r in rows:
+        if R.random() > min(1, 0.3 * speed):
+            continue
+        rating = R.choices([5, 4, 3, 2], [62, 25, 10, 3])[0]
+        text = R.choice(REVIEWS_GOOD if rating >= 4 else REVIEWS_OK) or None
+        as_user(r['buyer_id'], f"""insert into product_reviews (store_id, product_id, profile_id, order_id, rating, comment, is_anonymous)
+            values ({esc(STORE['id'])}::uuid, {esc(r['product_id'])}::uuid, {esc(r['buyer_id'])}::uuid, {esc(r['id'])}::uuid, {rating}, {esc(text) if text else 'null'}, false);""")
+        log(f"  ⭐ cliente avaliou o pedido {r['id'][:8]} com {rating}★" + (f" — “{text[:50]}”" if text else ''))
+
+
+def attend_appointments(speed):
+    """Agendamentos: a loja confirma (a entrada Pix informada é confirmada) e, passado o dia, marca o serviço como feito."""
+    rows = q_local(f"""select a.id, a.status, a.deposit_status, a.customer_id, a.service_name from appointments a
+        where a.store_id = {esc(STORE['id'])}::uuid and a.status = 'pending' and a.created_at < now() - interval '20 seconds' order by random() limit 3""")
+    for r in rows:
+        if R.random() > min(1, 0.3 * speed):
+            continue
+        try:
+            if r['deposit_status'] == 'reported':
+                as_user(STORE['owner_id'], f"select confirm_appointment_deposit({esc(r['id'])}::uuid);")
+                log(f"  📅 entrada confirmada → agendamento “{r['service_name']}” confirmado")
+                owner_say(r['customer_id'], f"Recebemos a entrada! Sua reserva de “{r['service_name']}” está confirmada. Te esperamos! 🍕")
+            elif r['deposit_status'] in ('none', None):
+                as_user(STORE['owner_id'], f"update appointments set status = 'confirmed' where id = {esc(r['id'])}::uuid;")
+                log(f"  📅 agendamento “{r['service_name']}” confirmado")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ agendamento {r['id'][:8]}: {str(e).splitlines()[0][:100]}")
+
+
+def cycle_tick(speed):
+    for fn in (attend_orders, attend_appointments):
+        try:
+            fn(speed)
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ {fn.__name__}: {str(e).splitlines()[0][:140]}")
+    safe(chat_tick)
+
+
+
 def safe(fn):
     try:
         fn()
@@ -173,12 +337,15 @@ def main():
     ap.add_argument('--burst', type=int, default=6, help='pedidos feitos de uma vez ao começar')
     ap.add_argument('--every', type=float, default=25, help='segundos entre um pedido e o próximo')
     ap.add_argument('--appts-every', type=float, default=90, help='segundos entre um agendamento e o próximo')
-    ap.add_argument('--once', choices=['order', 'appointment'])
+    ap.add_argument('--chat-every', type=float, default=22, help='segundos entre uma pergunta de cliente e a próxima')
+    ap.add_argument('--speed', type=float, default=1.0, help='multiplicador do ritmo do atendimento (2 = o dobro de rápido)')
+    ap.add_argument('--manual', action='store_true', help='só chegam pedidos e agendamentos; quem atende (e responde) é a pessoa, pelo app')
+    ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick'])
     a = ap.parse_args()
     load()
     if a.once:
-        return safe(make_order if a.once == 'order' else make_appointment)
-    log(f"{STORE['name']}: {len(GOODS)} produtos, {len(SERVICES)} serviços, {len(CUSTOMERS)} clientes. Os pedidos chegam como PENDENTES — quem atende é você.")
+        return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed)}[a.once])
+    log(f"{STORE['name']}: {len(GOODS)} produtos, {len(SERVICES)} serviços, {len(CUSTOMERS)} clientes. " + ('Os pedidos chegam como PENDENTES — quem atende é você.' if a.manual else 'A loja atende sozinha: aceita, prepara, entrega, responde e o cliente avalia.'))
     for _ in range(a.burst):
         safe(make_order)
         time.sleep(0.4)
@@ -187,6 +354,9 @@ def main():
     stop = threading.Event()
     loop(a.every, make_order, stop)
     loop(a.appts_every, make_appointment, stop)
+    if not a.manual:
+        loop(a.chat_every, customer_asks, stop)
+        loop(5, lambda: cycle_tick(a.speed), stop)
     try:
         while True:
             time.sleep(60)
