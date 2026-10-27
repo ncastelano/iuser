@@ -5,7 +5,7 @@
 // Corrida: consulta própria a cada 30 s (só com a aba visível); pedidos e mensagens vêm dos contadores que a casca já tem.
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 
 export type ShellLiveKind = 'ride' | 'order' | 'chat' | 'store'
@@ -21,6 +21,10 @@ interface ActiveRide { status: string; enRoute: boolean; arrived: boolean; start
 
 export function useShellLive(userId: string | null | undefined, orders: { pending: number; preparing: number; ready: number }, unread: number, chatPath: string, storeNew?: StoreNewOrders | null): ShellLive | null {
     const [ride, setRide] = useState<ActiveRide | null>(null)
+    // Quando cada contagem (pedidos, serviços, mensagens) AUMENTOU pela última vez: o que atualizou por último fica em cima na ilha.
+    // Nos primeiros segundos as contagens chegando do banco não contam como "atualização" (a ordem inicial é a de sempre).
+    const mountedAt = useRef(Date.now())
+    const stamps = useRef<Record<'p' | 's' | 'm', { n: number; t: number }>>({ p: { n: 0, t: 0 }, s: { n: 0, t: 0 }, m: { n: 0, t: 0 } })
 
     useEffect(() => {
         if (!userId) { setRide(null); return }
@@ -59,13 +63,18 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
         return { kind: 'ride', title, sub: ride.status === 'pending' && ride.candidates > 0 ? 'Toque para escolher' : 'Toque para acompanhar', path: '/pedir-motorista', hot: ride.candidates > 0 || ride.arrived, color: '#f97316' }
     }
     const sp = storeNew?.products || 0, ss = storeNew?.services || 0
+    for (const [k, n] of [['p', sp], ['s', ss], ['m', unread]] as const) {
+        const e = stamps.current[k]
+        if (n > e.n && (e.n > 0 || Date.now() - mountedAt.current > 8000)) e.t = Date.now()
+        e.n = n
+    }
     const CHAT_COLOR = '#22c55e'
     // Pedidos de produtos, pedidos de serviço e mensagens: cada um na sua cor, lado a lado (com um tipo só, o texto é completo)
     const kinds = [
-        { n: sp, one: 'pedido', many: 'pedidos', full1: 'pedido novo', fullN: 'pedidos novos', color: ORDER_COLORS.novo },
-        { n: ss, one: 'serviço', many: 'serviços', full1: 'serviço para aceitar', fullN: 'serviços para aceitar', color: SERVICE_COLOR },
-        { n: unread, one: 'mensagem', many: 'mensagens', full1: 'mensagem nova', fullN: 'mensagens novas', color: CHAT_COLOR },
-    ].filter((k) => k.n > 0)
+        { n: sp, t: stamps.current.p.t, one: 'pedido', many: 'pedidos', full1: 'pedido novo', fullN: 'pedidos novos', color: ORDER_COLORS.novo },
+        { n: ss, t: stamps.current.s.t, one: 'serviço', many: 'serviços', full1: 'serviço para aceitar', fullN: 'serviços para aceitar', color: SERVICE_COLOR },
+        { n: unread, t: stamps.current.m.t, one: 'mensagem', many: 'mensagens', full1: 'mensagem nova', fullN: 'mensagens novas', color: CHAT_COLOR },
+    ].filter((k) => k.n > 0).sort((a, b) => b.t - a.t)   // o último que atualizou vem primeiro (empate: pedidos, serviços, mensagens)
     const storeLive: ShellLive | null = storeNew && sp + ss > 0
         ? {
             kind: 'store',

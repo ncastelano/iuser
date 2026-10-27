@@ -16,6 +16,7 @@ import { hexToRgb } from '@/lib/color'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useInsideShell } from '@/components/InsideShell'
 import V3Section, { V3_GRADIENT } from '@/components/StoreDashboard/V3Section'
+import StatChips from '@/components/StoreDashboard/StatChips'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -539,18 +540,11 @@ export default function AtalhoCompromissosDaLoja({
         .slice(0, 6)
     const bodyV3 = (
         <>
-            <div className="grid grid-cols-3 gap-2">
-                {([
-                    { label: 'Hoje', n: todayCount, color: '#d97706' },
-                    { label: 'Na agenda', n: confirmedCount, color: '#7c3aed' },
-                    { label: 'Feitos', n: completedCount, color: '#2563eb' },
-                ]).map((t) => (
-                    <div key={t.label} className="rounded-2xl py-2.5 px-1 flex flex-col items-center gap-0.5" style={{ background: `${t.color}${t.n > 0 ? '1f' : '10'}`, border: `1px solid ${t.color}${t.n > 0 ? '40' : '20'}` }}>
-                        <span className="text-xl font-black leading-none" style={{ color: t.n > 0 ? t.color : textSecondary }}>{t.n}</span>
-                        <span className="text-[9px] font-black uppercase tracking-wide" style={{ color: t.n > 0 ? t.color : textSecondary }}>{t.label}</span>
-                    </div>
-                ))}
-            </div>
+            <StatChips items={[
+                { label: 'Hoje', n: todayCount, color: '#d97706' },
+                { label: 'Na agenda', n: confirmedCount, color: '#7c3aed' },
+                { label: 'Feitos', n: completedCount, color: '#2563eb' },
+            ]} />
 
             <div className="grid grid-cols-2 gap-2">
                 <Link href={agendaHref} className="h-10 rounded-full text-[13px] font-black flex items-center justify-center transition active:scale-95" style={{ background: '#f97316', color: '#fff', textDecoration: 'none' }}>Ver agenda</Link>

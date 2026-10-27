@@ -654,6 +654,18 @@ export default function ModeShell({ children }: {
         destination: ['/', '/carrinho', '/conversas'].includes(shellPath) ? shellPath : '/',
     })
 
+    // A ilha cresce quando mostra vários avisos empilhados: o conteúdo da página (e --shell-top) desce o mesmo tanto
+    const islandRef = useRef<HTMLDivElement>(null)
+    const [islandH, setIslandH] = useState(0)
+    useEffect(() => {
+        const el = islandRef.current
+        if (!el || typeof ResizeObserver === 'undefined') return
+        const ro = new ResizeObserver(() => setIslandH(Math.round(el.getBoundingClientRect().height)))
+        ro.observe(el)
+        return () => ro.disconnect()
+    }, [])
+    const navH = `calc(74px + env(safe-area-inset-top) + ${Math.max(0, islandH - ISLAND_H)}px)`
+
     const idle = headerView
     return (
         <>
@@ -669,8 +681,9 @@ export default function ModeShell({ children }: {
             className="relative"
             style={{
                 background: colors.background, zIndex: 2,
-                marginTop: NAV_H,
-                minHeight: `calc(100dvh - ${NAV_H})`,
+                marginTop: navH,
+                minHeight: `calc(100dvh - ${navH})`,
+                ['--shell-top' as string]: navH,
                 paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${cartStrip ? STRIP_H : 0}px)` : 40,
                 ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${cartStrip ? STRIP_H : 0}px)` : '0px',
                 animation: rising ? 'shellRise 700ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
@@ -682,15 +695,17 @@ export default function ModeShell({ children }: {
         </div>
 
         {/* Faixa do topo: cobre o que rola por baixo da ilha */}
-        <div aria-hidden className="fixed top-0 left-0 right-0 z-30 pointer-events-none" style={{ height: NAV_H, background: `linear-gradient(to bottom, ${colors.background} 70%, transparent)` }} />
+        <div aria-hidden className="fixed top-0 left-0 right-0 z-30 pointer-events-none" style={{ height: navH, background: `linear-gradient(to bottom, ${colors.background} 70%, transparent)` }} />
 
         {/* ILHA: foto do modo + cumprimento — ou o que está vivo agora (corrida, pedido, mensagens). Tocar abre o hub (ou vai ao que está vivo). */}
         <div className="fixed left-0 right-0 z-40 pointer-events-none" style={{ top: ISLAND_TOP }}>
             <div className="max-w-5xl mx-auto px-3">
                 <div
-                    className="pointer-events-auto relative flex items-center gap-2.5 rounded-full pl-2 pr-2"
+                    ref={islandRef}
+                    className="pointer-events-auto relative flex items-center gap-2.5 pl-2 pr-3"
                     style={{
-                        height: ISLAND_H,
+                        minHeight: ISLAND_H,
+                        borderRadius: (islandH || ISLAND_H) > ISLAND_H + 4 ? 28 : 9999,
                         // Sólida, da cor do fundo das páginas (escura só quando há algo vivo)
                         background: colors.background,
                         border: live ? `1.5px solid ${live.color}` : `1px solid ${colors.border}`,
@@ -712,17 +727,25 @@ export default function ModeShell({ children }: {
                         {live ? (
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{live.sub}</span>
-                                <span className="flex items-center gap-1.5 min-w-0">
-                                    <span className="relative flex-shrink-0 w-2 h-2"><span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: live.color, opacity: 0.6 }} /><span className="absolute inset-0 rounded-full" style={{ background: live.color }} /></span>
-                                    {live.parts
-                                        ? live.parts.map((pt, i) => (
-                                            <span key={i} className="flex items-center gap-1 min-w-0">
-                                                {i > 0 && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: pt.color }} />}
-                                                <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{pt.text}</span>
+                                {live.parts && live.parts.length > 1 ? (
+                                    // vários avisos: um embaixo do outro, o que atualizou por último em cima (maior)
+                                    <span className="flex flex-col">
+                                        {live.parts.map((pt, i) => (
+                                            <span key={pt.text.replace(/^\d+ /, '')} className="flex items-center gap-1.5 min-w-0">
+                                                <span className="relative flex-shrink-0 w-2 h-2">
+                                                    {i === 0 && <span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: pt.color, opacity: 0.6 }} />}
+                                                    <span className="absolute inset-0 rounded-full" style={{ background: pt.color }} />
+                                                </span>
+                                                <span className={`truncate ${i === 0 ? 'text-sm font-black leading-[18px]' : 'text-xs font-bold leading-[15px]'}`} style={{ color: i === 0 ? colors.textPrimary : colors.textSecondary }}>{pt.text}</span>
                                             </span>
-                                        ))
-                                        : <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{live.title}</span>}
-                                </span>
+                                        ))}
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1.5 min-w-0">
+                                        <span className="relative flex-shrink-0 w-2 h-2"><span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: live.color, opacity: 0.6 }} /><span className="absolute inset-0 rounded-full" style={{ background: live.color }} /></span>
+                                        <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{live.parts ? live.parts[0].text : live.title}</span>
+                                    </span>
+                                )}
                             </>
                         ) : (
                             <>

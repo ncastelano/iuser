@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import StoreServiceOrders, { useStoreServiceAppointments } from './StoreServiceOrders'
+import StatChips from './StatChips'
 import { supabase } from '@/lib/supabase/client'
 import { useInsideShell } from '@/components/InsideShell'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -1098,49 +1099,25 @@ export default function StoreOrders({
                     ))}
                 </div>
 
-                {/* 3.0: serviços — os três números (novos pedidos, na agenda, feitos) */}
+                {/* 3.0: serviços — os números em chips pequenos (o destaque são os pedidos) */}
                 {v3 && ordersTab === 'services' && (
-                    <div className="grid grid-cols-3 gap-2 relative z-10">
-                        {([
-                            { label: 'Novos', n: svc.pending.length, color: '#16a34a' },
-                            { label: 'Na agenda', n: svc.confirmed.length, color: '#7c3aed' },
-                            { label: 'Feitos', n: svc.completed.length, color: '#2563eb' },
-                        ]).map((t) => (
-                            <button
-                                key={t.label}
-                                onClick={() => setIsOrdersExpanded(true)}
-                                className="rounded-2xl py-2.5 px-1 flex flex-col items-center gap-0.5 transition active:scale-95"
-                                style={{ background: `${t.color}${t.n > 0 ? '1f' : '10'}`, border: `1px solid ${t.color}${t.n > 0 ? '40' : '20'}` }}
-                            >
-                                <span className="text-xl font-black leading-none" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.n}</span>
-                                <span className="text-[9px] font-black uppercase tracking-wide" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.label}</span>
-                            </button>
-                        ))}
-                    </div>
+                    <StatChips onClick={() => setIsOrdersExpanded(true)} items={[
+                        { label: 'Novos', n: svc.pending.length, color: '#16a34a' },
+                        { label: 'Na agenda', n: svc.confirmed.length, color: '#7c3aed' },
+                        { label: 'Feitos', n: svc.completed.length, color: '#2563eb' },
+                    ]} />
                 )}
 
                 {isOrdersExpanded && ordersTab === 'services' && <StoreServiceOrders pending={svc.pending} onChanged={svc.refetch} />}
 
-                {/* 3.0: os quatro números sempre à vista, cada um na sua cor */}
+                {/* 3.0: os quatro números em chips pequenos, cada um na sua cor */}
                 {v3 && ordersTab === 'products' && (
-                    <div className="grid grid-cols-4 gap-2 relative z-10">
-                        {([
-                            { label: 'Novos', n: newOrders.length, color: '#16a34a' },
-                            { label: 'Preparando', n: preparing.length, color: '#d97706' },
-                            { label: 'Prontos', n: ready.length, color: '#7c3aed' },
-                            { label: 'Finalizados', n: finished.length, color: '#2563eb' },
-                        ]).map((t) => (
-                            <button
-                                key={t.label}
-                                onClick={() => setIsOrdersExpanded(true)}
-                                className="rounded-2xl py-2.5 px-1 flex flex-col items-center gap-0.5 transition active:scale-95"
-                                style={{ background: `${t.color}${t.n > 0 ? '1f' : '10'}`, border: `1px solid ${t.color}${t.n > 0 ? '40' : '20'}` }}
-                            >
-                                <span className="text-xl font-black leading-none" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.n}</span>
-                                <span className="text-[9px] font-black uppercase tracking-wide" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.label}</span>
-                            </button>
-                        ))}
-                    </div>
+                    <StatChips onClick={() => setIsOrdersExpanded(true)} items={[
+                        { label: 'Novos', n: newOrders.length, color: '#16a34a' },
+                        { label: 'Preparando', n: preparing.length, color: '#d97706' },
+                        { label: 'Prontos', n: ready.length, color: '#7c3aed' },
+                        { label: 'Finalizados', n: finished.length, color: '#2563eb' },
+                    ]} />
                 )}
 
                 {isOrdersExpanded && ordersTab === 'products' && (
