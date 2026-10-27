@@ -727,25 +727,17 @@ export default function ModeShell({ children }: {
                         {live ? (
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{live.sub}</span>
-                                {live.parts && live.parts.length > 1 ? (
-                                    // vários avisos: um embaixo do outro, o que atualizou por último em cima (maior)
-                                    <span className="flex flex-col">
-                                        {live.parts.map((pt, i) => (
-                                            <span key={pt.text.replace(/^\d+ /, '')} className="flex items-center gap-1.5 min-w-0">
-                                                <span className="relative flex-shrink-0 w-2 h-2">
-                                                    {i === 0 && <span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: pt.color, opacity: 0.6 }} />}
-                                                    <span className="absolute inset-0 rounded-full" style={{ background: pt.color }} />
-                                                </span>
-                                                <span className={`truncate ${i === 0 ? 'text-sm font-black leading-[18px]' : 'text-xs font-bold leading-[15px]'}`} style={{ color: i === 0 ? colors.textPrimary : colors.textSecondary }}>{pt.text}</span>
+                                <span className="flex items-center gap-1.5 min-w-0">
+                                    {(live.parts && live.parts.length > 0 ? live.parts : [{ text: live.title, color: live.color }]).map((pt, i) => (
+                                        <span key={i} className="flex items-center gap-1 min-w-0">
+                                            <span className="relative flex-shrink-0 w-2 h-2">
+                                                {i === 0 && <span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: pt.color, opacity: 0.6 }} />}
+                                                <span className="absolute inset-0 rounded-full" style={{ background: pt.color }} />
                                             </span>
-                                        ))}
-                                    </span>
-                                ) : (
-                                    <span className="flex items-center gap-1.5 min-w-0">
-                                        <span className="relative flex-shrink-0 w-2 h-2"><span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: live.color, opacity: 0.6 }} /><span className="absolute inset-0 rounded-full" style={{ background: live.color }} /></span>
-                                        <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{live.parts ? live.parts[0].text : live.title}</span>
-                                    </span>
-                                )}
+                                            <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{pt.text}</span>
+                                        </span>
+                                    ))}
+                                </span>
                             </>
                         ) : (
                             <>

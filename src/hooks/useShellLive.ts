@@ -79,7 +79,7 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
         ? {
             kind: 'store',
             title: kinds.map((k) => `${k.n} ${k.n === 1 ? k.one : k.many}`).join(' · '),
-            sub: `${storeNew.name} · Toque para atender`, path: storeNew.path, hot: true,
+            sub: storeNew.name, path: storeNew.path, hot: true,
             color: kinds[0].color,
             parts: kinds.map((k) => kinds.length === 1
                 ? { text: `${k.n} ${k.n === 1 ? k.full1 : k.fullN}`, color: k.color }
