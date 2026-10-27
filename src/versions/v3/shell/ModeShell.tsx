@@ -354,23 +354,15 @@ function HubProfileTop({ slug, avatarUrl, userId, colors, popToken, unread, chat
                     <span className="block text-[11px] truncate opacity-80">Bem-vindo de volta</span>
                     <span className="block text-[15px] font-black truncate leading-tight ">{slug ? `@${slug}` : 'Meu perfil'}</span>
                 </span>
-                <button
-                    onClick={onPanel}
-                    className="flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                    style={{ background: '#f97316', color: '#fff' }}
-                >
-                    Painel
-                </button>
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
                     <X size={19} />
                 </button>
             </div>
             <div className="px-3 pb-3 flex flex-col gap-2">
-                {slug && (
-                    <div className="flex gap-2">
-                        <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>
-                    </div>
-                )}
+                <div className="flex gap-2">
+                    {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
+                    <DrawerPill solid onClick={onPanel}>Painel</DrawerPill>
+                </div>
                 <button
                     onClick={() => onGo(chatPath)}
                     className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
@@ -629,8 +621,8 @@ export default function ModeShell({ children }: {
                     style={{
                         height: ISLAND_H,
                         // Sólida, da cor do fundo das páginas (escura só quando há algo vivo)
-                        background: live ? '#111827' : colors.background,
-                        border: `1px solid ${live ? '#111827' : colors.border}`,
+                        background: colors.background,
+                        border: live ? `1.5px solid ${live.kind === 'chat' ? '#22c55e' : '#f97316'}` : `1px solid ${colors.border}`,
                         boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
                         opacity: drawerOpen ? 0 : 1,
                         transition: 'opacity 200ms ease, background 300ms ease',
@@ -648,10 +640,10 @@ export default function ModeShell({ children }: {
                     <div className="relative flex-1 min-w-0 text-left py-1 pointer-events-none">
                         {live ? (
                             <>
-                                <span className="block text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>{live.sub}</span>
+                                <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{live.sub}</span>
                                 <span className="flex items-center gap-1.5 min-w-0">
                                     <span className="relative flex-shrink-0 w-2 h-2"><span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: live.kind === 'chat' ? '#22c55e' : '#f97316', opacity: 0.6 }} /><span className="absolute inset-0 rounded-full" style={{ background: live.kind === 'chat' ? '#22c55e' : '#f97316' }} /></span>
-                                    <span className="text-sm font-black truncate" style={{ color: '#fff' }}>{live.title}</span>
+                                    <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{live.title}</span>
                                 </span>
                             </>
                         ) : (
@@ -661,7 +653,7 @@ export default function ModeShell({ children }: {
                             </>
                         )}
                     </div>
-                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className="relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: live ? 'rgba(255,255,255,0.16)' : `${colors.border}66`, color: live ? '#fff' : colors.textPrimary }}>
+                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className="relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: `${colors.border}66`, color: colors.textPrimary }}>
                         <ChevronDown size={18} />
                     </button>
                 </div>
