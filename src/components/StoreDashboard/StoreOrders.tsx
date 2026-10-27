@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
+import StoreServiceOrders, { useStoreServiceAppointments } from './StoreServiceOrders'
 import { supabase } from '@/lib/supabase/client'
 import { useInsideShell } from '@/components/InsideShell'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -187,6 +188,9 @@ export default function StoreOrders({
         onCall: (order: any) => setCallDriverOrder(order),
     }
     const [isOrdersExpanded, setIsOrdersExpanded] = usePersistedExpanded('storeOrders', true)
+    // Pedidos de PRODUTOS e pedidos de SERVIÇOS (agendamentos que a loja precisa aceitar; só os aceitos vão para a agenda)
+    const [ordersTab, setOrdersTab] = useState<'products' | 'services'>('products')
+    const svc = useStoreServiceAppointments(storeId)
 
     // Ref para evitar múltiplas chamadas
     const isLoadingRef = useRef(false)
@@ -911,8 +915,8 @@ export default function StoreOrders({
                 style={v3 ? {
                     // 3.0: cartão limpo (sem brilho nem borda animada); só ganha o realce laranja quando há pedido novo esperando
                     background: colors.surface,
-                    border: newOrders.length > 0 ? '1.5px solid #f97316' : `1px solid ${colors.border}`,
-                    boxShadow: newOrders.length > 0 ? '0 6px 20px #f9731626' : 'none',
+                    border: newOrders.length + svc.pending.length > 0 ? '1.5px solid #f97316' : `1px solid ${colors.border}`,
+                    boxShadow: newOrders.length + svc.pending.length > 0 ? '0 6px 20px #f9731626' : 'none',
                 } : {
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
@@ -988,9 +992,9 @@ export default function StoreOrders({
                             <div className="flex items-center gap-3 min-w-0">
                                 <div className="min-w-0">
                                     <h3 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>Pedidos na loja</h3>
-                                    <p className="text-[11px] mt-0.5" style={{ color: newOrders.length > 0 ? '#ea580c' : colors.textSecondary }}>
-                                        {newOrders.length > 0
-                                            ? `${newOrders.length} ${newOrders.length === 1 ? 'pedido novo esperando' : 'pedidos novos esperando'}`
+                                    <p className="text-[11px] mt-0.5" style={{ color: newOrders.length + svc.pending.length > 0 ? '#16a34a' : colors.textSecondary }}>
+                                        {newOrders.length + svc.pending.length > 0
+                                            ? [newOrders.length > 0 ? `${newOrders.length} ${newOrders.length === 1 ? 'pedido novo' : 'pedidos novos'}` : '', svc.pending.length > 0 ? `${svc.pending.length} ${svc.pending.length === 1 ? 'serviço para aceitar' : 'serviços para aceitar'}` : ''].filter(Boolean).join(' · ') + ' esperando'
                                             : preparing.length + ready.length > 0
                                                 ? `${preparing.length + ready.length} em andamento`
                                                 : 'Nada esperando agora'}
@@ -1079,8 +1083,46 @@ export default function StoreOrders({
                     </button>
                 </div>
 
+                {/* Pedidos de produtos × pedidos de serviços */}
+                <div className="grid grid-cols-2 gap-2 relative z-10">
+                    {([['products', 'Produtos', newOrders.length], ['services', 'Serviços', svc.pending.length]] as const).map(([k, label, n]) => (
+                        <button
+                            key={k}
+                            onClick={() => { setOrdersTab(k); setIsOrdersExpanded(true) }}
+                            className="h-10 rounded-full text-[13px] font-black flex items-center justify-center gap-2 transition active:scale-95"
+                            style={ordersTab === k ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary }}
+                        >
+                            {label}
+                            {n > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{n}</span>}
+                        </button>
+                    ))}
+                </div>
+
+                {/* 3.0: serviços — os três números (novos pedidos, na agenda, feitos) */}
+                {v3 && ordersTab === 'services' && (
+                    <div className="grid grid-cols-3 gap-2 relative z-10">
+                        {([
+                            { label: 'Novos', n: svc.pending.length, color: '#16a34a' },
+                            { label: 'Na agenda', n: svc.confirmed.length, color: '#7c3aed' },
+                            { label: 'Feitos', n: svc.completed.length, color: '#2563eb' },
+                        ]).map((t) => (
+                            <button
+                                key={t.label}
+                                onClick={() => setIsOrdersExpanded(true)}
+                                className="rounded-2xl py-2.5 px-1 flex flex-col items-center gap-0.5 transition active:scale-95"
+                                style={{ background: `${t.color}${t.n > 0 ? '1f' : '10'}`, border: `1px solid ${t.color}${t.n > 0 ? '40' : '20'}` }}
+                            >
+                                <span className="text-xl font-black leading-none" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.n}</span>
+                                <span className="text-[9px] font-black uppercase tracking-wide" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {isOrdersExpanded && ordersTab === 'services' && <StoreServiceOrders pending={svc.pending} onChanged={svc.refetch} />}
+
                 {/* 3.0: os quatro números sempre à vista, cada um na sua cor */}
-                {v3 && (
+                {v3 && ordersTab === 'products' && (
                     <div className="grid grid-cols-4 gap-2 relative z-10">
                         {([
                             { label: 'Novos', n: newOrders.length, color: '#16a34a' },
@@ -1101,7 +1143,7 @@ export default function StoreOrders({
                     </div>
                 )}
 
-                {isOrdersExpanded && (
+                {isOrdersExpanded && ordersTab === 'products' && (
                     <>
                         {selectedOrderIds.size > 0 && (
                             <div className="flex flex-wrap items-center gap-3 relative z-10">

@@ -1,8 +1,8 @@
 // app/(main)/painel-loja/[storeSlug]/page.tsx
 //
-// Painel de UMA loja (modo loja): cada loja tem o seu próprio endereço, /painel-loja/<storeSlug>. Mostra o StoreDashboard
-// completo (pedidos, venda presencial, horários, catálogo, entrega, pagamento, funcionários, agenda, publicações, clube,
-// visitantes) dentro da casca de modos (topo + menu lateral), com um cabeçalho no desenho da home da 3.0.
+// Painel de UMA loja (modo loja): cada loja tem o seu próprio endereço, /painel-loja/<storeSlug>. É o painel do FEEDBACK do que
+// acontece na loja: pedidos (produtos e serviços a aceitar), agenda, venda presencial, vendas, avaliações/comentários e visitantes.
+// Informações e preferências da loja ficam em /editar-loja/<storeSlug>.
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -66,7 +66,7 @@ export default function PainelLojaPage() {
             ) : (
                 <>
                     <div className="-mx-4">
-                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} infoFirst showDebtBanner={false} previewLogo={store.logo} previewName={store.name} />
+                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} view="painel" showDebtBanner={false} previewLogo={store.logo} previewName={store.name} />
                     </div>
                 </>
             )}

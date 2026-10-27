@@ -122,7 +122,9 @@ export default function AtalhoCompromissosDaLoja({
         return appointments.filter(
             (a) =>
                 (a.owner_id === userId || a.provider_profile_id === userId) &&
-                (storeId ? a.store_id === storeId : !!a.store_id)
+                (storeId ? a.store_id === storeId : !!a.store_id) &&
+                // O PEDIDO de serviço fica em "Pedidos na loja" (aba Serviços): só o que a loja ACEITOU entra na agenda
+                a.status !== 'pending'
         )
     }, [appointments, userId, storeId])
 
@@ -154,7 +156,8 @@ export default function AtalhoCompromissosDaLoja({
         })
     }, [filtered])
 
-    const pendingCount = storeAppointments.filter(a => a.status === 'pending').length
+    const pendingCount = 0 // pendentes não entram na agenda (são pedidos de serviço, aceitos em "Pedidos na loja")
+    const completedCount = storeAppointments.filter(a => a.status === 'completed').length
     const confirmedCount = storeAppointments.filter(a => a.status === 'confirmed').length
     const hasHiddenPending = !showPending && pendingCount > 0
 
@@ -228,7 +231,7 @@ export default function AtalhoCompromissosDaLoja({
                         {/* Resumo em números */}
                         <div className="grid grid-cols-3 gap-2.5">
                             {[
-                                { label: 'Pendentes', value: pendingCount, color: '#f97316' },
+                                { label: 'Feitos', value: completedCount, color: '#2563eb' },
                                 { label: 'Confirmados', value: confirmedCount, color: '#10b981' },
                                 { label: 'Total', value: storeAppointments.length, color: textPrimary },
                             ].map((stat) => (
@@ -504,34 +507,9 @@ export default function AtalhoCompromissosDaLoja({
                             className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t"
                             style={{ borderColor: borderColor }}
                         >
-                            <div className="flex items-center gap-3">
-                                <span className="text-xs font-medium" style={{ color: textSecondary }}>
-                                    Mostrar pendentes
-                                </span>
-                                <label className="relative inline-flex cursor-pointer" style={{ width: 40, height: 22 }}>
-                                    <input
-                                        type="checkbox"
-                                        className="sr-only peer"
-                                        checked={showPending}
-                                        onChange={() => setShowPending(prev => !prev)}
-                                    />
-                                    <span
-                                        className="absolute inset-0 rounded-full transition-colors duration-200"
-                                        style={{ background: showPending ? '#f97316' : borderColor }}
-                                    />
-                                    <span
-                                        className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-[18px]' : 'translate-x-0'}`}
-                                    />
-                                </label>
-                                {!showPending && pendingCount > 0 && (
-                                    <span
-                                        className="text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse"
-                                        style={{ background: '#ef444420', color: '#ef4444' }}
-                                    >
-                                        {pendingCount} oculto{pendingCount > 1 ? 's' : ''}
-                                    </span>
-                                )}
-                            </div>
+                            <span className="text-xs font-medium" style={{ color: textSecondary }}>
+                                Só entram aqui os serviços que você aceitou
+                            </span>
 
                             {sorted.length > 0 && (
                                 <Link
@@ -558,7 +536,7 @@ export default function AtalhoCompromissosDaLoja({
             <>
             <V3Section
                 title="Agenda da loja"
-                subtitle={<><span style={{ color: '#f97316', fontWeight: 800 }}>{pendingCount}</span> pendente{pendingCount !== 1 ? 's' : ''} · <span style={{ color: '#10b981', fontWeight: 800 }}>{confirmedCount}</span> confirmado{confirmedCount !== 1 ? 's' : ''}</>}
+                subtitle={<><span style={{ color: '#7c3aed', fontWeight: 800 }}>{confirmedCount}</span> na agenda · <span style={{ color: '#2563eb', fontWeight: 800 }}>{completedCount}</span> feito{completedCount !== 1 ? 's' : ''}</>}
                 badge={storeAppointments.length > 0 ? <span className="text-xs font-black px-2.5 py-1 rounded-full text-white flex-shrink-0" style={{ background: V3_GRADIENT }}>{storeAppointments.length}</span> : undefined}
                 expanded={isExpanded}
                 onToggle={() => setIsExpanded(!isExpanded)}
@@ -624,11 +602,11 @@ export default function AtalhoCompromissosDaLoja({
                             {!isExpanded && (
                             <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
                                 <span>
-                                    <span className="font-bold" style={{ color: '#f97316' }}>{pendingCount}</span> pendente{pendingCount !== 1 ? 's' : ''}
+                                    <span className="font-bold" style={{ color: '#7c3aed' }}>{confirmedCount}</span> na agenda
                                 </span>
                                 <span>•</span>
                                 <span>
-                                    <span className="font-bold" style={{ color: '#10b981' }}>{confirmedCount}</span> confirmado{confirmedCount !== 1 ? 's' : ''}
+                                    <span className="font-bold" style={{ color: '#2563eb' }}>{completedCount}</span> feito{completedCount !== 1 ? 's' : ''}
                                 </span>
                             </div>
                             )}

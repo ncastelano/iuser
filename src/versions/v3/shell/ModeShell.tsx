@@ -216,6 +216,7 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
                             actions={(
                                 <>
                                     <DrawerPill onClick={() => onGo(`/${st.slug}`)}>Ver loja</DrawerPill>
+                                    <DrawerPill onClick={() => onGo(`/editar-loja/${encodeURIComponent(st.slug)}`)}>Editar</DrawerPill>
                                     <DrawerPill solid onClick={() => onSelect(`loja:${st.slug}`)}>Painel</DrawerPill>
                                 </>
                             )}
@@ -607,7 +608,7 @@ export default function ModeShell({ children }: {
     const activeKey: 'cart' | 'chat' | 'home' | 'radar' | 'me' | null = drawerOpen ? 'me'
         : shellPath.startsWith('/carrinho') ? 'cart' : shellPath.startsWith('/conversas') ? 'chat' : shellPath === '/' ? 'home' : shellPath.startsWith('/radar') ? 'radar' : modeSelected ? 'me' : null
     // A barra de baixo só nas páginas "raiz"
-    const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/')) && !(shellPath === '/conversas' && threadOpen)
+    const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/')) && !(shellPath === '/conversas' && threadOpen)
     const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
     // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha
     const storeNew = (() => {

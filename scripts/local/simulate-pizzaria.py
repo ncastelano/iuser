@@ -289,9 +289,9 @@ def attend_orders(speed):
 def attend_appointments(speed):
     """Agendamentos: a loja confirma (a entrada Pix informada é confirmada) e, passado o dia, marca o serviço como feito."""
     rows = q_local(f"""select a.id, a.status, a.deposit_status, a.customer_id, a.service_name from appointments a
-        where a.store_id = {esc(STORE['id'])}::uuid and a.status = 'pending' and a.created_at < now() - interval '20 seconds' order by random() limit 3""")
-    for r in rows:
-        if R.random() > min(1, 0.3 * speed):
+        where a.store_id = {esc(STORE['id'])}::uuid and a.status = 'pending' and a.created_at < now() - interval '150 seconds' order by random() limit 3""")
+    for r in rows:   # dá tempo da pessoa aceitar o pedido de serviço à mão; se ela não aceitar, a loja aceita
+        if R.random() > min(1, 0.08 * speed):
             continue
         try:
             if r['deposit_status'] == 'reported':
@@ -305,8 +305,31 @@ def attend_appointments(speed):
             log(f"  ✗ agendamento {r['id'][:8]}: {str(e).splitlines()[0][:100]}")
 
 
+SERVICE_REVIEWS = ['Ambiente VIP impecável, atendimento nota 10!', 'O rodízio é muito bom, pizza saindo toda hora.', 'Fizemos o aniversário aqui, todo mundo adorou.', 'Valeu cada centavo, voltaremos.', 'Garçom atencioso e salão lindo.', 'Poderia ter mais variedade de doces, mas tudo ótimo.', '']
+
+
+def attend_service_cycle(speed):
+    """Serviço pedido: o cliente informa a entrada que faltava; o que está na agenda é marcado como feito e o cliente avalia o serviço."""
+    for r in q_local(f"""select a.id, a.customer_id from appointments a where a.store_id = {esc(STORE['id'])}::uuid and a.status = 'pending' and a.deposit_status = 'awaiting'
+                         and a.created_at < now() - interval '60 seconds' order by random() limit 2"""):
+        if R.random() < min(1, 0.3 * speed):
+            as_user(r['customer_id'], f"select report_appointment_deposit({esc(r['id'])}::uuid);")
+            log('  💸 cliente informou a entrada do agendamento')
+    for r in q_local(f"""select a.id, a.customer_id, a.service_name from appointments a where a.store_id = {esc(STORE['id'])}::uuid and a.status = 'confirmed'
+                         and a.updated_at < now() - interval '40 seconds' order by random() limit 2"""):
+        if R.random() > min(1, 0.15 * speed):
+            continue
+        try:
+            as_user(STORE['owner_id'], f"select complete_appointment({esc(r['id'])}::uuid);")
+            stars = R.choices([5, 4, 3], [65, 28, 7])[0]
+            as_user(r['customer_id'], f"select submit_appointment_review({esc(r['id'])}::uuid, {stars}, {esc(R.choice(SERVICE_REVIEWS))});")
+            log(f"  ⭐ serviço “{r['service_name']}” feito e avaliado com {stars}★")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ serviço {r['id'][:8]}: {str(e).splitlines()[0][:100]}")
+
+
 def cycle_tick(speed):
-    for fn in (attend_orders, attend_appointments):
+    for fn in (attend_orders, attend_appointments, attend_service_cycle):
         try:
             fn(speed)
         except Exception as e:  # noqa: BLE001

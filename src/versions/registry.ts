@@ -56,4 +56,4 @@ export const SHELL_EXCLUDED = ['/entregador']
 
 /** Páginas que só existem na v3 (não há equivalente na v2: voltar para a v2 leva à home da v2) */
 export const V3_ONLY_ROUTES = ['/painel-perfil', '/modoprestador', '/comprar', '/imoveis', '/anunciar-imovel', '/meus-imoveis']
-export const V3_ONLY_PREFIXES = ['/painel-loja/', '/veiculo/', '/imoveis/']
+export const V3_ONLY_PREFIXES = ['/painel-loja/', '/editar-loja/', '/veiculo/', '/imoveis/']
