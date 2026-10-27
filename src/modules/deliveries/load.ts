@@ -13,17 +13,19 @@ export interface DriverState {
     radiusKm: number | null
     capacity: number
     vehicle: string
+    /** orientação por voz ligada (preferência do motorista) */
+    voice: boolean
 }
 
 export async function fetchDriverState(me: string): Promise<DriverState> {
     const [{ data: pr }, { data: veh }] = await Promise.all([
-        supabase.from('driver_pricing').select('driver_mode_active, live_lat, live_lng, delivery_radius_km').eq('driver_id', me).maybeSingle(),
+        supabase.from('driver_pricing').select('driver_mode_active, live_lat, live_lng, delivery_radius_km, voice_navigation_enabled').eq('driver_id', me).maybeSingle(),
         supabase.from('driver_vehicles').select('car_model, vehicle_kind, delivery_capacity').eq('driver_id', me),
     ])
     const v = ((veh || []) as any[]).sort((a, b) => (Number(b.delivery_capacity) || 1) - (Number(a.delivery_capacity) || 1))[0]
     return {
         online: !!(pr as any)?.driver_mode_active, live: pos((pr as any)?.live_lat, (pr as any)?.live_lng), radiusKm: num((pr as any)?.delivery_radius_km),
-        capacity: Number(v?.delivery_capacity) || 1, vehicle: v ? [v.vehicle_kind, v.car_model].filter(Boolean).join(' · ') : '',
+        capacity: Number(v?.delivery_capacity) || 1, vehicle: v ? [v.vehicle_kind, v.car_model].filter(Boolean).join(' · ') : '', voice: !!(pr as any)?.voice_navigation_enabled,
     }
 }
 

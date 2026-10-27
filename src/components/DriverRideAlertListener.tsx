@@ -15,7 +15,7 @@ import { NewRideAlertCard } from '@/components/NewRideAlertCard'
 // Global, montado em providers.tsx: com o modo motorista ligado, toca o som e
 // avisa (toast com atalho) quando um pedido de corrida novo entra, em QUALQUER
 // página do app. O push (mesmo com o app fechado) é enviado pelo servidor; isto
-// cobre o app aberto. Em /aceitar-corridas a própria página já avisa.
+// cobre o app aberto. Em /aceitar-corridas e em /entregas a própria página já avisa.
 export function DriverRideAlertListener() {
     const { userId } = useProfile()
     const pathname = usePathname()
@@ -50,7 +50,7 @@ export function DriverRideAlertListener() {
                     if (ride.requester_id === userId) return
                     if (ride.status && ride.status !== 'pending') return
                     if (ride.vehicle_type && !rideAcceptsAnyVehicle(ride.vehicle_type) && !acceptableVehicleTypes.has(ride.vehicle_type)) return
-                    if (pathRef.current?.startsWith('/aceitar-corridas')) return
+                    if (pathRef.current?.startsWith('/aceitar-corridas') || pathRef.current?.startsWith('/entregas')) return   // as duas páginas já mostram as corridas/entregas abertas
                     if (pricing.alert_sound_enabled !== false) playNotificationSound('new_ride')
                     const short = (a?: string) => (a || '').split(',')[0]
                     const description = ride.origin_address ? `${short(ride.origin_address)} → ${short(ride.destination_address)}` : undefined

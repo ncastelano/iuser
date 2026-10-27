@@ -8,12 +8,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { Bike, Check, ChevronDown, ChevronUp, Clock3, Flame, Layers, MapPin, Minus, Navigation, Package, Plus, Power, Store as StoreIcon, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { isLocalDevOnly } from '@/lib/devOnly'
+import DeliveryNavMap, { type NavStop, type NavTarget } from '@/components/deliveries/DeliveryNavMap'
 import {
     acceptOffer, arriveAtStore, brl, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchOffers, haversineKm, itemsList,
     leaveForStore, mapsUrl, paymentRecap, phaseOf, pickUpOrders, PHASE_LABEL, routeKm, routeOrder, setCapacity, setOnline, shortAddress, suggestBatches, wazeUrl, withinRadius,
@@ -22,44 +24,6 @@ import {
 
 const ORANGE = '#f97316'
 const GREEN = '#22c55e'
-
-/** Mapa esquemático da saída (sem depender de mapa externo): a loja, as paradas numeradas na ordem, o trecho que já foi e o que falta, e onde o motorista está */
-function RouteDiagram({ store, stops, current, me, colors }: { store: LatLng | null; stops: ActiveDelivery[]; current: string | null; me: LatLng | null; colors: any }) {
-    const pts: { key: string; p: LatLng; kind: 'store' | 'stop' | 'me'; n?: number; id?: string }[] = []
-    if (store) pts.push({ key: 'store', p: store, kind: 'store' })
-    stops.forEach((s, i) => { if (s.to) pts.push({ key: s.id, p: s.to, kind: 'stop', n: i + 1, id: s.id }) })
-    if (me) pts.push({ key: 'me', p: me, kind: 'me' })
-    if (pts.length < 2) return null
-    const lat0 = pts.reduce((a, x) => a + x.p.lat, 0) / pts.length
-    const kx = Math.cos((lat0 * Math.PI) / 180)
-    const xs = pts.map((x) => x.p.lng * kx), ys = pts.map((x) => -x.p.lat)
-    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
-    const W = 320, H = 170, pad = 26
-    const sc = Math.min((W - 2 * pad) / Math.max(1e-9, maxX - minX), (H - 2 * pad) / Math.max(1e-9, maxY - minY))
-    const px = (i: number) => pad + (xs[i] - minX) * sc + (W - 2 * pad - (maxX - minX) * sc) / 2
-    const py = (i: number) => pad + (ys[i] - minY) * sc + (H - 2 * pad - (maxY - minY) * sc) / 2
-    const idx = new Map(pts.map((x, i) => [x.key, i]))
-    const seq = [...(store ? ['store'] : []), ...stops.filter((s) => s.to).map((s) => s.id)]
-    const curI = current ? seq.indexOf(current) : -1
-    return (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-2xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }} role="img" aria-label="Mapa esquemático da rota">
-            <defs><pattern id="grid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke={colors.border} strokeOpacity=".45" strokeWidth="1" /></pattern></defs>
-            <rect width={W} height={H} fill="url(#grid)" rx="16" />
-            {seq.slice(0, -1).map((k, i) => {
-                const a = idx.get(k)!, b = idx.get(seq[i + 1])!
-                const done = curI >= 0 ? i + 1 <= curI - 1 + 0 : false
-                return <line key={k + i} x1={px(a)} y1={py(a)} x2={px(b)} y2={py(b)} stroke={done ? colors.textSecondary : ORANGE} strokeWidth="3.5" strokeLinecap="round" strokeDasharray={i + 1 === curI ? '' : '2 7'} opacity={done ? 0.45 : 0.95} />
-            })}
-            {pts.map((x, i) => x.kind === 'store' ? (
-                <g key={x.key}><circle cx={px(i)} cy={py(i)} r="14" fill={GREEN} /><text x={px(i)} y={py(i) + 4} textAnchor="middle" fontSize="12" fontWeight="900" fill="#fff">L</text></g>
-            ) : x.kind === 'me' ? (
-                <g key={x.key}><circle cx={px(i)} cy={py(i)} r="13" fill="#3b82f6" opacity=".22"><animate attributeName="r" values="9;17;9" dur="2s" repeatCount="indefinite" /></circle><circle cx={px(i)} cy={py(i)} r="6" fill="#3b82f6" stroke="#fff" strokeWidth="2.5" /></g>
-            ) : (
-                <g key={x.key}><circle cx={px(i)} cy={py(i)} r={x.id === current ? 15 : 12} fill={x.id === current ? ORANGE : colors.surface} stroke={ORANGE} strokeWidth="2.5" /><text x={px(i)} y={py(i) + 4.5} textAnchor="middle" fontSize="12" fontWeight="900" fill={x.id === current ? '#fff' : ORANGE}>{x.n}</text></g>
-            ))}
-        </svg>
-    )
-}
 
 function Ring({ used, cap, size = 64, colors }: { used: number; cap: number; size?: number; colors: any }) {
     const r = size / 2 - 6, c = 2 * Math.PI * r, frac = Math.min(1, used / cap)
@@ -86,6 +50,7 @@ export default function DriverDeliveriesScreen() {
     const [loaded, setLoaded] = useState(false)
     const [busy, setBusy] = useState<string | null>(null)
     const [showDone, setShowDone] = useState(false)
+    const [mapFull, setMapFull] = useState(false)
     const seenOffers = useRef<Set<string> | null>(null)
     const [fresh, setFresh] = useState<Set<string>>(new Set())
 
@@ -157,6 +122,23 @@ export default function DriverDeliveriesScreen() {
     if (!userId) return <p className="py-16 text-center text-sm" style={{ color: colors.textSecondary }}>Entre na sua conta para ver as entregas.</p>
     const eta = (to: LatLng | null, from: LatLng | null) => (to && from ? etaMinutes(haversineKm(from, to)) : null)
     const myPos = state?.live ?? null
+    // O mapa guia o motorista até o ALVO da vez: a loja (até pegar os pedidos) e depois cada parada, na ordem da rota
+    const navTarget: NavTarget | null = active.length === 0 ? null
+        : phase !== 'delivering' ? (store ? { id: 'store', kind: 'store', lat: store.lat, lng: store.lng, label: `${active[0].storeName} · ${shortAddress(active[0].storeAddress)}` } : null)
+        : current?.to ? { id: current.id, kind: 'stop', lat: current.to.lat, lng: current.to.lng, label: current.address } : null
+    const navStops: NavStop[] = ordered.filter((d) => d.to).map((d, i) => ({ id: d.id, n: i + 1, to: d.to as LatLng, label: d.address }))
+    // A ação principal da etapa (a mesma no cartão e no mapa ampliado)
+    const primaryAction = active.length === 0 ? null : phase !== 'delivering' ? (
+        <button
+            onClick={() => run('step', () => (phase === 'accepted' ? leaveForStore(ids) : phase === 'to_store' ? arriveAtStore(ids) : pickUpOrders(ids)))}
+            disabled={busy === 'step'}
+            className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 w-full" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)', boxShadow: '0 6px 18px #f9731655' }}
+        >
+            {phase === 'accepted' ? <><Navigation size={17} /> Sair para a loja</> : phase === 'to_store' ? <><MapPin size={17} /> Cheguei na loja</> : <><Package size={17} /> Peguei os {active.length} {active.length === 1 ? 'pedido' : 'pedidos'}</>}
+        </button>
+    ) : current ? (
+        <button onClick={() => finish(current)} disabled={busy === `f-${current.id}`} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 w-full" style={{ background: GREEN, boxShadow: '0 6px 18px #22c55e55' }}><Check size={18} strokeWidth={3} /> Entreguei</button>
+    ) : null
 
     return (
         <div className="pb-6 flex flex-col gap-4">
@@ -204,7 +186,7 @@ export default function DriverDeliveriesScreen() {
                             </div>) })}
                     </div>
 
-                    <RouteDiagram store={store} stops={ordered} current={current?.id ?? null} me={myPos} colors={colors} />
+                    <DeliveryNavMap me={myPos} store={store} stops={navStops} target={navTarget} height={310} voice={state?.voice} colors={colors} onToggleFull={() => setMapFull(true)} />
                     <p className="text-[11px] -mt-1" style={{ color: colors.textSecondary }}>{ordered.length} parada(s) · ~{routeKm(store, ordered).toFixed(1)} km · ~{etaMinutes(routeKm(store, ordered))} min de rota</p>
 
                     {/* Etapas antes de sair da loja */}
@@ -226,13 +208,7 @@ export default function DriverDeliveriesScreen() {
                                     ))}
                                 </div>
                             )}
-                            <button
-                                onClick={() => run('step', () => (phase === 'accepted' ? leaveForStore(ids) : phase === 'to_store' ? arriveAtStore(ids) : pickUpOrders(ids)))}
-                                disabled={busy === 'step'}
-                                className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)', boxShadow: '0 6px 18px #f9731655' }}
-                            >
-                                {phase === 'accepted' ? <><Navigation size={17} /> Sair para a loja</> : phase === 'to_store' ? <><MapPin size={17} /> Cheguei na loja</> : <><Package size={17} /> Peguei os {active.length} {active.length === 1 ? 'pedido' : 'pedidos'}</>}
-                            </button>
+                            {primaryAction}
                         </>
                     )}
 
@@ -257,7 +233,7 @@ export default function DriverDeliveriesScreen() {
                                     {itemsList(current.items).map((it, k) => <li key={k} className="text-[12px] flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Package size={11} style={{ color: ORANGE }} />{it}</li>)}
                                 </ul>
                                 <div className="rounded-2xl px-3 py-2 text-[12px] font-bold" style={pay.collect ? { background: '#f59e0b22', color: '#b45309' } : { background: `${GREEN}22`, color: '#16a34a' }}>{pay.label}{pay.note ? ` · ${pay.note}` : ''}</div>
-                                <button onClick={() => finish(current)} disabled={busy === `f-${current.id}`} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60" style={{ background: GREEN, boxShadow: '0 6px 18px #22c55e55' }}><Check size={18} strokeWidth={3} /> Entreguei</button>
+                                {primaryAction}
                                 {isLocalDevOnly() && <button onClick={() => finish(current, true)} className="text-[11px] font-bold underline self-center" style={{ color: colors.textSecondary }}>Estou no local (teste)</button>}
                                 {ordered.length > 1 && (
                                     <div className="flex flex-col gap-1.5 pt-1">
@@ -348,6 +324,18 @@ export default function DriverDeliveriesScreen() {
                         </div>))}</div>}
                 </section>
             )}
+
+            {/* Mapa ampliado: tela cheia abaixo da ilha, com o guia e a ação da etapa embaixo */}
+            {mapFull && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-x-0 bottom-0 z-[60] flex flex-col" style={{ top: 'var(--shell-top, 0px)', background: colors.background }}>
+                    <div className="flex-1 min-h-0">
+                        <DeliveryNavMap me={myPos} store={store} stops={navStops} target={navTarget} height="100%" full voice={state?.voice} colors={colors} onToggleFull={() => setMapFull(false)} />
+                    </div>
+                    <div className="px-3 pt-2 pb-4 flex flex-col gap-2" style={{ background: colors.background, borderTop: `1px solid ${colors.border}` }}>
+                        {navTarget && <p className="text-[12px] font-bold truncate" style={{ color: colors.textSecondary }}>{navTarget.kind === 'store' ? 'Loja: ' : 'Entrega: '}{navTarget.label}</p>}
+                        {primaryAction}
+                    </div>
+                </div>, document.body)}
         </div>
     )
 }
