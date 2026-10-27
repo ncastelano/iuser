@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isLocalDevOnly } from '@/lib/devOnly'
+import { Stage, type Who } from './stage'
 
 const W = 390, H = 800
 interface Courier { id: string; name: string; token: string; stops: number; deliveredLastHour: number }
@@ -38,6 +39,16 @@ export default function TresTelasPage() {
     const [scale, setScale] = useState(0.6)
     const [showLog, setShowLog] = useState(true)
     const logRef = useRef<HTMLDivElement>(null)
+    const stage = useMemo(() => new Stage(), [])
+    const frameRefs = { owner: useRef<HTMLIFrameElement>(null), client: useRef<HTMLIFrameElement>(null), driver: useRef<HTMLIFrameElement>(null) }
+    useEffect(() => {
+        if (!ok) return
+        stage.start()
+        ;(window as any).__stage = stage   // para depurar no console: await __stage.text('client')
+        const sync = setInterval(() => { (['owner', 'client', 'driver'] as Who[]).forEach((w) => { stage.frames[w] = frameRefs[w].current }) }, 400)
+        return () => { clearInterval(sync); stage.stop() }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ok, stage])
 
     useEffect(() => {
         const local = isLocalDevOnly()
@@ -100,13 +111,13 @@ export default function TresTelasPage() {
 
             <div style={{ display: 'flex', gap: 20, justifyContent: 'center', alignItems: 'flex-start' }}>
                 <Phone title="Dono da loja" subtitle="admin-teste · painel da pizzaria" color="#22c55e" scale={scale}>
-                    <iframe title="dono" src={urls.owner} style={{ width: W, height: H, border: 0 }} />
+                    <iframe ref={frameRefs.owner} title="dono" src={urls.owner} style={{ width: W, height: H, border: 0 }} />
                 </Phone>
                 <Phone title="Motorista iUser" subtitle={driver ? `${driver.name} · ${driver.stops}/${driver.capacity} na mochila · ${driver.deliveredLastHour} entregues na última hora` : 'sem motorista'} color="#f97316" scale={scale}>
-                    {urls.driver ? <iframe key={driver?.key} title="motorista" src={urls.driver} style={{ width: W, height: H, border: 0 }} /> : <div style={{ padding: 30, color: '#64748b' }}>Cadastre os motoristas: node scripts/local/seed-entregadores.mjs</div>}
+                    {urls.driver ? <iframe ref={frameRefs.driver} key={driver?.key} title="motorista" src={urls.driver} style={{ width: W, height: H, border: 0 }} /> : <div style={{ padding: 30, color: '#64748b' }}>Cadastre os motoristas: node scripts/local/seed-entregadores.mjs</div>}
                 </Phone>
                 <Phone title="Cliente" subtitle="Gabriela Carvalho · acompanhando os pedidos" color="#3b82f6" scale={scale}>
-                    <iframe title="cliente" src={urls.client} style={{ width: W, height: H, border: 0 }} />
+                    <iframe ref={frameRefs.client} title="cliente" src={urls.client} style={{ width: W, height: H, border: 0 }} />
                 </Phone>
             </div>
 

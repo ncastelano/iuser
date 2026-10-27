@@ -307,16 +307,16 @@ def attend_orders(speed):
                 say(o['buyer_id'], o['buyer_id'], R.choice(AFTER_PAID_CUSTOMER))
             log(f"  📦 pedido {o['id'][:8]} entregue (R$ {float(o['total_amount']):.2f})".replace('.', ','))
     # o cliente recebeu: comenta/avalia a compra
-    rows = q_local(f"""select o.id, o.buyer_id, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
+    rows = q_local(f"""select o.id, o.checkout_id, o.buyer_id, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
         from orders o where o.store_id = {esc(STORE['id'])}::uuid and o.status = 'paid' and o.updated_at < now() - interval '{int(n(12))} seconds' and o.updated_at > now() - interval '3 hours'
-          and not exists (select 1 from product_reviews r where r.order_id = o.id) order by random() limit 4""")
+          and not exists (select 1 from product_reviews r where r.order_id = o.checkout_id and r.profile_id = o.buyer_id) order by random() limit 4""")
     for r in rows:
         if R.random() > min(1, 0.3 * speed):
             continue
         rating = R.choices([5, 4, 3, 2], [62, 25, 10, 3])[0]
         text = R.choice(REVIEWS_GOOD if rating >= 4 else REVIEWS_OK) or None
         as_user(r['buyer_id'], f"""insert into product_reviews (store_id, product_id, profile_id, order_id, rating, comment, is_anonymous)
-            values ({esc(STORE['id'])}::uuid, {esc(r['product_id'])}::uuid, {esc(r['buyer_id'])}::uuid, {esc(r['id'])}::uuid, {rating}, {esc(text) if text else 'null'}, false);""")
+            values ({esc(STORE['id'])}::uuid, {esc(r['product_id'])}::uuid, {esc(r['buyer_id'])}::uuid, {esc(r['checkout_id'])}::uuid, {rating}, {esc(text) if text else 'null'}, false);""")
         log(f"  ⭐ cliente avaliou o pedido {r['id'][:8]} com {rating}★" + (f" — “{text[:50]}”" if text else ''))
 
 
@@ -610,14 +610,14 @@ def rate_deliveries(speed=1.0, everything=False):
 
 def review_pending_orders():
     """Todas as compras já entregues e ainda sem avaliação ganham a do cliente (para ver o fluxo completo de uma vez)."""
-    rows = q_local(f"""select o.id, o.buyer_id, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
-        from orders o where o.store_id = {esc(STORE['id'])}::uuid and o.status = 'paid' and not exists (select 1 from product_reviews r where r.order_id = o.id) limit 500""")
+    rows = q_local(f"""select o.id, o.checkout_id, o.buyer_id, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
+        from orders o where o.store_id = {esc(STORE['id'])}::uuid and o.status = 'paid' and not exists (select 1 from product_reviews r where r.order_id = o.checkout_id and r.profile_id = o.buyer_id) limit 500""")
     for r in rows:
         rating = R.choices([5, 4, 3, 2], [62, 25, 10, 3])[0]
         text = R.choice(REVIEWS_GOOD if rating >= 4 else REVIEWS_OK) or None
         try:
             as_user(r['buyer_id'], f"""insert into product_reviews (store_id, product_id, profile_id, order_id, rating, comment, is_anonymous)
-                values ({esc(STORE['id'])}::uuid, {esc(r['product_id'])}::uuid, {esc(r['buyer_id'])}::uuid, {esc(r['id'])}::uuid, {rating}, {esc(text) if text else 'null'}, false);""")
+                values ({esc(STORE['id'])}::uuid, {esc(r['product_id'])}::uuid, {esc(r['buyer_id'])}::uuid, {esc(r['checkout_id'])}::uuid, {rating}, {esc(text) if text else 'null'}, false);""")
             log(f"  ⭐ cliente avaliou o pedido {r['id'][:8]} com {rating}★" + (f" — “{text[:50]}”" if text else ''))
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ avaliação do pedido {r['id'][:8]}: {str(e).splitlines()[0][:100]}")
@@ -627,9 +627,9 @@ def review_featured(speed=1.0):
     """A cliente em destaque (Gabriela) avalia TODO pedido entregue dela, de qualquer loja, logo depois de receber — a lista de pendentes não cresce."""
     if not FEATURED:
         return
-    rows = q_local(f"""select o.id, o.store_id, s.name as sname, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
+    rows = q_local(f"""select o.id, o.checkout_id, o.store_id, s.name as sname, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
         from orders o join stores s on s.id = o.store_id where o.buyer_id = {esc(FEATURED['id'])}::uuid and o.status = 'paid' and o.updated_at < now() - interval '6 seconds'
-          and not exists (select 1 from product_reviews r where r.order_id = o.id) order by o.updated_at limit 30""")
+          and not exists (select 1 from product_reviews r where r.order_id = o.checkout_id and r.profile_id = o.buyer_id) order by o.updated_at limit 30""")
     for r in rows:
         if not r['product_id']:
             continue
@@ -637,7 +637,7 @@ def review_featured(speed=1.0):
         text = R.choice(REVIEWS_GOOD if rating >= 4 else REVIEWS_OK) or None
         try:
             as_user(FEATURED['id'], f"""insert into product_reviews (store_id, product_id, profile_id, order_id, rating, comment, is_anonymous)
-                values ({esc(r['store_id'])}::uuid, {esc(r['product_id'])}::uuid, {esc(FEATURED['id'])}::uuid, {esc(r['id'])}::uuid, {rating}, {esc(text) if text else 'null'}, false);""")
+                values ({esc(r['store_id'])}::uuid, {esc(r['product_id'])}::uuid, {esc(FEATURED['id'])}::uuid, {esc(r['checkout_id'])}::uuid, {rating}, {esc(text) if text else 'null'}, false);""")
             log(f"  ⭐ {FEATURED['name'].split()[0]} avaliou {r['sname']} ({r['id'][:6]}) com {rating}★")
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ avaliação da {FEATURED['name'].split()[0]}: {str(e).splitlines()[0][:100]}")

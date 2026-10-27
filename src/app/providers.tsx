@@ -22,6 +22,7 @@ import { VersionSync } from '@/versions/client'
 import AdminV3Button from '@/components/AdminV3Button'
 import { MaintenanceBanner } from '@/components/MaintenanceNotice'
 import ShareDialogHost from '@/components/ShareDialogHost'
+import ScreenDirector from '@/components/dev/ScreenDirector'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -54,6 +55,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <VersionSync />
         <AdminV3Button />
         <PageViewTracker />
+        <ScreenDirector />
         <ThemeColorSync />
         <NavigationProgressBar />
         <FontLoader />

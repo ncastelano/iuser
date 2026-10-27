@@ -162,12 +162,12 @@ def act_community(p):
 
 
 def act_review(p):
-    rows = q_local(f"""select o.id as order_id, o.store_id, oi.product_id from orders o join order_items oi on oi.order_id = o.id
-        where o.buyer_id = {esc(p['id'])}::uuid and o.status = 'paid' and not exists (select 1 from product_reviews r where r.order_id = o.id and r.profile_id = o.buyer_id) limit 1""")
+    rows = q_local(f"""select o.checkout_id as order_id, o.store_id, oi.product_id from orders o join order_items oi on oi.order_id = o.id
+        where o.buyer_id = {esc(p['id'])}::uuid and o.status = 'paid' and not exists (select 1 from product_reviews r where r.order_id = o.checkout_id and r.profile_id = o.buyer_id) limit 1""")
     if not rows:
         # ninguém com pedido pago esperando avaliação: pega alguém que tenha
-        rows = q_local("""select o.buyer_id, o.id as order_id, o.store_id, oi.product_id from orders o join order_items oi on oi.order_id = o.id
-            where o.status = 'paid' and o.buyer_id is not null and not exists (select 1 from product_reviews r where r.order_id = o.id and r.profile_id = o.buyer_id) order by random() limit 1""")
+        rows = q_local("""select o.buyer_id, o.checkout_id as order_id, o.store_id, oi.product_id from orders o join order_items oi on oi.order_id = o.id
+            where o.status = 'paid' and o.buyer_id is not null and not exists (select 1 from product_reviews r where r.order_id = o.checkout_id and r.profile_id = o.buyer_id) order by random() limit 1""")
         if not rows:
             return 'sem pedido pago para avaliar'
         p = {'id': rows[0]['buyer_id'], 'name': 'um comprador'}
