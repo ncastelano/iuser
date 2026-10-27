@@ -49,7 +49,7 @@ export default function TresTelasPage() {
     }, [])
 
     const poll = useCallback(async () => {
-        try { const r = await fetch('/api/dev/observer'); if (r.ok) setObs(await r.json()) } catch { /* sem rede */ }
+        try { const r = await fetch('/api/dev/observer'); if (r.ok) { const d = await r.json(); setObs({ ...d, drivers: d.drivers ?? [], couriers: d.couriers ?? [], log: d.log ?? [] }) } } catch { /* sem rede */ }
     }, [])
     useEffect(() => { if (!ok) return; poll(); const t = setInterval(poll, 2500); return () => clearInterval(t) }, [ok, poll])
     useEffect(() => { if (!ok) return; const t = setInterval(() => setTick((n) => n + 1), 9000); return () => clearInterval(t) }, [ok])

@@ -169,11 +169,11 @@ export default function DriverDeliveriesScreen() {
                         <p className="text-[12px] opacity-90 truncate">{state?.vehicle || 'Motorista iUser'}</p>
                     </div>
                     <button onClick={() => run('online', () => setOnline(userId, !state?.online))} aria-pressed={!!state?.online} disabled={busy === 'online'} className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black transition active:scale-95" style={state?.online ? { background: '#fff', color: '#16a34a' } : { background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
-                        <Power size={14} /> {state?.online ? 'Online' : 'Offline'}
+                        <Power size={14} /> {!state ? '…' : state.online ? 'Online' : 'Offline'}
                     </button>
                 </div>
                 <div className="mt-4 flex items-center gap-4">
-                    <Ring used={cap.used} cap={cap.capacity} colors={colors} />
+                    <div style={{ opacity: state ? 1 : 0.5 }}><Ring used={cap.used} cap={cap.capacity} colors={colors} /></div>
                     <div className="grid grid-cols-2 gap-x-5 gap-y-1 flex-1">
                         <div><p className="text-[10px] uppercase font-black opacity-80">Ganho de hoje</p><p className="text-lg font-black leading-tight">{brl(todayTotal)}</p></div>
                         <div><p className="text-[10px] uppercase font-black opacity-80">Entregas hoje</p><p className="text-lg font-black leading-tight">{done.length}</p></div>
@@ -183,7 +183,7 @@ export default function DriverDeliveriesScreen() {
                     <span className="text-[12px] font-bold flex items-center gap-1.5"><Package size={14} /> Quantas entregas cabem na sua mochila?</span>
                     <span className="flex items-center gap-2">
                         <button aria-label="Menos" onClick={() => state && state.capacity > 1 && run('cap', () => setCapacity(userId, state.capacity - 1))} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.25)' }}><Minus size={14} /></button>
-                        <b className="w-4 text-center">{state?.capacity ?? 1}</b>
+                        <b className="w-4 text-center">{state ? state.capacity : '–'}</b>
                         <button aria-label="Mais" onClick={() => state && state.capacity < 8 && run('cap', () => setCapacity(userId, state.capacity + 1))} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.25)' }}><Plus size={14} /></button>
                     </span>
                 </div>
@@ -282,7 +282,7 @@ export default function DriverDeliveriesScreen() {
                 <div className="flex items-end justify-between mb-2.5">
                     <h2 className="flex items-center gap-1.5 text-[17px] font-black" style={{ color: colors.textPrimary }}><Zap size={17} style={{ color: ORANGE }} /> Entregas disponíveis {visibleOffers.length > 0 && <span className="text-[12px] px-2 py-0.5 rounded-full text-white" style={{ background: GREEN }}>{visibleOffers.length}</span>}</h2>
                 </div>
-                {!state?.online && <p className="rounded-2xl p-3 text-[13px] font-bold mb-3" style={{ background: '#f59e0b22', color: '#b45309' }}>Você está offline. Ative “Online” para receber entregas perto de você.</p>}
+                {state && !state.online && <p className="rounded-2xl p-3 text-[13px] font-bold mb-3" style={{ background: '#f59e0b22', color: '#b45309' }}>Você está offline. Ative “Online” para receber entregas perto de você.</p>}
                 {state?.online && cap.full && <p className="rounded-2xl p-3 text-[13px] font-bold mb-3" style={{ background: `${ORANGE}22`, color: '#c2410c' }}>Sua mochila está cheia ({cap.used}/{cap.capacity}). Conclua entregas para aceitar novas.</p>}
                 {state?.online && !cap.full && phase === 'delivering' && <p className="rounded-2xl p-3 text-[13px] font-bold mb-3" style={{ background: `${colors.border}50`, color: colors.textSecondary }}>Você já saiu da loja: novas entregas ficam para a próxima saída.</p>}
 
