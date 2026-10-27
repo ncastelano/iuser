@@ -323,8 +323,9 @@ function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { rece
     )
 }
 
-// Selo redondo do topo, do tamanho de um avatar. Visitante: só a logo do iUser. Logado: a cada 5 s a "página vira"
-// (giro em 3D, a logo numa face e a foto do perfil na outra). Tocar leva ao perfil (foto) ou à home (logo).
+// Selo redondo do topo, do tamanho de um avatar: SÓ a imagem (foto do perfil, logo da loja ou foto do carro; visitante: um ícone
+// de pessoa). A logo do iUser não fica mais aqui: ela é o botão da direita da barra (abre a home, onde está tudo do iUser).
+// Tocar abre o menu.
 // A borda do plano é desenhada POR FORA da foto (3 px de cada lado) — por isso a foto fica menor quando tem borda,
 // pro conjunto ter exatamente o mesmo tamanho da logo.
 const BADGE = 48
@@ -406,8 +407,8 @@ const TAB_LEAVE_DELAY = 50
 // Raio dos cantos côncavos da barra do topo (px)
 const CORNER = 24
 const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
-function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', modeIcon, popToken = 0 }: {
-    userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
+function HeaderBadge({ userId, avatarUrl, onProfile, colors, noRing = false, label = 'Meu perfil', modeIcon, popToken = 0 }: {
+    userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; colors: any
     /** Imagem que não é do perfil (logo da loja, foto do carro): sem a borda do plano */
     noRing?: boolean
     label?: string
@@ -416,7 +417,6 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = fa
     /** Sobe a cada troca de modo: a nova imagem entra com um "estouro" (0 = sem animação, carga inicial) */
     popToken?: number
 }) {
-    const [showAvatar, setShowAvatar] = useState(true)
     // Troca de modo (popToken muda): mostra o ícone, e só 300 ms depois vira a imagem — nunca fica um instante sem nada
     // (derivado do token: na mesma renderização da troca já começa pelo ícone, sem piscar a imagem nova antes)
     const [shownToken, setShownToken] = useState(popToken)
@@ -428,28 +428,13 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = fa
     }, [popToken, shownToken])
     const planRing = usePlanRing(userId)
     const hasRing = planRing && !noRing
-    useEffect(() => {
-        if (!userId) return
-        const t = setInterval(() => setShowAvatar((v) => !v), 5000)
-        return () => clearInterval(t)
-    }, [userId])
-
-    const avatarOn = !!userId && showAvatar
     const avatarSize = hasRing ? BADGE - 6 : BADGE
-    const face = { position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' } as const
     return (
-        <div className="flex-shrink-0" style={{ width: BADGE, height: BADGE, perspective: 600 }}>
-            <div
-                className="relative w-full h-full"
-                style={{
-                    transformStyle: 'preserve-3d',
-                    transition: 'transform 900ms cubic-bezier(0.45, 0, 0.2, 1)',
-                    transform: avatarOn || !userId ? 'rotateY(0deg)' : 'rotateY(180deg)',
-                }}
-            >
-                {/* Frente: a foto do perfil (ou, sem conta, a logo) */}
+        <div className="flex-shrink-0" style={{ width: BADGE, height: BADGE }}>
+            <div className="relative w-full h-full">
+                {/* A foto do perfil (ou a imagem do modo); sem conta, um ícone de pessoa */}
                 {userId ? (
-                    <button onClick={onProfile} aria-label={label} className="flex items-center justify-center rounded-full" style={face}>
+                    <button onClick={onProfile} aria-label={label} className="absolute inset-0 flex items-center justify-center rounded-full">
                         <PlanAvatarRing userId={noRing ? null : userId} width={2} linkToProfile={false}>
                             <span className="block rounded-full overflow-hidden" style={{ width: avatarSize, height: avatarSize, perspective: 300 }}>
                                 <span key={popToken} className="relative block w-full h-full" style={{ transformStyle: 'preserve-3d' }}>
@@ -479,14 +464,8 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = fa
                         </PlanAvatarRing>
                     </button>
                 ) : (
-                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, ...LOGO_RING }}>
-                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
-                    </button>
-                )}
-                {/* Verso: a logo (só existe pra quem está logado) */}
-                {userId && (
-                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, ...LOGO_RING, transform: 'rotateY(180deg)' }}>
-                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
+                    <button onClick={onProfile} aria-label="Abrir menu" className="absolute inset-0 flex items-center justify-center rounded-full" style={{ ...LOGO_RING, background: `${colors.border}b0`, color: colors.textSecondary }}>
+                        <User size={22} />
                     </button>
                 )}
             </div>
@@ -872,8 +851,6 @@ export default function ModeShell({ children, search }: {
                         modeIcon={headerView.modeIcon}
                         popToken={modeTick}
                         onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
-                        // A logo (outra face do selo) também abre o menu
-                        onHome={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
                     />
 
                     {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
@@ -962,13 +939,16 @@ export default function ModeShell({ children, search }: {
                             </button>
                         </>
                     ) : (
-                        <NavTab btnRef={lupaRef} toEdge selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'search'} label="Buscar" onClick={() => pickTab('search', () => {
+                        <NavTab btnRef={lupaRef} toEdge selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'search'} label="iUser: tudo do iUser" onClick={() => pickTab('search', () => {
                             if (!search) return go('/modeloinicial')
-                            // a página já mostra o campo de busca: a lupa só leva o foco pra ele
-                            if (search.inline) { window.scrollTo({ top: 0, behavior: 'smooth' }); search.focus?.(); return }
+                            // já está na página que reúne tudo do iUser: só volta ao topo
+                            if (search.inline) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }
                             setSearchOpen(true)
                         })}>
-                            <Search size={20} />
+                            {/* A logo do iUser no lugar da lupa: abre a aba que reúne tudo o que há no iUser (a home, com a busca) */}
+                            <span className="block rounded-full" style={{ width: 30, height: 30, ...LOGO_RING }}>
+                                <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
+                            </span>
                         </NavTab>
                     )}
                 </div>

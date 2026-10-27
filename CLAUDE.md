@@ -34,6 +34,7 @@ Detalhes e justificativas: `docs/ARCHITECTURE.md` e `docs/decisions/`. Resumo op
 - **Não mexa sem justificativa:** a casca da 3.0 (`src/versions/v3/shell/ModeShell.tsx`: navbar, drawer, aba que
   desliza e encaixa no cartão), `src/proxy.ts`, a lógica de `CarrinhoScreen`/`ConversasScreen`, e a telemetria de
   `lib/supabase/client.ts`. Preserve o comportamento visual/interativo existente ao refatorar.
+- **Navbar da 3.0 (`ModeShell`):** o botão do menu (esquerda) mostra SÓ a imagem (foto do perfil, logo da loja ou foto do carro; visitante: ícone de pessoa) — a logo do iUser não gira mais com a foto. A **logo do iUser é o botão da direita** (onde ficava a lupa): leva à home (`/modeloinicial`), a aba que reúne tudo do iUser; já na home só volta ao topo. A aba clara continua deslizando entre os ícones (`target === 'search'` é a aba da logo).
 - **Testar:** `npx tsc --noEmit`, `npm run test:versions` (e `test:graduation`/`test:fare` se tocar nessas áreas),
   `npx next build` (pare o `next dev` antes: os dois usam `.next`), e conferir no navegador as duas versões
   (v2 e v3: troca nos dois sentidos, sessão preservada, preferência salva, URL antiga funcionando).
