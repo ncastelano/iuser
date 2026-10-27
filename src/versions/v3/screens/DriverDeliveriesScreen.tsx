@@ -111,7 +111,7 @@ export default function DriverDeliveriesScreen() {
     }, [userId])
 
     useEffect(() => { if (userId) supabase.from('profiles').select('name').eq('id', userId).maybeSingle().then(({ data }) => setMyName((data as any)?.name || null)) }, [userId])
-    useEffect(() => { refresh(); const t = setInterval(refresh, 5000); return () => clearInterval(t) }, [refresh])
+    useEffect(() => { refresh(); const t = setInterval(refresh, 3000); return () => clearInterval(t) }, [refresh])
     useEffect(() => {
         if (!userId) return
         const ch = supabase.channel(`driver-deliveries-${userId}`)

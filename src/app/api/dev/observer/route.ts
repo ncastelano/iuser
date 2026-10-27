@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server'
 import { readFile } from 'node:fs/promises'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { DEV_STORE_SLUG, isLocalDevOnly } from '@/lib/devOnly'
+import { DEV_FEATURED_CLIENT_EMAIL, DEV_STORE_SLUG, isLocalDevOnly } from '@/lib/devOnly'
 
 export async function GET() {
     if (!isLocalDevOnly()) return new NextResponse(null, { status: 404 })
@@ -40,11 +40,15 @@ export async function GET() {
         deliveredLastHour: (ridesDone || []).filter((r: any) => r.driver_id === u.id).length,
     }))
 
+    // A cliente em destaque (Gabriela): os pedidos dela em andamento nesta loja, para o roteiro do TEATRO saber em que etapa estão
+    const feat = (authList?.users || []).find((u) => u.email === DEV_FEATURED_CLIENT_EMAIL)
+    const { data: featOrders } = feat ? await supabaseAdmin.from('orders').select('id, status, delivery_option, created_at').eq('store_id', store.id).eq('buyer_id', feat.id).in('status', ['pending', 'preparing', 'ready']).order('created_at') : { data: [] as any[] }
+
     let log: string[] = []
     try {
         const raw = await readFile(process.env.PIZZARIA_SIM_LOG || '/tmp/sim-pizzaria.log', 'utf8')
         log = raw.split('\n').filter(Boolean).slice(-60)
     } catch { /* simulador ainda não rodou */ }
 
-    return NextResponse.json({ store: store.name, couriers, drivers, readyWaiting: (ready || []).length, log })
+    return NextResponse.json({ store: store.name, couriers, drivers, featured: featOrders || [], readyWaiting: (ready || []).length, log })
 }

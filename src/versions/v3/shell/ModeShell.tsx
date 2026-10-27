@@ -626,7 +626,7 @@ export default function ModeShell({ children }: {
         if (!st) return null
         return { products: storeOrders[st.id]?.pending || 0, services: storeOrders[st.id]?.services || 0, name: st.name, path: `/painel-loja/${encodeURIComponent(st.slug)}`, prefer: !!modeSlug && st.slug === modeSlug }
     })()
-    const live = useShellLive(userId, orderCounts, topUnread, chatPath, storeNew)
+    const live = useShellLive(userId, orderCounts, topUnread, chatPath, storeNew, { count: topCart, total: cartTotal })
     const openHub = () => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }
     // Escolher um modo: marca como selecionado e abre a página dele (cada modo tem a sua)
     const selectMode = (mode: string) => {
@@ -725,14 +725,16 @@ export default function ModeShell({ children }: {
                         {live ? (
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{live.sub}</span>
-                                <span className="flex items-center gap-1.5 min-w-0">
+                                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
                                     {(live.parts && live.parts.length > 0 ? live.parts : [{ text: live.title, color: live.color }]).map((pt, i) => (
-                                        <span key={i} className="flex items-center gap-1 min-w-0">
+                                        <span key={i} role={pt.path ? 'button' : undefined} aria-label={pt.path ? pt.text : undefined}
+                                            onClick={pt.path ? (e) => { e.stopPropagation(); if (pt.path!.split('?')[0] !== shellPath || pt.path!.includes('?')) go(pt.path!); else openHub() } : undefined}
+                                            className={`flex items-center gap-1 min-w-0 ${pt.path ? 'pointer-events-auto cursor-pointer rounded-full px-1.5 -mx-1 py-0.5 active:bg-black/5' : ''}`}>
                                             <span className="relative flex-shrink-0 w-2 h-2">
                                                 {i === 0 && <span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: pt.color, opacity: 0.6 }} />}
                                                 <span className="absolute inset-0 rounded-full" style={{ background: pt.color }} />
                                             </span>
-                                            <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{pt.text}</span>
+                                            <span className={`${live.parts && live.parts.length > 1 ? 'text-[13px]' : 'text-sm'} font-black ${live.parts && live.parts.length > 1 ? 'whitespace-nowrap' : 'truncate'}`} style={{ color: colors.textPrimary }}>{pt.text}</span>
                                         </span>
                                     ))}
                                 </span>

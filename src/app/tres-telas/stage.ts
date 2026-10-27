@@ -12,6 +12,7 @@ export class Stage {
     private pend = new Map<number, { ok: (v: any) => void; err: (e: Error) => void }>()
     private seq = 1
     stopped = false
+    gen = 0   // cada vez que o teatro liga, uma nova "geração" de roteiros; as antigas se encerram sozinhas
     onLog: (who: Who, msg: string) => void = () => {}
 
     private onMessage = (e: MessageEvent) => {

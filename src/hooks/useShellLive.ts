@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase/client'
 
 export type ShellLiveKind = 'ride' | 'order' | 'chat' | 'store'
 // `color` = a cor do aviso na ilha (as dos pedidos: novos verde, em preparo amarelo, prontos roxo; finalizados azul)
-export interface ShellLive { kind: ShellLiveKind; title: string; sub?: string; path: string; hot?: boolean; color: string; /** vários avisos lado a lado, cada um na sua cor (ex.: pedidos de produtos e de serviços) */ parts?: { text: string; color: string }[] }
+export interface ShellLive { kind: ShellLiveKind; title: string; sub?: string; path: string; hot?: boolean; color: string; /** vários avisos lado a lado, cada um na sua cor (ex.: pedidos de produtos e de serviços) */ parts?: { text: string; color: string; /** para onde esse aviso leva ao ser tocado (cada um tem o seu) */ path?: string }[] }
 /** Pedidos NOVOS da loja que a pessoa atende (produtos e serviços a aceitar): `prefer` = a ilha está no modo dessa loja, então eles vêm antes das mensagens */
 export interface StoreNewOrders { products: number; services: number; name: string; path: string; prefer: boolean }
 export const ORDER_COLORS = { novo: '#22c55e', preparo: '#eab308', pronto: '#a855f7', finalizado: '#3b82f6' } as const
@@ -19,7 +19,7 @@ export const SERVICE_COLOR = '#14b8a6'
 
 interface ActiveRide { status: string; enRoute: boolean; arrived: boolean; started: boolean; candidates: number }
 
-export function useShellLive(userId: string | null | undefined, orders: { pending: number; preparing: number; ready: number }, unread: number, chatPath: string, storeNew?: StoreNewOrders | null): ShellLive | null {
+export function useShellLive(userId: string | null | undefined, orders: { pending: number; preparing: number; ready: number }, unread: number, chatPath: string, storeNew?: StoreNewOrders | null, cart?: { count: number; total: number } | null): ShellLive | null {
     const [ride, setRide] = useState<ActiveRide | null>(null)
     // Quando cada contagem (pedidos, serviços, mensagens) AUMENTOU pela última vez: o que atualizou por último fica em cima na ilha.
     // Nos primeiros segundos as contagens chegando do banco não contam como "atualização" (a ordem inicial é a de sempre).
@@ -56,12 +56,6 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
         return () => { cancelled = true; clearInterval(t); document.removeEventListener('visibilitychange', onVis) }
     }, [userId])
 
-    if (ride) {
-        const title = ride.status === 'pending'
-            ? (ride.candidates > 0 ? `${ride.candidates} ${ride.candidates === 1 ? 'motorista quer' : 'motoristas querem'} te levar` : 'Procurando motorista')
-            : ride.started ? 'Em viagem' : ride.arrived ? 'O motorista chegou' : ride.enRoute ? 'Motorista a caminho' : 'Motorista escolhido'
-        return { kind: 'ride', title, sub: ride.status === 'pending' && ride.candidates > 0 ? 'Toque para escolher' : 'Toque para acompanhar', path: '/pedir-motorista', hot: ride.candidates > 0 || ride.arrived, color: '#f97316' }
-    }
     const sp = storeNew?.products || 0, ss = storeNew?.services || 0
     for (const [k, n] of [['p', sp], ['s', ss], ['m', unread]] as const) {
         const e = stamps.current[k]
@@ -88,10 +82,30 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
         : null
     // No modo da loja os pedidos novos vêm ANTES das mensagens (e as mensagens entram junto, se houver)
     if (storeLive && storeNew?.prefer) return storeLive
-    if (orders.ready > 0) return { kind: 'order', title: orders.ready === 1 ? 'Seu pedido está pronto' : `${orders.ready} pedidos prontos`, sub: 'Toque para ver', path: '/carrinho?aba=pedidos', hot: true, color: ORDER_COLORS.pronto }
-    if (storeLive) return storeLive
-    if (unread > 0) return { kind: 'chat', title: `${unread} ${unread === 1 ? 'mensagem nova' : 'mensagens novas'}`, sub: 'Toque para responder', path: chatPath, hot: true, color: CHAT_COLOR }
-    const going = orders.pending + orders.preparing
-    if (going > 0) return { kind: 'order', title: orders.preparing > 0 ? 'Pedido em preparo' : 'Pedido enviado', sub: 'Toque para acompanhar', path: '/carrinho?aba=pedidos', color: orders.preparing > 0 ? ORDER_COLORS.preparo : ORDER_COLORS.novo }
-    return null
+    // Cliente (não está no modo da loja): UM aviso só com VÁRIAS partes, cada uma na sua cor e levando ao seu lugar — pedidos que fiz, corrida, mensagens e a sacola.
+    // Tocar no cartão vai ao mais importante (os pedidos vêm antes da corrida); tocar numa parte leva à parte.
+    const brl = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`
+    const ORDERS_PATH = '/carrinho?aba=pedidos'
+    const parts: { text: string; color: string; path: string; hot?: boolean }[] = []
+    if (orders.ready > 0) parts.push({ text: orders.ready === 1 ? '1 pedido pronto' : `${orders.ready} pedidos prontos`, color: ORDER_COLORS.pronto, path: ORDERS_PATH, hot: true })
+    if (orders.preparing > 0) parts.push({ text: orders.preparing === 1 ? '1 em preparo' : `${orders.preparing} em preparo`, color: ORDER_COLORS.preparo, path: ORDERS_PATH })
+    if (orders.pending > 0) parts.push({ text: orders.pending === 1 ? '1 enviado' : `${orders.pending} enviados`, color: ORDER_COLORS.novo, path: ORDERS_PATH })
+    if (ride) {
+        const title = ride.status === 'pending'
+            ? (ride.candidates > 0 ? `${ride.candidates} ${ride.candidates === 1 ? 'motorista quer' : 'motoristas querem'} te levar` : 'Procurando motorista')
+            : ride.started ? 'Em viagem' : ride.arrived ? 'Motorista chegou' : ride.enRoute ? 'Motorista a caminho' : 'Motorista escolhido'
+        parts.push({ text: title, color: '#f97316', path: '/pedir-motorista', hot: ride.candidates > 0 || ride.arrived })
+    }
+    if (unread > 0) parts.push({ text: unread === 1 ? '1 mensagem' : `${unread} mensagens`, color: CHAT_COLOR, path: chatPath, hot: true })
+    if (cart && cart.count > 0) parts.push({ text: `Sacola ${cart.count} ${cart.count === 1 ? 'item' : 'itens'} · ${brl(cart.total)}`, color: '#f97316', path: '/carrinho' })
+    if (parts.length === 0) return null
+    const main = parts[0]
+    const hasOrders = orders.ready + orders.preparing + orders.pending > 0
+    return {
+        kind: hasOrders ? 'order' : ride ? 'ride' : unread > 0 ? 'chat' : 'order',
+        title: parts.map((x) => x.text).join(' · '),
+        sub: hasOrders ? 'Seus pedidos' : ride ? 'Sua corrida' : unread > 0 ? 'Conversas' : 'Seu carrinho',
+        path: main.path, hot: !!main.hot, color: main.color,
+        parts: parts.map(({ text, color, path }) => ({ text, color, path })),
+    }
 }

@@ -70,7 +70,7 @@ COURIERS = []
 IUSER_DRIVERS = []
 DRV = {}   # estado em memória de cada motorista iUser (posição, quando saiu, quando entregou o último)
 EAGER = {'dani': 0.85, 'leo': 0.6, 'rafa': 0.75, 'tito': 0.45}   # disposição de cada um para aceitar uma entrega que aparece
-CFG = {'mode': 'iuser', 'manual_drivers': [], 'couriers': True, 'bag': 6.0, 'max_stops': 5, 'reach': 3.5, 'wait': 45.0, 'load': 20.0, 'scale': 6.0, 'app': os.environ.get('APP_URL', 'http://localhost:3100')}
+CFG = {'stage': False, 'stage_grace': 30.0, 'stage_speed': 5.0, 'mode': 'iuser', 'manual_drivers': [], 'couriers': True, 'bag': 6.0, 'max_stops': 5, 'reach': 3.5, 'wait': 45.0, 'load': 20.0, 'scale': 6.0, 'app': os.environ.get('APP_URL', 'http://localhost:3100')}
 FEATURED_EMAIL = 'cliente-007@staging.iuser.test'   # a cliente que a página /tres-telas acompanha (pede com frequência)
 FEATURED = None
 STORE_POS = (-8.7580, -63.8995)
@@ -272,8 +272,9 @@ def chat_tick(limit=3):
 
 # ---------------------------------------------------------------- atendimento (o ciclo do pedido)
 def store_orders(status, min_age):
+    skip = f"and o.buyer_id <> {esc(FEATURED['id'])}::uuid" if (CFG['stage'] and FEATURED) else ''   # no TEATRO, os pedidos da cliente em destaque são atendidos pelas telas
     return q_local(f"""select o.id, o.buyer_id, o.delivery_option, o.total_amount, extract(epoch from now() - o.updated_at) as age from orders o
-        where o.store_id = {esc(STORE['id'])}::uuid and o.status = {esc(status)} and o.updated_at < now() - interval '{min_age} seconds' order by o.updated_at limit 12""")
+        where o.store_id = {esc(STORE['id'])}::uuid and o.status = {esc(status)} {skip} and o.updated_at < now() - interval '{min_age} seconds' order by o.updated_at limit 12""")
 
 
 def set_status(order, status):
@@ -499,8 +500,10 @@ def drop_stale_rides():
 def drivers_accept(speed=1.0):
     """Cada motorista online olha as entregas abertas e aceita as que quiser (disposição própria), se couber na mochila e ficar perto das que já pegou."""
     drop_stale_rides()
-    offers = q_local(f"""select r.id, r.destination_lat, r.destination_lng, r.offered_price, r.recipient_name, extract(epoch from now() - r.created_at) as age
+    offers = q_local(f"""select r.id, r.destination_lat, r.destination_lng, r.offered_price, r.recipient_name, extract(epoch from now() - r.created_at) as age, o.buyer_id
         from ride_requests r join orders o on o.id = r.order_id where r.status = 'pending' and r.driver_id is null and o.store_id = {esc(STORE['id'])}::uuid order by r.created_at""")
+    if CFG['stage'] and FEATURED:   # no TEATRO a entrega da cliente em destaque espera um tempo pelo motorista que está na tela (Dani)
+        offers = [o for o in offers if not (o['buyer_id'] == FEATURED['id'] and float(o['age']) < CFG['stage_grace'])]
     if not offers:
         return
     for d in sorted(IUSER_DRIVERS, key=lambda _d: R.random()):
@@ -625,8 +628,8 @@ def review_pending_orders():
 
 def review_featured(speed=1.0):
     """A cliente em destaque (Gabriela) avalia TODO pedido entregue dela, de qualquer loja, logo depois de receber — a lista de pendentes não cresce."""
-    if not FEATURED:
-        return
+    if not FEATURED or CFG['stage']:
+        return   # no TEATRO é a tela da cliente que avalia, com o toque dela
     rows = q_local(f"""select o.id, o.checkout_id, o.store_id, s.name as sname, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
         from orders o join stores s on s.id = o.store_id where o.buyer_id = {esc(FEATURED['id'])}::uuid and o.status = 'paid' and o.updated_at < now() - interval '6 seconds'
           and not exists (select 1 from product_reviews r where r.order_id = o.checkout_id and r.profile_id = o.buyer_id) order by o.updated_at limit 30""")
@@ -648,9 +651,38 @@ def rate_everything():
     review_pending_orders()
 
 
+def stage_mover():
+    """TEATRO: a Dani anda de verdade — a posição ao vivo dela vai da posição atual até o próximo ponto (a loja; depois cada parada), em passos de 1 s."""
+    dani = next((d for d in IUSER_DRIVERS if d['key'] in CFG['manual_drivers']), None)
+    if not dani:
+        return
+    rides = drv_rides(dani)
+    if not rides:
+        return
+    started = [r for r in rides if r['ride_started_at']]
+    if not rides[0]['driver_en_route'] and not started:
+        return
+    here = drv_pos(dani)
+    if started:
+        nxt = min(started, key=lambda r: hav_km(here, (float(r['destination_lat']), float(r['destination_lng']))))
+        target = (float(nxt['destination_lat']), float(nxt['destination_lng']))
+    elif not rides[0]['driver_arrived_at']:
+        target = STORE_POS
+    else:
+        target = STORE_POS
+    d = hav_km(here, target)
+    step = CFG['stage_speed'] * 28.0 / 3600.0   # km por segundo
+    if d <= step or d < 0.01:
+        if d > 0.003:
+            drv_move(dani, target)
+        return
+    k = step / d
+    drv_move(dani, (here[0] + (target[0] - here[0]) * k, here[1] + (target[1] - here[1]) * k))
+
+
 def featured_order():
     """A cliente em destaque (a que a página /tres-telas acompanha) pede com frequência, sempre entrega."""
-    if FEATURED:
+    if FEATURED and not CFG['stage']:
         make_order(FEATURED, force_delivery=True)
 
 
@@ -703,10 +735,12 @@ def main():
     ap.add_argument('--featured-every', type=float, default=55.0, help='segundos entre um pedido e outro da cliente em destaque (cliente-007)')
     ap.add_argument('--employees', action='store_true', help='usa os motoboys da loja (tabela employees) em vez dos motoristas iUser')
     ap.add_argument('--manual-drivers', default='', help='motoristas iUser que NÃO são simulados (a pessoa mexe na mão em /entregas), ex.: dani,leo')
+    ap.add_argument('--stage', action='store_true', help='TEATRO: a Dani (motorista), a Gabriela (cliente) e o dono são conduzidos pelas telas de /tres-telas; o simulador não atende os pedidos dela nem a corrida da Dani')
+    ap.add_argument('--stage-speed', type=float, default=5.0, help='TEATRO: velocidade da Dani no mapa (5 = 5x a de uma moto na cidade)')
     ap.add_argument('--no-couriers', action='store_true', help='sem motoboys: entrega vai direto de pronto para entregue')
     ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick', 'featured', 'rate'])
     a = ap.parse_args()
-    CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()], couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
+    CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()] or (['dani'] if a.stage else []), stage=a.stage, stage_speed=a.stage_speed, couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
     load()
     if a.once:
         return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order, 'rate': lambda: (rate_everything(), review_featured())}[a.once])
@@ -720,6 +754,9 @@ def main():
     loop(a.every, make_order, stop)
     loop(a.appts_every, make_appointment, stop)
     loop(a.featured_every, featured_order, stop)
+    if a.stage:
+        loop(1, stage_mover, stop)
+        log('TEATRO ligado: a Dani, a Gabriela e o dono agem pelas telas (/tres-telas); o simulador cuida do resto da cidade.')
     if not a.manual:
         loop(a.chat_every, customer_asks, stop)
         loop(5, lambda: cycle_tick(a.speed), stop)

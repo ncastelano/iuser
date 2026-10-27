@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isLocalDevOnly } from '@/lib/devOnly'
 import { Stage, type Who } from './stage'
+import { runTheater } from './scenes'
 
 const W = 390, H = 800
 interface Courier { id: string; name: string; token: string; stops: number; deliveredLastHour: number }
@@ -40,6 +41,9 @@ export default function TresTelasPage() {
     const [showLog, setShowLog] = useState(true)
     const logRef = useRef<HTMLDivElement>(null)
     const stage = useMemo(() => new Stage(), [])
+    const [theater, setTheater] = useState(false)
+    const [says, setSays] = useState<Record<Who, string>>({ owner: '', client: '', driver: '' })
+    const obsRef = useRef<Observer | null>(null)
     const frameRefs = { owner: useRef<HTMLIFrameElement>(null), client: useRef<HTMLIFrameElement>(null), driver: useRef<HTMLIFrameElement>(null) }
     useEffect(() => {
         if (!ok) return
@@ -58,6 +62,14 @@ export default function TresTelasPage() {
         if (!window.location.hostname.endsWith('.tela.localhost')) { window.location.replace(`${window.location.protocol}//painel.tela.localhost:${window.location.port}/tres-telas`); return }
         setOrigin({ proto: window.location.protocol, port: window.location.port })
     }, [])
+
+    useEffect(() => { obsRef.current = obs }, [obs])
+    useEffect(() => {
+        if (!ok) return
+        if (!theater) { stage.stopped = true; return }
+        stage.stopped = false
+        runTheater(stage, () => obsRef.current as any, (who, msg) => setSays((p) => ({ ...p, [who]: msg })))
+    }, [ok, theater, stage])
 
     const poll = useCallback(async () => {
         try { const r = await fetch('/api/dev/observer'); if (r.ok) { const d = await r.json(); setObs({ ...d, drivers: d.drivers ?? [], couriers: d.couriers ?? [], log: d.log ?? [] }) } } catch { /* sem rede */ }
@@ -106,17 +118,18 @@ export default function TresTelasPage() {
                 <button style={chip(follow === 'auto')} onClick={() => setFollow('auto')}>Auto</button>
                 {obs?.drivers?.map((d) => <button key={d.key} style={chip(follow === d.key)} onClick={() => setFollow(d.key)}>{d.name.split(' ')[0]}{d.stops > 0 ? ` · ${d.stops}/${d.capacity}` : ''}</button>)}
                 <button style={chip(false)} onClick={() => setTick((n) => n + 1)}>Recarregar</button>
+                <button style={chip(theater)} onClick={() => setTheater((v) => !v)} title="Cliente, dono e motorista usando o app sozinhos">{theater ? '🎬 Teatro ligado' : '🎬 Teatro'}</button>
                 <button style={chip(showLog)} onClick={() => setShowLog((v) => !v)}>Log</button>
             </div>
 
             <div style={{ display: 'flex', gap: 20, justifyContent: 'center', alignItems: 'flex-start' }}>
-                <Phone title="Dono da loja" subtitle="admin-teste · painel da pizzaria" color="#22c55e" scale={scale}>
+                <Phone title="Dono da loja" subtitle={says.owner || 'admin-teste · painel da pizzaria'} color="#22c55e" scale={scale}>
                     <iframe ref={frameRefs.owner} title="dono" src={urls.owner} style={{ width: W, height: H, border: 0 }} />
                 </Phone>
-                <Phone title="Motorista iUser" subtitle={driver ? `${driver.name} · ${driver.stops}/${driver.capacity} na mochila · ${driver.deliveredLastHour} entregues na última hora` : 'sem motorista'} color="#f97316" scale={scale}>
+                <Phone title="Motorista iUser" subtitle={says.driver || (driver ? `${driver.name} · ${driver.stops}/${driver.capacity} na mochila · ${driver.deliveredLastHour} entregues na última hora` : 'sem motorista')} color="#f97316" scale={scale}>
                     {urls.driver ? <iframe ref={frameRefs.driver} key={driver?.key} title="motorista" src={urls.driver} style={{ width: W, height: H, border: 0 }} /> : <div style={{ padding: 30, color: '#64748b' }}>Cadastre os motoristas: node scripts/local/seed-entregadores.mjs</div>}
                 </Phone>
-                <Phone title="Cliente" subtitle="Gabriela Carvalho · acompanhando os pedidos" color="#3b82f6" scale={scale}>
+                <Phone title="Cliente" subtitle={says.client || 'Gabriela Carvalho · acompanhando os pedidos'} color="#3b82f6" scale={scale}>
                     <iframe ref={frameRefs.client} title="cliente" src={urls.client} style={{ width: W, height: H, border: 0 }} />
                 </Phone>
             </div>

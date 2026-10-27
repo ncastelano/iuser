@@ -18,6 +18,7 @@ export type DirCmd =
     | { op: 'has'; target: DirTarget }
     | { op: 'count'; target: DirTarget }
     | { op: 'text' }
+    | { op: 'list' }
     | { op: 'caption'; text: string | null }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -131,6 +132,13 @@ export default function ScreenDirector() {
                     case 'goto': reply(id, true); window.location.assign(cmd.path); return
                     case 'caption': setCaption(cmd.text); return reply(id, true)
                     case 'text': return reply(id, true, (document.body.innerText || '').slice(0, 6000))
+                    case 'list': {
+                        const items = Array.from(document.querySelectorAll<HTMLElement>('button, a, [role=button], input, textarea, select')).filter(visible).map((el) => {
+                            const r = el.getBoundingClientRect()
+                            return { tag: el.tagName.toLowerCase(), text: norm(el.textContent || '').slice(0, 50), aria: el.getAttribute('aria-label') || '', ph: el.getAttribute('placeholder') || '', y: Math.round(r.top), x: Math.round(r.left), w: Math.round(r.width) }
+                        })
+                        return reply(id, true, items)
+                    }
                     case 'has': return reply(id, true, !!findTarget(cmd.target))
                     case 'count': {
                         const t = cmd.target
