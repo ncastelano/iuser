@@ -18,6 +18,7 @@ import { categorias } from '@/lib/categorias'
 import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 import StoreImageCard from '@/components/StoreImageCard'
 import { Spinner } from '@/components/Spinner'
+import { notifyChatMessage } from '@/lib/notifyRideStatus'
 import {
     isQuickAddable, matchesQuery, sortTrending, limitPerStore, loadShop, servicePriceLabel, serviceCta, sortServices,
     type ShopData, type ShopProduct, type ShopService,
@@ -118,6 +119,18 @@ export default function ComprarScreen() {
     }
     const openProduct = (p: ShopProduct) => router.push(`/${p.storeSlug}/${p.slug}`)
     const openService = (v: ShopService) => router.push(`/${v.ownerSlug}/${v.slug}`)
+    // "Combinar" (serviço de pessoa, valor a combinar): abre direto a conversa com o profissional, já com o serviço no chat.
+    // Se ele não recebe conversas pelo iUser, cai na página do serviço (que mostra o contato que ele liberou).
+    const [combining, setCombining] = useState<string | null>(null)
+    const combine = async (v: ShopService) => {
+        if (!userId) { router.push('/login?redirect=/comprar'); return }
+        setCombining(v.id)
+        const { data, error } = await supabase.rpc('start_conversation_about_product', { p_product: v.id })
+        setCombining(null)
+        if (error || !data) { toast.message('Esse profissional não recebe conversas pelo iUser. Veja o contato na página do serviço.'); openService(v); return }
+        notifyChatMessage(data as string)
+        router.push(`/conversas?c=${data}`)
+    }
 
     // ----- filtros -----
     const passes = useCallback((p: ShopProduct) => {
@@ -252,8 +265,8 @@ export default function ComprarScreen() {
                 </button>
                 <div className="mt-auto pt-1 flex flex-col gap-1.5">
                     <span className="text-sm font-black leading-tight" style={{ color: v.price ? colors.textPrimary : colors.textSecondary }}>{servicePriceLabel(v.price)}</span>
-                    <button onClick={() => openService(v)} className="h-9 w-full rounded-full flex items-center justify-center gap-1.5 text-white text-xs font-black transition active:scale-95" style={{ background: GRADIENT }}>
-                        {v.kind === 'store' ? <CalendarCheck size={13} /> : <Users size={13} />}{serviceCta(v.kind)}
+                    <button onClick={() => (v.kind === 'store' ? openService(v) : combine(v))} disabled={combining === v.id} className="h-9 w-full rounded-full flex items-center justify-center gap-1.5 text-white text-xs font-black transition active:scale-95 disabled:opacity-70" style={{ background: GRADIENT }}>
+                        {combining === v.id ? <Spinner size={13} color="#fff" /> : v.kind === 'store' ? <CalendarCheck size={13} /> : <Users size={13} />}{serviceCta(v.kind)}
                     </button>
                 </div>
             </div>
@@ -384,10 +397,10 @@ export default function ComprarScreen() {
                         <Section colors={colors} icon={Sparkles} title="Novidades" subtitle="Chegou há pouco">{productRow(view.fresh)}</Section>
                     )}
                     {view.storeServices.length > 0 && (
-                        <Section colors={colors} icon={CalendarCheck} title="Serviços para agendar" subtitle="Marque um horário em lojas e estúdios" onAll={() => router.push('/servicos-disponiveis')}>{serviceRow(view.storeServices)}</Section>
+                        <Section colors={colors} icon={CalendarCheck} title="Serviços para agendar" subtitle="Marque um horário em lojas e estúdios" onAll={() => router.push('/servicos-disponiveis?tipo=agendar')}>{serviceRow(view.storeServices)}</Section>
                     )}
                     {view.peopleServices.length > 0 && (
-                        <Section colors={colors} icon={Users} title="Profissionais" subtitle="Serviços de pessoas, com valor combinado" onAll={() => router.push('/servicos-disponiveis')}>{serviceRow(view.peopleServices)}</Section>
+                        <Section colors={colors} icon={Users} title="Profissionais" subtitle="Serviços de pessoas, com valor combinado" onAll={() => router.push('/servicos-disponiveis?tipo=profissionais')}>{serviceRow(view.peopleServices)}</Section>
                     )}
                     {view.products.length > 0 && (
                         <Section colors={colors} icon={Package} title="Todos os produtos" subtitle={`${view.products.length} ${view.products.length === 1 ? 'produto' : 'produtos'}`}>

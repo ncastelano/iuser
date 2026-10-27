@@ -64,7 +64,7 @@ function fromRpc(json: any): ShareCard[] {
         const kind: ShareKind = p.listing_type === 'publication' ? 'publication' : p.type === 'service' ? 'service' : 'product'
         out.push({
             kind, id: p.id, title: p.name, subtitle: p.owner_name || null,
-            detail: kind === 'publication' ? (p.description || null) : kind === 'service' && Number(p.price) === 0 ? 'Sem custo' : money(p.price),
+            detail: kind === 'publication' ? (p.description || null) : kind === 'service' && !(Number(p.price) > 0) ? 'Valor a combinar' : money(p.price),
             imageUrl: productImg(p.image_url), href: p.owner_slug ? `/${p.owner_slug}/${p.slug || p.id}` : '#',
             rating: p.ratings_avg != null ? Number(p.ratings_avg) : null, ratingsCount: p.ratings_count || 0,
         })
