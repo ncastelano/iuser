@@ -30,6 +30,8 @@ const DRIVERS = [
 ]
 const badge = (name, [c1, c2]) => `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="256" height="256" fill="url(#g)"/><text x="50%" y="62%" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="108" font-weight="700" fill="#fff">${name.split(' ').slice(0, 2).map((w) => w[0]).join('')}</text></svg>`
 
+const moto = (d) => `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${d.colors[0]}" stop-opacity=".25"/><stop offset="1" stop-color="${d.colors[1]}" stop-opacity=".55"/></linearGradient></defs><rect width="640" height="420" fill="url(#bg)"/><rect y="330" width="640" height="90" fill="#0f172a" opacity=".18"/><g transform="translate(120 120)" stroke="#111827" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"><circle cx="70" cy="170" r="62"/><circle cx="330" cy="170" r="62"/><path d="M70 170 L170 70 L250 70 L330 170 M170 70 L150 30 L110 30 M250 70 L290 20 L330 20 M150 160 L250 160 L290 110"/><path d="M165 120 H255" stroke="${d.colors[0]}" stroke-width="30"/></g><text x="320" y="395" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="700" fill="#0f172a">${d.model} · ${d.plate}</text></svg>`
+
 const existing = new Map()
 for (let page = 1; ; page++) {
     const list = await api('GET', `/auth/v1/admin/users?per_page=200&page=${page}`)
@@ -48,7 +50,15 @@ for (const d of DRIVERS) {
     const r = await fetch(`${API}/storage/v1/object/avatars/${avatar}`, { method: 'POST', headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'image/png', 'x-upsert': 'true' }, body: await sharp(Buffer.from(badge(d.name, d.colors))).png().toBuffer() })
     if (!r.ok) throw new Error(`avatar ${d.key}: ${r.status}`)
     await upsert('profiles', [{ id, name: d.name, profileSlug: d.slug, email, is_active: true, avatar_url: avatar, description: d.bio }], 'id')
-    await upsert('driver_vehicles', [{ driver_id: id, vehicle_kind: 'moto', car_model: d.model, car_color: d.color, car_plate: d.plate, services: ['objeto', 'pessoa'], passenger_capacity: 1, delivery_capacity: d.cap, vehicle_slug: `moto-${d.key}-pizza` }], 'driver_id,vehicle_kind')
+    // Fotos do cadastro (sem elas o painel do motorista fica "incompleto" e não deixa ligar o Modo motorista): a selfie e a foto da moto, geradas aqui
+    const put = async (bucket, path, svg) => {
+        const r = await fetch(`${API}/storage/v1/object/${bucket}/${path}`, { method: 'POST', headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'image/png', 'x-upsert': 'true' }, body: await sharp(Buffer.from(svg)).png().toBuffer() })
+        if (!r.ok) throw new Error(`${bucket}/${path}: ${r.status} ${await r.text()}`)
+        return path
+    }
+    const selfiePath = await put('driver-selfie-photos', `${id}/selfie.png`, badge(d.name, d.colors))
+    const motoPath = await put('driver-car-photos', `${id}/moto.png`, moto(d))
+    await upsert('driver_vehicles', [{ driver_id: id, vehicle_kind: 'moto', car_model: d.model, car_color: d.color, car_plate: d.plate, services: ['objeto', 'pessoa'], passenger_capacity: 1, delivery_capacity: d.cap, vehicle_slug: `moto-${d.key}-pizza`, car_photo_url: motoPath, driver_photo_url: selfiePath }], 'driver_id,vehicle_kind')
     await upsert('driver_pricing', [{ driver_id: id, pricing_mode: 'platform', driver_mode_active: true, live_location_sync: true, live_lat: PIZZARIA.lat + d.dx, live_lng: PIZZARIA.lng + d.dy, live_updated_at: new Date().toISOString(), alert_sound_enabled: true, voice_navigation_enabled: true, delivery_radius_km: 12 }], 'driver_id')
     const has = await api('GET', `/rest/v1/subscriptions?select=id&user_id=eq.${id}&limit=1`)
     if (!has.length) await api('POST', '/rest/v1/subscriptions', [{ user_id: id, plan_id: planId, status: 'active', source: 'free_trial', starts_at: new Date().toISOString(), current_period_end: new Date(Date.now() + 365 * 86400000).toISOString() }], { Prefer: 'return=minimal' })
