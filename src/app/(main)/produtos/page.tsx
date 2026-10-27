@@ -7,7 +7,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Package } from 'lucide-react'
+import { ArrowDown, ArrowUp, Clock, Eye, Package, Star } from 'lucide-react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
@@ -15,12 +15,21 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import ListingRowCard from '@/components/ListingRowCard'
 import { Spinner } from '@/components/Spinner'
 import { useInsideShell } from '@/components/InsideShell'
+import ListFilters, { type SortOption } from '@/components/ListFilters'
 import { loadProductCards, type ProductCard } from '../inicio/sections/ProductShowcase'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const PAGE_SIZE = 24
 
 const formatPrice = (price: number | null) => (price == null ? null : price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))
+
+const SORTS: SortOption[] = [
+    { id: 'vistos', label: 'Mais vistos', short: 'Vistos', icon: Eye },
+    { id: 'recentes', label: 'Recentes', short: 'Recentes', icon: Clock },
+    { id: 'menor', label: 'Menor preço', short: 'Menor preço', icon: ArrowDown },
+    { id: 'maior', label: 'Maior preço', short: 'Maior preço', icon: ArrowUp },
+    { id: 'avaliados', label: 'Melhores avaliados', short: 'Melhores', icon: Star },
+]
 
 const ORDENS = {
     alta: { title: 'Em alta' },
@@ -42,20 +51,43 @@ function Produtos() {
     const [products, setProducts] = useState<ProductCard[] | null>(null)
     const [search, setSearch] = useState('')
     const [shown, setShown] = useState(PAGE_SIZE)
+    // Filtros de uma linha (como no /lojas): categoria da loja, ordenação e "Abertas". "Em alta" começa pelos mais vistos e "Novidades" pelos recentes.
+    const [category, setCategory] = useState('todas')
+    const [sort, setSort] = useState(ordem === 'novidades' ? 'recentes' : 'vistos')
+    const [onlyOpen, setOnlyOpen] = useState(false)
+    useEffect(() => { setSort(ordem === 'novidades' ? 'recentes' : 'vistos') }, [ordem])
 
     useEffect(() => {
         loadProductCards().then(setProducts).catch(() => setProducts([]))
     }, [])
 
+    const counts = useMemo(() => {
+        const n: Record<string, number> = {}
+        for (const p of products || []) if (p.categorySlug) n[p.categorySlug] = (n[p.categorySlug] || 0) + 1
+        return n
+    }, [products])
+
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
-        const base = products || []
-        const list = ordem === 'novidades' ? [...base].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()) : base
-        if (!q) return list
-        return list.filter((p) => p.name?.toLowerCase().includes(q) || p.storeName?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q))
-    }, [products, search, ordem])
+        let list = (products || []).filter((p) => {
+            if (category !== 'todas' && p.categorySlug !== category) return false
+            if (onlyOpen && p.storeOpen === false) return false
+            return !q || !!(p.name?.toLowerCase().includes(q) || p.storeName?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q))
+        })
+        const time = (p: ProductCard) => new Date(p.createdAt || 0).getTime()
+        const price = (p: ProductCard) => (p.price != null && p.price > 0 ? p.price : Number.POSITIVE_INFINITY)
+        const sorters: Record<string, (a: ProductCard, b: ProductCard) => number> = {
+            vistos: (a, b) => b.viewCount - a.viewCount,
+            recentes: (a, b) => time(b) - time(a),
+            menor: (a, b) => price(a) - price(b),
+            maior: (a, b) => (b.price || 0) - (a.price || 0),
+            avaliados: (a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount,
+        }
+        list = [...list].sort(sorters[sort] || sorters.vistos)
+        return list
+    }, [products, search, category, onlyOpen, sort])
 
-    useEffect(() => { setShown(PAGE_SIZE) }, [search])
+    useEffect(() => { setShown(PAGE_SIZE) }, [search, category, onlyOpen, sort])
 
     const urlOf = (p: ProductCard) => {
         if (p.storeSlug && p.storeSlug !== '#' && p.slug) return `/${p.storeSlug}/${p.slug}`
@@ -84,13 +116,20 @@ function Produtos() {
                 />
 
                 <section className="px-4 md:px-6 mt-3 pb-24">
+                    <div className="mb-3">
+                        <ListFilters
+                            sorts={SORTS} sort={sort} onSort={setSort}
+                            counts={counts} category={category} onCategory={setCategory}
+                            toggle={{ label: 'Abertas', active: onlyOpen, onToggle: () => setOnlyOpen((v) => !v) }}
+                        />
+                    </div>
                     {products === null ? (
                         <div className="flex justify-center py-16"><Spinner size={28} color={colors.accent} /></div>
                     ) : filtered.length === 0 ? (
                         <div className="rounded-3xl p-8 flex flex-col items-center gap-2 text-center" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                             <span className="w-14 h-14 rounded-full flex items-center justify-center text-white" style={{ background: GRADIENT }}><Package size={26} /></span>
                             <p className="text-sm font-black" style={{ color: colors.textPrimary }}>
-                                {search ? 'Nenhum produto encontrado' : 'Nenhum produto por enquanto'}
+                                {search || category !== 'todas' || onlyOpen ? 'Nenhum produto com esses filtros' : 'Nenhum produto por enquanto'}
                             </p>
                         </div>
                     ) : (

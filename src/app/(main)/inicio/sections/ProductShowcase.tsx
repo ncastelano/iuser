@@ -17,6 +17,8 @@ import SeenBox from '@/components/SeenBox'
 import { usePagedRotation } from '@/hooks/usePagedRotation'
 import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { resolveCategoria } from '@/lib/categorias'
+import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -33,6 +35,9 @@ export interface ProductCard {
     viewCount: number
     /** Quando foi publicado (ISO), para ordenar por novidades */
     createdAt?: string | null
+    /** Categoria da loja (slug) e se ela está aberta agora; produto de perfil não tem (null) */
+    categorySlug?: string | null
+    storeOpen?: boolean | null
     rating: number
     reviewCount: number
     storeName: string
@@ -120,7 +125,7 @@ function shuffleNoAdjacentStore(products: ProductCard[]): ProductCard[] {
 export async function loadProductCards(): Promise<ProductCard[]> {
     const { data: storesList, error: storesErr } = await supabase
         .from('stores')
-        .select('id, name, storeSlug, address, logo_url, owner_id')
+        .select('id, name, storeSlug, address, logo_url, owner_id, category, business_hours')
 
     if (storesErr) {
         console.error('[ProductShowcase] Erro ao buscar lojas:', storesErr)
@@ -250,6 +255,8 @@ export async function loadProductCards(): Promise<ProductCard[]> {
             durationMinutes: prod.duration_minutes ?? null,
             viewCount: prod.view_count ?? 0,
             createdAt: prod.created_at ?? null,
+            categorySlug: store ? resolveCategoria((store as any).category)?.slug ?? null : null,
+            storeOpen: store ? isStoreOpenNow((store as any).business_hours as BusinessHours | null) : null,
             rating: Number(avg.toFixed(1)),
             reviewCount: count,
             storeName,

@@ -250,7 +250,7 @@ export default function ComprarScreen() {
     )
 
     const renderService = (v: ShopService) => (
-        <div key={v.id} className="rounded-3xl overflow-hidden flex flex-col text-left" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+        <div key={v.id} className="rounded-3xl overflow-hidden flex flex-col text-left w-full h-full" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
             <button onClick={() => openService(v)} className="relative block w-full aspect-square overflow-hidden" style={{ background: GRADIENT }}>
                 {v.imageUrl
                     ? <img src={v.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -259,7 +259,7 @@ export default function ComprarScreen() {
             </button>
             <div className="p-2.5 flex flex-col gap-1 flex-1">
                 <button onClick={() => openService(v)} className="text-left">
-                    <span className="block text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{v.name}</span>
+                    <span className="block text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.75em' }}>{v.name}</span>
                 </button>
                 <button onClick={() => router.push(`/${v.ownerSlug}`)} className="flex items-center gap-1.5 text-left min-w-0">
                     <span className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: GRADIENT }}>
@@ -278,7 +278,7 @@ export default function ComprarScreen() {
     )
     const serviceRow = (items: ShopService[]) => (
         <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x scroll-pl-4 scroll-pr-4 -mx-4 px-4 pb-1">
-            {items.slice(0, 12).map((v) => <div key={v.id} className="flex-shrink-0 w-40 snap-start">{renderService(v)}</div>)}
+            {items.slice(0, 12).map((v) => <div key={v.id} className="flex-shrink-0 w-40 snap-start flex">{renderService(v)}</div>)}
         </div>
     )
     const serviceGrid = (items: ShopService[]) => (
@@ -404,7 +404,7 @@ export default function ComprarScreen() {
                         <Section colors={colors} icon={CalendarCheck} title="Serviços para agendar" subtitle="Marque um horário em lojas e estúdios" onAll={() => router.push('/servicos-disponiveis?tipo=agendar')}>{serviceRow(view.storeServices)}</Section>
                     )}
                     {view.peopleServices.length > 0 && (
-                        <Section colors={colors} icon={Users} title="Profissionais" subtitle="Serviços de pessoas, com valor combinado" onAll={() => router.push('/servicos-disponiveis?tipo=profissionais')}>{serviceRow(view.peopleServices)}</Section>
+                        <Section colors={colors} icon={Users} title="Atendimento profissional" subtitle="Serviços de pessoas, com valor combinado" onAll={() => router.push('/servicos-disponiveis?tipo=profissionais')}>{serviceRow(view.peopleServices)}</Section>
                     )}
                     {view.products.length > 0 && (
                         <Section colors={colors} icon={Package} title="Todos os produtos" subtitle={`${view.products.length} ${view.products.length === 1 ? 'produto' : 'produtos'}`} allLabel="Ver todos" onAll={() => router.push('/produtos')}>
