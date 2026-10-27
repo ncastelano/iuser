@@ -470,6 +470,11 @@ def run_couriers(speed=1.0):
 
 
 # ---------------------------------------------------------------- motoristas iUSER: aceitam se quiserem, dentro da mochila, e entregam pelo app
+def is_manual(d):
+    """Motorista conduzido pelas telas (TEATRO) e não pelo simulador: '*' = todos."""
+    return '*' in CFG['manual_drivers'] or d['key'] in CFG['manual_drivers']
+
+
 def drv_pos(d):
     st = DRV.setdefault(d['id'], {})
     if 'pos' not in st:
@@ -507,7 +512,7 @@ def drivers_accept(speed=1.0):
     if not offers:
         return
     for d in sorted(IUSER_DRIVERS, key=lambda _d: R.random()):
-        if d['key'] in CFG['manual_drivers']:
+        if is_manual(d):
             continue
         mine = drv_rides(d)
         if any(m['ride_started_at'] for m in mine) or len(mine) >= int(d['cap']):
@@ -540,7 +545,7 @@ def drivers_run(speed=1.0):
     """Quem aceitou: vai à loja, espera o pedido ficar pronto, pega todos de uma vez e entrega um por um (o mais perto primeiro)."""
     sc = CFG['scale']
     for d in IUSER_DRIVERS:
-        if d['key'] in CFG['manual_drivers']:
+        if is_manual(d):
             continue
         rides = drv_rides(d)
         if not rides:
@@ -742,7 +747,7 @@ def main():
     ap.add_argument('--no-couriers', action='store_true', help='sem motoboys: entrega vai direto de pronto para entregue')
     ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick', 'featured', 'rate'])
     a = ap.parse_args()
-    CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()] or (['dani'] if a.stage else []), stage=a.stage, stage_speed=a.stage_speed, couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
+    CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()] or (['*'] if a.stage else []), stage=a.stage, stage_speed=a.stage_speed, couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
     load()
     if a.once:
         return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order, 'rate': lambda: (rate_everything(), review_featured())}[a.once])
@@ -757,8 +762,7 @@ def main():
     loop(a.appts_every, make_appointment, stop)
     loop(a.featured_every, featured_order, stop)
     if a.stage:
-        loop(1, stage_mover, stop)
-        log('TEATRO ligado: a Dani, a Gabriela e o dono agem pelas telas (/tres-telas); o simulador cuida do resto da cidade.')
+        log('TEATRO ligado: os motoristas, a Gabriela e o dono agem pelas telas (/tres-telas); o simulador cuida do resto da cidade.')
     if not a.manual:
         loop(a.chat_every, customer_asks, stop)
         loop(5, lambda: cycle_tick(a.speed), stop)

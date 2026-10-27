@@ -44,11 +44,13 @@ export async function GET() {
     const feat = (authList?.users || []).find((u) => u.email === DEV_FEATURED_CLIENT_EMAIL)
     const { data: featOrders } = feat ? await supabaseAdmin.from('orders').select('id, status, delivery_option, created_at').eq('store_id', store.id).eq('buyer_id', feat.id).in('status', ['pending', 'preparing', 'ready']).order('created_at') : { data: [] as any[] }
 
+    const { count: openOffers } = await supabaseAdmin.from('ride_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending').not('order_id', 'is', null).eq('store_id', store.id)
+
     let log: string[] = []
     try {
         const raw = await readFile(process.env.PIZZARIA_SIM_LOG || '/tmp/sim-pizzaria.log', 'utf8')
         log = raw.split('\n').filter(Boolean).slice(-60)
     } catch { /* simulador ainda não rodou */ }
 
-    return NextResponse.json({ store: store.name, couriers, drivers, featured: featOrders || [], readyWaiting: (ready || []).length, log })
+    return NextResponse.json({ store: store.name, couriers, drivers, openOffers: openOffers || 0, featured: featOrders || [], readyWaiting: (ready || []).length, log })
 }

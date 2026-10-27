@@ -101,3 +101,23 @@ export async function setOnline(me: string, on: boolean): Promise<void> {
 }
 
 export { itemsList }
+
+export interface MyReview { id: string; rating: number; comment: string | null; at: string; reviewerName: string }
+export interface MyReviews { avg: number | null; count: number; list: MyReview[] }
+
+/** As avaliações que o motorista RECEBEU nas corridas (a loja avalia a entrega): nota média, total e as últimas */
+export async function fetchMyReviews(me: string): Promise<MyReviews> {
+    const [{ data: rows }, { count }, { data: all }] = await Promise.all([
+        supabase.from('ride_reviews').select('id, rating, comment, created_at, reviewer_id').eq('reviewee_id', me).order('created_at', { ascending: false }).limit(8),
+        supabase.from('ride_reviews').select('id', { count: 'exact', head: true }).eq('reviewee_id', me),
+        supabase.from('ride_reviews').select('rating').eq('reviewee_id', me).limit(500),
+    ])
+    const ids = Array.from(new Set(((rows || []) as any[]).map((r) => r.reviewer_id)))
+    const { data: profs } = ids.length ? await supabase.from('profiles').select('id, name').in('id', ids) : { data: [] as any[] }
+    const nameBy = new Map(((profs || []) as any[]).map((p) => [p.id, p.name]))
+    const ratings = ((all || []) as any[]).map((r) => Number(r.rating)).filter((n) => n > 0)
+    return {
+        avg: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null, count: count || 0,
+        list: ((rows || []) as any[]).map((r) => ({ id: r.id, rating: Number(r.rating), comment: r.comment || null, at: r.created_at, reviewerName: String(nameBy.get(r.reviewer_id) || 'A loja') })),
+    }
+}

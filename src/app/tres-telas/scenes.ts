@@ -5,8 +5,8 @@
 // O simulador (`simulate-pizzaria.py --stage`) deixa os pedidos da Gabriela e a corrida da Dani por conta destas telas.
 import { Stage, pick, rnd, sleep, type Who } from './stage'
 
-export interface Obs { featured?: { id: string; status: string; delivery_option: string }[]; log?: string[] }
-type Ctx = { st: Stage; gen: number; obs: () => Obs | null; say: (who: Who, msg: string) => void }
+export interface Obs { featured?: { id: string; status: string; delivery_option: string }[]; log?: string[]; openOffers?: number; drivers?: { id: string; key: string; name: string; capacity: number; stops: number; deliveredLastHour: number }[] }
+type Ctx = { st: Stage; gen: number; obs: () => Obs | null; say: (who: Who, msg: string) => void; setDriver: (key: string) => void }
 
 const ADDRESSES = ['Rua das Palmeiras, 120, Porto Velho', 'Av. Jorge Teixeira, 3400, Porto Velho', 'Rua Dom Pedro II, 800, Porto Velho', 'Av. Calama, 1500, Porto Velho', 'Rua Rafael Vaz e Silva, 450, Porto Velho']
 const PIZZAS = ['Pizza Margherita (grande)', 'Pizza Calabresa (grande)', 'Pizza Portuguesa (grande)', 'Pizza Frango com Catupiry (grande)', 'Pizza Quatro Queijos (grande)', 'Pizza Bacon com Cheddar (grande)']
@@ -217,14 +217,22 @@ export async function ownerScene(c: Ctx) {
 }
 
 // ---------------------------------------------------------------- MOTORISTA (Dani)
-export async function driverScene(c: Ctx) {
+/** espera um texto aparecer no quadro (ex.: "Você chegou" no guia do mapa) */
+async function waitText(c: Ctx, who: Who, text: string, maxS: number) {
+    const end = Date.now() + maxS * 1000
+    while (alive(c) && Date.now() < end) {
+        const t = (await c.st.soft(who, { op: 'text' })) as string | null
+        if (t && t.includes(text)) return true
+        await sleep(1500)
+    }
+    return false
+}
+
+async function driverSlice(c: Ctx, name: string) {
     const st = c.st
-    await human(c, 3, 4)
-    while (alive(c)) {
+    {
         try {
-            await st.goto('driver', '/entregas')
-            await st.caption('driver', '🛵 Dani está online, esperando entregas')
-            await human(c, 2, 3)
+            if (!st.where('driver').startsWith('/entregas')) await st.goto('driver', '/entregas')
             const t0 = Date.now()
             while (alive(c) && Date.now() - t0 < 30_000) {
                 const text = (await st.soft('driver', { op: 'text' })) as string | null
@@ -233,7 +241,7 @@ export async function driverScene(c: Ctx) {
                 if (text.includes('Sair para a loja')) {
                     c.say('driver', 'saindo para a loja'); await st.caption('driver', '🏍️ A caminho da loja')
                     await human(c, 1.5, 2.5); await st.soft('driver', { op: 'click', target: { text: 'Sair para a loja' } })
-                    await human(c, 14, 20)   // o trajeto até a loja (a posição da Dani anda no mapa)
+                    await waitText(c, 'driver', 'Você chegou', 70)   // o trajeto até a loja: o GPS anda no mapa até chegar
                     continue
                 }
                 if (text.includes('Cheguei na loja')) {
@@ -254,8 +262,8 @@ export async function driverScene(c: Ctx) {
                 }
                 if (text.includes('Entreguei')) {
                     c.say('driver', 'indo entregar'); await st.caption('driver', '🧭 Seguindo para a entrega')
-                    await st.soft('driver', { op: 'scroll', by: 240, ms: 1000 }); await human(c, 12, 18)   // o trajeto (a posição anda no mapa)
-                    await st.soft('driver', { op: 'click', target: { text: 'Estou no local (teste)' } })
+                    await human(c, 1, 2); await waitText(c, 'driver', 'Você chegou', 80)   // o trajeto até o cliente: o GPS anda no mapa até chegar
+                    await human(c, 1, 1.8); await st.soft('driver', { op: 'click', target: { text: 'Entreguei' } })
                     await human(c, 2.5, 3.5)
                     c.say('driver', 'entregou!'); await st.caption('driver', '🎉 Entregue!')
                     await human(c, 2, 3)
@@ -274,7 +282,49 @@ export async function driverScene(c: Ctx) {
     }
 }
 
-export function runTheater(st: Stage, obs: () => Obs | null, say: (who: Who, msg: string) => void) {
-    const c: Ctx = { st, gen: ++st.gen, obs, say }
+
+/** O despachante: a cada entrega que um motorista vai aceitar, o quadro troca para ELE e mostra tudo — aceitar, ir à loja, esperar, pegar, o trajeto, entregar e as avaliações — antes de passar ao próximo. */
+export async function driverScene(c: Ctx) {
+    const st = c.st
+    const lastServed: Record<string, number> = {}
+    let current: string | null = null
+    let idleSince = Date.now()
+    await human(c, 3, 4)
+    while (alive(c)) {
+        const o = c.obs()
+        const drivers = o?.drivers || []
+        const busy = drivers.filter((d) => d.stops > 0)
+        let pickD = busy.find((d) => d.key === current) || busy[0]
+        if (!pickD && (o?.openOffers || 0) > 0) pickD = [...drivers].sort((a, b) => (lastServed[a.key] || 0) - (lastServed[b.key] || 0))[0]   // quem ficou mais tempo sem atender aceita a próxima
+        if (!pickD) { if (Date.now() - idleSince > 4000) await st.caption('driver', '💤 Nenhuma entrega aberta agora'); await human(c, 2, 3); continue }
+        idleSince = Date.now()
+        if (pickD.key !== current) {
+            current = pickD.key
+            c.say('driver', `${pickD.name} abre o app`)
+            st.ready.driver = null
+            c.setDriver(pickD.key)
+            for (let i = 0; i < 80 && !st.ready.driver; i++) await sleep(250)
+            await sleep(900)
+            await st.caption('driver', `🛵 ${pickD.name.split(' ')[0]} abre o app e vê as entregas`)
+            await human(c, 2, 3)
+        }
+        lastServed[pickD.key] = Date.now()
+        await driverSlice(c, pickD.name)
+        // depois de entregar: mostra a avaliação que chegou
+        const after = (c.obs()?.drivers || []).find((d) => d.key === pickD!.key)
+        if (after && after.stops === 0) {
+            await st.caption('driver', '⭐ Esperando a avaliação da loja')
+            await human(c, 6, 9)
+            await st.soft('driver', { op: 'scroll', by: 700, ms: 1400 })
+            await st.soft('driver', { op: 'move', target: { text: 'Avaliações recebidas' } })
+            await human(c, 3, 4)
+            await st.soft('driver', { op: 'scroll', to: 'top', ms: 1200 })
+            current = null   // próximo motorista
+        }
+    }
+}
+
+export function runTheater(st: Stage, obs: () => Obs | null, say: (who: Who, msg: string) => void, setDriver: (key: string) => void) {
+    const c: Ctx = { st, gen: ++st.gen, obs, say, setDriver }
     void clientScene(c); void ownerScene(c); void driverScene(c)
 }

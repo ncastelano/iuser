@@ -10,16 +10,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
-import { Bike, Check, ChevronDown, ChevronUp, Clock3, Flame, Layers, MapPin, Minus, Navigation, Package, Plus, Power, Store as StoreIcon, Zap } from 'lucide-react'
+import { Bike, Check, ChevronDown, ChevronUp, Clock3, Flame, Layers, MapPin, Minus, Navigation, Package, Plus, Power, Sparkles, Star, Store as StoreIcon, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { isLocalDevOnly } from '@/lib/devOnly'
+import { fetchOptimizedRoute } from '@/lib/mapboxRoute'
 import DeliveryNavMap, { type NavStop, type NavTarget } from '@/components/deliveries/DeliveryNavMap'
 import {
-    acceptOffer, arriveAtStore, brl, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchOffers, haversineKm, itemsList,
+    acceptOffer, arriveAtStore, brl, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchMyReviews, fetchOffers, haversineKm, itemsList,
     leaveForStore, mapsUrl, paymentRecap, phaseOf, pickUpOrders, PHASE_LABEL, routeKm, routeOrder, setCapacity, setOnline, shortAddress, suggestBatches, wazeUrl, withinRadius,
-    type ActiveDelivery, type DeliveryOffer, type DoneToday, type DriverState, type LatLng,
+    type ActiveDelivery, type DeliveryOffer, type DoneToday, type DriverState, type LatLng, type MyReviews,
 } from '@/modules/deliveries'
 
 const ORANGE = '#f97316'
@@ -54,6 +55,8 @@ export default function DriverDeliveriesScreen() {
     const [view, setView] = useState<'map' | 'central'>('central')
     const [sheetOpen, setSheetOpen] = useState(false)
     const hadActive = useRef(false)
+    const [reviews, setReviews] = useState<MyReviews | null>(null)
+    const [optSeq, setOptSeq] = useState<Record<string, number> | null>(null)
     const anchor = useRef<HTMLDivElement>(null)
     const [shellTop, setShellTop] = useState('0px')   // onde acaba a ilha (a var --shell-top vive na casca; o portal vai para o body e precisa do valor)
     useEffect(() => { if (anchor.current) setShellTop(getComputedStyle(anchor.current).getPropertyValue('--shell-top').trim() || '0px') }, [view])
@@ -82,6 +85,18 @@ export default function DriverDeliveriesScreen() {
     }, [userId])
 
     useEffect(() => { if (userId) supabase.from('profiles').select('name').eq('id', userId).maybeSingle().then(({ data }) => setMyName((data as any)?.name || null)) }, [userId])
+    const loadReviews = useCallback(() => { if (userId) fetchMyReviews(userId).then(setReviews).catch(() => {}) }, [userId])
+    useEffect(() => { loadReviews() }, [loadReviews])
+    useEffect(() => {   // a loja avaliou a entrega: aviso na hora
+        if (!userId) return
+        const ch = supabase.channel(`driver-reviews-${userId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_reviews', filter: `reviewee_id=eq.${userId}` }, (payload: any) => {
+                const r = payload.new || {}
+                toast(`⭐ A loja te avaliou com ${r.rating}★${r.comment ? ` — “${String(r.comment).slice(0, 60)}”` : ''}`, { duration: 7000 })
+                loadReviews()
+            }).subscribe()
+        return () => { supabase.removeChannel(ch) }
+    }, [userId, loadReviews])
     useEffect(() => { refresh(); const t = setInterval(refresh, 3000); return () => clearInterval(t) }, [refresh])
     useEffect(() => {
         if (!userId) return
@@ -100,7 +115,21 @@ export default function DriverDeliveriesScreen() {
     const cap = capacityState(active.length, state?.capacity ?? 1)
     const phase = phaseOf(active)
     const store = active[0]?.store ?? null
-    const ordered = useMemo(() => routeOrder(store, active), [active, store])
+    const naive = useMemo(() => routeOrder(store, active), [active, store])
+    // ROTA OTIMIZADA: com 2+ paradas a ordem vem da Optimization API do Mapbox (ruas de verdade, mão única), não da linha reta; falhou: vizinho mais próximo
+    const idsKey = active.map((a) => a.id).sort().join(',')
+    useEffect(() => {
+        if (!store || active.length < 2) { setOptSeq(null); return }
+        if (optSeq && active.every((a) => optSeq[a.id] != null)) return   // já otimizada: o que sobrar segue a mesma ordem
+        let off = false
+        fetchOptimizedRoute(store.lat, store.lng, active.filter((a) => a.to).map((a) => ({ id: a.id, lat: (a.to as LatLng).lat, lng: (a.to as LatLng).lng })))
+            .then((r) => { if (!off && r) setOptSeq(Object.fromEntries(r.map((x) => [x.id, x.sequence]))) })
+        return () => { off = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [idsKey, store?.lat, store?.lng])
+    const optimized = !!optSeq && active.length >= 2 && active.every((a) => optSeq[a.id] != null)
+    const ordered = useMemo(() => (optimized && optSeq ? [...naive].sort((a, b) => optSeq[a.id] - optSeq[b.id]) : naive), [naive, optimized, optSeq])
+    const savedKm = optimized ? Math.max(0, routeKm(store, naive) - routeKm(store, ordered)) : 0
     const pendingStops = ordered
     const current = pendingStops[0] ?? null
     const visibleOffers = useMemo(() => withinRadius(offers, state?.live ?? null, state?.radiusKm ?? null).filter((o) => !active.some((a) => a.id === o.id)), [offers, state, active])
@@ -121,7 +150,9 @@ export default function DriverDeliveriesScreen() {
     const finish = (d: ActiveDelivery, atDestination = false) => run(`f-${d.id}`, async () => {
         if (!d.to) throw new Error('Esta entrega está sem localização.')
         let at: LatLng = d.to
-        if (!atDestination) {
+        const stagePos = state?.live   // TEATRO: dentro do /tres-telas o GPS simulado (que anda até a parada) vale como a posição do aparelho
+        if (!atDestination && isLocalDevOnly() && typeof window !== 'undefined' && window.parent !== window && stagePos) at = stagePos
+        else if (!atDestination) {
             at = await new Promise<LatLng>((resolve, reject) => {
                 if (!navigator.geolocation) return reject(new Error('Ative a localização para concluir.'))
                 navigator.geolocation.getCurrentPosition((p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }), () => reject(new Error('Ative a localização do aparelho para concluir a entrega.')), { enableHighAccuracy: true, timeout: 9000 })
@@ -137,6 +168,24 @@ export default function DriverDeliveriesScreen() {
     const navTarget: NavTarget | null = active.length === 0 ? null
         : phase !== 'delivering' ? (store ? { id: 'store', kind: 'store', lat: store.lat, lng: store.lng, label: `${active[0].storeName} · ${shortAddress(active[0].storeAddress)}` } : null)
         : current?.to ? { id: current.id, kind: 'stop', lat: current.to.lat, lng: current.to.lng, label: current.address } : null
+    // TEATRO (só local, só dentro do /tres-telas): o "GPS" anda sozinho até o ALVO que a tela mostra (a loja a caminho; depois cada parada), em passos de 1 s
+    const gpsRef = useRef({ phase, target: navTarget, pos: state?.live ?? null })
+    gpsRef.current = { phase, target: navTarget, pos: state?.live ?? null }
+    useEffect(() => {
+        if (!userId || !isLocalDevOnly() || typeof window === 'undefined' || window.parent === window) return
+        const t = setInterval(() => {
+            const { phase: ph, target, pos } = gpsRef.current
+            if (!target || !pos || (ph !== 'to_store' && ph !== 'delivering')) return
+            const d = haversineKm(pos, target)
+            if (d < 0.012) return
+            const step = Math.min(d, 0.045)   // ~160 km/h: dá para ver o trajeto em segundos
+            const k = step / d
+            const next = { lat: pos.lat + (target.lat - pos.lat) * k, lng: pos.lng + (target.lng - pos.lng) * k }
+            setState((st) => (st ? { ...st, live: next } : st))
+            supabase.from('driver_pricing').update({ live_lat: next.lat, live_lng: next.lng, live_updated_at: new Date().toISOString() }).eq('driver_id', userId).then(() => {})
+        }, 1000)
+        return () => clearInterval(t)
+    }, [userId])
     const navStops: NavStop[] = ordered.filter((d) => d.to).map((d, i) => ({ id: d.id, n: i + 1, to: d.to as LatLng, label: d.address }))
     // A ação principal da etapa (a mesma no cartão e no mapa ampliado)
     const primaryAction = active.length === 0 ? null : phase !== 'delivering' ? (
@@ -160,7 +209,7 @@ export default function DriverDeliveriesScreen() {
                     <div className="min-w-0 flex-1">
                         <p className="text-[12px] opacity-90 flex items-center gap-1.5"><Bike size={14} /> Central de entregas</p>
                         <h1 className="text-xl font-black leading-tight truncate">Olá{myName ? `, ${String(myName).split(' ')[0]}` : ''}!</h1>
-                        <p className="text-[12px] opacity-90 truncate">{state?.vehicle || 'Motorista iUser'}</p>
+                        <p className="text-[12px] opacity-90 truncate">{state?.vehicle || 'Motorista iUser'}{reviews && reviews.count > 0 && reviews.avg != null ? ` · ★ ${reviews.avg.toFixed(1).replace('.', ',')} (${reviews.count})` : ''}</p>
                     </div>
                     <button onClick={() => run('online', () => setOnline(userId, !state?.online))} aria-pressed={!!state?.online} disabled={busy === 'online'} className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black transition active:scale-95" style={state?.online ? { background: '#fff', color: '#16a34a' } : { background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
                         <Power size={14} /> {!state ? '…' : state.online ? 'Online' : 'Offline'}
@@ -184,7 +233,7 @@ export default function DriverDeliveriesScreen() {
             </section>
 
             {/* ===== A saída em andamento ===== */}
-            {active.length > 0 && (
+            {active.length > 0 && view === 'central' && (
                 <section className="rounded-3xl p-4 flex flex-col gap-3" style={{ background: colors.surface, border: `1.5px solid ${ORANGE}`, boxShadow: '0 6px 20px #f9731626' }}>
                     <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0"><h2 className="text-base font-black" style={{ color: colors.textPrimary }}>Sua saída · {active.length} {active.length === 1 ? 'entrega' : 'entregas'}</h2><p className="text-[11px]" style={{ color: ORANGE }}>{PHASE_LABEL[phase]}</p></div>
@@ -199,7 +248,7 @@ export default function DriverDeliveriesScreen() {
                     </div>
 
                     <DeliveryNavMap me={myPos} store={store} stops={navStops} target={navTarget} height={310} voice={state?.voice} colors={colors} onToggleFull={() => setView('map')} />
-                    <p className="text-[11px] -mt-1" style={{ color: colors.textSecondary }}>{ordered.length} parada(s) · ~{routeKm(store, ordered).toFixed(1)} km · ~{etaMinutes(routeKm(store, ordered))} min de rota</p>
+                    <p className="text-[11px] -mt-1 flex items-center gap-1.5 flex-wrap" style={{ color: colors.textSecondary }}>{ordered.length} parada(s) · ~{routeKm(store, ordered).toFixed(1)} km · ~{etaMinutes(routeKm(store, ordered))} min de rota{optimized && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-black" style={{ background: `${GREEN}22`, color: '#16a34a' }}><Sparkles size={10} /> Rota otimizada{savedKm >= 0.05 ? ` · −${savedKm.toFixed(1).replace('.', ',')} km` : ''}</span>}</p>
 
                     {/* Etapas antes de sair da loja */}
                     {phase !== 'delivering' && (
@@ -334,6 +383,22 @@ export default function DriverDeliveriesScreen() {
                             <span className="min-w-0 flex-1"><span className="block text-[12px] font-black truncate" style={{ color: colors.textPrimary }}>{d.customerName}</span><span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{shortAddress(d.address)}</span></span>
                             <b className="text-[12px]" style={{ color: '#16a34a' }}>{brl(d.price)}</b>
                         </div>))}</div>}
+                </section>
+            )}
+
+            {/* ===== Avaliações recebidas ===== */}
+            {reviews && reviews.count > 0 && (
+                <section className="rounded-3xl p-4" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                    <div className="flex items-center justify-between mb-2.5">
+                        <div><h2 className="text-base font-black" style={{ color: colors.textPrimary }}>Avaliações recebidas</h2><p className="text-[11px]" style={{ color: colors.textSecondary }}>{reviews.count} {reviews.count === 1 ? 'avaliação' : 'avaliações'} das lojas</p></div>
+                        {reviews.avg != null && <span className="flex items-center gap-1 text-lg font-black" style={{ color: '#ca8a04' }}><Star size={18} fill="#eab308" stroke="#eab308" /> {reviews.avg.toFixed(1).replace('.', ',')}</span>}
+                    </div>
+                    <div className="flex flex-col gap-1.5">{reviews.list.slice(0, 5).map((r) => (
+                        <div key={r.id} className="rounded-2xl px-3 py-2" style={{ background: soft }}>
+                            <div className="flex items-center gap-1.5"><span className="flex">{[1, 2, 3, 4, 5].map((n) => <Star key={n} size={12} fill={n <= r.rating ? '#eab308' : 'none'} stroke={n <= r.rating ? '#eab308' : colors.textSecondary} />)}</span><span className="text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>{r.reviewerName}</span></div>
+                            {r.comment && <p className="text-[12px] mt-0.5" style={{ color: colors.textPrimary }}>“{r.comment}”</p>}
+                        </div>
+                    ))}</div>
                 </section>
             )}
 

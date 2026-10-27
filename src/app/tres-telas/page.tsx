@@ -14,7 +14,7 @@ import { runTheater } from './scenes'
 const W = 390, H = 800
 interface Courier { id: string; name: string; token: string; stops: number; deliveredLastHour: number }
 interface Driver { id: string; key: string; name: string; capacity: number; stops: number; deliveredLastHour: number }
-interface Observer { store: string; couriers: Courier[]; drivers: Driver[]; readyWaiting: number; log: string[] }
+interface Observer { store: string; couriers: Courier[]; drivers: Driver[]; openOffers?: number; readyWaiting: number; log: string[] }
 
 function Phone({ title, subtitle, color, scale, children }: { title: string; subtitle: string; color: string; scale: number; children: React.ReactNode }) {
     return (
@@ -70,7 +70,7 @@ export default function TresTelasPage() {
         if (!ok) return
         if (!theater) { stage.stopped = true; return }
         stage.stopped = false
-        runTheater(stage, () => obsRef.current as any, (who, msg) => setSays((p) => ({ ...p, [who]: msg })))
+        runTheater(stage, () => obsRef.current as any, (who, msg) => setSays((p) => ({ ...p, [who]: msg })), (key) => setFollow(key))
     }, [ok, theater, stage])
 
     const poll = useCallback(async () => {
