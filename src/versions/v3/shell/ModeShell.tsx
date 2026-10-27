@@ -327,7 +327,7 @@ const LOGO_RING = { border: '2px solid #fff', overflow: 'hidden', boxShadow: '0 
 const LOGO_IMG_SCALE = 1.15
 // Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
 // Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
-const CART_STRIP_PATHS = ['/comprar', '/lojas', '/produtos']
+const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos']
 const BAR_PATHS = ['/', '/comprar', '/lojas', '/produtos', '/servicos-disponiveis', '/carrinho', '/conversas', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
 
 // Foto do modo (perfil, logo da loja, foto do carro) — ou o ícone do modo quando não há imagem. Troca de modo = pequeno "estouro".

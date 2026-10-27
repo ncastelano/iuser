@@ -8,7 +8,6 @@ import { User, Store, Home, MapPin, LayoutDashboard, X, Car } from 'lucide-react
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import RadarSection from './inicio/sections/RadarSection'
-import V2BottomNav from '@/components/V2BottomNav'
 import RentalShowcase from './inicio/sections/RentalShowcase'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import AcceptARider from './inicio/sections/AcceptARider'
@@ -911,9 +910,6 @@ function HomePageContent() {
                     </div>
                 )}
 
-
-                {/* Barra de baixo nova (a mesma da 3.0), só na página inicial: nos painéis e no login, o botão flutuante de voltar ocupa o lugar */}
-                {!showFab && !isLoginScreen && <V2BottomNav />}
 
                 {/* ===== BOTÃO FLUTUANTE - VOLTAR ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 40 }}>
