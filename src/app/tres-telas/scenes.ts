@@ -235,6 +235,7 @@ async function driverSlice(c: Ctx, name: string) {
             if (!st.where('driver').startsWith('/entregas')) await st.goto('driver', '/entregas')
             const t0 = Date.now()
             while (alive(c) && Date.now() - t0 < 30_000) {
+                if (await review(c, 'driver')) continue   // aviso de corrida finalizada na frente da tela: resolve primeiro
                 const text = (await st.soft('driver', { op: 'text' })) as string | null
                 if (!text) { await human(c, 2, 3); continue }
                 if (text.includes('Offline') && !text.includes('Sair para a loja')) { await st.soft('driver', { op: 'click', target: { text: 'Offline' } }); await human(c, 1.5, 2); continue }

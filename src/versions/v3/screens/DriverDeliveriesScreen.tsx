@@ -161,7 +161,6 @@ export default function DriverDeliveriesScreen() {
         await completeDelivery(d.id, at)
     }, 'Entrega concluída! 🎉')
 
-    if (!userId) return <p className="py-16 text-center text-sm" style={{ color: colors.textSecondary }}>Entre na sua conta para ver as entregas.</p>
     const eta = (to: LatLng | null, from: LatLng | null) => (to && from ? etaMinutes(haversineKm(from, to)) : null)
     const myPos = state?.live ?? null
     // O mapa guia o motorista até o ALVO da vez: a loja (até pegar os pedidos) e depois cada parada, na ordem da rota
@@ -186,6 +185,7 @@ export default function DriverDeliveriesScreen() {
         }, 1000)
         return () => clearInterval(t)
     }, [userId])
+    if (!userId) return <p className="py-16 text-center text-sm" style={{ color: colors.textSecondary }}>Entre na sua conta para ver as entregas.</p>
     const navStops: NavStop[] = ordered.filter((d) => d.to).map((d, i) => ({ id: d.id, n: i + 1, to: d.to as LatLng, label: d.address }))
     // A ação principal da etapa (a mesma no cartão e no mapa ampliado)
     const primaryAction = active.length === 0 ? null : phase !== 'delivering' ? (
