@@ -124,7 +124,7 @@ def free_slot(dur):
         h, m = int(r['hora'][:2]), int(r['hora'][3:5])
         busy.setdefault(r['dia'], []).append((h * 60 + m, h * 60 + m + int(r['dur'])))
     for _ in range(60):
-        day = (datetime.now() + timedelta(days=R.randint(1, 10))).date()
+        day = (datetime.now() + timedelta(days=R.randint(1, 21))).date()
         start = R.choice(range(11 * 60, 21 * 60 + 1, 30))
         if any(start < e and b < start + dur for b, e in busy.get(str(day), [])):
             continue
