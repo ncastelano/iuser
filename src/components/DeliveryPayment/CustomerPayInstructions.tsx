@@ -1,7 +1,7 @@
 // Cliente: como pagar a LOJA diretamente (o iUser não participa do dinheiro). Nunca mostra o Pix do motorista.
 'use client'
 
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { PAYMENT_NOTE, PIX_TYPE_LABEL, brl, paymentStateText, remainingLabel } from '@/modules/delivery-search'
 import { copyText, usePaymentView } from './usePaymentView'
 

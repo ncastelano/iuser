@@ -16,7 +16,7 @@ import { FinishedOrderTrigger } from '@/components/ratings/FinishedOrderTrigger'
 import { RideAcceptedDialog } from '@/components/RideAcceptedDialog'
 import { DriverLiveLocationBroadcaster } from '@/components/DriverLiveLocationBroadcaster'
 import { DriverRideAlertListener } from '@/components/DriverRideAlertListener'
-import { Toaster } from 'sonner'
+import { IslandToastFallback } from '@/components/IslandToastFallback'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { VersionSync } from '@/versions/client'
 import AdminV3Button from '@/components/AdminV3Button'
@@ -69,15 +69,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <PwaInstallPrompt />
         <ShareDialogHost />
         <PushNotificationSetup />
-        {/* Avisos EMBAIXO: em cima eles tapavam a barra de navegação (carrinho, conversas...); o recuo deixa a faixa de teste e as barras de baixo livres */}
-        <Toaster
-          position="bottom-center"
-          offset={{ bottom: 84 }}
-          mobileOffset={{ bottom: 84 }}
-          toastOptions={{
-            className: 'rounded-none border-border bg-background text-foreground font-sans shadow-2xl',
-          }}
-        />
+        {/* Avisos: a ilha da 3.0 os mostra (lib/toast); sem ilha (2.0) uma pílula no topo */}
+        <IslandToastFallback />
         {children}
       </ProfileProvider>
     </QueryClientProvider>

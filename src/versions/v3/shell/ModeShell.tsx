@@ -20,6 +20,8 @@ import { useChatUnread } from '@/hooks/useChatUnread'
 import { useOrderStatusCounts, type OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 import { useShellLive } from '@/hooks/useShellLive'
+import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
+import { toastStyle } from '@/lib/toastStyle'
 import BottomNavBar, { BAR_SPACE, STRIP_H } from '@/components/BottomNavBar'
 import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
 import { switchVersion, versionLabel } from '@/versions/client'
@@ -626,6 +628,15 @@ export default function ModeShell({ children }: {
         if (!st) return null
         return { products: storeOrders[st.id]?.pending || 0, services: storeOrders[st.id]?.services || 0, name: st.name, path: `/painel-loja/${encodeURIComponent(st.slug)}`, prefer: !!modeSlug && st.slug === modeSlug }
     })()
+    // AVISOS (lib/toast): enquanto há uma mensagem a ilha vira o MENSAGEIRO dela (cor e símbolo do tipo, some sozinha; tocar dispensa) e depois volta ao que era
+    useEffect(() => registerIslandConsumer(), [])
+    const { msg: islandMsg, waiting: msgWaiting } = useIslandMessage()
+    useEffect(() => {
+        if (!islandMsg) return
+        const t = setTimeout(() => toast.dismiss(islandMsg.id), msgWaiting > 0 ? Math.min(islandMsg.duration, 2400) : islandMsg.duration)
+        return () => clearTimeout(t)
+    }, [islandMsg?.id, msgWaiting > 0])   // eslint-disable-line react-hooks/exhaustive-deps
+    const msgStyle = islandMsg ? toastStyle(islandMsg.kind) : null
     const live = useShellLive(userId, orderCounts, topUnread, chatPath, storeNew, { count: topCart, total: cartTotal })
     const openHub = () => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }
     // Escolher um modo: marca como selecionado e abre a página dele (cada modo tem a sua)
@@ -706,23 +717,35 @@ export default function ModeShell({ children }: {
                         borderRadius: (islandH || ISLAND_H) > ISLAND_H + 4 ? 28 : 9999,
                         // Sólida, da cor do fundo das páginas (escura só quando há algo vivo)
                         background: colors.background,
-                        border: live ? `1.5px solid ${live.color}` : `1px solid ${colors.border}`,
+                        border: msgStyle ? `2px solid ${msgStyle.color}` : live ? `1.5px solid ${live.color}` : `1px solid ${colors.border}`,
                         boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
                         opacity: drawerOpen ? 0 : 1,
-                        transition: 'opacity 200ms ease, background 300ms ease',
+                        transition: 'opacity 200ms ease, background 300ms ease, border-color 200ms ease',
+                        animation: islandMsg ? 'islandPop 320ms cubic-bezier(.2,1.2,.4,1)' : undefined,
                     }}
                 >
                     {/* O cartão TODO é um botão: abre o hub (ou vai ao que está vivo) */}
                     <button
-                        onClick={() => (live && live.path.split('?')[0] !== shellPath ? go(live.path) : openHub())}
-                        aria-label={live ? live.title : 'Abrir menu'}
+                        onClick={() => (islandMsg ? toast.dismiss(islandMsg.id) : live && live.path.split('?')[0] !== shellPath ? go(live.path) : openHub())}
+                        aria-label={islandMsg ? islandMsg.text : live ? live.title : 'Abrir menu'}
                         className="absolute inset-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                     />
                     <button onClick={openHub} aria-label={idle.label} className="relative flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2.5px #fff, 0 2px 8px rgba(0,0,0,0.22)' }}>
                         <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
                     </button>
                     <div className="relative flex-1 min-w-0 text-left py-1 pointer-events-none">
-                        {live ? (
+                        {islandMsg && msgStyle ? (
+                            <div className="flex items-center gap-2.5 min-w-0" role="status" aria-live="polite">
+                                <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[15px] font-black flex-shrink-0" style={{ background: msgStyle.color }}>{islandMsg.icon || msgStyle.glyph}</span>
+                                <span className="min-w-0 flex-1">
+                                    {islandMsg.description && <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{islandMsg.description}</span>}
+                                    <span className="block text-[14px] font-black leading-snug" style={{ color: colors.textPrimary }}>{islandMsg.text}</span>
+                                </span>
+                                {islandMsg.action && (
+                                    <span role="button" onClick={(e) => { e.stopPropagation(); islandMsg.action!.onClick(); toast.dismiss(islandMsg.id) }} className="pointer-events-auto flex-shrink-0 text-[12px] font-black px-3 py-1.5 rounded-full text-white cursor-pointer" style={{ background: msgStyle.color }}>{islandMsg.action.label}</span>
+                                )}
+                            </div>
+                        ) : live ? (
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{live.sub}</span>
                                 <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
@@ -750,7 +773,9 @@ export default function ModeShell({ children }: {
                         <ChevronDown size={18} />
                     </button>
                 </div>
+                {islandMsg?.custom && <div className="pointer-events-auto mt-2" style={{ opacity: drawerOpen ? 0 : 1 }}>{islandMsg.custom(islandMsg.id)}</div>}
             </div>
+            <style>{`@keyframes islandPop { 0% { transform: scale(.94); } 100% { transform: scale(1); } }`}</style>
         </div>
 
         {/* BARRA de baixo: carrinho, conversas, iUser no centro, radar e Pessoas (o hub abre pela ilha do topo) */}

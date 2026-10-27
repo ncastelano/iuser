@@ -3,7 +3,7 @@
 
 import { useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { playNotificationSound } from '@/lib/rideAlertSound'
@@ -69,7 +69,7 @@ export function DriverRideAlertListener() {
                             onOpenMap={() => { toast.dismiss(toastId); router.push(`/aceitar-corridas/mapa?ride=${ride.id}`) }}
                             onOpenList={() => { toast.dismiss(toastId); router.push('/aceitar-corridas') }}
                         />
-                    ), { duration: 30000 })
+                    ), { duration: 30000, title: 'Nova corrida disponível!', icon: '🚗' })
 
                     // Além do toast (só existe enquanto o app está aberto), dispara
                     // também a notificação na barra do sistema na hora, direto pelo

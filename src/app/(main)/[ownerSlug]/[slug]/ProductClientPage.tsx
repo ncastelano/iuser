@@ -35,7 +35,7 @@ import {
     MoreHorizontal,
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import { useStoreCheckout } from './useStoreCheckout'

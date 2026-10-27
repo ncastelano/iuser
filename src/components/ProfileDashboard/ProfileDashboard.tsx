@@ -10,7 +10,7 @@ import { useFontStore } from '@/store/useFontStore'
 import { Spinner } from '@/components/Spinner'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import ColloriUser from '@/components/ColloriUser'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {

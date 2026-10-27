@@ -36,7 +36,7 @@ import { brl as depositBrl, depositConfigOf, depositRuleLabel, previewDeposit, D
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { useAppointments } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 

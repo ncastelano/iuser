@@ -1,7 +1,7 @@
 // app/(main)/compromissos/dadosDoCompromisso.ts
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { notifyAppointmentUpdate } from '@/lib/notifyRideStatus'
 

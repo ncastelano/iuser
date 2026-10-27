@@ -9,7 +9,7 @@
 import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { ArrowLeft, CalendarCheck, Car, ChevronRight, Home as HomeIcon, Clock, Flame, LayoutGrid, Package, Plus, Radar, RotateCcw, Search, ShoppingCart, Sparkles, Store as StoreIcon, Truck, Users, Wrench, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme, type ThemeColors } from '@/app/contexts/theme'

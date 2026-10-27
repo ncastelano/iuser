@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { Check, Copy, MessageCircle, Search, Share2, UserSquare2, Users, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { useTheme } from '@/app/contexts/theme'
 import { iuserPath } from '@/lib/chatLinks'
 import {

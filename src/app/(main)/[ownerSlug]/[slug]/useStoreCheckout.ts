@@ -14,7 +14,7 @@ import { isEstimateRejection } from '@/modules/delivery-estimate'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartItem, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 export type CheckoutStep = 'auth' | 'delivery' | 'payment' | null

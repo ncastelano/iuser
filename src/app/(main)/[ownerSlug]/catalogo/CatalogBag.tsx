@@ -3,7 +3,7 @@
 
 import { ReactNode } from 'react'
 import { ShoppingCart, Minus, Plus, Trash2, MessageCircle, ChevronDown } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import FallbackImage from '@/components/FallbackImage'
 

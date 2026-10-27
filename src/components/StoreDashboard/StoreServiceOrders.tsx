@@ -7,7 +7,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { notifyAppointmentUpdate } from '@/lib/notifyRideStatus'
 import { useTheme } from '@/app/contexts/theme'

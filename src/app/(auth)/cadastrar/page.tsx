@@ -35,7 +35,7 @@ import {
   IdCard,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { checkSlugAvailability, sanitizeSlug, RESERVED_SLUGS } from '@/lib/slugUtils'
 import { getDeviceId } from '@/lib/deviceId'
 import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'

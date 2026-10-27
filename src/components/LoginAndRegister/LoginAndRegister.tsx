@@ -25,7 +25,7 @@ import {
     IdCard,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import RecoverPassword from './RecoverPassword'
 import { checkSlugAvailability } from '@/lib/slugUtils'
 import { getDeviceId } from '@/lib/deviceId'

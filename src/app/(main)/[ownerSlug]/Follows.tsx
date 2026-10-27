@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { X, Users, UserCheck, UserPlus, Search, User, ArrowLeft } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 interface FollowsProps {

@@ -7,7 +7,7 @@ import { Star, X, ShoppingCart, ArrowRight, Sparkles, MessageSquareHeart } from 
 import { ReviewModal } from './ReviewModal'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMerchantStore } from '@/store/useMerchantStore'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 function formatOrderDate(iso: string): string {
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })

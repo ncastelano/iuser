@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, MapPin, MessageCircle, Star, Store as StoreIcon, UserPlus } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'

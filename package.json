@@ -40,7 +40,8 @@
     "test:security-exposure:staging": "env -u SUPABASE_ACCESS_TOKEN npx supabase db query --linked --workdir .staging -f \"$PWD/supabase/tests/security_exposure_scenarios.sql\"",
     "test:flash": "node --test scripts/test-flash.mjs",
     "test:people": "node --test scripts/test-people.mjs",
-    "test:deliveries": "node --test scripts/test-deliveries.mjs"
+    "test:deliveries": "node --test scripts/test-deliveries.mjs",
+    "test:toast": "node --test scripts/test-toast.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

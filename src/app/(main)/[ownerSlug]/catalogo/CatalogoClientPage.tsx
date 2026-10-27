@@ -17,7 +17,7 @@ import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } fr
 import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHours } from '@/lib/storeHours'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import HeaderSearchInput from './HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
 import CatalogoSkeleton from './CatalogoSkeleton'

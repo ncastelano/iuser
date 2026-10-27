@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Eye, EyeOff, MapPin, Radar } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import LocationPicker from '@/components/LocationPicker'

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
 import { UserPlus } from 'lucide-react'
 

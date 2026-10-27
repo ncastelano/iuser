@@ -54,7 +54,7 @@ import {
 import { Spinner } from '@/components/Spinner'
 import ProfileSkeleton from '@/components/v3/ProfileSkeleton'
 import ProfileScheduleModal from '@/components/ProfileScheduleModal'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { getAvatarUrl } from '@/lib/avatar'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ImageZoomDialog from '@/components/ImageZoomDialog'

@@ -13,7 +13,7 @@ import { PlanRingFrame, useAvatarBorder } from '@/components/PlanAvatarRing'
 import ShareLinkDialog from '@/components/ShareLinkDialog'
 import { HomeGlassCard, HOME_GRADIENT } from '@/app/(main)/inicio/sections/HomeSectionKit'
 import { Spinner } from '@/components/Spinner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { normalizeReferralSlug } from '@/lib/referralCapture'
 
 function ConviteContent() {

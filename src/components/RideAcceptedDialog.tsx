@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 interface AcceptedRide {
     id: string

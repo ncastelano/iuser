@@ -28,7 +28,7 @@ import {
     getStoreStatusText,
     type BusinessHours
 } from '@/lib/storeHours'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { StoreCard, StoreCardSkeleton, type StoreCardData } from '@/components/StoreCard'
 import { HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'

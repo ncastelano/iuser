@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { MessageCircle } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { notifyChatMessage } from '@/lib/notifyRideStatus'
 import { useProfile } from '@/app/contexts/ProfileContext'

@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Crown, Check, Copy, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface StoreVipClubMemberProps {

@@ -8,7 +8,7 @@
 
 import { useState } from 'react'
 import { Pencil, X, Map as MapIcon, Car } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'

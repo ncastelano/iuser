@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { User, Store, Home, MapPin, LayoutDashboard, X, Car } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'

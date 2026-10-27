@@ -10,7 +10,7 @@ import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeol
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { formatBrazilianPhoneSpaced } from '@/lib/phone'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { notifyNewRide } from '@/lib/notifyRideStatus'
 import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'

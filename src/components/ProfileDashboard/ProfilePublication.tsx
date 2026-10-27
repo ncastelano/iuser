@@ -7,7 +7,7 @@ import { ADD_OPEN_EVENT } from '@/lib/addBot'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
 import {
     ChevronDown,

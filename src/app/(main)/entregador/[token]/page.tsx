@@ -16,7 +16,7 @@ import { Spinner } from '@/components/Spinner'
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { paymentMethodLabel } from '@/lib/payment'
 import { MapPin, Package, XCircle, ShieldCheck, CheckCircle2, CreditCard, Banknote } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
