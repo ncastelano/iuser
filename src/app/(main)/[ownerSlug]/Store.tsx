@@ -1043,7 +1043,7 @@ export function Store({
                     chatSaving={chatSaving}
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
                     onOpenAgendaDialog={() => setShowAgendaDialog(true)}
-                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="Falar com a loja" /> : undefined}
+                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="" /> : undefined}
                     extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
                     ownerToolsSlot={isOwner && !isStoreOpen ? (
                         <StoreOperatingDays
@@ -1495,7 +1495,9 @@ export function Store({
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2 mb-4">
+                        {/* v3: sem nada para buscar, não mostra a busca */}
+                        {!(v3 && catalogList.length === 0) && (
+                        <div className={`flex items-center gap-2 ${v3 ? 'mb-3' : 'mb-4'}`}>
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
                                 <input
@@ -1513,6 +1515,7 @@ export function Store({
                                 />
                             </div>
                         </div>
+                        )}
 
                         {storeSubscriptionActive === false ? (
                             <div className="py-8 text-center rounded-xl" style={{
@@ -1556,6 +1559,10 @@ export function Store({
                                         <Plus size={16} /> {activeTab === 'services' ? 'Adicionar serviço' : 'Adicionar Produto'}
                                     </button>
                                 </div>
+                            ) : v3 && catalogList.length === 0 ? (
+                                <p className="py-3 text-[13px] font-bold" style={{ color: colors.textSecondary }}>
+                                    {activeTab === 'services' ? 'Esta loja ainda não publicou serviços.' : 'Esta loja ainda não publicou produtos.'}
+                                </p>
                             ) : (
                                 <div className="py-8 text-center rounded-xl" style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,

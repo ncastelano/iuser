@@ -323,6 +323,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
         boxShadow: colors.shadow,
     }
 
+    // v3: cartões FLUTUANTES (sólidos, borda e sombra leve) em vez de um cartão grande com cartões dentro
+    const floatCard = { background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: '0 6px 18px rgba(0,0,0,0.06)' }
+    const floatCls = 'rounded-3xl'
     const glassBg = 'rgba(255, 255, 255, 0.08)'
     const glassBgLight = 'rgba(255, 255, 255, 0.05)'
 
@@ -1980,9 +1983,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
             <div className="space-y-4">
                 {/* TAB PUBLICAÇÕES */}
                 {activeTab === 'publications' && (
-                    <div className="rounded-2xl p-4" style={cardStyle}>
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
+                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                        <div className={`flex items-center justify-between ${v3 ? (isOwner ? 'mb-3' : 'hidden') : 'mb-4'}`}>
+                            <div className={`flex items-center gap-2 ${v3 ? 'hidden' : ''}`}>
                                 <Megaphone size={16} style={{ color: '#f97316' }} />
                                 <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                     Publicações
@@ -1991,7 +1994,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             {isOwner && (
                                 <button
                                     onClick={() => router.push(`/${ownerSlug}/fazer-divulgacao`)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all hover:scale-105"
                                     style={{
                                         background: GRADIENT,
                                         color: '#ffffff',
@@ -2006,11 +2009,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         </div>
 
                         {publications.length === 0 ? (
-                            <div className="py-10 text-center rounded-xl" style={{
+                            <div className={`${v3 ? 'py-5' : 'py-10'} text-center ${v3 ? floatCls : 'rounded-xl'}`} style={v3 ? floatCard : {
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px dashed ${colors.border}`,
                             }}>
-                                <Megaphone className="w-10 h-10 mx-auto mb-3" style={{ color: colors.textSecondary }} />
+                                <Megaphone className={v3 ? 'w-6 h-6 mx-auto mb-1.5' : 'w-10 h-10 mx-auto mb-3'} style={{ color: colors.textSecondary }} />
                                 <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                     {isOwner ? 'Comece sua primeira publicação' : 'Nenhuma publicação ainda'}
                                 </p>
@@ -2038,8 +2041,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 {publications.map((pub, idx) => (
                                     <div
                                         key={pub.id}
-                                        className="rounded-xl border p-4 transition-all hover:shadow-lg cursor-pointer"
-                                        style={{
+                                        className={`${v3 ? floatCls : 'rounded-xl border'} p-4 transition-all hover:shadow-lg cursor-pointer`}
+                                        style={v3 ? floatCard : {
                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
                                             borderColor: colors.border,
                                         }}
@@ -2222,9 +2225,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                 {/* TAB SERVIÇOS */}
                 {activeTab === 'services' && (
-                    <div className="rounded-2xl p-4" style={cardStyle}>
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
+                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                        <div className={`flex items-center justify-between ${v3 ? (isOwner ? 'mb-3' : 'hidden') : 'mb-4'}`}>
+                            <div className={`flex items-center gap-2 ${v3 ? 'hidden' : ''}`}>
                                 <Wrench size={16} style={{ color: '#f97316' }} />
                                 <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                     Serviços
@@ -2233,7 +2236,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             {isOwner && (
                                 <button
                                     onClick={() => router.push('/meus-servicos')}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all hover:scale-105"
                                     style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 2px 10px rgba(249, 115, 22, 0.4)', border: 'none' }}
                                 >
                                     <Plus size={12} />
@@ -2243,11 +2246,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         </div>
 
                         {services.length === 0 ? (
-                            <div className="py-10 text-center rounded-xl" style={{
+                            <div className={`${v3 ? 'py-5' : 'py-10'} text-center ${v3 ? floatCls : 'rounded-xl'}`} style={v3 ? floatCard : {
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px dashed ${colors.border}`,
                             }}>
-                                <Wrench className="w-10 h-10 mx-auto mb-3" style={{ color: colors.textSecondary }} />
+                                <Wrench className={v3 ? 'w-6 h-6 mx-auto mb-1.5' : 'w-10 h-10 mx-auto mb-3'} style={{ color: colors.textSecondary }} />
                                 <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                     {isOwner ? 'Publique o seu primeiro serviço' : 'Nenhum serviço publicado ainda'}
                                 </p>
@@ -2274,8 +2277,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                         <div
                                             key={svc.id}
                                             onClick={() => router.push(`/${ownerSlug}/${svc.slug}`)}
-                                            className="rounded-xl border overflow-hidden flex cursor-pointer transition-all hover:shadow-lg"
-                                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, borderColor: colors.border }}
+                                            className={`${v3 ? floatCls : 'rounded-xl border'} overflow-hidden flex cursor-pointer transition-all hover:shadow-lg`}
+                                            style={v3 ? floatCard : { background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, borderColor: colors.border }}
                                         >
                                             <div className="w-24 sm:w-32 flex-shrink-0 flex items-center justify-center" style={{ background: svc.image_url ? undefined : GRADIENT }}>
                                                 {svc.image_url ? (
@@ -2316,8 +2319,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                 {/* TAB COMENTÁRIOS DO PERFIL */}
                 {activeTab === 'profile_comments' && (
-                    <div className="rounded-2xl p-4" style={cardStyle}>
-                        <div className="flex items-center gap-2 mb-4">
+                    <div className={v3 ? 'space-y-3' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                        <div className={`flex items-center gap-2 mb-4 ${v3 ? 'hidden' : ''}`}>
                             <MessageCircle size={16} style={{ color: '#f97316' }} />
                             <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                 Comentários do Perfil
@@ -2329,7 +2332,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                         {/* Input para novo comentário principal */}
                         {currentUserId ? (
-                            <div className="flex gap-2 mb-4">
+                            <div className={`flex gap-2 ${v3 ? `${floatCls} p-2` : 'mb-4'}`} style={v3 ? floatCard : undefined}>
                                 <input
                                     type="text"
                                     value={commentContent}
@@ -2361,7 +2364,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 </button>
                             </div>
                         ) : (
-                            <div className="p-3 rounded-xl text-center mb-4" style={{
+                            <div className={`p-3 text-center ${v3 ? floatCls : 'rounded-xl mb-4'}`} style={v3 ? floatCard : {
                                 background: 'rgba(255,255,255,0.05)',
                                 border: `1px dashed ${colors.border}`
                             }}>
@@ -2380,7 +2383,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         )}
 
                         {loadingComments ? (
-                            <div className="flex flex-col gap-4 py-2" aria-hidden>
+                            <div className={`flex flex-col gap-4 ${v3 ? `${floatCls} p-4` : 'py-2'}`} style={v3 ? floatCard : undefined} aria-hidden>
                                 {[0, 1, 2].map((i) => (
                                     <div key={i} className="flex gap-3">
                                         <span className="block w-9 h-9 rounded-full animate-pulse flex-shrink-0" style={{ background: colors.border }} />
@@ -2392,16 +2395,16 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 ))}
                             </div>
                         ) : profileComments.length === 0 ? (
-                            <div className="py-10 text-center rounded-xl" style={{
+                            <div className={`${v3 ? 'py-5' : 'py-10'} text-center ${v3 ? floatCls : 'rounded-xl'}`} style={v3 ? floatCard : {
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px dashed ${colors.border}`,
                             }}>
-                                <MessageCircle className="w-10 h-10 mx-auto mb-3" style={{ color: colors.textSecondary }} />
+                                <MessageCircle className={v3 ? 'w-6 h-6 mx-auto mb-1.5' : 'w-10 h-10 mx-auto mb-3'} style={{ color: colors.textSecondary }} />
                                 <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Nenhum comentário ainda</p>
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>Seja o primeiro a comentar neste perfil!</p>
                             </div>
                         ) : (
-                            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                            <div className={v3 ? `${floatCls} p-4 space-y-3` : 'space-y-3 max-h-[500px] overflow-y-auto pr-1'} style={v3 ? floatCard : undefined}>
                                 {renderCommentTree(profileComments, 'profile')}
                             </div>
                         )}

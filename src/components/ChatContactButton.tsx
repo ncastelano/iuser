@@ -73,10 +73,11 @@ export default function ChatContactButton({ profileId, storeId, colors, backgrou
             <button
                 onClick={open}
                 disabled={loading}
-                className="flex-1 min-w-0 h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95 disabled:opacity-70"
+                aria-label={label || 'Conversar'}
+                className={`${label ? 'flex-1 min-w-0 h-10 text-[12px]' : 'flex-shrink-0 w-11 h-11'} rounded-full font-black flex items-center justify-center gap-1.5 transition active:scale-95 disabled:opacity-70`}
                 style={{ background: `${colors.border}40`, color: colors.textPrimary }}
             >
-                {loading ? <Spinner size={15} color="#f97316" /> : <MessageCircle size={15} style={{ color: '#f97316' }} />}
+                {loading ? <Spinner size={15} color="#f97316" /> : <MessageCircle size={label ? 15 : 18} style={{ color: '#f97316' }} />}
                 {label}
             </button>
         )
