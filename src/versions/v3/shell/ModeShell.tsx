@@ -152,16 +152,14 @@ function DrawerLabel({ children }: { children: ReactNode }) {
     return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest text-white/80">{children}</p>
 }
 
-function MenuDrawerContent({ slug, avatarUrl, data, active, recent, unread, chatPath, onSelect, onGo, onClose, onSwitchVersion }: {
+function MenuDrawerContent({ data, active, recent, onSelect, onGo, onSwitchVersion }: {
     onSwitchVersion: () => Promise<void>
-    /** Mensagens não lidas e a página das conversas (aviso dentro do cartão do perfil) */
-    unread: number; chatPath: string
-    slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
+    data: DrawerData
     /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
     /** As últimas coisas que a pessoa abriu pela busca (avatares do Explorar) */
     recent: RecentClickItem[]
-    onSelect: (mode: string) => void; onGo: (path: string) => void; onClose: () => void
+    onSelect: (mode: string) => void; onGo: (path: string) => void
 }) {
     // Cada grupo é um painel separado, com o seu título
     const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
@@ -215,39 +213,6 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, unread, chat
                 )}
             </Panel>
 
-
-            {/* Meu perfil: tudo num cartão só — foto, @, modo prestador (a bolinha verde) e os dois botões */}
-            <Panel title="Meu perfil">
-                <DrawerRow
-                    mode="perfil"
-                    active={active}
-                    onSelect={onSelect}
-                    icon={<User size={20} color="#fff" />}
-                    image={avatarUrl}
-                    title={slug ? `@${slug}` : 'Meu perfil'}
-                    desc={data.providerOn ? 'Modo prestador ligado' : undefined}
-                    dot={data.providerOn ? '#4ade80' : undefined}
-                    actions={(
-                        <>
-                            {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
-                            <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Editar</DrawerPill>
-                        </>
-                    )}
-                    extra={(
-                        <button
-                            onClick={() => onGo(chatPath)}
-                            className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black text-white transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                            style={{ background: unread > 0 ? 'rgba(17,24,39,0.55)' : 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.35)' }}
-                        >
-                            <MessageCircle size={16} className="flex-shrink-0" />
-                            <span className="flex-1 text-left truncate">{unread > 0 ? `${unread} ${unread === 1 ? 'mensagem não lida' : 'mensagens não lidas'}` : 'Conversas'}</span>
-                            {unread > 0
-                                ? <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center" style={{ background: '#16a34a' }}>{unread > 99 ? '99+' : unread}</span>
-                                : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
-                        </button>
-                    )}
-                />
-            </Panel>
 
             <DrawerExplorar recent={recent} onGo={onGo} />
             <DrawerVersionSwitch onSwitch={onSwitchVersion} />
@@ -372,6 +337,54 @@ function ModeAvatar({ userId, image, noRing, modeIcon, popToken, colors, size = 
                 {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : modeIcon}
             </span>
         </PlanAvatarRing>
+    )
+}
+
+// Topo do hub (logado): o cumprimento e o perfil num cartão só — foto, @, "Painel", fechar, "Ver perfil / Editar" e as mensagens não lidas
+function HubProfileTop({ slug, avatarUrl, userId, colors, popToken, unread, chatPath, onPanel, onGo, onClose }: {
+    slug: string | null; avatarUrl: string | null | undefined; userId: string | null; colors: any; popToken: number
+    unread: number; chatPath: string
+    onPanel: () => void; onGo: (path: string) => void; onClose: () => void
+}) {
+    return (
+        <div className="flex-shrink-0">
+            <div className="flex items-center gap-2.5 pl-2 pr-2" style={{ height: ISLAND_H }}>
+                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.9)' }}>
+                    <ModeAvatar userId={userId} image={avatarUrl} noRing={true} modeIcon={<User size={20} color="#fff" />} popToken={popToken} colors={colors} />
+                </span>
+                <span className="flex-1 min-w-0">
+                    <span className="block text-[11px] truncate text-white/80">Bem-vindo de volta</span>
+                    <span className="block text-[15px] font-black truncate leading-tight text-white">{slug ? `@${slug}` : 'Meu perfil'}</span>
+                </span>
+                <button
+                    onClick={onPanel}
+                    className="flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    style={{ background: '#fff', color: MENU_BG }}
+                >
+                    Painel
+                </button>
+                <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                    <X size={19} />
+                </button>
+            </div>
+            <div className="px-3 pb-3 flex flex-col gap-2">
+                <div className="flex gap-2">
+                    {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
+                    <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Editar</DrawerPill>
+                </div>
+                <button
+                    onClick={() => onGo(chatPath)}
+                    className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black text-white transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    style={{ background: unread > 0 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.3)' }}
+                >
+                    <MessageCircle size={16} className="flex-shrink-0" />
+                    <span className="flex-1 text-left truncate">{unread > 0 ? `${unread} ${unread === 1 ? 'mensagem não lida' : 'mensagens não lidas'}` : 'Conversas'}</span>
+                    {unread > 0
+                        ? <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center" style={{ background: '#16a34a' }}>{unread > 99 ? '99+' : unread}</span>
+                        : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
+                </button>
+            </div>
+        </div>
     )
 }
 
@@ -697,35 +710,45 @@ export default function ModeShell({ children }: {
                             transition: 'clip-path 480ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease',
                         }}
                     >
-                        {/* Cabeçalho = a própria ilha, agora aberta */}
+                        {/* Cabeçalho = a própria ilha, agora aberta. Logado: o cumprimento e o perfil mesclados num cartão só, no topo */}
+                        {userId ? (
+                            <HubProfileTop
+                                slug={profileSlug}
+                                avatarUrl={avatarUrl}
+                                userId={userId}
+                                colors={colors}
+                                popToken={modeTick}
+                                unread={topUnread}
+                                chatPath={chatPath}
+                                onPanel={() => selectMode('perfil')}
+                                onGo={goAndClose}
+                                onClose={() => setDrawerOpen(false)}
+                            />
+                        ) : (
                         <div className="flex items-center gap-2.5 pl-2 pr-2 flex-shrink-0" style={{ height: ISLAND_H }}>
-                            <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.9)' }}>
-                                <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
-                            </span>
-                            <span className="flex-1 min-w-0">
-                                <span className="block text-[11px] truncate text-white/80">{idle.line1}</span>
-                                <span className="block text-[15px] font-black truncate leading-tight text-white">{idle.line2}</span>
-                            </span>
-                            <button onClick={() => setDrawerOpen(false)} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
-                                <X size={19} />
-                            </button>
-                        </div>
+                                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.9)' }}>
+                                    <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
+                                </span>
+                                <span className="flex-1 min-w-0">
+                                    <span className="block text-[11px] truncate text-white/80">{idle.line1}</span>
+                                    <span className="block text-[15px] font-black truncate leading-tight text-white">{idle.line2}</span>
+                                </span>
+                                <button onClick={() => setDrawerOpen(false)} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                                    <X size={19} />
+                                </button>
+                            </div>
+                        )}
                         <div className="overflow-y-auto overscroll-contain flex-1 min-h-0">
                             {!userId && (
                                 <VisitorDrawerContent recent={recent} onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
                             )}
                             {userId && (
                                 <MenuDrawerContent
-                                    slug={profileSlug}
-                                    avatarUrl={avatarUrl}
                                     data={drawerData}
                                     active={activeMode}
                                     recent={recent}
-                                    unread={topUnread}
-                                    chatPath={chatPath}
                                     onSelect={selectMode}
                                     onGo={goAndClose}
-                                    onClose={() => setDrawerOpen(false)}
                                     onSwitchVersion={onSwitchVersion}
                                 />
                             )}
