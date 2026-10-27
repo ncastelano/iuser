@@ -31,7 +31,7 @@ export async function GET() {
         supabaseAdmin.from('driver_vehicles').select('driver_id, delivery_capacity').in('driver_id', drvIds),
         supabaseAdmin.from('profiles').select('id, name').in('id', drvIds),
         supabaseAdmin.from('ride_requests').select('driver_id').in('driver_id', drvIds).eq('status', 'accepted').not('order_id', 'is', null),
-        supabaseAdmin.from('ride_requests').select('driver_id').in('driver_id', drvIds).eq('status', 'completed').not('order_id', 'is', null).gte('updated_at', new Date(Date.now() - 3600_000).toISOString()),
+        supabaseAdmin.from('ride_requests').select('driver_id').in('driver_id', drvIds).eq('status', 'completed').not('order_id', 'is', null).gte('ride_started_at', new Date(Date.now() - 3600_000).toISOString()),
     ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }] as any
     const drivers = drvUsers.map((u) => ({
         id: u.id, key: (u.email || '').split('@')[0].replace('entregador-', ''), name: (prof || []).find((p: any) => p.id === u.id)?.name || u.email,

@@ -16,6 +16,7 @@ mesma) atende:
     = quantas entregas cabem). Quando a loja aceita o pedido a entrega aparece para eles (/entregas) e cada um ACEITA se quiser (disposição própria), dentro do que
     cabe e perto das que já pegou; vai à loja, espera o pedido ficar PRONTO, pega todos de uma vez e entrega um por um na ordem do mais perto, concluindo pelo
     MESMO caminho do app (complete_ride). --manual-drivers dani deixa a Dani para a pessoa mexer na mão (/entregas). --employees volta aos motoboys da loja.
+  - AVALIAÇÕES: depois da entrega a LOJA avalia o motorista iUser (ride_reviews) e o cliente avalia a compra (product_reviews). `--once rate` avalia de uma vez tudo que está pendente.
   Com --manual só chegam pedidos/agendamentos (nada é atendido): quem atende é a pessoa, pelo app. --no-couriers volta ao jeito antigo (pronto → entregue).
 O simulador do ecossistema (simulate-ecosystem.py) NÃO mexe nessa loja.
 
@@ -585,6 +586,48 @@ def drivers_run(speed=1.0):
         log(f"  📦 {d['name']} entregou para {nxt['recipient_name'] or 'cliente'} (R$ {float(nxt['offered_price']):.2f}) — faltam {len(started) - 1} na mochila".replace('.', ','))
 
 
+DRIVER_REVIEWS_GOOD = ['Entregou rápido e com cuidado, a pizza chegou quentinha!', 'Muito educado(a) e pontual.', 'Ótimo entregador, recomendo.', 'Chegou antes do esperado.', 'Cuidadoso com os pedidos, nenhuma caixa virou.', 'Atencioso e rápido, nota 10.', '']
+DRIVER_REVIEWS_OK = ['Entregou, mas demorou um pouco mais que o combinado.', 'Tudo certo, só poderia ter avisado ao chegar.']
+
+
+def rate_deliveries(speed=1.0, everything=False):
+    """A loja (quem pediu a corrida) avalia o motorista iUser que entregou; `everything` avalia de uma vez todas as pendentes (e as compras sem avaliação)."""
+    where = "" if everything else "and r.ride_started_at > now() - interval '3 hours'"
+    rows = q_local(f"""select r.id, r.driver_id, r.requester_id, p.name as driver_name from ride_requests r join orders o on o.id = r.order_id join profiles p on p.id = r.driver_id
+        where r.status = 'completed' and o.store_id = {esc(STORE['id'])}::uuid {where}
+          and not exists (select 1 from ride_reviews v where v.ride_request_id = r.id and v.reviewer_id = r.requester_id) order by r.ride_started_at limit {500 if everything else 4}""")
+    for r in rows:
+        if not everything and R.random() > min(1, 0.4 * speed):
+            continue
+        rating = R.choices([5, 4, 3, 2], [66, 24, 8, 2])[0]
+        text = R.choice(DRIVER_REVIEWS_GOOD if rating >= 4 else DRIVER_REVIEWS_OK) or None
+        try:
+            as_user(r['requester_id'], f"insert into ride_reviews (ride_request_id, reviewer_id, reviewee_id, rating, comment) values ({esc(r['id'])}::uuid, {esc(r['requester_id'])}::uuid, {esc(r['driver_id'])}::uuid, {rating}, {esc(text) if text else 'null'});")
+            log(f"  ⭐ a loja avaliou {r['driver_name']} com {rating}★" + (f" — “{text[:50]}”" if text else ''))
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ avaliação da corrida {r['id'][:8]}: {str(e).splitlines()[0][:100]}")
+
+
+def review_pending_orders():
+    """Todas as compras já entregues e ainda sem avaliação ganham a do cliente (para ver o fluxo completo de uma vez)."""
+    rows = q_local(f"""select o.id, o.buyer_id, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
+        from orders o where o.store_id = {esc(STORE['id'])}::uuid and o.status = 'paid' and not exists (select 1 from product_reviews r where r.order_id = o.id) limit 500""")
+    for r in rows:
+        rating = R.choices([5, 4, 3, 2], [62, 25, 10, 3])[0]
+        text = R.choice(REVIEWS_GOOD if rating >= 4 else REVIEWS_OK) or None
+        try:
+            as_user(r['buyer_id'], f"""insert into product_reviews (store_id, product_id, profile_id, order_id, rating, comment, is_anonymous)
+                values ({esc(STORE['id'])}::uuid, {esc(r['product_id'])}::uuid, {esc(r['buyer_id'])}::uuid, {esc(r['id'])}::uuid, {rating}, {esc(text) if text else 'null'}, false);""")
+            log(f"  ⭐ cliente avaliou o pedido {r['id'][:8]} com {rating}★" + (f" — “{text[:50]}”" if text else ''))
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ avaliação do pedido {r['id'][:8]}: {str(e).splitlines()[0][:100]}")
+
+
+def rate_everything():
+    rate_deliveries(everything=True)
+    review_pending_orders()
+
+
 def featured_order():
     """A cliente em destaque (a que a página /tres-telas acompanha) pede com frequência, sempre entrega."""
     if FEATURED:
@@ -594,7 +637,7 @@ def featured_order():
 def cycle_tick(speed):
     fns = [attend_orders, attend_appointments, attend_service_cycle]
     if CFG['mode'] == 'iuser':
-        fns += [drivers_accept, drivers_run]
+        fns += [drivers_accept, drivers_run, rate_deliveries]
     elif CFG['couriers']:
         fns += [dispatch_batches, run_couriers]
     for fn in fns:
@@ -641,12 +684,12 @@ def main():
     ap.add_argument('--employees', action='store_true', help='usa os motoboys da loja (tabela employees) em vez dos motoristas iUser')
     ap.add_argument('--manual-drivers', default='', help='motoristas iUser que NÃO são simulados (a pessoa mexe na mão em /entregas), ex.: dani,leo')
     ap.add_argument('--no-couriers', action='store_true', help='sem motoboys: entrega vai direto de pronto para entregue')
-    ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick', 'featured'])
+    ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick', 'featured', 'rate'])
     a = ap.parse_args()
     CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()], couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
     load()
     if a.once:
-        return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order}[a.once])
+        return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order, 'rate': rate_everything}[a.once])
     log(f"{STORE['name']}: {len(GOODS)} produtos, {len(SERVICES)} serviços, {len(CUSTOMERS)} clientes. " + ('Os pedidos chegam como PENDENTES — quem atende é você.' if a.manual else 'A loja atende sozinha: aceita, prepara, ' + (f"os motoristas iUser pegam as entregas ({', '.join(d['name'].split()[0] + ' ' + str(d['cap']) for d in IUSER_DRIVERS)}; mochila = entregas ao mesmo tempo)" if CFG['mode'] == 'iuser' else f"manda os motoboys ({len(COURIERS)}; mochila {CFG['bag']:g}, até {CFG['max_stops']} entregas por saída)" if CFG['couriers'] else 'entrega') + ', responde e o cliente avalia.'))
     for _ in range(a.burst):
         safe(make_order)
