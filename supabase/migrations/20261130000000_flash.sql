@@ -132,8 +132,9 @@ REVOKE ALL ON FUNCTION public.increment_flash_share_count(uuid) FROM PUBLIC, ano
 GRANT EXECUTE ON FUNCTION public.increment_flash_share_count(uuid) TO authenticated;
 
 -- ===== O feed: flashes + publicações das pessoas, do mais novo para o mais antigo =====
--- p_mode: 'all' (Para você) | 'following' (quem eu sigo, e eu). Só dado público do autor (nome, @, foto).
-CREATE OR REPLACE FUNCTION public.get_flash_feed(p_mode text DEFAULT 'all', p_limit integer DEFAULT 20, p_before timestamptz DEFAULT NULL)
+-- p_mode: 'all' (Para você) | 'following' (quem eu sigo, e eu); p_kind: só 'flash', só 'publication' ou (nulo) os dois. Só dado público do autor (nome, @, foto).
+DROP FUNCTION IF EXISTS public.get_flash_feed(text, integer, timestamptz);
+CREATE OR REPLACE FUNCTION public.get_flash_feed(p_mode text DEFAULT 'all', p_limit integer DEFAULT 20, p_before timestamptz DEFAULT NULL, p_kind text DEFAULT NULL)
 RETURNS TABLE (
     kind text, id uuid, created_at timestamptz, author_id uuid, author_name text, author_slug text, author_avatar text,
     title text, content text, media_url text, media_type text, like_count integer, comment_count integer, share_count integer,
@@ -165,13 +166,14 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
       JOIN public.profiles p ON p.id = i.author_id
      WHERE COALESCE(p.is_active, true) AND NOT COALESCE(p.is_blocked, false)
        AND (p_before IS NULL OR i.created_at < p_before)
+       AND (p_kind IS NULL OR i.kind = p_kind)   -- 'flash' | 'publication' | todos
        AND (p_mode <> 'following'
             OR i.author_id = (SELECT auth.uid())
             OR EXISTS (SELECT 1 FROM public.follows fo WHERE fo.follower_id = (SELECT auth.uid()) AND fo.following_id = i.author_id))
      ORDER BY i.created_at DESC
      LIMIT LEAST(GREATEST(p_limit, 1), 50);
 $$;
-GRANT EXECUTE ON FUNCTION public.get_flash_feed(text, integer, timestamptz) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_flash_feed(text, integer, timestamptz, text) TO anon, authenticated;
 
 -- Realtime: novos flashes e comentários aparecem ao vivo
 DO $$ BEGIN

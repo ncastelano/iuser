@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowUp, Heart, ImagePlus, MessageCircle, Plus, Send, Share2, Trash2, UserPlus, X, Zap } from 'lucide-react'
+import { ArrowLeft, ArrowUp, Heart, ImagePlus, MessageCircle, Plus, Send, Share2, Trash2, UserPlus, X, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -70,7 +70,7 @@ function FlashCard({ item, me, onLike, onFollow, onComments, onShare, onDelete }
     const openPublication = () => item.link && router.push(`/${item.authorSlug}/${item.link}`)
 
     return (
-        <article className="snap-start relative flex-shrink-0 w-full overflow-hidden" style={{ height: '100%', borderRadius: 28, background: `linear-gradient(160deg, ${c1}, ${c2})` }}>
+        <article data-flash-id={item.id} className="snap-start relative flex-shrink-0 w-full overflow-hidden" style={{ height: '100%', borderRadius: 28, background: `linear-gradient(160deg, ${c1}, ${c2})` }}>
             {src && item.mediaType === 'video' && <FlashVideo src={src} />}
             {src && item.mediaType !== 'video' && <img src={src} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
 
@@ -264,6 +264,16 @@ export default function FlashScreen() {
         scroller.current?.scrollTo({ top: 0 })
     }, [mode])
     useEffect(() => { loadFirst() }, [loadFirst, userId])
+    // Vindo da página Pessoas: ?de=<id> abre no flash tocado; ?novo=1 já abre o postar
+    const jumped = useRef(false)
+    useEffect(() => {
+        if (loading || jumped.current) return
+        jumped.current = true
+        const sp = new URLSearchParams(window.location.search)
+        const de = sp.get('de')
+        if (sp.get('novo') === '1' && userId) setComposing(true)
+        if (de) requestAnimationFrame(() => scroller.current?.querySelector(`[data-flash-id="${de}"]`)?.scrollIntoView())
+    }, [loading, userId])
 
     const loadMore = useCallback(async () => {
         if (busy.current || done || items.length === 0) return
@@ -327,6 +337,7 @@ export default function FlashScreen() {
                         ))}
                     </div>
                 </div>
+                <button onClick={() => router.push('/pessoas')} aria-label="Voltar para Pessoas" className="absolute top-2.5 left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white transition active:scale-95" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}><ArrowLeft size={18} /></button>
                 <button onClick={() => (userId ? setComposing(true) : loginFirst())} aria-label="Postar um flash" className="absolute top-2.5 right-3 z-20 h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black text-white transition active:scale-95" style={{ background: ORANGE, boxShadow: '0 4px 14px rgba(249,115,22,0.5)' }}><Plus size={15} strokeWidth={3} /> Flash</button>
 
                 {fresh > 0 && (

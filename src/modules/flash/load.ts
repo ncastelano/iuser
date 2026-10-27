@@ -5,8 +5,8 @@ import { FlashItem, FlashMode, mediaKindOf, mediaPath, rowToItem, validateCommen
 
 export const PAGE_SIZE = 12
 
-export async function fetchFeed(mode: FlashMode, before?: string | null): Promise<FlashItem[]> {
-    const { data, error } = await supabase.rpc('get_flash_feed', { p_mode: mode, p_limit: PAGE_SIZE, p_before: before ?? null })
+export async function fetchFeed(mode: FlashMode, before?: string | null, kind?: 'flash' | 'publication' | null): Promise<FlashItem[]> {
+    const { data, error } = await supabase.rpc('get_flash_feed', { p_mode: mode, p_limit: PAGE_SIZE, p_before: before ?? null, p_kind: kind ?? null })
     if (error) throw error
     return ((data || []) as Record<string, any>[]).map(rowToItem)
 }
