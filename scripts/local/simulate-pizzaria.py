@@ -623,6 +623,26 @@ def review_pending_orders():
             log(f"  ✗ avaliação do pedido {r['id'][:8]}: {str(e).splitlines()[0][:100]}")
 
 
+def review_featured(speed=1.0):
+    """A cliente em destaque (Gabriela) avalia TODO pedido entregue dela, de qualquer loja, logo depois de receber — a lista de pendentes não cresce."""
+    if not FEATURED:
+        return
+    rows = q_local(f"""select o.id, o.store_id, s.name as sname, (select oi.product_id from order_items oi where oi.order_id = o.id order by oi.total_price desc limit 1) as product_id
+        from orders o join stores s on s.id = o.store_id where o.buyer_id = {esc(FEATURED['id'])}::uuid and o.status = 'paid' and o.updated_at < now() - interval '6 seconds'
+          and not exists (select 1 from product_reviews r where r.order_id = o.id) order by o.updated_at limit 30""")
+    for r in rows:
+        if not r['product_id']:
+            continue
+        rating = R.choices([5, 4, 3], [65, 28, 7])[0]
+        text = R.choice(REVIEWS_GOOD if rating >= 4 else REVIEWS_OK) or None
+        try:
+            as_user(FEATURED['id'], f"""insert into product_reviews (store_id, product_id, profile_id, order_id, rating, comment, is_anonymous)
+                values ({esc(r['store_id'])}::uuid, {esc(r['product_id'])}::uuid, {esc(FEATURED['id'])}::uuid, {esc(r['id'])}::uuid, {rating}, {esc(text) if text else 'null'}, false);""")
+            log(f"  ⭐ {FEATURED['name'].split()[0]} avaliou {r['sname']} ({r['id'][:6]}) com {rating}★")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ avaliação da {FEATURED['name'].split()[0]}: {str(e).splitlines()[0][:100]}")
+
+
 def rate_everything():
     rate_deliveries(everything=True)
     review_pending_orders()
@@ -635,7 +655,7 @@ def featured_order():
 
 
 def cycle_tick(speed):
-    fns = [attend_orders, attend_appointments, attend_service_cycle]
+    fns = [attend_orders, attend_appointments, attend_service_cycle, review_featured]
     if CFG['mode'] == 'iuser':
         fns += [drivers_accept, drivers_run, rate_deliveries]
     elif CFG['couriers']:
@@ -689,7 +709,7 @@ def main():
     CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()], couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
     load()
     if a.once:
-        return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order, 'rate': rate_everything}[a.once])
+        return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order, 'rate': lambda: (rate_everything(), review_featured())}[a.once])
     log(f"{STORE['name']}: {len(GOODS)} produtos, {len(SERVICES)} serviços, {len(CUSTOMERS)} clientes. " + ('Os pedidos chegam como PENDENTES — quem atende é você.' if a.manual else 'A loja atende sozinha: aceita, prepara, ' + (f"os motoristas iUser pegam as entregas ({', '.join(d['name'].split()[0] + ' ' + str(d['cap']) for d in IUSER_DRIVERS)}; mochila = entregas ao mesmo tempo)" if CFG['mode'] == 'iuser' else f"manda os motoboys ({len(COURIERS)}; mochila {CFG['bag']:g}, até {CFG['max_stops']} entregas por saída)" if CFG['couriers'] else 'entrega') + ', responde e o cliente avalia.'))
     for _ in range(a.burst):
         safe(make_order)
