@@ -14,9 +14,9 @@ import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
-import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera } from 'lucide-react'
+import { Plus, Minus, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera } from 'lucide-react'
 import Image from 'next/image'
-import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
+import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
 import HeaderSearchInput from './HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
@@ -1067,12 +1067,79 @@ export default function CatalogoClientPage() {
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            <div className="fixed inset-0 z-0">
-                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-            </div>
+            {!insideShell && (
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+            )}
 
             <main className="relative z-10 min-h-dvh pb-32">
-                {/* ===== HEADER EMBUTIDO ===== */}
+
+                {/* ===== 3.0: cabeçalho sólido (voltar, loja e como está, busca e categorias), no desenho da ilha e da barra ===== */}
+                {insideShell ? (
+                    <div className="sticky z-20 px-3 pt-1.5 pb-2.5" style={{ top: 'var(--shell-top, 0px)', background: colors.background }}>
+                        <div className="flex items-center gap-2.5">
+                            <button
+                                onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push(`/${ownerSlug}`))}
+                                aria-label="Voltar"
+                                className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition active:scale-95"
+                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                            >
+                                <ArrowLeft size={19} />
+                            </button>
+                            <button onClick={() => router.push(`/${ownerSlug}`)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                                <span className="w-11 h-11 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT }}>
+                                    {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
+                                </span>
+                                <span className="min-w-0">
+                                    <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{storeInfo.name}</span>
+                                    <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>
+                                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isStoreOpen ? '#16a34a' : '#ef4444' }} />
+                                        <span className="truncate">
+                                            {isStoreOpen
+                                                ? `Aberta agora${(() => { const h = getTodayHoursText(storeInfo.business_hours); return h ? ` · ${h === '00:00 - 00:00' ? '24 horas' : h}` : '' })()}`
+                                                : nextAvailable ? `Fechada · abre ${nextAvailable.day} às ${nextAvailable.open}` : 'Fechada agora'}
+                                        </span>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                        <div className="mt-2.5 flex items-center gap-2 px-4 rounded-full h-11" style={{ background: `${colors.border}40` }}>
+                            <Search size={17} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                            <input
+                                ref={searchInputRef}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Buscar nesta loja"
+                                className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
+                                style={{ color: colors.textPrimary }}
+                            />
+                            {searchQuery && <button onClick={() => setSearchQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={16} /></button>}
+                        </div>
+                        {categories.length > 1 && (
+                            <div className="mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3 pb-0.5">
+                                {categories.map((cat) => {
+                                    const on = selectedCategory === cat.name
+                                    return (
+                                        <button
+                                            key={cat.name}
+                                            onClick={() => setSelectedCategory(cat.name)}
+                                            className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-black whitespace-nowrap flex-shrink-0 transition active:scale-95"
+                                            style={{
+                                                background: on ? '#f9731614' : colors.background,
+                                                color: on ? '#ea580c' : colors.textPrimary,
+                                                border: `1.5px solid ${on ? '#f97316' : colors.border}`,
+                                            }}
+                                        >
+                                            {cat.name}
+                                            <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={{ background: on ? '#f97316' : `${colors.border}66`, color: on ? '#fff' : colors.textSecondary }}>{cat.count}</span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                ) : (
                 <div
                     style={{
                         color: colors.textPrimary,
@@ -1208,9 +1275,11 @@ export default function CatalogoClientPage() {
                     </div>
                 </div>
 
+                )}
+
                 {/* Banner da loja */}
                 {storeInfo.banner_url && (
-                    <div className="w-full h-96 md:h-[32rem] relative overflow-hidden">
+                    <div className={insideShell ? 'mx-4 mt-2 h-36 rounded-3xl relative overflow-hidden' : 'w-full h-96 md:h-[32rem] relative overflow-hidden'}>
                         <Image
                             src={storeInfo.banner_url}
                             alt={storeInfo.name}
@@ -1267,10 +1336,13 @@ export default function CatalogoClientPage() {
                         <div className="flex flex-col gap-6">
                             {Object.entries(groupedFilteredProducts).map(([category, categoryProducts]) => (
                                 <div key={category} className="flex flex-col gap-3">
-                                    <h4 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                        {category}
-                                    </h4>
-                                    <div className="flex flex-col gap-4">
+                                    {/* 3.0: com uma categoria só, o título ("Geral") não diz nada */}
+                                    {!(insideShell && Object.keys(groupedFilteredProducts).length <= 1) && (
+                                        <h4 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                            {category}
+                                        </h4>
+                                    )}
+                                    <div className={insideShell ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-4'}>
                                         {categoryProducts.map((product) => {
                                 const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                 const quantity = getProductQuantity(product.id)
@@ -1284,6 +1356,70 @@ export default function CatalogoClientPage() {
                                     } else {
                                         handleAddWithComment(product)
                                     }
+                                }
+
+
+                                // 3.0: cartão em grade (foto em cima, nome, preço e o botão de adicionar/quantidade), no desenho do /comprar
+                                if (insideShell) {
+                                    const soldOut = product.stock !== null && product.stock <= 0
+                                    return (
+                                        <div
+                                            key={product.id}
+                                            onClick={(e) => handleProductClick(product, e)}
+                                            className="rounded-3xl overflow-hidden flex flex-col cursor-pointer text-left transition active:scale-[0.99]"
+                                            style={{ background: colors.surface, border: `1px solid ${isSelected ? '#22c55e' : colors.border}`, boxShadow: '0 6px 18px rgba(0,0,0,0.06)', opacity: soldOut ? 0.6 : 1 }}
+                                        >
+                                            <div className="relative aspect-square overflow-hidden" style={{ background: GRADIENT }}>
+                                                {product.image_url || storeInfo?.logo_url
+                                                    ? <img src={product.image_url || storeInfo?.logo_url || ''} alt="" className={`w-full h-full ${product.image_url ? 'object-cover' : 'object-contain p-6'}`} loading="lazy" />
+                                                    : <span className="absolute inset-0 flex items-center justify-center text-white/90 text-4xl font-black">{storeInfo?.name?.trim().charAt(0).toUpperCase() || '?'}</span>}
+                                                {soldOut && <span className="absolute left-2 top-2 text-[10px] font-black uppercase px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Esgotado</span>}
+                                                {isSelected && quantity > 0 && (
+                                                    <span className="absolute right-2 top-2 min-w-[24px] h-6 px-1.5 rounded-full text-[11px] font-black text-white flex items-center justify-center" style={{ background: '#16a34a', boxShadow: '0 0 0 2px #fff' }}>{quantity}</span>
+                                                )}
+                                            </div>
+                                            <div className="p-2.5 flex flex-col gap-1 flex-1">
+                                                <h3 className="text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.75em' }}>{product.name}</h3>
+                                                {product.description && (
+                                                    <p className="text-[11px] leading-snug truncate" style={{ color: colors.textSecondary }}>{product.description}</p>
+                                                )}
+                                                <div className="mt-auto pt-1.5 flex items-center justify-between gap-2">
+                                                    <span className="text-sm font-black leading-tight" style={{ color: '#f97316' }}>
+                                                        {formatPrice(product.price)}{isHourly && <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}> /h</span>}
+                                                    </span>
+                                                    {soldOut ? null : isSelected && !productIsDisabled ? (
+                                                        <span className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); if (quantity <= 1) removeAllOfProduct(product.id); else decreaseQuantity(product.id) }}
+                                                                aria-label={quantity <= 1 ? 'Remover' : 'Diminuir'}
+                                                                className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90"
+                                                                style={{ background: `${colors.border}55`, color: quantity <= 1 ? '#ef4444' : colors.textPrimary }}
+                                                            >
+                                                                {quantity <= 1 ? <X size={14} /> : <Minus size={14} />}
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleAddWithComment(product) }}
+                                                                aria-label="Adicionar mais um"
+                                                                className="w-8 h-8 rounded-full flex items-center justify-center text-white transition active:scale-90"
+                                                                style={{ background: GRADIENT }}
+                                                            >
+                                                                <Plus size={14} strokeWidth={3} />
+                                                            </button>
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            onClick={handleProductInteraction}
+                                                            aria-label={productIsDisabled ? 'Ver detalhes' : `Adicionar ${product.name}`}
+                                                            className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0 transition active:scale-90"
+                                                            style={{ background: productIsDisabled ? `${colors.border}` : GRADIENT, color: productIsDisabled ? colors.textSecondary : '#fff' }}
+                                                        >
+                                                            {productIsDisabled ? <Info size={15} /> : <Plus size={16} strokeWidth={3} />}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
                                 }
 
                                 return (
@@ -1438,7 +1574,7 @@ export default function CatalogoClientPage() {
                 </div>
 
                 {/* ===== BOTÃO FLUTUANTE - INÍCIO (lado direito; some enquanto a sacola está aberta) ===== */}
-                {!isBagExpanded && !checkoutStep && (
+                {!insideShell && !isBagExpanded && !checkoutStep && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                         <button
                             onClick={handleHome}
@@ -1457,8 +1593,11 @@ export default function CatalogoClientPage() {
                 )}
 
                 {/* ===== BOTÃO FLUTUANTE - SACOLA (agora no lado esquerdo; busca vive no header, igual à home) ===== */}
-                <div style={{ position: 'fixed', bottom: 32, left: 16, zIndex: 998, maxWidth: 'calc(100vw - 32px)' }}>
+                <div style={insideShell
+                    ? { position: 'fixed', bottom: 'calc(14px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 448, margin: '0 auto', zIndex: 998 }
+                    : { position: 'fixed', bottom: 32, left: 16, zIndex: 998, maxWidth: 'calc(100vw - 32px)' }}>
                     <CatalogBag
+                        v3={insideShell}
                         bagItems={bagItems}
                         isExpanded={isBagExpanded}
                         onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}

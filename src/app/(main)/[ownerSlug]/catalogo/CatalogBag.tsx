@@ -42,6 +42,8 @@ interface CatalogBagProps {
     storeName?: string
     /** Quando true, esconde os controles de recolher (seta acima da lista e clique no ícone de baixo) - para quando os produtos devem ficar sempre visíveis, sem opção de recolher. */
     hideCollapseControls?: boolean
+    /** 3.0: sólida, da cor do fundo das páginas, ocupando a largura (no desenho da ilha e da barra) */
+    v3?: boolean
 }
 
 // ===== Carrinho flutuante do catálogo: mostra os produtos adicionados =====
@@ -66,6 +68,7 @@ export default function CatalogBag({
     hideFooterAction = false,
     storeName = '',
     hideCollapseControls = false,
+    v3 = false,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + cartItemLineTotal(item), 0)
@@ -117,8 +120,13 @@ export default function CatalogBag({
     return (
         <div className="relative" style={fullWidth ? { width: '100%' } : undefined}>
             <div
-                className={`transition-all duration-300 overflow-hidden ${bare ? '' : 'rounded-2xl shadow-2xl cursor-pointer'}`}
-                style={{
+                className={`transition-all duration-300 overflow-hidden ${bare ? '' : v3 ? 'rounded-3xl cursor-pointer' : 'rounded-2xl shadow-2xl cursor-pointer'}`}
+                style={v3 && !bare ? {
+                    background: colors.background,
+                    border: `1px solid ${totalItems > 0 ? '#f97316' : colors.border}`,
+                    boxShadow: '0 10px 28px rgba(0,0,0,0.16)',
+                    width: '100%',
+                } : {
                     background: bare ? 'transparent' : cardBackground,
                     border: bare ? 'none' : `2px solid ${totalItems > 0 ? colors.accent : colors.border}`,
                     boxShadow: bare ? 'none' : (totalItems > 0 ? `0 8px 32px rgba(0,0,0,0.15)` : `0 4px 16px rgba(0,0,0,0.08)`),
@@ -132,7 +140,7 @@ export default function CatalogBag({
                     com a barra de baixo (ícone + total + Finalizar), então some daqui. */}
                 {!(isExpanded && !checkoutContent) && (
                     <div
-                        className="flex items-center gap-2 p-2"
+                        className={`flex items-center gap-2 ${v3 ? 'px-3 h-14' : 'p-2'}`}
                         onClick={onToggleExpanded}
                     >
                         <div
