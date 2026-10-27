@@ -300,8 +300,8 @@ def attend_orders(speed):
             owner_say(o['buyer_id'], R.choice((AFTER_READY_COURIER if CFG['couriers'] else AFTER_READY_DELIVERY) if delivery else AFTER_READY_PICKUP))
             log(f"  🏪 pedido {o['id'][:8]} pronto → {('aguardando o motoboy' if CFG['couriers'] else 'saiu para entrega') if delivery else 'aguardando retirada'}")
     for o in store_orders('ready', int(n(30))):
-        if CFG['couriers'] and o['delivery_option'] == 'entrega' and float(o['age']) < 900:
-            continue   # a entrega é com o motoboy (se ficar parado 15 min sem rota, a loja finaliza por aqui)
+        if CFG['couriers'] and o['delivery_option'] == 'entrega' and (float(o['age']) < 900 or q_local(f"select 1 from ride_requests where order_id = {esc(o['id'])}::uuid and status in ('pending','accepted') limit 1")):
+            continue   # a entrega é com o motorista (se ficar parado 15 min sem ninguém, a loja finaliza por aqui — nunca com uma corrida viva)
         if R.random() < min(1, 0.14 * speed):
             set_status(o, 'paid')
             if R.random() < 0.7:

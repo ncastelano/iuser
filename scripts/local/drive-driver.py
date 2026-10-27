@@ -147,7 +147,7 @@ class Driver:
     def open_offers(self):
         return q_local(f"""select r.id, r.destination_lat as lat, r.destination_lng as lng, r.offered_price, r.recipient_name, o.status as order_status
             from ride_requests r join orders o on o.id = r.order_id where r.status = 'pending' and r.driver_id is null and o.store_id = {esc(self.store['id'])}::uuid
-            and o.status in ('preparing','ready') order by r.created_at""")
+            and o.status in ('preparing','ready') and o.updated_at > now() - interval '10 minutes' order by r.created_at""")
 
     def accept_some(self, limit):
         offers = self.open_offers()
@@ -227,7 +227,13 @@ def main():
     log(f"{d.name} online — mochila {d.cap}, {a.kmh:g} km/h. Abra /entregas na aba dele para acompanhar.")
     try:
         while True:
-            if not d.run_batch():
+            try:
+                ok = d.run_batch()
+            except RuntimeError as e:   # alguém mexeu na corrida (cancelada, pedido encerrado...): recomeça do que existe
+                log(f"  · a corrida mudou no meio do caminho ({str(e).splitlines()[0][:80]}) — recomeçando")
+                time.sleep(3)
+                continue
+            if not ok:
                 if not a.loop:
                     log('Sem entregas abertas agora.')
                     return
