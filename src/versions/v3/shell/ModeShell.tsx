@@ -612,7 +612,7 @@ export default function ModeShell({ children }: {
         <div className="fixed left-0 right-0 z-40 pointer-events-none" style={{ top: ISLAND_TOP }}>
             <div className="max-w-5xl mx-auto px-3">
                 <div
-                    className="pointer-events-auto flex items-center gap-2.5 rounded-full pl-2 pr-2"
+                    className="pointer-events-auto relative flex items-center gap-2.5 rounded-full pl-2 pr-2"
                     style={{
                         height: ISLAND_H,
                         // Sólida, da cor do fundo das páginas (escura só quando há algo vivo)
@@ -623,14 +623,16 @@ export default function ModeShell({ children }: {
                         transition: 'opacity 200ms ease, background 300ms ease',
                     }}
                 >
-                    <button onClick={openHub} aria-label={idle.label} className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2.5px #fff, 0 2px 8px rgba(0,0,0,0.22)' }}>
-                        <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
-                    </button>
+                    {/* O cartão TODO é um botão: abre o hub (ou vai ao que está vivo) */}
                     <button
                         onClick={() => (live ? go(live.path) : openHub())}
                         aria-label={live ? live.title : 'Abrir menu'}
-                        className="flex-1 min-w-0 text-left rounded-xl py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                    >
+                        className="absolute inset-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                    />
+                    <button onClick={openHub} aria-label={idle.label} className="relative flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2.5px #fff, 0 2px 8px rgba(0,0,0,0.22)' }}>
+                        <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
+                    </button>
+                    <div className="relative flex-1 min-w-0 text-left py-1 pointer-events-none">
                         {live ? (
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>{live.sub}</span>
@@ -645,8 +647,8 @@ export default function ModeShell({ children }: {
                                 <span className="block text-[15px] font-black truncate leading-tight" style={{ color: colors.textPrimary }}>{idle.line2}</span>
                             </>
                         )}
-                    </button>
-                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: live ? 'rgba(255,255,255,0.16)' : `${colors.border}66`, color: live ? '#fff' : colors.textPrimary }}>
+                    </div>
+                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className="relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: live ? 'rgba(255,255,255,0.16)' : `${colors.border}66`, color: live ? '#fff' : colors.textPrimary }}>
                         <ChevronDown size={18} />
                     </button>
                 </div>
