@@ -50,7 +50,13 @@ export default function DriverDeliveriesScreen() {
     const [loaded, setLoaded] = useState(false)
     const [busy, setBusy] = useState<string | null>(null)
     const [showDone, setShowDone] = useState(false)
-    const [mapFull, setMapFull] = useState(false)
+    // Com uma saída em andamento a tela vira NAVEGAÇÃO (mapa em tela cheia + folha de ação); a Central (ofertas, resumo, histórico) fica a um toque
+    const [view, setView] = useState<'map' | 'central'>('central')
+    const [sheetOpen, setSheetOpen] = useState(false)
+    const hadActive = useRef(false)
+    const anchor = useRef<HTMLDivElement>(null)
+    const [shellTop, setShellTop] = useState('0px')   // onde acaba a ilha (a var --shell-top vive na casca; o portal vai para o body e precisa do valor)
+    useEffect(() => { if (anchor.current) setShellTop(getComputedStyle(anchor.current).getPropertyValue('--shell-top').trim() || '0px') }, [view])
     const seenOffers = useRef<Set<string> | null>(null)
     const [fresh, setFresh] = useState<Set<string>>(new Set())
 
@@ -86,6 +92,11 @@ export default function DriverDeliveriesScreen() {
         return () => { supabase.removeChannel(ch) }
     }, [userId, refresh])
 
+    useEffect(() => {   // saiu a 1ª entrega aceita: navegação; acabou a saída: central
+        if (active.length > 0 && !hadActive.current) setView('map')
+        if (active.length === 0) setView('central')
+        hadActive.current = active.length > 0
+    }, [active.length])
     const cap = capacityState(active.length, state?.capacity ?? 1)
     const phase = phaseOf(active)
     const store = active[0]?.store ?? null
@@ -142,6 +153,7 @@ export default function DriverDeliveriesScreen() {
 
     return (
         <div className="pb-6 flex flex-col gap-4">
+            <div ref={anchor} aria-hidden className="h-0" />
             {/* ===== Resumo do dia ===== */}
             <section className="rounded-3xl p-4 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #f97316, #be123c)', boxShadow: '0 10px 30px rgba(249,115,22,0.35)' }}>
                 <div className="flex items-start gap-3">
@@ -186,7 +198,7 @@ export default function DriverDeliveriesScreen() {
                             </div>) })}
                     </div>
 
-                    <DeliveryNavMap me={myPos} store={store} stops={navStops} target={navTarget} height={310} voice={state?.voice} colors={colors} onToggleFull={() => setMapFull(true)} />
+                    <DeliveryNavMap me={myPos} store={store} stops={navStops} target={navTarget} height={310} voice={state?.voice} colors={colors} onToggleFull={() => setView('map')} />
                     <p className="text-[11px] -mt-1" style={{ color: colors.textSecondary }}>{ordered.length} parada(s) · ~{routeKm(store, ordered).toFixed(1)} km · ~{etaMinutes(routeKm(store, ordered))} min de rota</p>
 
                     {/* Etapas antes de sair da loja */}
@@ -325,15 +337,61 @@ export default function DriverDeliveriesScreen() {
                 </section>
             )}
 
-            {/* Mapa ampliado: tela cheia abaixo da ilha, com o guia e a ação da etapa embaixo */}
-            {mapFull && typeof document !== 'undefined' && createPortal(
-                <div className="fixed inset-x-0 bottom-0 z-[60] flex flex-col" style={{ top: 'var(--shell-top, 0px)', background: colors.background }}>
-                    <div className="flex-1 min-h-0">
-                        <DeliveryNavMap me={myPos} store={store} stops={navStops} target={navTarget} height="100%" full voice={state?.voice} colors={colors} onToggleFull={() => setMapFull(false)} />
+            {/* NAVEGAÇÃO: com uma saída em andamento o foco é o MAPA (tela cheia abaixo da ilha) + uma folha de ação embaixo; Central volta ao resumo e às ofertas */}
+            {active.length > 0 && view === 'map' && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-x-0 bottom-0 z-[45] flex flex-col" style={{ top: shellTop, background: colors.background }}>
+                    <div className="relative flex-1 min-h-0">
+                        <DeliveryNavMap me={myPos} store={store} stops={navStops} target={navTarget} height="100%" full voice={state?.voice} colors={colors} />
+                        <div className="absolute left-2 flex items-center gap-2" style={{ top: 88 }}>
+                            <button onClick={() => setView('central')} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 shadow-lg bg-white text-slate-800 active:scale-95 transition"><Bike size={14} /> Central</button>
+                            {visibleOffers.length > 0 && <button onClick={() => setView('central')} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 shadow-lg text-white active:scale-95 transition" style={{ background: GREEN }}><Zap size={13} /> {visibleOffers.length} {visibleOffers.length === 1 ? 'nova entrega' : 'novas entregas'}</button>}
+                        </div>
                     </div>
-                    <div className="px-3 pt-2 pb-4 flex flex-col gap-2" style={{ background: colors.background, borderTop: `1px solid ${colors.border}` }}>
-                        {navTarget && <p className="text-[12px] font-bold truncate" style={{ color: colors.textSecondary }}>{navTarget.kind === 'store' ? 'Loja: ' : 'Entrega: '}{navTarget.label}</p>}
+                    <div className="rounded-t-3xl px-4 pt-3 pb-5 flex flex-col gap-2.5 shadow-[0_-8px_24px_rgba(0,0,0,0.18)]" style={{ background: colors.surface, borderTop: `1px solid ${colors.border}` }}>
+                        <button onClick={() => setSheetOpen((v) => !v)} className="flex items-center gap-2 text-left" aria-label="Detalhes da entrega">
+                            <span className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black flex-shrink-0" style={{ background: navTarget?.kind === 'store' ? GREEN : ORANGE }}>
+                                {navTarget?.kind === 'store' ? <StoreIcon size={17} /> : (ordered.findIndex((d) => d.id === current?.id) + 1)}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: ORANGE }}>{PHASE_LABEL[phase]} · {active.length} {active.length === 1 ? 'entrega' : 'entregas'} · {brl(earnings(active))}</span>
+                                <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{phase === 'delivering' && current ? current.customerName : active[0].storeName}</span>
+                                <span className="block text-[12px] truncate" style={{ color: colors.textSecondary }}>{phase === 'delivering' && current ? current.address : shortAddress(active[0].storeAddress)}</span>
+                            </span>
+                            {sheetOpen ? <ChevronDown size={20} style={{ color: colors.textSecondary }} /> : <ChevronUp size={20} style={{ color: colors.textSecondary }} />}
+                        </button>
+                        {sheetOpen && (
+                            <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: '34vh' }}>
+                                {phase === 'delivering' && current ? (() => {
+                                    const pay = paymentRecap(current.paymentMethod, current.cashChangeFor)
+                                    return (<>
+                                        <ul className="rounded-2xl p-3" style={{ background: soft }}>{itemsList(current.items).map((it, k) => <li key={k} className="text-[12px] flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Package size={11} style={{ color: ORANGE }} />{it}</li>)}</ul>
+                                        <div className="rounded-2xl px-3 py-2 text-[12px] font-bold" style={pay.collect ? { background: '#f59e0b22', color: '#b45309' } : { background: `${GREEN}22`, color: '#16a34a' }}>{pay.label}{pay.note ? ` · ${pay.note}` : ''}</div>
+                                        {ordered.length > 1 && ordered.slice(1).map((d, i) => (
+                                            <div key={d.id} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: soft }}>
+                                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black flex-shrink-0" style={{ background: `${ORANGE}22`, color: ORANGE }}>{i + 2}</span>
+                                                <span className="min-w-0 flex-1"><span className="block text-[12px] font-black truncate" style={{ color: colors.textPrimary }}>{d.customerName}</span><span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{shortAddress(d.address)}</span></span>
+                                            </div>
+                                        ))}
+                                    </>)
+                                })() : (
+                                    <>
+                                        <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Pedidos desta saída</p>
+                                        {ordered.map((d, i) => (
+                                            <div key={d.id} className="rounded-2xl p-3" style={{ background: soft }}>
+                                                <p className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{i + 1}. {d.customerName}</p>
+                                                <ul className="mt-0.5">{itemsList(d.items).map((it, k) => <li key={k} className="text-[12px] flex items-center gap-1.5" style={{ color: colors.textSecondary }}><Check size={11} style={{ color: GREEN }} />{it}</li>)}</ul>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        )}
                         {primaryAction}
+                        <div className="flex items-center gap-2">
+                            {navTarget && <a href={wazeUrl(navTarget)} target="_blank" rel="noreferrer" className="flex-1 h-9 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5" style={{ background: '#33ccff33', color: '#0891b2' }}><Navigation size={13} /> Waze</a>}
+                            {navTarget && <a href={mapsUrl(navTarget)} target="_blank" rel="noreferrer" className="flex-1 h-9 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5" style={{ background: '#4285f433', color: '#2563eb' }}><MapPin size={13} /> Google Maps</a>}
+                            {isLocalDevOnly() && phase === 'delivering' && current && <button onClick={() => finish(current, true)} className="text-[11px] font-bold underline px-1" style={{ color: colors.textSecondary }}>Estou no local (teste)</button>}
+                        </div>
                     </div>
                 </div>, document.body)}
         </div>
