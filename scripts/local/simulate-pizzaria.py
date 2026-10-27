@@ -595,6 +595,8 @@ DRIVER_REVIEWS_OK = ['Entregou, mas demorou um pouco mais que o combinado.', 'Tu
 
 def rate_deliveries(speed=1.0, everything=False):
     """A loja (quem pediu a corrida) avalia o motorista iUser que entregou; `everything` avalia de uma vez todas as pendentes (e as compras sem avaliação)."""
+    if CFG['stage'] and not everything:
+        return   # no TEATRO é o dono (na tela) que avalia o motorista
     where = "" if everything else "and r.ride_started_at > now() - interval '3 hours'"
     rows = q_local(f"""select r.id, r.driver_id, r.requester_id, p.name as driver_name from ride_requests r join orders o on o.id = r.order_id join profiles p on p.id = r.driver_id
         where r.status = 'completed' and o.store_id = {esc(STORE['id'])}::uuid {where}

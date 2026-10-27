@@ -101,7 +101,7 @@ class Pool:
 POOL = Pool()
 # Contas reservadas para a pessoa mexer na mão no navegador (Ana Silva e Felipe Costa): o simulador não age por elas
 RESERVED = ('28e08603-96b0-49fc-867e-efc3d8e7d63b', 'e72ff0cd-7a15-4177-b615-a035d3ef569c')
-RESERVED_SQL = ','.join(f"'{x}'" for x in RESERVED)
+RESERVED_SQL = ','.join(f"'{x}'" for x in RESERVED) + ",(select id from auth.users where email = 'cliente-007@staging.iuser.test')"   # + a Gabriela: no TEATRO ela é conduzida pela tela
 STATE = {'appt_age': {}, 'ride_tick': {}}
 # Donos que atendem à mão no app (admin-teste, a Pizzaria Forno de Ouro): o simulador NÃO aceita pedidos nem confirma agendamentos das lojas deles
 MANUAL_OWNERS = ('c86da741-189b-4eab-a347-08166081b31a',)

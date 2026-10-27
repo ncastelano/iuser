@@ -48,6 +48,8 @@ export default function TresTelasPage() {
     useEffect(() => {
         if (!ok) return
         stage.start()
+        ;(window as any).__stageLog = []
+        stage.onLog = (who, msg) => { const l = (window as any).__stageLog; l.push(`${new Date().toLocaleTimeString()} ${who} ${msg}`); if (l.length > 300) l.shift() }
         ;(window as any).__stage = stage   // para depurar no console: await __stage.text('client')
         const sync = setInterval(() => { (['owner', 'client', 'driver'] as Who[]).forEach((w) => { stage.frames[w] = frameRefs[w].current }) }, 400)
         return () => { clearInterval(sync); stage.stop() }

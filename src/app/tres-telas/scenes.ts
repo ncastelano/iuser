@@ -21,30 +21,32 @@ async function human(c: Ctx, a: number, b = a) { const end = Date.now() + rnd(a,
 async function soft<T>(c: Ctx, fn: () => Promise<T>): Promise<T | null> { try { return await fn() } catch (e: any) { c.st.onLog('client', `· ${e.message}`); return null } }
 
 // ---------------------------------------------------------------- CLIENTE
-async function review(c: Ctx) {
+async function review(c: Ctx, who: Who = 'client') {
     const st = c.st
-    if (!(await st.soft('client', { op: 'has', target: { text: 'Avaliar agora' } }))) return false
-    c.say('client', 'avaliando o pedido que chegou')
-    await st.caption('client', '⭐ Gabriela avalia o pedido')
+    if (!(await st.soft(who, { op: 'has', target: { text: 'Avaliar agora' } }))) return false
+    const label = who === 'owner' ? 'a corrida do motorista' : 'o pedido que chegou'
+    c.say(who, `avaliando ${label}`)
+    await st.caption(who, who === 'owner' ? '⭐ O dono avalia o motorista' : '⭐ Gabriela avalia o pedido')
     await human(c, 1.5, 2.5)
-    await st.soft('client', { op: 'click', target: { text: 'Avaliar agora' } })
+    await st.soft(who, { op: 'click', target: { text: 'Avaliar agora' } })
     await human(c, 1.5, 2.5)
     // a janela de avaliação: estrelas (as 5 são botões com ícone de estrela), texto e enviar
     const stars = pick([5, 5, 5, 4, 4, 3])
-    await st.soft('client', { op: 'click', target: { selector: 'button:has(svg.lucide-star)', nth: stars - 1 } })
+    await st.soft(who, { op: 'click', target: { selector: 'button:has(svg.lucide-star)', nth: stars - 1 } })
     await human(c, 0.8, 1.4)
-    if (await st.soft('client', { op: 'has', target: { selector: 'textarea' } })) {
-        await st.soft('client', { op: 'type', target: { selector: 'textarea' }, text: pick(['Chegou quentinha, muito boa!', 'Entrega rápida e a pizza deliciosa 😋', 'Tudo certo, recomendo a loja.', 'Capricharam no recheio. Voltarei!']) })
+    if (await st.soft(who, { op: 'has', target: { selector: 'textarea' } })) {
+        await st.soft(who, { op: 'type', target: { selector: 'textarea' }, text: pick([...(who === 'owner' ? ['Entregou rápido e com cuidado.', 'Muito educado e pontual.', 'Ótimo entregador!'] : ['Chegou quentinha, muito boa!', 'Entrega rápida e a pizza deliciosa 😋', 'Tudo certo, recomendo a loja.', 'Capricharam no recheio. Voltarei!'])]) })
         await human(c, 0.8, 1.4)
     }
-    await st.soft('client', { op: 'click', target: { text: 'Enviar Avaliação' } })
+    await st.soft(who, { op: 'click', target: { text: 'Enviar Avaliação' } })
     await human(c, 2, 3)
-    await st.soft('client', { op: 'click', target: { text: 'Avaliar depois' } })   // se sobrou outro pedido, fica para depois
+    await st.soft(who, { op: 'click', target: { text: 'Avaliar depois' } })   // se sobrou outro pedido, fica para depois
     return true
 }
 
 async function addItem(c: Ctx, name: string, withAddon: boolean) {
     const st = c.st
+    await review(c)   // se aparecer o aviso de pedido finalizado, ela resolve antes de seguir
     const r = await st.soft('client', { op: 'click', target: { text: `Adicionar ${name}` } })
     if (r === null) return false
     await human(c, 1, 1.6)
@@ -72,7 +74,7 @@ async function clientBuy(c: Ctx) {
     await human(c, 1.5, 2.5)
     await st.soft('client', { op: 'scroll', by: 520, ms: 1800 }); await human(c, 1, 2)
     await st.soft('client', { op: 'scroll', to: 'top', ms: 1400 }); await human(c, 0.8, 1.4)
-    await st.soft('client', { op: 'click', target: { text: 'Lojas e produtos perto de você' } })
+    if (!(await st.soft('client', { op: 'click', target: { text: 'Comprar', exact: true } }))) await st.soft('client', { op: 'click', target: { text: 'Lojas e produtos perto de você' } })
     await human(c, 2.5, 3.5)
     if (await st.soft('client', { op: 'has', target: { selector: 'input' } })) {
         await st.soft('client', { op: 'type', target: { selector: 'input[type=search], input[placeholder*="rocur"], input[placeholder*="uscar"]' }, text: 'pizza' })
@@ -99,6 +101,7 @@ async function clientBuy(c: Ctx) {
         c.say('client', `adicionando ${name}`)
         await addItem(c, name, name.startsWith('Pizza'))
     }
+    await review(c)
     // 4. sacola → finalizar → entrega em casa → endereço → pagamento → confirmar
     await st.caption('client', '🛒 Finalizando o pedido')
     await st.soft('client', { op: 'click', target: { text: 'item R$' } })
@@ -166,11 +169,13 @@ export async function ownerScene(c: Ctx) {
     while (alive(c)) {
         try {
             await st.goto('owner', '/painel-loja/pizzaria-forno-de-ouro')
+            await review(c, 'owner')
             await st.caption('owner', '🏪 Painel da pizzaria')
             await human(c, 2, 3)
             // fica de olho: rola o painel, olha a agenda e volta
             const t0 = Date.now()
             while (alive(c) && Date.now() - t0 < 25_000) {
+                if (await review(c, 'owner')) continue
                 const text = await st.soft('owner', { op: 'text' }) as string | null
                 if (text) {
                     const nNovo = sectionNth(text, 'NOVOS')
