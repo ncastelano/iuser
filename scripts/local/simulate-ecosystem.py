@@ -103,6 +103,9 @@ POOL = Pool()
 RESERVED = ('28e08603-96b0-49fc-867e-efc3d8e7d63b', 'e72ff0cd-7a15-4177-b615-a035d3ef569c')
 RESERVED_SQL = ','.join(f"'{x}'" for x in RESERVED)
 STATE = {'appt_age': {}, 'ride_tick': {}}
+# Donos que atendem à mão no app (admin-teste, a Pizzaria Forno de Ouro): o simulador NÃO aceita pedidos nem confirma agendamentos das lojas deles
+MANUAL_OWNERS = ('c86da741-189b-4eab-a347-08166081b31a',)
+MANUAL_SQL = ','.join(f"'{x}'" for x in MANUAL_OWNERS)
 
 
 # ---------------------------------------------------------------- ações das pessoas
@@ -365,7 +368,7 @@ def requests_round():
 
 # ---------------------------------------------------------------- relógio das lojas e agendas
 def tick_orders():
-    rows = q_local("select o.id, o.status, s.owner_id from orders o join stores s on s.id = o.store_id where o.status in ('pending','preparing','ready') order by random() limit 8")
+    rows = q_local(f"select o.id, o.status, s.owner_id from orders o join stores s on s.id = o.store_id where o.status in ('pending','preparing','ready') and s.owner_id not in ({MANUAL_SQL}) order by random() limit 8")
     for r in rows:
         nxt = {'pending': R.choices(['preparing', 'rejected'], [92, 8])[0], 'preparing': R.choice(['ready', 'paid']), 'ready': 'paid'}[r['status']]
         try:
@@ -381,9 +384,10 @@ CLIENT_COMMENTS = ['Cliente pontual e educado', 'Tudo tranquilo', 'Chegou um pou
 
 def tick_appointments():
     """Agendamentos: o dono confirma, depois marca "serviço feito" (RPC complete_appointment) e os dois lados se avaliam (RPC submit_appointment_review)."""
-    rows = q_local("""select a.id, a.status, a.service_name, a.customer_id,
+    rows = q_local(f"""select a.id, a.status, a.service_name, a.customer_id,
         case when a.store_id is not null then (select s.owner_id from stores s where s.id = a.store_id) else a.provider_profile_id end as svc_owner
-        from appointments a where a.status in ('pending','confirmed') and a.created_at > now() - interval '2 hours' order by random() limit 8""")
+        from appointments a where a.status in ('pending','confirmed') and a.created_at > now() - interval '2 hours'
+          and coalesce((select s.owner_id from stores s where s.id = a.store_id), a.provider_profile_id) not in ({MANUAL_SQL}) order by random() limit 8""")
     for r in rows:
         if not r['svc_owner']:
             continue
@@ -397,12 +401,12 @@ def tick_appointments():
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ agendamento {r['id'][:8]} ({r['status']}→{nxt}): {str(e).splitlines()[0][:100]}")
     # serviços feitos que ainda não foram avaliados: o cliente avalia o serviço e o dono avalia o cliente
-    done = q_local("""select a.id, a.customer_id, a.service_name,
+    done = q_local(f"""select a.id, a.customer_id, a.service_name,
         case when a.store_id is not null then (select s.owner_id from stores s where s.id = a.store_id) else a.provider_profile_id end as svc_owner,
         exists (select 1 from appointment_reviews r where r.appointment_id = a.id and r.kind = 'service') as has_service,
         exists (select 1 from appointment_reviews r where r.appointment_id = a.id and r.kind = 'client') as has_client
         from appointments a where a.status = 'completed' and a.completed_at is not null and a.completed_at > now() - interval '3 hours'
-        order by random() limit 6""")
+          and coalesce((select s.owner_id from stores s where s.id = a.store_id), a.provider_profile_id) not in ({MANUAL_SQL}) order by random() limit 6""")
     for r in done:
         if not r['svc_owner'] or r['svc_owner'] == r['customer_id']:
             continue
