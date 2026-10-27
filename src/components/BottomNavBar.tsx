@@ -38,7 +38,7 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
             </span>
             {ordersOn && orders && (
                 <span className="absolute left-1/2 -translate-x-1/2 flex items-center gap-[3px] pointer-events-none" style={{ bottom: 4 }} aria-label="Pedidos em andamento">
-                    {([['pending', '#3b82f6'], ['preparing', '#eab308'], ['ready', '#a855f7']] as const).map(([k, color]) => (
+                    {([['pending', '#22c55e'], ['preparing', '#eab308'], ['ready', '#a855f7']] as const).map(([k, color]) => (
                         orders[k] > 0 ? <span key={k} className="min-w-[14px] h-[14px] px-[3px] rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: color, boxShadow: `0 0 0 1.5px ${colors.background}` }}>{orders[k] > 9 ? '9+' : orders[k]}</span> : null
                     ))}
                 </span>

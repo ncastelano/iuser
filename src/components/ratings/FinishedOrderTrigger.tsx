@@ -105,9 +105,9 @@ export function FinishedOrderTrigger() {
                 if (newStatus === 'pending') {
                     toast.success(`📦 Pedido Recebido!`, {
                         description: `A loja ${storeName} recebeu seu pedido e logo irá confirmar.`,
-                        icon: <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse border-2 border-white" />,
+                        icon: <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse border-2 border-white" />,
                         style: {
-                            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '1.5rem'
@@ -139,9 +139,9 @@ export function FinishedOrderTrigger() {
                 } else if (newStatus === 'paid') {
                     toast.success(`🎉 Pedido Finalizado!`, {
                         description: `Obrigado por comprar na ${storeName}! Avalie agora.`,
-                        icon: <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-white" />,
+                        icon: <div className="w-3 h-3 bg-blue-500 rounded-full border-2 border-white" />,
                         style: {
-                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '1.5rem'

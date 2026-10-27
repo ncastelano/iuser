@@ -69,10 +69,10 @@ const STATUS_INFO: Record<Stop['status'], { label: string; color: string }> = {
 // (cliente) e do painel da loja. Só quando chega em "ready" o entregador
 // pode marcar "Peguei o pedido".
 const ORDER_STATUS_INFO: Record<string, { label: string; color: string }> = {
-    pending: { label: 'Pedido pendente', color: '#3b82f6' },
+    pending: { label: 'Pedido pendente', color: '#22c55e' },
     preparing: { label: 'Em preparo', color: '#eab308' },
     ready: { label: 'Pronto pra retirar', color: '#a855f7' },
-    paid: { label: 'Finalizado', color: '#22c55e' },
+    paid: { label: 'Finalizado', color: '#3b82f6' },
 }
 
 export default function EntregadorPage() {

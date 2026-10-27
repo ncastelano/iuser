@@ -40,11 +40,11 @@ function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): 
 const statusMap = {
     'pending': {
         label: 'Novo Pedido',
-        color: '#3b82f6',
-        gradient: 'from-blue-500 to-blue-600',
-        bg: 'bg-blue-50',
-        border: 'border-blue-200',
-        text: 'text-blue-600',
+        color: '#22c55e',
+        gradient: 'from-green-500 to-emerald-500',
+        bg: 'bg-green-50',
+        border: 'border-green-200',
+        text: 'text-green-600',
         icon: Package,
         next: 'preparing',
         nextLabel: 'Aceitar Pedido',
@@ -76,11 +76,11 @@ const statusMap = {
     },
     'paid': {
         label: 'Finalizado',
-        color: '#22c55e',
-        gradient: 'from-green-500 to-emerald-500',
-        bg: 'bg-green-50',
-        border: 'border-green-200',
-        text: 'text-green-600',
+        color: '#3b82f6',
+        gradient: 'from-blue-500 to-blue-600',
+        bg: 'bg-blue-50',
+        border: 'border-blue-200',
+        text: 'text-blue-600',
         icon: CheckCircle,
         next: null,
         nextLabel: ''

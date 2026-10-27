@@ -780,12 +780,12 @@ export default function ProfileDashboard({
 
     const formatStatus = (status: string) => {
         const statusMap: Record<string, { label: string; color: string }> = {
-            pending: { label: 'Pendente', color: '#3b82f6' },
+            pending: { label: 'Pendente', color: '#16a34a' },
             preparing: { label: 'Preparando', color: '#f59e0b' },
             ready: { label: 'Pronto', color: '#8b5cf6' },
             in_transit: { label: 'Em trânsito', color: '#06b6d4' },
             delivered: { label: 'Entregue', color: '#22c55e' },
-            paid: { label: 'Finalizado', color: '#10b981' },
+            paid: { label: 'Finalizado', color: '#3b82f6' },
             cancelled: { label: 'Cancelado', color: '#ef4444' },
         }
         return statusMap[status] || { label: status, color: '#6b7280' }

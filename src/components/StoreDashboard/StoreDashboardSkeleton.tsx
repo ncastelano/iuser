@@ -83,7 +83,7 @@ export default function StoreDashboardSkeleton({ logo, name, slug }: { logo?: st
                         <Shimmer className="h-5 w-5 rounded-full flex-shrink-0" />
                     </div>
                     <div className="grid grid-cols-4 gap-2">
-                        {['#2563eb', '#d97706', '#7c3aed', '#16a34a'].map((c) => (
+                        {['#16a34a', '#d97706', '#7c3aed', '#2563eb'].map((c) => (
                             <div key={c} className="rounded-2xl py-3 px-1 flex flex-col items-center gap-2" style={{ background: `${c}10`, border: `1px solid ${c}30` }}>
                                 <Shimmer className="h-5 w-5 rounded-md" color={c} />
                                 <Shimmer className="h-2 w-10 rounded-full" color={c} />

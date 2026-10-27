@@ -1229,10 +1229,10 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
     const getStatusStyles = (status: string) => {
         const styles: any = {
-            pending: { badge: 'bg-blue-100 text-blue-800 border border-blue-200', label: 'Pendente', icon: '⏳', message: 'Aguardando confirmação do vendedor' },
+            pending: { badge: 'bg-green-100 text-green-800 border border-green-200', label: 'Pendente', icon: '⏳', message: 'Aguardando confirmação do vendedor' },
             preparing: { badge: 'bg-yellow-100 text-yellow-800 border border-yellow-200', label: 'Preparando', icon: '👨‍🍳', message: 'O lojista está preparando seu pedido' },
             ready: { badge: 'bg-purple-100 text-purple-800 border border-purple-200', label: 'Pronto', icon: '✅', message: 'Seu pedido está pronto para retirada!' },
-            paid: { badge: 'bg-green-100 text-green-800 border border-green-200', label: 'Finalizado', icon: '🎉', message: 'Pedido finalizado com sucesso' },
+            paid: { badge: 'bg-blue-100 text-blue-800 border border-blue-200', label: 'Finalizado', icon: '🎉', message: 'Pedido finalizado com sucesso' },
             rejected: { badge: 'bg-red-100 text-red-800 border border-red-200', label: 'Recusado', icon: '❌', message: 'O pedido foi recusado pelo vendedor' },
         }
         return styles[status] || styles.pending
@@ -1405,14 +1405,14 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         if (v3) {
             // cada etapa tem a sua cor; as linhas entre elas são laranjas (a cor do iUser)
             const STEPS = [
-                { key: 'pending', label: 'Recebido', color: '#3b82f6' },
+                { key: 'pending', label: 'Recebido', color: '#22c55e' },
                 { key: 'preparing', label: 'Preparando', color: '#eab308' },
                 { key: 'ready', label: 'Pronto', color: '#a855f7' },
-                { key: 'paid', label: 'Finalizado', color: '#10b981' },
+                { key: 'paid', label: 'Finalizado', color: '#3b82f6' },
             ]
             const rejected = order.status === 'rejected'
             const stepIndex = Math.max(0, STEPS.findIndex((st) => st.key === order.status))
-            const accent = rejected ? '#ef4444' : ({ pending: '#3b82f6', preparing: '#eab308', ready: '#a855f7', paid: '#10b981' } as Record<string, string>)[order.status] || '#3b82f6'
+            const accent = rejected ? '#ef4444' : ({ pending: '#22c55e', preparing: '#eab308', ready: '#a855f7', paid: '#3b82f6' } as Record<string, string>)[order.status] || '#22c55e'
             const soft = `${colors.border}40`
             return (
                 <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
@@ -1510,10 +1510,10 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                         order.status === 'ready' ? '75%' :
                                             order.status === 'paid' ? '100%' : '100%',
                             background:
-                                order.status === 'pending' ? '#3b82f6' :
+                                order.status === 'pending' ? '#22c55e' :
                                     order.status === 'preparing' ? '#eab308' :
                                         order.status === 'ready' ? '#a855f7' :
-                                            order.status === 'paid' ? '#10b981' : '#ef4444',
+                                            order.status === 'paid' ? '#3b82f6' : '#ef4444',
                         }}
                     ></div>
                 </div>

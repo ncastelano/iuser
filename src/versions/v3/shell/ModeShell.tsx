@@ -230,7 +230,7 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
                                         {o.pending > 0 ? `${o.pending} ${o.pending === 1 ? 'pedido novo' : 'pedidos novos'}${going > 0 ? ` · ${going} em andamento` : ''}` : going > 0 ? `${going} ${going === 1 ? 'pedido em andamento' : 'pedidos em andamento'}` : 'Pedidos'}
                                     </span>
                                     {o.pending > 0
-                                        ? <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#3b82f6' }}>{o.pending > 99 ? '99+' : o.pending}</span>
+                                        ? <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{o.pending > 99 ? '99+' : o.pending}</span>
                                         : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
                                 </button>
                             )}
@@ -514,9 +514,10 @@ export default function ModeShell({ children }: {
 
     const storeIdsKey = drawerData.stores.map((st) => st.id).join(',')
     useEffect(() => {
-        if (!drawerOpen || !storeIdsKey) return
+        if (!storeIdsKey) return
         let cancelled = false
         const load = async () => {
+            if (document.hidden && !drawerOpen) return
             const { data } = await supabase.from('orders').select('store_id, status').in('store_id', storeIdsKey.split(',')).in('status', ['pending', 'preparing', 'ready'])
             if (cancelled || !data) return
             const next: Record<string, { pending: number; preparing: number; ready: number }> = {}
@@ -527,7 +528,7 @@ export default function ModeShell({ children }: {
             setStoreOrders(next)
         }
         load()
-        const t = setInterval(load, 20_000)
+        const t = setInterval(load, 15_000)
         return () => { cancelled = true; clearInterval(t) }
     }, [drawerOpen, storeIdsKey])
 
@@ -608,7 +609,14 @@ export default function ModeShell({ children }: {
     // A barra de baixo só nas páginas "raiz"
     const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/')) && !(shellPath === '/conversas' && threadOpen)
     const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
-    const live = useShellLive(userId, orderCounts, topUnread, chatPath)
+    // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha
+    const storeNew = (() => {
+        const modeSlug = activeMode.startsWith('loja:') ? activeMode.slice(5) : null
+        const st = (modeSlug && drawerData.stores.find((x) => x.slug === modeSlug)) || drawerData.stores.find((x) => (storeOrders[x.id]?.pending || 0) > 0)
+        if (!st) return null
+        return { count: storeOrders[st.id]?.pending || 0, name: st.name, path: `/painel-loja/${encodeURIComponent(st.slug)}`, prefer: !!modeSlug && st.slug === modeSlug }
+    })()
+    const live = useShellLive(userId, orderCounts, topUnread, chatPath, storeNew)
     const openHub = () => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }
     // Escolher um modo: marca como selecionado e abre a página dele (cada modo tem a sua)
     const selectMode = (mode: string) => {
@@ -673,7 +681,7 @@ export default function ModeShell({ children }: {
                         height: ISLAND_H,
                         // Sólida, da cor do fundo das páginas (escura só quando há algo vivo)
                         background: colors.background,
-                        border: live ? `1.5px solid ${live.kind === 'chat' ? '#22c55e' : '#f97316'}` : `1px solid ${colors.border}`,
+                        border: live ? `1.5px solid ${live.color}` : `1px solid ${colors.border}`,
                         boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
                         opacity: drawerOpen ? 0 : 1,
                         transition: 'opacity 200ms ease, background 300ms ease',
@@ -693,7 +701,7 @@ export default function ModeShell({ children }: {
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{live.sub}</span>
                                 <span className="flex items-center gap-1.5 min-w-0">
-                                    <span className="relative flex-shrink-0 w-2 h-2"><span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: live.kind === 'chat' ? '#22c55e' : '#f97316', opacity: 0.6 }} /><span className="absolute inset-0 rounded-full" style={{ background: live.kind === 'chat' ? '#22c55e' : '#f97316' }} /></span>
+                                    <span className="relative flex-shrink-0 w-2 h-2"><span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: live.color, opacity: 0.6 }} /><span className="absolute inset-0 rounded-full" style={{ background: live.color }} /></span>
                                     <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{live.title}</span>
                                 </span>
                             </>

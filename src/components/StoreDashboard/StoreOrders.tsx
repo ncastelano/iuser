@@ -771,20 +771,20 @@ export default function StoreOrders({
     // ===== CORES DOS PEDIDOS INDIVIDUAIS (MAIS ESCURAS) =====
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'pending': return '#2563eb'
+            case 'pending': return '#16a34a'
             case 'preparing': return '#d97706'
             case 'ready': return '#7c3aed'
-            case 'paid': return '#16a34a'
+            case 'paid': return '#2563eb'
             default: return '#4b5563'
         }
     }
 
     const getStatusGradient = (status: string) => {
         switch (status) {
-            case 'pending': return 'linear-gradient(135deg, #1e293b, #0f172a)'
+            case 'pending': return 'linear-gradient(135deg, #064e3b, #021a12)'
             case 'preparing': return 'linear-gradient(135deg, #451a03, #1c0f00)'
             case 'ready': return 'linear-gradient(135deg, #2e1065, #1a0a3a)'
-            case 'paid': return 'linear-gradient(135deg, #064e3b, #021a12)'
+            case 'paid': return 'linear-gradient(135deg, #1e293b, #0f172a)'
             default: return 'linear-gradient(135deg, #1a1a2e, #0d0d0d)'
         }
     }
@@ -798,25 +798,25 @@ export default function StoreOrders({
 
         if (hasPending) {
             return {
-                border: '2px solid #2563eb',
-                shadow: '0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15)',
+                border: '2px solid #16a34a',
+                shadow: '0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15)',
                 hasAnimation: true,
-                animationName: 'borderPulseBlue',
-                badgeBackground: 'rgba(37, 99, 235, 0.15)',
-                badgeColor: '#2563eb',
+                animationName: 'borderPulseGreen',
+                badgeBackground: 'rgba(22, 163, 74, 0.15)',
+                badgeColor: '#16a34a',
                 animationKeyframes: `
-                    @keyframes borderPulseBlue {
+                    @keyframes borderPulseGreen {
                         0%, 100% { 
-                            box-shadow: 0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15);
-                            border-color: #2563eb;
+                            box-shadow: 0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15);
+                            border-color: #16a34a;
                         }
                         50% { 
-                            box-shadow: 0 0 30px rgba(37, 99, 235, 0.4), 0 0 60px rgba(37, 99, 235, 0.2);
-                            border-color: #2563ebdd;
+                            box-shadow: 0 0 30px rgba(22, 163, 74, 0.4), 0 0 60px rgba(22, 163, 74, 0.2);
+                            border-color: #16a34add;
                         }
                     }
                 `,
-                borderColor: '#2563eb',
+                borderColor: '#16a34a',
             }
         }
 
@@ -870,25 +870,25 @@ export default function StoreOrders({
 
         if (onlyFinished) {
             return {
-                border: '2px solid #16a34a',
-                shadow: '0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15)',
+                border: '2px solid #2563eb',
+                shadow: '0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15)',
                 hasAnimation: true,
-                animationName: 'borderPulseGreen',
-                badgeBackground: 'rgba(22, 163, 74, 0.15)',
-                badgeColor: '#16a34a',
+                animationName: 'borderPulseBlue',
+                badgeBackground: 'rgba(37, 99, 235, 0.15)',
+                badgeColor: '#2563eb',
                 animationKeyframes: `
-                    @keyframes borderPulseGreen {
+                    @keyframes borderPulseBlue {
                         0%, 100% { 
-                            box-shadow: 0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15);
-                            border-color: #16a34a;
+                            box-shadow: 0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15);
+                            border-color: #2563eb;
                         }
                         50% { 
-                            box-shadow: 0 0 30px rgba(22, 163, 74, 0.4), 0 0 60px rgba(22, 163, 74, 0.2);
-                            border-color: #16a34add;
+                            box-shadow: 0 0 30px rgba(37, 99, 235, 0.4), 0 0 60px rgba(37, 99, 235, 0.2);
+                            border-color: #2563ebdd;
                         }
                     }
                 `,
-                borderColor: '#16a34a',
+                borderColor: '#2563eb',
             }
         }
 
@@ -1007,14 +1007,14 @@ export default function StoreOrders({
                                     <span
                                         className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
                                         style={{
-                                            background: 'rgba(37, 99, 235, 0.15)',
+                                            background: 'rgba(22, 163, 74, 0.15)',
                                             backdropFilter: 'blur(8px)',
                                             WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(37, 99, 235, 0.2)',
-                                            color: '#2563eb',
+                                            border: '1px solid rgba(22, 163, 74, 0.2)',
+                                            color: '#16a34a',
                                         }}
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
                                         {newOrders.length}
                                     </span>
 
@@ -1055,14 +1055,14 @@ export default function StoreOrders({
                                     <span
                                         className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
                                         style={{
-                                            background: 'rgba(22, 163, 74, 0.15)',
+                                            background: 'rgba(37, 99, 235, 0.15)',
                                             backdropFilter: 'blur(8px)',
                                             WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(22, 163, 74, 0.2)',
-                                            color: '#16a34a',
+                                            border: '1px solid rgba(37, 99, 235, 0.2)',
+                                            color: '#2563eb',
                                         }}
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
                                         {finished.length}
                                     </span>
                                 </div>
@@ -1083,10 +1083,10 @@ export default function StoreOrders({
                 {v3 && (
                     <div className="grid grid-cols-4 gap-2 relative z-10">
                         {([
-                            { label: 'Novos', n: newOrders.length, color: '#2563eb' },
+                            { label: 'Novos', n: newOrders.length, color: '#16a34a' },
                             { label: 'Preparando', n: preparing.length, color: '#d97706' },
                             { label: 'Prontos', n: ready.length, color: '#7c3aed' },
-                            { label: 'Finalizados', n: finished.length, color: '#16a34a' },
+                            { label: 'Finalizados', n: finished.length, color: '#2563eb' },
                         ]).map((t) => (
                             <button
                                 key={t.label}
@@ -1137,7 +1137,7 @@ export default function StoreOrders({
                             <div className="space-y-4 relative z-10">
                                 {newOrders.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#2563eb' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#16a34a' }}>
                                             {!v3 && <Clock size={12} />}
                                             Novos ({newOrders.length})
                                         </h4>
@@ -1218,7 +1218,7 @@ export default function StoreOrders({
 
                                 {finished.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#16a34a' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#2563eb' }}>
                                             {!v3 && <CheckCircle size={12} />}
                                             Finalizados ({finished.length})
                                         </h4>
