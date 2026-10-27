@@ -1094,15 +1094,23 @@ export default function CatalogoClientPage() {
                 {/* ===== 3.0: o topo é só o título da loja e as categorias (nada flutuante). Voltar, loja e busca ficam na peça de baixo, fundidos à sacola. ===== */}
                 {insideShell ? (
                     <div className="px-4 pt-3 pb-1">
-                        <h1 className="text-xl font-black leading-tight tracking-tight" style={{ color: colors.textPrimary }}>{storeInfo.name}</h1>
-                        <p className="mt-0.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>
-                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isStoreOpen ? '#16a34a' : '#ef4444' }} />
-                            <span className="truncate">
-                                {isStoreOpen
-                                    ? `Aberta agora${(() => { const h = getTodayHoursText(storeInfo.business_hours); return h ? ` · ${h === '00:00 - 00:00' ? '24 horas' : h}` : '' })()}`
-                                    : nextAvailable ? `Fechada · abre ${nextAvailable.day} às ${nextAvailable.open}` : 'Fechada agora'}
+                        {/* logo ao lado do nome (o anel mostra se está aberta); toque leva à página da loja */}
+                        <button onClick={() => router.push(`/${ownerSlug}`)} className="flex items-center gap-3 min-w-0 text-left max-w-full">
+                            <span className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT, boxShadow: `0 0 0 2.5px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}>
+                                {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
                             </span>
-                        </p>
+                            <span className="min-w-0">
+                                <span className="block text-xl font-black leading-tight tracking-tight truncate" style={{ color: colors.textPrimary }}>{storeInfo.name}</span>
+                                <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>
+                                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isStoreOpen ? '#16a34a' : '#ef4444' }} />
+                                    <span className="truncate">
+                                        {isStoreOpen
+                                            ? `Aberta agora${(() => { const h = getTodayHoursText(storeInfo.business_hours); return h ? ` · ${h === '00:00 - 00:00' ? '24 horas' : h}` : '' })()}`
+                                            : nextAvailable ? `Fechada · abre ${nextAvailable.day} às ${nextAvailable.open}` : 'Fechada agora'}
+                                    </span>
+                                </span>
+                            </span>
+                        </button>
                         {categories.length > 1 && (
                             <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5">
                                 {categories.map((cat) => {
@@ -2037,14 +2045,6 @@ export default function CatalogoClientPage() {
                                 style={{ background: `${colors.border}55`, color: colors.textPrimary }}
                             >
                                 <ArrowLeft size={19} />
-                            </button>
-                            <button
-                                onClick={() => router.push(`/${ownerSlug}`)}
-                                aria-label={`Loja ${storeInfo.name}`}
-                                className="relative flex-shrink-0 w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-white font-black transition active:scale-95"
-                                style={{ background: GRADIENT, boxShadow: `0 0 0 2px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}
-                            >
-                                {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
                             </button>
                             <div className="flex-1 min-w-0 flex items-center gap-2 px-3.5 h-11 rounded-full" style={{ background: `${colors.border}40` }}>
                                 <Search size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />

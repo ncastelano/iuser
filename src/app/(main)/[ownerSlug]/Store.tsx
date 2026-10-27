@@ -39,6 +39,8 @@ import {
     UserCheck,
     UserPlus,
     Camera,
+    ChevronDown,
+    ChevronsUpDown,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
@@ -162,6 +164,8 @@ export function Store({
     const [cartAnimating, setCartAnimating] = useState(false)
     const [activeTab, setActiveTab] = useState<TabType>('products')
     const [searchQuery, setSearchQuery] = useState('')
+    // Categorias recolhidas (para passar rápido pelos produtos/serviços); a chave leva a aba junto
+    const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({})
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
     const [showAllHours, setShowAllHours] = useState(false)
@@ -335,7 +339,10 @@ export function Store({
             if (!groups[cat]) groups[cat] = []
             groups[cat].push(product)
         })
-        return groups
+        // "Promoções" primeiro e, depois, as categorias com mais itens (mesma ordem do catálogo)
+        const promo = (n: string) => /promo/i.test(n)
+        const names = Object.keys(groups).sort((x, y) => Number(promo(y)) - Number(promo(x)) || groups[y].length - groups[x].length)
+        return Object.fromEntries(names.map(n => [n, groups[n]])) as Record<string, any[]>
     }, [filteredProducts])
 
     // ========== RATINGS STATS ==========
@@ -1564,11 +1571,36 @@ export function Store({
                                 </div>
                             )
                         ) : (
-                            Object.entries(groupedProducts).map(([category, products]) => (
+                            Object.entries(groupedProducts).map(([category, products], groupIndex, allGroups) => {
+                                const catKey = `${activeTab}:${category}`
+                                // buscando, tudo fica aberto (o resultado não pode ficar escondido)
+                                const isCollapsed = !searchQuery.trim() && !!collapsedCats[catKey]
+                                const allCollapsed = allGroups.every(([c]) => collapsedCats[`${activeTab}:${c}`])
+                                return (
                                 <div key={category} className="space-y-2 mt-3">
-                                    <h4 className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                        {category}
-                                    </h4>
+                                    {groupIndex === 0 && allGroups.length > 1 && !searchQuery.trim() && (
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>{allGroups.length} categorias</span>
+                                            <button
+                                                onClick={() => setCollapsedCats(Object.fromEntries(allGroups.map(([c]) => [`${activeTab}:${c}`, !allCollapsed])))}
+                                                className="h-8 px-3 rounded-full text-[11px] font-black flex items-center gap-1 transition active:scale-95"
+                                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                            >
+                                                <ChevronsUpDown size={13} /> {allCollapsed ? 'Expandir todas' : 'Recolher todas'}
+                                            </button>
+                                        </div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setCollapsedCats(prev => ({ ...prev, [catKey]: !prev[catKey] }))}
+                                        aria-expanded={!isCollapsed}
+                                        className="w-full flex items-center gap-2 text-left transition active:opacity-70"
+                                    >
+                                        <ChevronDown size={14} className="flex-shrink-0 transition-transform" style={{ color: '#f97316', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
+                                        <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>{category}</span>
+                                        <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={{ background: `${colors.border}55`, color: colors.textSecondary }}>{products.length}</span>
+                                    </button>
+                                    {!isCollapsed && (
                                     <div className={v3 && activeTab === 'services' && actions.serviceRows ? 'flex flex-col' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
                                         {products.map(product => {
                                             const isHourly = product.price_type === 'hourly'
@@ -1737,8 +1769,10 @@ export function Store({
                                             )
                                         })}
                                     </div>
+                                    )}
                                 </div>
-                            ))
+                                )
+                            })
                         )}
                     </div>
                 )}

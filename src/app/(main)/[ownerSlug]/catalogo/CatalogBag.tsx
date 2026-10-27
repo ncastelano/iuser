@@ -2,7 +2,7 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { ShoppingCart, Minus, Plus, Trash2, MessageCircle, ChevronUp } from 'lucide-react'
+import { ShoppingCart, Minus, Plus, Trash2, MessageCircle, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import FallbackImage from '@/components/FallbackImage'
@@ -212,7 +212,7 @@ export default function CatalogBag({
                                         className="w-full flex items-center justify-center py-1 rounded-lg hover:opacity-70 transition-opacity"
                                         aria-label="Recolher carrinho"
                                     >
-                                        <ChevronUp size={16} style={{ color: colors.textSecondary }} />
+                                        <ChevronDown size={16} style={{ color: colors.textSecondary }} />
                                     </button>
                                 )}
                                 {bagItems.map((item) => (
