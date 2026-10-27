@@ -14,7 +14,7 @@ import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
-import { Plus, Minus, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera } from 'lucide-react'
+import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera } from 'lucide-react'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
@@ -41,6 +41,15 @@ interface Product {
     slug?: string
     created_at?: string
     has_addons?: boolean
+}
+
+// Oferta: a loja escreve "De R$ 29,90 por R$ 21,90." no começo da descrição; o catálogo mostra o preço antigo riscado e o % OFF (o preço cobrado é sempre o do produto)
+function parsePromo(desc: string | null | undefined, price: number): { old: number; pct: number; rest: string } | null {
+    const m = (desc || '').match(/^\s*De\s+R\$\s*([\d.]+,\d{2})\s+por\s+R\$\s*[\d.]+,\d{2}\.?\s*/i)
+    if (!m || !desc) return null
+    const old = parseFloat(m[1].replace(/\./g, '').replace(',', '.'))
+    if (!(old > price) || !(price > 0)) return null
+    return { old, pct: Math.round((1 - price / old) * 100), rest: desc.slice(m[0].length) }
 }
 
 interface StoreInfo {
@@ -982,6 +991,8 @@ export default function CatalogoClientPage() {
     }, [products, searchQuery, selectedCategory])
 
     // ========== AGRUPAR POR CATEGORIA (o tipo vira título da seção, não etiqueta do card) ==========
+    // "Promoções" vem sempre primeiro (na lista e nos chips)
+    const isPromoCategory = (name: string | null | undefined) => /promo/i.test(name || '')
     const groupedFilteredProducts = useMemo(() => {
         const groups: Record<string, typeof filteredProducts> = {}
         filteredProducts.forEach(product => {
@@ -989,8 +1000,12 @@ export default function CatalogoClientPage() {
             if (!groups[cat]) groups[cat] = []
             groups[cat].push(product)
         })
-        return groups
-    }, [filteredProducts])
+        // promoções primeiro e, depois, as categorias com mais produtos (a mesma ordem dos chips)
+        const total: Record<string, number> = {}
+        products.forEach(p => { const c = p.category || 'Geral'; total[c] = (total[c] || 0) + 1 })
+        const sortedNames = Object.keys(groups).sort((a, b) => Number(isPromoCategory(b)) - Number(isPromoCategory(a)) || (total[b] || 0) - (total[a] || 0))
+        return Object.fromEntries(sortedNames.map(n => [n, groups[n]])) as Record<string, typeof filteredProducts>
+    }, [filteredProducts, products])
 
     // ========== CATEGORIAS ==========
     const categories = useMemo(() => {
@@ -1002,7 +1017,7 @@ export default function CatalogoClientPage() {
         })
         return [
             { name: 'Todos', count: products.length },
-            ...Array.from(cats.entries()).map(([name, count]) => ({ name, count }))
+            ...Array.from(cats.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => Number(isPromoCategory(b.name)) - Number(isPromoCategory(a.name)) || b.count - a.count)
         ]
     }, [products])
 
@@ -1306,9 +1321,15 @@ export default function CatalogoClientPage() {
                                 <div key={category} className="flex flex-col gap-3">
                                     {/* 3.0: com uma categoria só, o título ("Geral") não diz nada */}
                                     {!(insideShell && Object.keys(groupedFilteredProducts).length <= 1) && (
-                                        <h4 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                            {category}
-                                        </h4>
+                                        insideShell && isPromoCategory(category) ? (
+                                            <h4 className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wider text-white" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', boxShadow: '0 4px 14px rgba(239,68,68,0.35)' }}>
+                                                <Flame size={13} /> {category}
+                                            </h4>
+                                        ) : (
+                                            <h4 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                                {category}
+                                            </h4>
+                                        )
                                     )}
                                     <div className={insideShell ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-4'}>
                                         {categoryProducts.map((product) => {
@@ -1330,6 +1351,7 @@ export default function CatalogoClientPage() {
                                 // 3.0: cartão em grade (foto em cima, nome, preço e o botão de adicionar/quantidade), no desenho do /comprar
                                 if (insideShell) {
                                     const soldOut = product.stock !== null && product.stock <= 0
+                                    const promo = parsePromo(product.description, product.price)
                                     return (
                                         <div
                                             key={product.id}
@@ -1342,18 +1364,22 @@ export default function CatalogoClientPage() {
                                                     ? <img src={product.image_url || storeInfo?.logo_url || ''} alt="" className={`w-full h-full ${product.image_url ? 'object-cover' : 'object-contain p-6'}`} loading="lazy" />
                                                     : <span className="absolute inset-0 flex items-center justify-center text-white/90 text-4xl font-black">{storeInfo?.name?.trim().charAt(0).toUpperCase() || '?'}</span>}
                                                 {soldOut && <span className="absolute left-2 top-2 text-[10px] font-black uppercase px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Esgotado</span>}
+                                                {!soldOut && promo && <span className="absolute left-2 top-2 text-[11px] font-black px-2 py-0.5 rounded-full text-white flex items-center gap-1" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', boxShadow: '0 2px 8px rgba(239,68,68,0.45)' }}><Flame size={11} />-{promo.pct}%</span>}
                                                 {isSelected && quantity > 0 && (
                                                     <span className="absolute right-2 top-2 min-w-[24px] h-6 px-1.5 rounded-full text-[11px] font-black text-white flex items-center justify-center" style={{ background: '#16a34a', boxShadow: '0 0 0 2px #fff' }}>{quantity}</span>
                                                 )}
                                             </div>
                                             <div className="p-2.5 flex flex-col gap-1 flex-1">
                                                 <h3 className="text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.75em' }}>{product.name}</h3>
-                                                {product.description && (
-                                                    <p className="text-[11px] leading-snug truncate" style={{ color: colors.textSecondary }}>{product.description}</p>
+                                                {(promo ? promo.rest : product.description) && (
+                                                    <p className="text-[11px] leading-snug truncate" style={{ color: colors.textSecondary }}>{promo ? promo.rest : product.description}</p>
                                                 )}
                                                 <div className="mt-auto pt-1.5 flex items-center justify-between gap-2">
-                                                    <span className="text-sm font-black leading-tight" style={{ color: '#f97316' }}>
-                                                        {formatPrice(product.price)}{isHourly && <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}> /h</span>}
+                                                    <span className="flex flex-col leading-tight">
+                                                        {promo && <span className="text-[10px] font-bold line-through" style={{ color: colors.textSecondary }}>{formatPrice(promo.old)}</span>}
+                                                        <span className="text-sm font-black" style={{ color: promo ? '#dc2626' : '#f97316' }}>
+                                                            {formatPrice(product.price)}{isHourly && <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}> /h</span>}
+                                                        </span>
                                                     </span>
                                                     {soldOut ? null : isSelected && !productIsDisabled ? (
                                                         <span className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>

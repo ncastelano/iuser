@@ -47,6 +47,85 @@ const HOURS_24 = { weekly: Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [
 const POSTO = [['Água mineral 500 ml', 3.5], ['Energético 269 ml', 8.9], ['Café expresso', 5], ['Salgado assado', 7.5], ['Pão na chapa', 8], ['Gelo em cubos 5 kg', 12], ['Óleo de motor 1 L', 39.9], ['Carvão 3 kg', 18.9]]
 const BEBIDAS = [['Cerveja lata 350 ml', 4.5], ['Cerveja long neck', 8.9], ['Refrigerante 2 L', 9.9], ['Vodka 1 L', 49.9], ['Gelo em cubos 5 kg', 12], ['Energético 269 ml', 8.9], ['Vinho tinto 750 ml', 42.9], ['Carvão 3 kg', 18.9]]
 const MERCADO = [['Arroz 5 kg', 28.9], ['Feijão 1 kg', 8.5], ['Leite integral 1 L', 5.99], ['Pão de forma', 8.9], ['Ovos (dúzia)', 14.9], ['Macarrão 500 g', 4.5], ['Papel higiênico 12 un', 22.9], ['Detergente 500 ml', 2.99]]
+// Farmácia Plantão 24h COMPLETA: [nome, preço, categoria, descrição]. "Promoções" traz "De R$ X por R$ Y." na descrição (o catálogo da 3.0 mostra o preço antigo riscado e o % OFF).
+const FARMACIA = [
+    // ---- Promoções
+    ['Kit Higiene Bucal (escova + creme dental + fio)', 21.9, 'Promoções', 'De R$ 29,90 por R$ 21,90. Escova macia, creme dental 90 g e fio dental 50 m.'],
+    ['Fralda Descartável Jumbo G (36 un)', 49.9, 'Promoções', 'De R$ 64,90 por R$ 49,90. Alta absorção e ajuste macio, para a noite toda.'],
+    ['Protetor Solar FPS 50 (120 ml)', 39.9, 'Promoções', 'De R$ 59,90 por R$ 39,90. Resistente à água, toque seco, para rosto e corpo.'],
+    ['Kit Shampoo + Condicionador 400 ml', 29.9, 'Promoções', 'De R$ 42,90 por R$ 29,90. Hidratação profunda para todos os tipos de cabelo.'],
+    ['Vitamina C 1 g Efervescente (10 comp)', 12.9, 'Promoções', 'De R$ 18,90 por R$ 12,90. Reforço para a imunidade, sabor laranja.'],
+    ['Perfume Masculino Amadeirado 100 ml', 89.9, 'Promoções', 'De R$ 129,90 por R$ 89,90. Fixação de longa duração, presente perfeito.'],
+    ['Pelúcia Urso Grande 40 cm', 49.9, 'Promoções', 'De R$ 69,90 por R$ 49,90. Macio, hipoalergênico e lavável.'],
+    ['Kit Termômetro Digital + Máscaras (10 un)', 24.9, 'Promoções', 'De R$ 39,90 por R$ 24,90. Leitura em 10 segundos e máscaras descartáveis.'],
+    ['Leve 3 Pague 2: Sabonete Líquido 250 ml', 25.8, 'Promoções', 'De R$ 38,70 por R$ 25,80. Leve três e pague só duas unidades.'],
+    ['Kit Maquiagem Básica (batom + máscara de cílios)', 34.9, 'Promoções', 'De R$ 54,90 por R$ 34,90. Batom matte e máscara de cílios à prova d’água.'],
+    // ---- Medicamentos
+    ['Dipirona 10 comprimidos', 6.9, 'Medicamentos', 'Analgésico e antitérmico. Venda livre; leia a bula.'],
+    ['Paracetamol 750 mg', 9.9, 'Medicamentos', 'Para dor e febre. 20 comprimidos.'],
+    ['Ibuprofeno 400 mg (10 comp)', 14.9, 'Medicamentos', 'Anti-inflamatório e analgésico. Tomar após as refeições.'],
+    ['Antialérgico 10 comprimidos', 14.9, 'Medicamentos', 'Alívio de rinite, coceira e urticária.'],
+    ['Antiácido Efervescente (6 sachês)', 12.5, 'Medicamentos', 'Alívio rápido de azia e má digestão.'],
+    ['Xarope para Tosse 120 ml', 19.9, 'Medicamentos', 'Expectorante, sabor mel e limão.'],
+    ['Colírio Lubrificante 15 ml', 16.9, 'Medicamentos', 'Alivia olho seco e irritação por tela.'],
+    ['Pastilhas para Garganta (12 un)', 9.9, 'Medicamentos', 'Sabor mel e própolis. Alívio da dor de garganta.'],
+    ['Soro Fisiológico Nasal 30 ml', 8.9, 'Medicamentos', 'Limpeza e hidratação das vias nasais.'],
+    ['Sal de Fruta (2 sachês)', 4.5, 'Medicamentos', 'Efervescente para desconforto estomacal.'],
+    // ---- Higiene pessoal
+    ['Escova de Dentes Macia', 7.9, 'Higiene pessoal', 'Cerdas macias e cabo ergonômico.'],
+    ['Creme Dental 90 g', 6.5, 'Higiene pessoal', 'Proteção anticáries, com flúor.'],
+    ['Enxaguante Bucal 250 ml', 14.9, 'Higiene pessoal', 'Hálito fresco por mais tempo, sem álcool.'],
+    ['Sabonete em Barra (pacote c/ 6)', 14.9, 'Higiene pessoal', 'Hidratante, fragrância suave.'],
+    ['Desodorante Aerosol 150 ml', 15.9, 'Higiene pessoal', 'Proteção por 48 horas.'],
+    ['Absorvente com Abas (8 un)', 7.9, 'Higiene pessoal', 'Cobertura seca, proteção noturna.'],
+    ['Papel Higiênico Folha Dupla (4 rolos)', 8.9, 'Higiene pessoal', 'Macio e resistente, neutro.'],
+    // ---- Cosméticos
+    ['Hidratante Corporal 200 ml', 19.9, 'Cosméticos', 'Manteiga de karité, absorção rápida.'],
+    ['Creme Facial FPS 30', 49.9, 'Cosméticos', 'Hidratação e proteção diária para o rosto.'],
+    ['Batom Matte', 24.9, 'Cosméticos', 'Alta pigmentação e longa duração.'],
+    ['Máscara de Cílios à Prova d’Água', 29.9, 'Cosméticos', 'Volume e alongamento sem borrar.'],
+    ['Esmalte Cremoso (cores variadas)', 8.9, 'Cosméticos', 'Secagem rápida e brilho intenso.'],
+    ['Removedor de Esmalte 100 ml', 7.5, 'Cosméticos', 'Sem acetona, com vitamina E.'],
+    ['Shampoo Hidratação 350 ml', 22.9, 'Cosméticos', 'Brilho e maciez para cabelos secos.'],
+    // ---- Perfumaria
+    ['Colônia Infantil 100 ml', 29.9, 'Perfumaria', 'Suave e alergênico-testada, aroma de algodão-doce.'],
+    ['Body Splash Frutas Vermelhas 200 ml', 34.9, 'Perfumaria', 'Refrescante e perfumado, para o dia a dia.'],
+    ['Perfume Feminino Floral 100 ml', 119.9, 'Perfumaria', 'Notas de jasmim e baunilha, fixação longa.'],
+    ['Desodorante Colônia Masculino 90 ml', 44.9, 'Perfumaria', 'Fragrância cítrica e amadeirada.'],
+    ['Loção Pós-Barba 100 ml', 24.9, 'Perfumaria', 'Acalma a pele e refresca.'],
+    // ---- Bebê e infantil
+    ['Fralda descartável M', 39.9, 'Bebê e infantil', 'Pacote com 28 unidades, ajuste macio.'],
+    ['Lenço Umedecido (50 un)', 11.9, 'Bebê e infantil', 'Sem álcool, hipoalergênico.'],
+    ['Pomada para Assaduras 45 g', 18.9, 'Bebê e infantil', 'Barreira protetora, com óxido de zinco.'],
+    ['Mamadeira 260 ml', 24.9, 'Bebê e infantil', 'Bico de silicone, antivazamento.'],
+    ['Chupeta Ortodôntica', 12.9, 'Bebê e infantil', 'Silicone macio, 0 a 6 meses.'],
+    ['Sabonete Líquido Infantil 200 ml', 13.9, 'Bebê e infantil', 'Sem lágrimas, pH neutro.'],
+    // ---- Brinquedos
+    ['Carrinho de Fricção', 19.9, 'Brinquedos', 'Resistente, para crianças a partir de 3 anos.'],
+    ['Boneca com Acessórios', 39.9, 'Brinquedos', 'Cabelos para pentear e mamadeira.'],
+    ['Quebra-Cabeça 60 Peças', 24.9, 'Brinquedos', 'Estimula raciocínio e coordenação.'],
+    ['Bola de Futebol Nº 5', 34.9, 'Brinquedos', 'Costurada, para quadra e campo.'],
+    ['Massinha de Modelar (6 cores)', 12.9, 'Brinquedos', 'Atóxica, não gruda nas mãos.'],
+    // ---- Primeiros socorros
+    ['Curativo adesivo (20 un)', 7.9, 'Primeiros socorros', 'Resistente à água, tamanhos sortidos.'],
+    ['Termômetro digital', 29.9, 'Primeiros socorros', 'Leitura rápida e memória da última medição.'],
+    ['Álcool em gel 500 ml', 12.9, 'Primeiros socorros', 'Álcool 70%, higieniza sem enxágue.'],
+    ['Soro fisiológico 500 ml', 8.5, 'Primeiros socorros', 'Para limpeza de feridas e lavagem ocular.'],
+    ['Gaze Estéril (10 un)', 6.9, 'Primeiros socorros', 'Embalagem individual esterilizada.'],
+    ['Água Oxigenada 10 vol 100 ml', 4.9, 'Primeiros socorros', 'Antisséptico para limpeza de ferimentos.'],
+    ['Esparadrapo 5 cm x 4,5 m', 5.9, 'Primeiros socorros', 'Fixação segura de curativos.'],
+    // ---- Vitaminas e suplementos
+    ['Vitamina D 2000 UI (30 cápsulas)', 29.9, 'Vitaminas e suplementos', 'Suporte para ossos e imunidade.'],
+    ['Ômega 3 (60 cápsulas)', 39.9, 'Vitaminas e suplementos', 'EPA e DHA, para coração e cérebro.'],
+    ['Polivitamínico A-Z (60 comp)', 34.9, 'Vitaminas e suplementos', 'Vitaminas e minerais para o dia a dia.'],
+    ['Colágeno em Pó 300 g', 44.9, 'Vitaminas e suplementos', 'Sabor limão, para pele, unhas e articulações.'],
+    // ---- Conveniência
+    ['Água Mineral 500 ml', 3.5, 'Conveniência', 'Sem gás, gelada.'],
+    ['Energético 269 ml', 8.9, 'Conveniência', 'Cafeína e taurina.'],
+    ['Barra de Cereal', 3.5, 'Conveniência', 'Sabor chocolate, fonte de fibras.'],
+    ['Preservativo (3 un)', 9.9, 'Conveniência', 'Lubrificado, textura extrafina.'],
+]
+
 const STORES = [
     { key: 'posto-centro', name: 'Posto Ipiranga Centro 24h', cat: 'Transporte e Logística', desc: 'Posto com loja de conveniência aberta 24 horas: combustível, café, salgados, gelo e o que você precisar de madrugada.', addr: 'Av. Sete de Setembro, 1200, Centro, Porto Velho - RO', lat: -8.7625, lng: -63.9030, colors: ['#0ea5e9', '#075985'], items: POSTO },
     { key: 'posto-calama', name: 'Posto Calama 24h Conveniência', cat: 'Transporte e Logística', desc: 'Conveniência 24 horas na Av. Calama. Lanches, bebidas, lubrificantes e troca de óleo.', addr: 'Av. Calama, 3100, Embratel, Porto Velho - RO', lat: -8.7510, lng: -63.9150, colors: ['#ef4444', '#991b1b'], items: POSTO },
@@ -57,11 +136,12 @@ const STORES = [
     { key: 'mini-nova-porto', name: 'Mini Mercado Nova Porto 24h', cat: 'Alimentação', desc: 'Mini mercado aberto o tempo todo: básicos da casa, bebidas, higiene e limpeza.', addr: 'Rua Júlio de Castilho, 410, Arigolândia, Porto Velho - RO', lat: -8.7650, lng: -63.9020, colors: ['#10b981', '#065f46'], items: MERCADO },
     { key: 'mini-tudo-aqui', name: 'Mini Mercado Tudo Aqui 24h', cat: 'Alimentação', desc: 'Tudo aqui, a qualquer hora. Compras rápidas para o dia a dia e para a madrugada.', addr: 'Av. Campos Sales, 900, Liberdade, Porto Velho - RO', lat: -8.7610, lng: -63.9080, colors: ['#f97316', '#9a3412'], items: MERCADO },
     { key: 'mercadinho-sc', name: 'Mercadinho São Cristóvão 24h', cat: 'Alimentação', desc: 'Mercadinho de bairro que funciona 24 horas: pão, leite, ovos, bebidas e produtos de limpeza.', addr: 'Rua Rafael Vaz e Silva, 305, São Cristóvão, Porto Velho - RO', lat: -8.7655, lng: -63.9065, colors: ['#ec4899', '#9d174d'], items: [...MERCADO.slice(0, 6), ['Refrigerante 2 L', 9.9], ['Cerveja lata 350 ml', 4.5]] },
-    { key: 'farmacia-plantao', name: 'Farmácia Plantão 24h', cat: 'Saúde e Bem-estar', desc: 'Farmácia de plantão 24 horas: medicamentos, fraldas, curativos e itens de primeiros socorros.', addr: 'Av. Sete de Setembro, 850, Centro, Porto Velho - RO', lat: -8.7615, lng: -63.9040, colors: ['#14b8a6', '#115e59'], items: [['Dipirona 10 comprimidos', 6.9], ['Paracetamol 750 mg', 9.9], ['Soro fisiológico 500 ml', 8.5], ['Fralda descartável M', 39.9], ['Curativo adesivo (20 un)', 7.9], ['Termômetro digital', 29.9], ['Antialérgico 10 comprimidos', 14.9], ['Álcool em gel 500 ml', 12.9]] },
+    { key: 'farmacia-plantao', name: 'Farmácia Plantão 24h', cat: 'Saúde e Bem-estar', desc: 'Farmácia 24 horas COMPLETA: medicamentos, higiene, cosméticos, perfumaria, bebê, brinquedos, vitaminas e promoções todo dia. Retire na loja ou peça entrega.', addr: 'Av. Sete de Setembro, 850, Centro, Porto Velho - RO', lat: -8.7615, lng: -63.9040, colors: ['#14b8a6', '#115e59'], items: FARMACIA },
     { key: 'padaria-pao-quente', name: 'Padaria Pão Quente 24h', cat: 'Alimentação', desc: 'Pão saindo toda hora, inclusive de madrugada. Café, salgados, bolos e sanduíches.', addr: 'Rua Almirante Barroso, 220, Centro, Porto Velho - RO', lat: -8.7620, lng: -63.9000, colors: ['#eab308', '#854d0e'], items: [['Pão francês (10 un)', 7], ['Café coado', 4.5], ['Bolo de milho (fatia)', 6.5], ['Pão de queijo (10 un)', 12], ['Sanduíche natural', 12.9], ['Cuscuz com ovo', 9]] },
     { key: 'lanchonete-madrugada', name: 'Lanchonete Madrugada 24h', cat: 'Alimentação', desc: 'Lanches, porções e açaí a qualquer hora. A cozinha não fecha.', addr: 'Av. Farquar, 700, Pedrinhas, Porto Velho - RO', lat: -8.7600, lng: -63.9000, colors: ['#dc2626', '#7f1d1d'], items: [['X-burguer', 18], ['X-tudo', 26], ['Cachorro-quente', 12], ['Batata frita', 16], ['Suco natural 500 ml', 9], ['Açaí 500 ml', 18]] },
     { key: 'disk-gas-agua', name: 'Disk Gás e Água 24h', cat: 'Casa e Decoração', desc: 'Gás de cozinha e água mineral entregues 24 horas por dia.', addr: 'Av. Jorge Teixeira, 2200, Industrial, Porto Velho - RO', lat: -8.7490, lng: -63.8950, colors: ['#0284c7', '#0c4a6e'], items: [['Gás de cozinha P13', 112], ['Galão de água 20 L', 14], ['Água mineral 1,5 L (fardo c/ 6)', 18], ['Mangueira e regulador', 39.9]] },
 ]
+
 const OWNER_NAMES = ['Edson Matos', 'Neide Prado', 'Gilberto Souza', 'Zeca Albuquerque', 'Tânia Lima', 'Marcos Vilela', 'Rita Nogueira', 'Osvaldo Cunha', 'Beatriz Maia', 'Ivan Rocha', 'Luzia Moreira', 'Heitor Campos', 'Carla Bessa']
 
 // ---------------------------------------------------------------- pessoas que trabalham à noite
@@ -141,17 +221,20 @@ for (const s of STORES) s.id = dbStores.find((x) => x.storeSlug === `24h-${s.key
 // ---------------------------------------------------------------- produtos das lojas e serviços das pessoas
 const rows = []
 for (const s of STORES) {
-    s.items.forEach(([name, price], i) => {
+    s.items.forEach(([name, price, cat, desc], i) => {
         const slug = `${slugify(name)}-${s.key}`
-        rows.push({ id: uid(`prod:${s.key}:${name}`), name, slug, description: `${name} — ${s.name}. Aberto 24 horas.`, price, type: 'physical', price_type: 'fixed', listing_type: 'sale', is_active: true,
-            image_url: `eco24-${slug}.jpg`, store_id: s.id, owner_id: s.owner.id, view_count: 20 + (hash(slug) % 400), show_chat: false, show_whatsapp: true, duration_minutes: 60, _colors: [s.colors, [s.colors[1], s.colors[0]], [s.colors[0], '#111827']][i % 3], _sub: s.name })
+        const promo = cat === 'Promoções'
+        const catColors = { 'Promoções': ['#ef4444', '#b91c1c'], 'Medicamentos': ['#14b8a6', '#115e59'], 'Higiene pessoal': ['#0ea5e9', '#075985'], 'Cosméticos': ['#ec4899', '#9d174d'], 'Perfumaria': ['#a855f7', '#6b21a8'], 'Bebê e infantil': ['#f59e0b', '#b45309'], 'Brinquedos': ['#22c55e', '#166534'], 'Primeiros socorros': ['#dc2626', '#7f1d1d'], 'Vitaminas e suplementos': ['#84cc16', '#3f6212'], 'Conveniência': ['#64748b', '#1e293b'] }
+        rows.push({ id: uid(`prod:${s.key}:${name}`), name, slug, description: desc || `${name} — ${s.name}. Aberto 24 horas.`, price, type: 'physical', price_type: 'fixed', listing_type: 'sale', is_active: true, category: cat || null,
+            image_url: `eco24-${slug}.jpg`, store_id: s.id, owner_id: s.owner.id, view_count: (promo ? 900 : 20) + (hash(slug) % 400), show_chat: false, show_whatsapp: true, duration_minutes: 60,
+            _colors: (cat && catColors[cat]) || [s.colors, [s.colors[1], s.colors[0]], [s.colors[0], '#111827']][i % 3], _sub: promo ? `Oferta · ${s.name}` : s.name })
     })
 }
 for (const p of NIGHT) {
     p.services.forEach(([name, description], i) => {
         const slug = `${slugify(name)}-${p.key}`
         rows.push({ id: uid(`svc:${p.key}:${name}`), name, slug, description, price: 0, type: 'service', price_type: 'fixed', listing_type: 'service_offer', is_active: true, image_url: `eco24-${slug}.jpg`,
-            store_id: null, owner_id: p.id, view_count: 30 + (hash(slug) % 500), show_chat: true, show_whatsapp: true, duration_minutes: 60, _colors: AV[(hash(p.key) + i) % AV.length], _sub: `${p.name} · à noite` })
+            store_id: null, owner_id: p.id, category: null, view_count: 30 + (hash(slug) % 500), show_chat: true, show_whatsapp: true, duration_minutes: 60, _colors: AV[(hash(p.key) + i) % AV.length], _sub: `${p.name} · à noite` })
     })
 }
 for (const r of rows) {
