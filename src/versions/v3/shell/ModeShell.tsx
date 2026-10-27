@@ -25,6 +25,8 @@ import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched
 import { switchVersion, versionLabel } from '@/versions/client'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+// O hub aberto tem a mesma cor da ilha quando há algo vivo (azul-escuro)
+const MENU_BG = '#111827'
 
 const toPublicImage = (bucket: string, path: string | null | undefined) => {
     if (!path) return null
@@ -103,7 +105,7 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
                     <button
                         onClick={() => onSelect(mode)}
                         className="mr-3 flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                        style={{ background: '#fff', color: '#dc2626' }}
+                        style={{ background: '#fff', color: MENU_BG }}
                     >
                         Painel
                     </button>
@@ -121,7 +123,7 @@ function DrawerPill({ onClick, children, solid = false }: { onClick: () => void;
         <button
             onClick={onClick}
             className="flex-1 py-2 rounded-full text-xs font-black transition hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            style={solid ? { background: '#fff', color: '#dc2626' } : { background: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.45)' }}
+            style={solid ? { background: '#fff', color: MENU_BG } : { background: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.45)' }}
         >
             {children}
         </button>
@@ -271,7 +273,7 @@ function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (pa
                             <span
                                 key={`${r.type}-${r.id}`}
                                 className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-black flex-shrink-0"
-                                style={{ marginLeft: i === 0 ? 0 : -10, background: 'rgba(255,255,255,0.35)', boxShadow: '0 0 0 2px #ea580c' }}
+                                style={{ marginLeft: i === 0 ? 0 : -10, background: 'rgba(255,255,255,0.35)', boxShadow: `0 0 0 2px ${MENU_BG}` }}
                                 title={r.name}
                             >
                                 {r.imageUrl ? <img src={r.imageUrl} alt="" className="w-full h-full object-cover" /> : (r.name || '?').charAt(0).toUpperCase()}
@@ -293,7 +295,7 @@ function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
             disabled={busy}
             onClick={async () => { setBusy(true); try { await onSwitch() } finally { /* a página recarrega */ } }}
             className="mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left text-white transition active:scale-[0.98] disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            style={{ background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.28)' }}
+            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.28)' }}
         >
             <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
                 <RotateCcw size={18} />
@@ -340,7 +342,6 @@ function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { rece
 }
 
 
-const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
 // A ilha flutua no topo; o conteúdo da página começa abaixo dela (NAV_H, a mesma altura de antes: telas cheias usam --shell-top)
 const ISLAND_TOP = 'calc(8px + env(safe-area-inset-top))'
 const ISLAND_H = 56
@@ -625,7 +626,7 @@ export default function ModeShell({ children }: {
                 >
                     {/* O cartão TODO é um botão: abre o hub (ou vai ao que está vivo) */}
                     <button
-                        onClick={() => (live ? go(live.path) : openHub())}
+                        onClick={() => (live && live.path.split('?')[0] !== shellPath ? go(live.path) : openHub())}
                         aria-label={live ? live.title : 'Abrir menu'}
                         className="absolute inset-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                     />
@@ -686,7 +687,7 @@ export default function ModeShell({ children }: {
                         role="dialog"
                         aria-label="Menu do iUser"
                         style={{
-                            background: MENU_GRADIENT,
+                            background: MENU_BG,
                             borderRadius: 28,
                             maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
                             display: 'flex', flexDirection: 'column',
