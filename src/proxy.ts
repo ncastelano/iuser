@@ -56,6 +56,7 @@ const IGNORED_ROUTES = [
     '/imoveis', // aluguel de imóveis (3.0): busca
     '/anunciar-imovel',
     '/meus-imoveis',
+    '/flash', // feed de pessoas (3.0)
 ]
 
 // ===== PREFIXOS IGNORADOS =====

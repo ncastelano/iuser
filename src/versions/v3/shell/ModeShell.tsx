@@ -355,7 +355,7 @@ const LOGO_IMG_SCALE = 1.15
 // Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
 // Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
 const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos']
-const BAR_PATHS = ['/', '/comprar', '/lojas', '/produtos', '/servicos-disponiveis', '/carrinho', '/conversas', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
+const BAR_PATHS = ['/', '/flash', '/comprar', '/lojas', '/produtos', '/servicos-disponiveis', '/carrinho', '/conversas', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
 
 // Foto do modo (perfil, logo da loja, foto do carro) — ou o ícone do modo quando não há imagem. Troca de modo = pequeno "estouro".
 function ModeAvatar({ userId, image, noRing, modeIcon, popToken, colors, size = 40 }: {
@@ -614,10 +614,8 @@ export default function ModeShell({ children }: {
         const t = setTimeout(() => setRising(false), 750)
         return () => clearTimeout(t)
     }, [shellPath])
-    // Na página do modo escolhido (painel do perfil, loja, veículo...), a foto da barra também fica marcada
-    const modeSelected = !!userId && dataLoaded && !!pathname && modePath(activeMode, drawerData) === pathname
-    const activeKey: 'cart' | 'chat' | 'home' | 'radar' | 'me' | null = drawerOpen ? 'me'
-        : shellPath.startsWith('/carrinho') ? 'cart' : shellPath.startsWith('/conversas') ? 'chat' : shellPath === '/' ? 'home' : shellPath.startsWith('/radar') ? 'radar' : modeSelected ? 'me' : null
+    const activeKey: 'cart' | 'chat' | 'home' | 'radar' | 'flash' | null =
+        shellPath.startsWith('/carrinho') ? 'cart' : shellPath.startsWith('/conversas') ? 'chat' : shellPath === '/' ? 'home' : shellPath.startsWith('/radar') ? 'radar' : shellPath.startsWith('/flash') ? 'flash' : null
     // A barra de baixo só nas páginas "raiz"
     const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/')) && !(shellPath === '/conversas' && threadOpen)
     const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
@@ -753,7 +751,7 @@ export default function ModeShell({ children }: {
             </div>
         </div>
 
-        {/* BARRA de baixo (componente compartilhado com a home da 2.0): carrinho, conversas, iUser no centro, radar e a foto (abre o hub) */}
+        {/* BARRA de baixo: carrinho, conversas, iUser no centro, radar e Flash (o hub abre pela ilha do topo) */}
         {barShown && (
             <BottomNavBar
                 colors={colors}
@@ -763,15 +761,11 @@ export default function ModeShell({ children }: {
                 orderCounts={orderCounts}
                 unread={topUnread}
                 showCartStrip={cartStrip}
-                avatarLabel={idle.label}
-                avatar={userId
-                    ? <ModeAvatar userId={userId} image={idle.image} noRing={idle.noRing} modeIcon={idle.modeIcon} popToken={0} colors={colors} size={34} />
-                    : <span className="w-[34px] h-[34px] rounded-full flex items-center justify-center" style={{ background: `${colors.border}b0`, color: colors.textSecondary }}><User size={19} /></span>}
                 onCart={() => go(cartStrip || !(topCart === 0 && ordersActive > 0) ? '/carrinho' : '/carrinho?aba=pedidos')}
                 onChat={() => go(userId ? chatPath : '/login')}
                 onHome={() => (shellPath === '/' ? window.scrollTo({ top: 0, behavior: 'smooth' }) : go('/'))}
                 onRadar={() => go('/radar')}
-                onAvatar={openHub}
+                onFlash={() => go('/flash')}
             />
         )}
 

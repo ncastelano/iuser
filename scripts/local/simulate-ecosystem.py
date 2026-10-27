@@ -198,9 +198,31 @@ def act_follow(p):
     return f"passou a seguir @{target['slug']}"
 
 
+FLASH_TEXTS = ['Bom dia, Porto Velho! ☀️', 'Alguém indica um bom eletricista?', 'Acabei de pedir pelo iUser, chegou rapidinho!', 'Domingo de sol e churrasco 🔥', 'Quem vai no evento da praça?',
+               'Hoje o trânsito tá pesado demais 😅', 'Fechei um serviço pelo iUser, muito prático', 'Pizza de sexta com a família 🍕', 'Estudando pra prova, sem tempo pra nada 📚',
+               'Vendi tudo que fiz hoje, gratidão!', 'Procurando babá de confiança pra sábado', 'O melhor açaí da cidade? Aceito indicações.', 'Quem mais tá sem sono a essa hora?']
+FLASH_COMMENTS = ['Muito bom!', 'Adorei 😍', 'Parabéns!', 'Onde fica?', 'Top demais', 'Também quero!', 'Show de bola', 'Verdade!', 'Boa!', 'Me chama no privado']
+
+
+def act_flash(p):
+    """Flash (feed de pessoas): posta um flash, curte ou comenta o de alguém."""
+    recent = q_local("select id from flashes order by created_at desc limit 30")
+    r = R.random()
+    if r < 0.4 or not recent:
+        text = R.choice(FLASH_TEXTS)
+        as_user(p['id'], f"insert into flashes (author_id, content) values ({esc(p['id'])}::uuid, {esc(text)});")
+        return f"postou um flash: “{text[:40]}”"
+    f = R.choice(recent)
+    if r < 0.8:
+        as_user(p['id'], f"insert into flash_likes (flash_id, profile_id) values ({esc(f['id'])}::uuid, {esc(p['id'])}::uuid) on conflict do nothing;")
+        return 'curtiu um flash'
+    as_user(p['id'], f"insert into flash_comments (flash_id, author_id, content) values ({esc(f['id'])}::uuid, {esc(p['id'])}::uuid, {esc(R.choice(FLASH_COMMENTS))});")
+    return 'comentou num flash'
+
+
 ACTIONS = {
     'buy': (act_buy, 30), 'schedule': (act_schedule, 16), 'comment': (act_comment, 16), 'community': (act_community, 12),
-    'review': (act_review, 12), 'publish': (act_publish, 6), 'follow': (act_follow, 8),
+    'review': (act_review, 12), 'publish': (act_publish, 6), 'follow': (act_follow, 8), 'flash': (act_flash, 14),
 }
 
 

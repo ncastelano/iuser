@@ -1,12 +1,12 @@
 // src/components/BottomNavBar.tsx
 //
-// A barra de navegação flutuante de baixo (vidro): Carrinho, Conversas, a logo do iUser no centro, Radar e a foto da pessoa.
+// A barra de navegação flutuante de baixo: Carrinho, Conversas, a logo do iUser no centro, Radar e Flash (o feed de pessoas).
 // Nas páginas de compra ganha em cima a faixa do carrinho, fundida a ela. Só apresentação: quem usa (a casca da 3.0 e a home da 2.0)
 // passa as contagens, a foto e o que cada toque faz. Constantes de medida exportadas para quem precisa reservar espaço embaixo.
 'use client'
 
 import { ReactNode } from 'react'
-import { ChevronRight, MapPin, MessageCircle, ShoppingCart } from 'lucide-react'
+import { ChevronRight, MessageCircle, Radar, ShoppingCart, Zap } from 'lucide-react'
 import type { OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
@@ -18,7 +18,7 @@ export const BAR_SPACE = 'calc(102px + var(--staging-banner-h, 0px) + env(safe-a
 const LOGO_RING = { border: '0', overflow: 'hidden', boxShadow: 'none' } as const
 const LOGO_IMG_SCALE = 1.15
 
-export type BarKey = 'cart' | 'chat' | 'home' | 'radar' | 'me'
+export type BarKey = 'cart' | 'chat' | 'home' | 'radar' | 'flash'
 
 // Botão da barra: ícone + (selo de quantidade) + traço laranja quando é a página atual
 function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, orders, colors, children }: {
@@ -48,7 +48,7 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
     )
 }
 
-export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, showCartStrip = false, avatar, avatarLabel = 'Meu perfil', onCart, onChat, onHome, onRadar, onAvatar }: {
+export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, showCartStrip = false, onCart, onChat, onHome, onRadar, onFlash }: {
     colors: any
     active: BarKey | null
     cartCount: number
@@ -57,14 +57,11 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     unread: number
     /** Faixa do carrinho fundida à barra (páginas de compra, com itens) */
     showCartStrip?: boolean
-    /** A foto (ou ícone) do canto direito */
-    avatar: ReactNode
-    avatarLabel?: string
     onCart: () => void
     onChat: () => void
     onHome: () => void
     onRadar: () => void
-    onAvatar: () => void
+    onFlash: () => void
 }) {
     const ordersActive = orderCounts.pending + orderCounts.preparing + orderCounts.ready
     const strip = showCartStrip && cartCount > 0
@@ -106,12 +103,11 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
                         </BarButton>
                         <span className="flex-1" aria-hidden />
                         <BarButton colors={colors} active={active === 'radar'} label="Radar" onClick={onRadar}>
-                            <MapPin size={21} />
+                            <Radar size={21} />
                         </BarButton>
-                        <button onClick={onAvatar} aria-label={avatarLabel} aria-pressed={active === 'me'} className="relative flex-1 h-full flex items-center justify-center transition active:scale-90">
-                            {avatar}
-                            <span aria-hidden className="absolute left-1/2 -translate-x-1/2 rounded-full transition-all" style={{ bottom: 5, width: active === 'me' ? 16 : 0, height: 3, background: '#f97316' }} />
-                        </button>
+                        <BarButton colors={colors} active={active === 'flash'} label="Flash" onClick={onFlash}>
+                            <Zap size={21} />
+                        </BarButton>
 
                         {/* iUser no centro: leva à aba que reúne tudo (a home); já nela, volta ao topo. Ancorada pelo FUNDO da barra: quando a faixa do carrinho aparece em cima, a logo fica onde estava */}
                         <button
