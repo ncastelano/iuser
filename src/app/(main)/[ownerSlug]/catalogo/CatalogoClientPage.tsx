@@ -1329,6 +1329,12 @@ export default function CatalogoClientPage() {
                                                 <Flame size={22} /> {category}
                                                 <span className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(220,38,38,0.4), transparent)' }} />
                                             </h4>
+                                        ) : insideShell ? (
+                                            <h4 className="flex items-center gap-2 px-1 text-xl font-black leading-none" style={{ color: colors.textPrimary }}>
+                                                {category}
+                                                <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>{categoryProducts.length}</span>
+                                                <span className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${colors.border}, transparent)` }} />
+                                            </h4>
                                         ) : (
                                             <h4 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
                                                 {category}
