@@ -86,6 +86,10 @@ interface StoreOrdersProps {
     storeName?: string
     onOrderCountsChange?: (counts: { pending: number; preparing: number; ready: number }) => void
     onRefresh?: () => void
+    /** 'panel' (padrão): o cartão-resumo do painel (contadores + só os pedidos NOVOS + atalho); 'page': a lista completa da página "Pedidos da loja" */
+    variant?: 'panel' | 'page'
+    /** O endereço da loja (o atalho "Ver todos os pedidos" do painel leva a /painel-loja/<storeSlug>/pedidos) */
+    storeSlug?: string
 }
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -141,10 +145,13 @@ export default function StoreOrders({
     storeName = 'Loja',
     onOrderCountsChange,
     onRefresh,
+    variant = 'panel',
+    storeSlug,
 }: StoreOrdersProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const v3 = useInsideShell()
+    const router = useRouter()
 
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
@@ -192,6 +199,10 @@ export default function StoreOrders({
     // Pedidos de PRODUTOS e pedidos de SERVIÇOS (agendamentos que a loja precisa aceitar; só os aceitos vão para a agenda)
     const [ordersTab, setOrdersTab] = useState<'products' | 'services'>('products')
     const svc = useStoreServiceAppointments(storeId)
+    // Página "Pedidos da loja": situação aberta (null = a primeira que tem pedido), quantos aparecem e qual pedido está sendo mudado
+    const [pageTab, setPageTab] = useState<'pending' | 'preparing' | 'ready' | 'paid' | null>(null)
+    const [shown, setShown] = useState(20)
+    const [quickBusy, setQuickBusy] = useState<string | null>(null)
 
     // Ref para evitar múltiplas chamadas
     const isLoadingRef = useRef(false)
@@ -546,7 +557,8 @@ export default function StoreOrders({
     }
 
     // ===== HANDLE ORDER ACTION =====
-    const handleOrderAction = async (status: string) => {
+    const handleOrderAction = async (status: string, target: any = selectedOrder) => {
+        const selectedOrder = target
         if (!selectedOrder) return
 
         try {
@@ -909,8 +921,124 @@ export default function StoreOrders({
         }
     }, [groupedOrders, colors.border, colors.textSecondary, surfaceRgb.r, surfaceRgb.g, surfaceRgb.b])
 
+    // ===== PÁGINA "PEDIDOS DA LOJA" (variant='page'): a lista completa, por situação, em linhas compactas =====
+    const renderPage = () => {
+        const TABS = [
+            { id: 'pending' as const, label: 'Novos', color: '#16a34a', list: newOrders },
+            { id: 'preparing' as const, label: 'Preparando', color: '#d97706', list: preparing },
+            { id: 'ready' as const, label: 'Prontos', color: '#7c3aed', list: ready },
+            { id: 'paid' as const, label: 'Finalizados', color: '#2563eb', list: finished },
+        ]
+        const first = TABS.find((t) => t.list.length > 0)
+        const active = TABS.find((t) => t.id === (pageTab ?? first?.id ?? 'pending'))!
+        // Prontos que esperam um motorista iUser (ainda ninguém aceitou): numa fileira horizontal, para não encher a lista
+        const waiting = active.id === 'ready' && iuserDeliveryEnabled ? ready.filter((o: any) => dispatchedOrderIds.has(o.id) && !acceptedDispatchIds.has(o.id)) : []
+        const rest = active.list.filter((o: any) => !waiting.includes(o))
+        const quickFor = (o: any): { label: string; next: string } | null =>
+            o.status === 'pending' ? { label: 'Aceitar', next: 'preparing' }
+                : o.status === 'preparing' ? { label: 'Pronto', next: 'ready' }
+                    // entrega: quem conclui é o motorista; a loja só finaliza o que o cliente retira
+                    : o.status === 'ready' && !o.delivery_address ? { label: 'Finalizar', next: 'paid' }
+                        : null
+        const renderOrder = (order: any, isPaid: boolean) => {
+            const q = quickFor(order)
+            return (
+                <OrderButton
+                    iuserDelivery={iuserDelivery}
+                    key={order.checkout_id}
+                    order={order}
+                    assignmentMap={assignmentMap}
+                    setSelectedOrder={setSelectedOrder}
+                    setSingleAssignOpen={setSingleAssignOpen}
+                    getStatusColor={getStatusColor}
+                    getStatusGradient={getStatusGradient}
+                    formatAssignmentStatus={formatAssignmentStatus}
+                    isInPerson={!order.buyer_profile_slug}
+                    borderColor={colors.border}
+                    isPaid={isPaid}
+                    compact
+                    quick={q ? {
+                        label: q.label,
+                        busy: quickBusy === order.checkout_id,
+                        onClick: async () => { setQuickBusy(order.checkout_id); await handleOrderAction(q.next, order); setQuickBusy(null) },
+                    } : null}
+                />
+            )
+        }
+        return (
+            <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-2">
+                    {([['products', 'Produtos', newOrders.length], ['services', 'Serviços', svc.pending.length]] as const).map(([k, label, n]) => (
+                        <button key={k} onClick={() => setOrdersTab(k)} className="h-10 rounded-full text-[13px] font-black flex items-center justify-center gap-2 transition active:scale-95" style={ordersTab === k ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary }}>
+                            {label}
+                            {n > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{n}</span>}
+                        </button>
+                    ))}
+                </div>
+
+                {ordersTab === 'services' ? (
+                    <StoreServiceOrders pending={svc.pending} onChanged={svc.refetch} />
+                ) : initialLoading && groupedOrders.length === 0 ? (
+                    <div className="flex flex-col gap-2">{[0, 1, 2, 3].map((i) => <span key={i} className="block h-14 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)}</div>
+                ) : groupedOrders.length === 0 ? (
+                    <div className="rounded-2xl p-6 text-center" style={{ border: `1px dashed ${colors.border}` }}>
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>Nenhum pedido ainda.</p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
+                            {TABS.map((t) => {
+                                const on = t.id === active.id
+                                return (
+                                    <button key={t.id} onClick={() => { setPageTab(t.id); setShown(20) }} className="h-10 px-3.5 rounded-full text-[12px] font-black flex items-center gap-2 flex-shrink-0 transition active:scale-95" style={on ? { background: t.color, color: '#fff' } : { background: `${t.color}${t.list.length ? '1a' : '0d'}`, color: t.list.length ? t.color : colors.textSecondary, border: `1px solid ${t.color}${t.list.length ? '40' : '20'}` }}>
+                                        {t.label}
+                                        <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center tabular-nums" style={on ? { background: 'rgba(255,255,255,0.28)' } : { background: `${t.color}22` }}>{t.list.length}</span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        {waiting.length > 0 && (
+                            <div>
+                                <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: active.color }}>Esperando motorista ({waiting.length})</p>
+                                <div className="flex gap-2.5 overflow-x-auto -mx-4 px-4 pb-1 snap-x" style={{ scrollbarWidth: 'none' }}>
+                                    {waiting.map((o: any) => {
+                                        const info = dispatchInfo.get(o.id)
+                                        return (
+                                            <button key={o.checkout_id} onClick={() => setSelectedOrder(o)} className="snap-start flex-shrink-0 w-[196px] rounded-2xl p-3 text-left flex flex-col gap-1 transition active:scale-95" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${active.color}` }}>
+                                                <span className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{o.buyer_profile_slug ? `@${o.buyer_profile_slug}` : o.buyer_name || 'Presencial'}</span>
+                                                <span className="text-[13px] font-black" style={{ color: colors.textPrimary }}>R$ {o.totalPrice.toFixed(2)}</span>
+                                                <span className="text-[10px] font-bold leading-tight" style={{ color: active.color }}>{info?.v2State ? storeV2Text(info) : `Buscando motorista${info ? ` · R$ ${info.freight.toFixed(2)} · até ${info.radius} km` : ''}`}</span>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {rest.length === 0 && waiting.length === 0 ? (
+                            <div className="rounded-2xl p-5 text-center" style={{ border: `1px dashed ${colors.border}` }}>
+                                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Nenhum pedido {active.label.toLowerCase().replace('novos', 'novo').replace('finalizados', 'finalizado')} agora.</p>
+                            </div>
+                        ) : rest.length > 0 && (
+                            <div className="flex flex-col gap-2">
+                                {rest.slice(0, shown).map((o: any) => renderOrder(o, active.id === 'paid'))}
+                                {rest.length > shown && (
+                                    <button onClick={() => setShown((n) => n + 20)} className="h-11 rounded-full text-[13px] font-black transition active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                        Mostrar mais ({rest.length - shown})
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        )
+    }
+
     return (
         <>
+            {variant === 'page' ? renderPage() : (
             <div
                 className={v3 ? 'rounded-3xl relative overflow-hidden flex flex-col p-4 gap-4' : `rounded-2xl relative overflow-hidden flex flex-col ${isOrdersExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
                 style={v3 ? {
@@ -1161,7 +1289,7 @@ export default function StoreOrders({
                                             Novos ({newOrders.length})
                                         </h4>
                                         <div className="space-y-3">
-                                            {newOrders.map((order: any) => (
+                                            {newOrders.slice(0, 3).map((order: any) => (
                                                 <OrderButton
                                                     iuserDelivery={iuserDelivery}
                                                     key={order.checkout_id}
@@ -1181,91 +1309,28 @@ export default function StoreOrders({
                                     </div>
                                 )}
 
-                                {preparing.length > 0 && (
-                                    <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#d97706' }}>
-                                            {!v3 && <Package size={12} />}
-                                            Em Preparo ({preparing.length})
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {preparing.map((order: any) => (
-                                                <OrderButton
-                                                    iuserDelivery={iuserDelivery}
-                                                    key={order.checkout_id}
-                                                    order={order}
-                                                    assignmentMap={assignmentMap}
-                                                    setSelectedOrder={setSelectedOrder}
-                                                    setSingleAssignOpen={setSingleAssignOpen}
-                                                    getStatusColor={getStatusColor}
-                                                    getStatusGradient={getStatusGradient}
-                                                    formatAssignmentStatus={formatAssignmentStatus}
-                                                    isInPerson={!order.buyer_profile_slug}
-                                                    borderColor={colors.border}
-                                                    isPaid={false}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
+                                {newOrders.length === 0 && (
+                                    <p className="text-[13px] font-bold" style={{ color: colors.textSecondary }}>Nenhum pedido novo esperando.</p>
                                 )}
-
-                                {ready.length > 0 && (
-                                    <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#7c3aed' }}>
-                                            {!v3 && <CheckCircle size={12} />}
-                                            Prontos ({ready.length})
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {ready.map((order: any) => (
-                                                <OrderButton
-                                                    iuserDelivery={iuserDelivery}
-                                                    key={order.checkout_id}
-                                                    order={order}
-                                                    assignmentMap={assignmentMap}
-                                                    setSelectedOrder={setSelectedOrder}
-                                                    setSingleAssignOpen={setSingleAssignOpen}
-                                                    getStatusColor={getStatusColor}
-                                                    getStatusGradient={getStatusGradient}
-                                                    formatAssignmentStatus={formatAssignmentStatus}
-                                                    isInPerson={!order.buyer_profile_slug}
-                                                    borderColor={colors.border}
-                                                    isPaid={false}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
+                                {newOrders.length > 3 && (
+                                    <p className="text-[12px] font-black" style={{ color: '#16a34a' }}>+ {newOrders.length - 3} {newOrders.length - 3 === 1 ? 'pedido novo' : 'pedidos novos'} na página de pedidos</p>
                                 )}
-
-                                {finished.length > 0 && (
-                                    <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#2563eb' }}>
-                                            {!v3 && <CheckCircle size={12} />}
-                                            Finalizados ({finished.length})
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {finished.slice(0, 5).map((order: any) => (
-                                                <OrderButton
-                                                    iuserDelivery={iuserDelivery}
-                                                    key={order.checkout_id}
-                                                    order={order}
-                                                    assignmentMap={assignmentMap}
-                                                    setSelectedOrder={setSelectedOrder}
-                                                    setSingleAssignOpen={setSingleAssignOpen}
-                                                    getStatusColor={getStatusColor}
-                                                    getStatusGradient={getStatusGradient}
-                                                    formatAssignmentStatus={formatAssignmentStatus}
-                                                    isInPerson={!order.buyer_profile_slug}
-                                                    borderColor={colors.border}
-                                                    isPaid={true}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
+                                {storeSlug && (
+                                    <button
+                                        onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)}
+                                        className="w-full h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-2 transition active:scale-95 text-white"
+                                        style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
+                                    >
+                                        Ver todos os pedidos
+                                        <span className="px-2 py-0.5 rounded-full text-[11px]" style={{ background: 'rgba(255,255,255,0.25)' }}>{newOrders.length + preparing.length + ready.length} em andamento</span>
+                                    </button>
                                 )}
                             </div>
                         )}
                     </>
                 )}
             </div>
+            )}
 
             {/* Modais */}
             {showAssignModal && (
@@ -1379,6 +1444,8 @@ function OrderButton({
     borderColor,
     isPaid = false,
     iuserDelivery,
+    compact = false,
+    quick = null,
 }: any) {
     const v3 = useInsideShell()
     const { colors: themeColors } = useTheme()
@@ -1425,7 +1492,7 @@ function OrderButton({
                 style={{ background: themeColors.surface, border: `1px solid ${themeColors.border}`, borderLeft: `4px solid ${statusColor}` }}
                 onClick={() => setSelectedOrder(order)}
             >
-                <div className="flex items-center gap-3 px-3.5 py-3">
+                <div className={`flex items-center gap-3 ${compact ? 'px-3 py-2' : 'px-3.5 py-3'}`}>
                     <div className="flex flex-col min-w-0 flex-1 gap-1">
                         <div className="flex items-center gap-2 min-w-0">
                             {isInPerson ? (
@@ -1460,6 +1527,11 @@ function OrderButton({
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                         {orderTime && <span className="text-[11px] font-bold tabular-nums" style={{ color: themeColors.textSecondary }}>{orderTime}</span>}
+                        {quick && (
+                            <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); if (!quick.busy) quick.onClick() }} disabled={quick.busy} className="h-8 px-3.5 rounded-full text-[11px] font-black text-white transition active:scale-95 disabled:opacity-60 ml-1" style={{ background: statusColor }} type="button">
+                                {quick.busy ? '…' : quick.label}
+                            </button>
+                        )}
                         {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (iuserDelivery.dispatchedIds.has(order.id) || ['preparing', 'ready'].includes(order.status)) && (
                             iuserDelivery.dispatchedIds.has(order.id) ? (
                                 null

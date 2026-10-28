@@ -727,6 +727,7 @@ export default function StoreDashboard({
                     storeId={store.id}
                     storeName={store.name}
                     onOrderCountsChange={onOrderCountsChange}
+                    storeSlug={store.storeSlug}
                 />
             </div>
 
