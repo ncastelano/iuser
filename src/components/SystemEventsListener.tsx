@@ -30,7 +30,14 @@ export function SystemEventsListener() {
                 if (seen.current.size > 200) seen.current = new Set(Array.from(seen.current).slice(-100))
                 const ev = islandEventFor(n)
                 if (!ev) return
-                const opts = { description: ev.title && ev.title !== ev.text ? ev.title : undefined, icon: ev.icon, duration: ev.duration, ...(ev.path ? { action: { label: ev.actionLabel, onClick: () => routerRef.current.push(ev.path as string) } } : {}) }
+                // Aviso com RESPOSTA PRONTA (ex.: o entregador chegou → "Já estou descendo"): o botão da ilha responde com um toque; os demais levam ao assunto
+                const sendReply = async (r: { rideId: string; code: string; label: string }) => {
+                    const { error } = await supabase.rpc('send_delivery_message', { p_ride: r.rideId, p_code: r.code })
+                    if (error) toast.error(error.message || 'Não consegui enviar a resposta.')
+                    else toast.success(`Respondi: “${r.label}”`, { duration: 2500 })
+                }
+                const action = ev.reply ? { label: ev.reply.label, onClick: () => { sendReply(ev.reply!) } } : ev.path ? { label: ev.actionLabel, onClick: () => routerRef.current.push(ev.path as string) } : undefined
+                const opts = { description: ev.title && ev.title !== ev.text ? ev.title : undefined, icon: ev.icon, duration: ev.duration, ...(action ? { action } : {}) }
                 if (ev.level === 'success') toast.success(ev.text, opts)
                 else if (ev.level === 'error') toast.error(ev.text, opts)
                 else if (ev.level === 'info') toast.info(ev.text, opts)

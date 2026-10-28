@@ -2,7 +2,8 @@
 // Só entram os eventos "ao vivo" (pedido, entrega, avaliação, agenda); curtida, seguidor e visita ficam só na lista de notificações do perfil (seria ruído).
 
 export type IslandLevel = 'success' | 'info' | 'message' | 'error'
-export interface IslandEvent { level: IslandLevel; title: string; text: string; icon: string; path: string | null; actionLabel: string; duration: number }
+/** `reply`: o aviso traz uma RESPOSTA PRONTA de um toque (ex.: "Já estou descendo"): o botão da ilha a envia em vez de abrir uma página */
+export interface IslandEvent { level: IslandLevel; title: string; text: string; icon: string; path: string | null; actionLabel: string; duration: number; reply?: { rideId: string; code: string; label: string } }
 export interface RawNotification { kind: string; meta?: Record<string, any> | null }
 
 const T = (m: Record<string, any> | null | undefined, k: string) => (m && typeof m[k] === 'string' ? (m[k] as string) : '')
@@ -16,7 +17,9 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     order_delivered: { level: 'success', icon: '🎉', label: 'Avaliar', duration: 7000 },
     delivery_driver_assigned: { level: 'info', icon: '🛵', label: 'Acompanhar' },
     delivery_picked_up: { level: 'info', icon: '📦', label: 'Acompanhar', duration: 6000 },
-    delivery_at_door: { level: 'success', icon: '🚪', label: 'Ver pedido', duration: 20000 },   // o entregador avisou "Estou no local": o cliente precisa ir receber
+    delivery_at_door: { level: 'success', icon: '🚪', label: 'Ver pedido', duration: 20000 },
+    delivery_message: { level: 'message', icon: '💬', label: 'Ver', duration: 20000 },   // frase pronta entre motorista e cliente
+    delivery_issue: { level: 'error', icon: '⚠️', label: 'Ver', duration: 12000 },        // a loja: o motorista não acha o endereço / ninguém atende   // o entregador avisou "Estou no local": o cliente precisa ir receber
     // loja
     order_new: { level: 'message', icon: '🛎️', label: 'Abrir', duration: 7000 },
     delivery_driver_accepted: { level: 'info', icon: '🛵', label: 'Ver' },
@@ -34,7 +37,8 @@ export function islandEventFor(n: RawNotification): IslandEvent | null {
     if (cfg) {
         const title = T(n.meta, 'title'), text = T(n.meta, 'text')
         if (!text && !title) return null
-        return { level: cfg.level, title, text: text || title, icon: cfg.icon, path: T(n.meta, 'path') || null, actionLabel: cfg.label, duration: cfg.duration ?? 5200 }
+        const replyCode = T(n.meta, 'reply_code'), rideId = T(n.meta, 'ride_id')
+        return { level: cfg.level, title, text: text || title, icon: cfg.icon, path: T(n.meta, 'path') || null, actionLabel: cfg.label, duration: cfg.duration ?? 5200, ...(replyCode && rideId ? { reply: { rideId, code: replyCode, label: T(n.meta, 'reply_label') || 'Responder' } } : {}) }
     }
     // eventos que já existiam e merecem aparecer na hora
     switch (n.kind) {

@@ -2,7 +2,7 @@
 // (ride_offers, sem dado pessoal), aceita pela candidatura (frete fixo; o banco confere a capacidade) e só mexe nas corridas dele.
 import { supabase } from '@/lib/supabase/client'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
-import { itemsList, type ActiveDelivery, type DeliveryOffer, type LatLng } from './domain'
+import { itemsList, OFFER_MAX_AGE_MIN, type ActiveDelivery, type DeliveryOffer, type LatLng } from './domain'
 
 const num = (v: any): number | null => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
 const pos = (lat: any, lng: any): LatLng | null => (num(lat) != null && num(lng) != null ? { lat: Number(lat), lng: Number(lng) } : null)
@@ -54,7 +54,7 @@ export async function fetchActive(me: string): Promise<ActiveDelivery[]> {
 export async function fetchOffers(): Promise<DeliveryOffer[]> {
     const { data, error } = await supabase.from('ride_offers')
         .select('id, order_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, object_description, offered_price, distance_km, delivery_units, items_count, created_at, status')
-        .eq('status', 'pending').not('order_id', 'is', null).order('created_at', { ascending: false }).limit(40)
+        .eq('status', 'pending').not('order_id', 'is', null).gte('created_at', new Date(Date.now() - OFFER_MAX_AGE_MIN * 60_000).toISOString()).order('created_at', { ascending: false }).limit(40)
     if (error) throw error
     const rows = (data || []) as any[]
     const orderIds = rows.map((r) => r.order_id)
@@ -99,6 +99,12 @@ export async function pickUpOrders(ids: string[], code: string): Promise<PickupR
     const r = data as any
     if (r?.ok) { ids.forEach((i) => notifyRideStatus(i, 'started')); return { ok: true } }
     return { ok: false, error: r?.error === 'code_locked' ? 'code_locked' : 'wrong_code', attemptsLeft: r?.attempts_left ?? null, retryInS: r?.retry_in_s ?? null }
+}
+
+/** Conversa rápida: manda uma frase pronta ao cliente (só depois da retirada). O servidor confere que a entrega é sua e que o código é uma das frases. */
+export async function sendDeliveryMessage(rideId: string, code: string): Promise<void> {
+    const { error } = await supabase.rpc('send_delivery_message', { p_ride: rideId, p_code: code })
+    if (error) throw new Error(error.message || 'Não foi possível enviar.')
 }
 
 /** "Estou no local": avisa o CLIENTE de que o entregador está na porta. O servidor confere que é a sua entrega, que o pedido já foi retirado e que você está a até 150 m do endereço. */

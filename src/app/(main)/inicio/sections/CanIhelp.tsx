@@ -82,7 +82,8 @@ interface FeaturedAction {
 }
 
 // As comunidades têm a própria seção na home (abaixo das publicações): saem do grid de categorias
-const GRID_CATEGORIAS = categorias.filter((c) => c.slug !== 'comunidades')
+// Social e Comunidades não são categorias de loja: Social tem o atalho "Social" de "Preciso de" (o mesmo da 3.0); o ícone repetido da categoria foi tirado
+const GRID_CATEGORIAS = categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social')
 
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()

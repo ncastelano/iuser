@@ -344,14 +344,14 @@ export default function DeliveryNavMap({
             )}
             {/* O plano da saída: Retirada → 1 → 2 ...  (toque leva a câmera até o ponto) */}
             {(store || stops.length > 0) && (
-                <div className="absolute left-2 right-14 bottom-9 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                    {store && (() => { const on = target?.kind === 'store'; return (
+                <div className="absolute left-2 right-14 bottom-2 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    {store && target?.kind === 'store' && (() => { const on = true; return (
                         <button onClick={() => flyTo(store)} className="flex-shrink-0 h-8 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1 shadow-md active:scale-95 transition" style={on ? { background: GREEN, color: '#fff' } : { background: '#fff', color: '#0f172a', border: `2px solid ${GREEN}` }}><StoreIcon size={12} /> Retirada</button>
                     ) })()}
                     {stops.map((s) => { const on = target?.kind === 'stop' && target.id === s.id; const who = (s.label || '').trim().split(/\s+/)[0]; return (
                         <button key={s.id} onClick={() => flyTo(s.to)} className="flex-shrink-0 h-8 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1 shadow-md active:scale-95 transition" style={on ? { background: ORANGE, color: '#fff' } : { background: '#fff', color: '#0f172a', border: '2px solid #c2410c' }}><Package size={12} /> {s.n}{who ? ` · ${who}` : ''}</button>
                     ) })}
-                    {(stops.length > 0 || store) && <button onClick={flyAll} className="flex-shrink-0 h-8 px-2.5 rounded-full text-[11px] font-black shadow-md active:scale-95 transition" style={{ background: '#0f172a', color: '#fff' }}>Ver tudo</button>}
+                    {(stops.length > 1 || (store && target?.kind === 'store')) && <button onClick={flyAll} className="flex-shrink-0 h-8 px-2.5 rounded-full text-[11px] font-black shadow-md active:scale-95 transition" style={{ background: '#0f172a', color: '#fff' }}>Ver tudo</button>}
                 </div>
             )}
             {/* Controles */}
@@ -365,9 +365,7 @@ export default function DeliveryNavMap({
                     <LocateFixed size={18} />
                 </button>
             </div>
-            <span className="absolute left-2 bottom-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 text-slate-700 flex items-center gap-1">
-                {target?.kind === 'store' ? <StoreIcon size={10} /> : null}{follow ? 'Seguindo você' : 'Mapa solto'}
-            </span>
+
             {!ready && <div className="absolute inset-0 flex items-center justify-center text-xs font-bold animate-pulse" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>Abrindo o mapa…</div>}
         </div>
     )

@@ -21,6 +21,7 @@ import { useOrderStatusCounts, type OrderStatusCounts } from '@/hooks/useOrderSt
 import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 import { useShellLive } from '@/hooks/useShellLive'
 import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
+import { useShellCompact } from '@/lib/shellCompact'
 import { toastStyle } from '@/lib/toastStyle'
 import BottomNavBar, { BAR_SPACE, STRIP_H } from '@/components/BottomNavBar'
 import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
@@ -348,6 +349,7 @@ function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { rece
 // A ilha flutua no topo; o conteúdo da página começa abaixo dela (NAV_H, a mesma altura de antes: telas cheias usam --shell-top)
 const ISLAND_TOP = 'calc(8px + env(safe-area-inset-top))'
 const ISLAND_H = 56
+const ISLAND_H_COMPACT = 38   // ilha FINA das páginas de trabalho (Percurso do motorista): uma linha só
 const NAV_H = 'calc(74px + env(safe-area-inset-top))'
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 // Espaço que a barra de baixo ocupa (var --shell-bottom): quem tem algo fixo embaixo se afasta dele
@@ -673,7 +675,10 @@ export default function ModeShell({ children }: {
         ro.observe(el)
         return () => ro.disconnect()
     }, [])
-    const navH = `calc(74px + env(safe-area-inset-top) + ${Math.max(0, islandH - ISLAND_H)}px)`
+    const compactLabel = useShellCompact()
+    const compact = !!compactLabel
+    const baseH = compact ? ISLAND_H_COMPACT : ISLAND_H
+    const navH = `calc(${compact ? 52 : 74}px + env(safe-area-inset-top) + ${Math.max(0, islandH - baseH)}px)`
 
     const idle = headerView
     return (
@@ -713,8 +718,8 @@ export default function ModeShell({ children }: {
                     ref={islandRef}
                     className="pointer-events-auto relative flex items-center gap-2.5 pl-2 pr-3"
                     style={{
-                        minHeight: ISLAND_H,
-                        borderRadius: (islandH || ISLAND_H) > ISLAND_H + 4 ? 28 : 9999,
+                        minHeight: baseH,
+                        borderRadius: (islandH || baseH) > baseH + 4 ? 28 : 9999,
                         // Sólida, da cor do fundo das páginas (escura só quando há algo vivo)
                         background: colors.background,
                         border: msgStyle ? `2px solid ${msgStyle.color}` : live ? `1.5px solid ${live.color}` : `1px solid ${colors.border}`,
@@ -726,25 +731,27 @@ export default function ModeShell({ children }: {
                 >
                     {/* O cartão TODO é um botão: abre o hub (ou vai ao que está vivo) */}
                     <button
-                        onClick={() => (islandMsg ? toast.dismiss(islandMsg.id) : live && live.path.split('?')[0] !== shellPath ? go(live.path) : openHub())}
+                        onClick={() => (islandMsg ? toast.dismiss(islandMsg.id) : !compact && live && live.path.split('?')[0] !== shellPath ? go(live.path) : openHub())}
                         aria-label={islandMsg ? islandMsg.text : live ? live.title : 'Abrir menu'}
                         className="absolute inset-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                     />
                     <button onClick={openHub} aria-label={idle.label} className="relative flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2.5px #fff, 0 2px 8px rgba(0,0,0,0.22)' }}>
-                        <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
+                        <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={compact ? 26 : 40} />
                     </button>
                     <div className="relative flex-1 min-w-0 text-left py-1 pointer-events-none">
                         {islandMsg && msgStyle ? (
-                            <div className="flex items-center gap-2.5 min-w-0" role="status" aria-live="polite">
+                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 min-w-0" role="status" aria-live="polite">
                                 <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[15px] font-black flex-shrink-0" style={{ background: msgStyle.color }}>{islandMsg.icon || msgStyle.glyph}</span>
-                                <span className="min-w-0 flex-1">
+                                <span className="min-w-0 flex-1 basis-40">
                                     {islandMsg.description && <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{islandMsg.description}</span>}
                                     <span className="block text-[14px] font-black leading-snug" style={{ color: colors.textPrimary }}>{islandMsg.text}</span>
                                 </span>
                                 {islandMsg.action && (
-                                    <span role="button" onClick={(e) => { e.stopPropagation(); islandMsg.action!.onClick(); toast.dismiss(islandMsg.id) }} className="pointer-events-auto flex-shrink-0 text-[12px] font-black px-3 py-1.5 rounded-full text-white cursor-pointer" style={{ background: msgStyle.color }}>{islandMsg.action.label}</span>
+                                    <span role="button" onClick={(e) => { e.stopPropagation(); islandMsg.action!.onClick(); toast.dismiss(islandMsg.id) }} className={`pointer-events-auto flex-shrink-0 text-[12px] font-black px-3 py-1.5 rounded-full text-white cursor-pointer ${islandMsg.action.label.length > 10 ? 'ml-auto' : ''}`} style={{ background: msgStyle.color }}>{islandMsg.action.label}</span>
                                 )}
                             </div>
+                        ) : compact ? (
+                            <span className="block text-[13px] font-black truncate leading-tight" style={{ color: colors.textPrimary }}>{compactLabel}</span>
                         ) : live ? (
                             <>
                                 <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{live.sub}</span>
@@ -769,8 +776,8 @@ export default function ModeShell({ children }: {
                             </>
                         )}
                     </div>
-                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className="relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: `${colors.border}66`, color: colors.textPrimary }}>
-                        <ChevronDown size={18} />
+                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className={`relative flex-shrink-0 rounded-full flex items-center justify-center ${compact ? 'w-7 h-7' : 'w-9 h-9'}`} style={{ background: `${colors.border}66`, color: colors.textPrimary }}>
+                        <ChevronDown size={compact ? 15 : 18} />
                     </button>
                 </div>
                 {islandMsg?.custom && <div className="pointer-events-auto mt-2" style={{ opacity: drawerOpen ? 0 : 1 }}>{islandMsg.custom(islandMsg.id)}</div>}

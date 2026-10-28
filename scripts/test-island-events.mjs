@@ -32,3 +32,14 @@ test('"Estou no local": o aviso ao cliente fica 20 s na ilha e leva ao pedido', 
   const e = islandEventFor({ kind: 'delivery_at_door', meta: { title: 'Dani chegou', text: 'Dani está no seu endereço com o pedido da Pizzaria — vá receber', path: '/carrinho?aba=pedidos' } })
   assert.ok(e && e.level === 'success' && e.duration >= 15000); assert.equal(e.path, '/carrinho?aba=pedidos'); assert.match(e.text, /está no seu endereço/); assert.equal(e.actionLabel, 'Ver pedido')
 })
+test('frase pronta e "estou no local" trazem a RESPOSTA de um toque; o aviso de problema da loja é vermelho', () => {
+  const door = islandEventFor({ kind: 'delivery_at_door', meta: { title: 'Dani chegou', text: 'Dani está no seu endereço', path: '/carrinho?aba=pedidos', ride_id: 'r1', reply_code: 'coming', reply_label: 'Já estou descendo' } })
+  assert.deepEqual(door?.reply, { rideId: 'r1', code: 'coming', label: 'Já estou descendo' })
+  const msg = islandEventFor({ kind: 'delivery_message', meta: { title: 'Dani', text: 'Dani: Estou em frente ao endereço', path: '/carrinho?aba=pedidos' } })
+  assert.equal(msg?.reply, undefined); assert.equal(msg?.level, 'message'); assert.match(msg.text, /Estou em frente/)
+  const issue = islandEventFor({ kind: 'delivery_issue', meta: { title: 'Entrega com problema', text: 'Dani com Ana: ninguém atende na porta', path: '/painel-loja/x' } })
+  assert.equal(issue?.level, 'error'); assert.ok(issue.duration >= 10000)
+  // a resposta só existe se vierem a entrega E o código
+  assert.equal(islandEventFor({ kind: 'delivery_at_door', meta: { title: 'x', text: 'y', reply_code: 'coming' } })?.reply, undefined)
+})
+

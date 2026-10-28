@@ -57,6 +57,7 @@ sql += f"delete from delivery_pickup_codes where driver_id = {esc(drv)}::uuid;\n
 sql += case('2a chega na loja (gera o código)', drv, f"update ride_requests set driver_en_route = true, driver_departed_at = now(), driver_arrived_at = now() where id = {esc(R1['id'])}::uuid;", 'ok')
 sql += case('2b o motorista vê o estado do pedido SÓ das corridas dele', drv, f"if (select count(*) from get_my_pickup_status(array[{esc(R1['id'])}::uuid, {esc(R2['id'])}::uuid])) <> 1 then raise exception 'esperava só a corrida dele'; end if; if (select order_status from get_my_pickup_status(array[{esc(R1['id'])}::uuid]) limit 1) not in ('preparing','ready') then raise exception 'estado inesperado'; end if;", 'ok')
 sql += case('2c estranho não vê o estado do pedido de ninguém', stranger, f"if exists (select 1 from get_my_pickup_status(array[{esc(R1['id'])}::uuid])) then raise exception 'vazou'; end if;", 'ok')
+sql += case('2d antes da retirada não há conversa', drv, f"perform send_delivery_message({esc(R1['id'])}::uuid, 'at_gate');", 'depois da retirada')
 sql += case('2 não grava a retirada direto', drv, f"update ride_requests set ride_started_at = now() where id = {esc(R1['id'])}::uuid;", 'pickup_code_required')
 sql += f"""
 select 'CODE|' || coalesce((select code from delivery_pickup_codes where store_id = {esc(store['id'])}::uuid and driver_id = {esc(drv)}::uuid and used_at is null), 'SEM CÓDIGO');
@@ -85,6 +86,17 @@ sql += case('8d estranho não avisa pela entrega dos outros', stranger, f"perfor
 sql += case('8e motorista na porta: "Estou no local"', drv, f"perform arrive_at_destination({esc(R1['id'])}::uuid, {DEST});", 'ok')
 sql += case('8f o CLIENTE recebe o aviso de que o entregador chegou', buyer, "if not exists (select 1 from profile_notifications where profile_id = auth.uid() and kind = 'delivery_at_door' and created_at > now() - interval '1 minute') then raise exception 'cliente sem aviso'; end if;", 'ok')
 sql += case('8g avisar de novo não duplica nem erra', drv, f"if (arrive_at_destination({esc(R1['id'])}::uuid, {DEST})->>'already')::boolean is not true then raise exception 'esperava already'; end if;", 'ok')
+sql += case('8i motorista manda "Estou em frente" ao cliente', drv, f"perform send_delivery_message({esc(R1['id'])}::uuid, 'at_gate');", 'ok')
+sql += case('8j o CLIENTE recebe a frase, com a resposta pronta de um toque', buyer, "if not exists (select 1 from profile_notifications where profile_id = auth.uid() and kind = 'delivery_message' and meta->>'reply_code' = 'coming' and created_at > now() - interval '1 minute') then raise exception 'cliente sem mensagem'; end if;", 'ok')
+sql += case('8k o cliente responde "Já estou descendo"', buyer, f"perform send_delivery_message({esc(R1['id'])}::uuid, 'coming');", 'ok')
+sql += case('8l o motorista recebe a resposta', drv, "if not exists (select 1 from profile_notifications where profile_id = auth.uid() and kind = 'delivery_message' and meta->>'text' like '%descendo%' and created_at > now() - interval '1 minute') then raise exception 'motorista sem resposta'; end if;", 'ok')
+sql += case('8m "Ninguém atende" avisa também a LOJA', drv, f"perform send_delivery_message({esc(R1['id'])}::uuid, 'no_answer');", 'ok')
+sql += case('8n a loja recebe "Entrega com problema"', store['owner_id'], "if not exists (select 1 from profile_notifications where profile_id = auth.uid() and kind = 'delivery_issue' and created_at > now() - interval '1 minute') then raise exception 'loja sem aviso'; end if;", 'ok')
+sql += case('8o frase do cliente não vale para o motorista', drv, f"perform send_delivery_message({esc(R1['id'])}::uuid, 'coming');", 'Mensagem inválida')
+sql += case('8p estranho não participa da conversa', stranger, f"perform send_delivery_message({esc(R1['id'])}::uuid, 'coming');", 'Sem permissão')
+sql += case('8q estranho não lê as mensagens da entrega', stranger, f"if exists (select 1 from delivery_messages where ride_id = {esc(R1['id'])}::uuid) then raise exception 'vazou'; end if;", 'ok')
+sql += case('8r a loja lê a conversa da entrega dela', store['owner_id'], f"if (select count(*) from delivery_messages where ride_id = {esc(R1['id'])}::uuid) < 3 then raise exception 'loja sem a conversa'; end if;", 'ok')
+sql += case('8s não dá para escrever direto na tabela', drv, f"insert into delivery_messages (ride_id, sender_id, sender_role, code) values ({esc(R1['id'])}::uuid, auth.uid(), 'driver', 'at_gate');", 'permission denied|row-level|42501')
 sql += case('8h depois do aviso, conclui a entrega', drv, f"perform complete_ride({esc(R1['id'])}::uuid, {DEST});", 'ok')
 sql += f"update orders set status = 'ready' where id = {esc(R2['order_id'])}::uuid;\n"
 sql += case('9a segunda entrega: aceita e chega', drv, f"insert into ride_applications (ride_request_id, applicant_id, proposed_price) select r.id, {esc(drv)}::uuid, r.offered_price from ride_offers r where r.id = {esc(R2['id'])}::uuid; update ride_requests set driver_en_route = true, driver_departed_at = now(), driver_arrived_at = now() where id = {esc(R2['id'])}::uuid;", 'ok')

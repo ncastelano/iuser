@@ -140,6 +140,8 @@ async function clientWait(c: Ctx) {
         if (!atDoor && page && /está no seu endereço/.test(page)) {   // o entregador tocou "Estou no local": a ilha avisa
             atDoor = true
             await st.caption('client', '🚪 O entregador chegou!')
+            await human(c, 1.2, 2)
+            if ((await st.soft('client', { op: 'has', target: { text: 'Já estou descendo' } })) === true) { await st.caption('client', '💬 Respondendo com um toque: “Já estou descendo”'); await st.soft('client', { op: 'click', target: { text: 'Já estou descendo' } }) }
             await st.soft('client', { op: 'scroll', by: -400, ms: 900 }); await human(c, 2, 3)
             await st.caption('client', '🚶 Indo receber o pedido na porta'); await human(c, 3, 4)
             await st.caption('client', '⏳ Esperando o pedido chegar')
@@ -298,6 +300,10 @@ async function driverSlice(c: Ctx, name: string) {
                 // Na porta do cliente são DOIS toques: "Estou no local" (o cliente é avisado na hora) e, depois que ele sai para receber, "Entreguei"
                 if (text.includes('foi avisado')) {
                     c.say('driver', 'esperando o cliente na porta'); await st.caption('driver', '🚪 Cliente avisado — esperando ele chegar na porta')
+                    if (Math.random() < 0.6) {   // às vezes manda uma frase pronta ("Falar com ...")
+                        await human(c, 1, 1.6); await st.soft('driver', { op: 'click', target: { text: 'Falar com' } }); await human(c, 0.8, 1.2)
+                        await st.caption('driver', '💬 “Estou em frente ao endereço”'); await st.soft('driver', { op: 'click', target: { text: 'Estou em frente' } })
+                    }
                     await human(c, 3.5, 5.5)   // o cliente vai até a porta
                     await st.caption('driver', '🤝 Entregando o pedido')
                     await human(c, 1, 1.8); await st.soft('driver', { op: 'click', target: { text: 'Entreguei', exact: true } })

@@ -688,6 +688,19 @@ def drivers_run(speed=1.0):
             as_user(d['id'], f"select arrive_at_destination({esc(nxt['id'])}::uuid, {dest[0]}, {dest[1]});")
             st['door_at'] = time.time()
             log(f"  🚪 {d['name']} chegou no endereço de {nxt['recipient_name'] or 'cliente'} e avisou: estou no local")
+            # conversa humana na porta: o motorista às vezes manda uma frase pronta, e o cliente responde (um toque na ilha)
+            try:
+                pick = R.random()
+                code = 'at_gate' if pick < 0.6 else ('no_answer' if pick < 0.68 else None)
+                if code:
+                    as_user(d['id'], f"select send_delivery_message({esc(nxt['id'])}::uuid, {esc(code)});")
+                    log(f"  💬 {d['name']}: {'“Estou em frente ao endereço”' if code == 'at_gate' else '“Ninguém atende” (a loja foi avisada)'}")
+                    if R.random() < 0.85:
+                        reply = R.choices(['coming', 'porter', 'wait'], [70, 15, 15])[0]
+                        as_user(nxt['buyer_id'], f"select send_delivery_message({esc(nxt['id'])}::uuid, {esc(reply)});")
+                        log(f"  💬 {nxt['recipient_name'] or 'cliente'}: {({'coming': '“Já estou descendo!”', 'porter': '“Deixe com o porteiro”', 'wait': '“Aguarde um minuto”'})[reply]}")
+            except Exception as e:  # noqa: BLE001
+                log(f"  ✗ conversa na porta: {str(e).splitlines()[0][:100]}")
             continue
         if time.time() - st.get('door_at', 0) < R.uniform(5, 9):
             continue   # o cliente leva uns segundos para ir até a porta

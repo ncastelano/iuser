@@ -31,6 +31,17 @@ export interface ActiveDelivery {
     orderStatus: string | null
 }
 
+/** Oferta de entrega mais velha que isso não aparece mais para o motorista: o pedido já esfriou (a loja continua vendo "sem motorista") */
+export const OFFER_MAX_AGE_MIN = 90
+
+/** Frases PRONTAS do motorista para o cliente durante a entrega (o texto completo mora no banco: _delivery_msg_text). `issue`: também avisa a loja. */
+export const DRIVER_QUICK: { code: string; label: string; issue?: boolean }[] = [
+    { code: 'at_gate', label: 'Estou em frente' },
+    { code: 'cant_find', label: 'Não acho o endereço', issue: true },
+    { code: 'no_answer', label: 'Ninguém atende', issue: true },
+    { code: 'late', label: 'Vou atrasar um pouco' },
+]
+
 /** Uma entrega aberta (ainda sem motorista), vista por quem está no raio */
 export interface DeliveryOffer {
     id: string
