@@ -16,7 +16,7 @@ import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { SUPER_ADMIN_EMAIL, getAuthedUser } from '@/lib/adminAuth'
 import {
-    SESSION_COOKIE, VAULT_HEADERS, allowedOrigins, clientIp, cookieHeader, logAccess, newSessionCookie, readCookie, requireVaultSession, sweepChallenges, tooManyFails, vaultSecret, whereFrom,
+    SESSION_COOKIE, SESSION_MINUTES, VAULT_HEADERS, allowedOrigins, clientIp, cookieHeader, logAccess, newSessionCookie, readCookie, requireVaultSession, sweepChallenges, tooManyFails, vaultSecret, whereFrom,
     type Where,
 } from '@/lib/adminVault'
 import { verifyToken } from '@/lib/manualCrypto.mjs'
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
         const devices = await activeDevices(admin.id)
         const tok = secret ? verifyToken(secret, readCookie(req, SESSION_COOKIE)) : null
         const unlocked = !!(tok && tok.uid === admin.id && devices.some((d) => d.id === tok.did))
-        return json({ configured: true, originOk: !!where, hasDevices: devices.length > 0, unlocked, minutes: 15 })
+        return json({ configured: true, originOk: !!where, hasDevices: devices.length > 0, unlocked, minutes: SESSION_MINUTES })
     }
     if (!configured) return json({ error: 'O cofre não está configurado neste ambiente (MANUAL_SECRET e MANUAL_ORIGINS).' }, 503)
     if (!where) return json({ error: 'Este endereço não está na lista permitida do cofre.' }, 403)

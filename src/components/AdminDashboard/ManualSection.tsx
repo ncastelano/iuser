@@ -21,7 +21,6 @@ interface Device { id: string; label: string; user_agent: string | null; created
 interface Pending { id: string; label: string; userAgent: string | null; createdAt: string }
 
 const API = '/api/admin/manual/device'
-const IDLE_MS = 15 * 60_000
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—')
 const uaLabel = (ua: string | null) => {
     if (!ua) return 'aparelho'
@@ -42,12 +41,14 @@ export default function ManualSection({ cardStyle, colors }: { cardStyle: React.
     const [current, setCurrent] = useState('')
     const [pending, setPending] = useState<Pending[]>([])
     const [supported, setSupported] = useState(true)
+    const [sessionMinutes, setSessionMinutes] = useState(24 * 60)   // vem do servidor (status)
     const lastActivity = useRef(Date.now())
     const touch = useCallback(() => { lastActivity.current = Date.now() }, [])
 
     const status = useCallback(async () => {
         try {
-            const s = await callAdminApi<{ configured: boolean; hasDevices: boolean; unlocked: boolean }>(API, { action: 'status' })
+            const s = await callAdminApi<{ configured: boolean; hasDevices: boolean; unlocked: boolean; minutes?: number }>(API, { action: 'status' })
+            if (s.minutes) setSessionMinutes(s.minutes)
             setPhase(!s.configured ? 'unconfigured' : s.unlocked ? 'open' : s.hasDevices ? 'locked' : 'empty')
         } catch (e: any) { toast.error(e.message); setPhase('unconfigured') }
     }, [])
@@ -66,12 +67,12 @@ export default function ManualSection({ cardStyle, colors }: { cardStyle: React.
         const t = setInterval(() => { callAdminApi<{ pending: Pending[] }>(API, { action: 'pending' }).then((p) => setPending(p.pending)).catch(() => {}) }, 8000)
         return () => clearInterval(t)
     }, [phase])
-    // a sessão cai sozinha depois de 15 min sem uso (o servidor também expira)
+    // a sessão cai sozinha depois do tempo sem uso (o servidor também expira)
     useEffect(() => {
         if (phase !== 'open') return
-        const t = setInterval(() => { if (Date.now() - lastActivity.current > IDLE_MS) { callAdminApi(API, { action: 'lock' }).catch(() => {}); setPhase('locked'); toast.info('Manual bloqueado por inatividade.') } }, 15_000)
+        const t = setInterval(() => { if (Date.now() - lastActivity.current > sessionMinutes * 60_000) { callAdminApi(API, { action: 'lock' }).catch(() => {}); setPhase('locked'); toast.info('Manual bloqueado por inatividade.') } }, 15_000)
         return () => clearInterval(t)
-    }, [phase])
+    }, [phase, sessionMinutes])
     const fail = (e: any) => {
         const m = String(e?.message || e)
         toast.error(/NotAllowed|cancel|timed out|abort/i.test(m) ? 'Confirmação cancelada ou não reconhecida neste aparelho.' : m)
@@ -145,7 +146,7 @@ export default function ManualSection({ cardStyle, colors }: { cardStyle: React.
         <div style={cardStyle} className="space-y-4">
             {title}
             <p className="text-[13px]" style={{ color: colors.textSecondary }}>
-                Só você lê este manual, e só em um aparelho seu cadastrado, confirmando com a digital, o rosto ou o PIN do aparelho. O texto não fica no código do app nem no seu aparelho: o servidor entrega um capítulo por vez e a sessão fecha sozinha em 15 minutos.
+                Só você lê este manual, e só em um aparelho seu cadastrado, confirmando com a digital, o rosto ou o PIN do aparelho. O texto não fica no código do app nem no seu aparelho: o servidor entrega um capítulo por vez e a sessão fecha sozinha depois de {sessionMinutes >= 60 ? `${Math.round(sessionMinutes / 60)} h` : `${sessionMinutes} minutos`} sem uso.
             </p>
             {!supported && <p className="text-[12px] font-bold" style={{ color: '#ef4444' }}>Este navegador não tem suporte à digital/rosto (passkey). Use outro navegador ou aparelho.</p>}
 

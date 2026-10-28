@@ -14,7 +14,8 @@ import { chapterKey, decryptText, encryptText, signToken, verifyToken } from '@/
 import type { User } from '@supabase/supabase-js'
 
 export const SESSION_COOKIE = 'iu_manual'
-export const SESSION_MINUTES = 15
+/** Quanto dura a sessão do manual depois de desbloquear (renovada a cada leitura). Era 15 min; por pedido do administrador, 24 h por enquanto. */
+export const SESSION_MINUTES = 24 * 60
 export const COOKIE_PATH = '/api/admin/manual'
 const MAX_FAILS = 8            // falhas de desbloqueio em 10 minutos antes de travar
 
@@ -69,7 +70,7 @@ export async function requireVaultSession(req: Request): Promise<Session | null>
     return data ? { admin, deviceId: data.id as string } : null
 }
 
-/** Cabeçalho para (re)emitir a sessão: 15 minutos a partir de agora */
+/** Cabeçalho para (re)emitir a sessão: SESSION_MINUTES a partir de agora */
 export function newSessionCookie(adminId: string, deviceId: string, where: Where): string {
     const secret = vaultSecret()!
     const now = Date.now()
