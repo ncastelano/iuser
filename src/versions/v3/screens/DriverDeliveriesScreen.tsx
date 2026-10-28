@@ -5,6 +5,10 @@
 // (várias entregas perto uma da outra). Depois a tela GUIA a saída: ir à loja → chegar → conferir e pegar os pedidos → entregar um por um, na melhor ordem, com
 // o endereço, o que levar (itens, troco, maquininha) e links para o Waze e o Google Maps. Em cima, o resumo do dia (ganho, entregas, mochila).
 // Só apresentação: regras em `modules/deliveries` (puras e testadas), quem pode o quê é do banco.
+//
+// PERCURSO DO MOTORISTA = o modo mapa-primeiro (view 'map'): com uma saída em andamento ele tem TUDO de que precisa para trabalhar sem sair dele — mapa e guia, conferência dos pedidos
+// (pronto ou em preparo), código de retirada, "Estou no local", "Entreguei", progresso e ganho da saída — e NÃO mostra ofertas (nem "novas entregas" nem alerta): elas só voltam na
+// Central quando a saída acaba, junto com o resumo dela. A tela do celular fica acesa (wake lock) enquanto ele está no Percurso.
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -54,6 +58,10 @@ export default function DriverDeliveriesScreen() {
     const [loaded, setLoaded] = useState(false)
     const [busy, setBusy] = useState<string | null>(null)
     const [showDone, setShowDone] = useState(false)
+    // A SAÍDA em andamento (do 1º aceite até a última entrega): quantas entregas, quanto vale, desde quando. Ao acabar vira o resumo no topo da Central.
+    const [runIds, setRunIds] = useState<Record<string, number>>({})
+    const runStart = useRef<number | null>(null)
+    const [summary, setSummary] = useState<{ count: number; earn: number; minutes: number } | null>(null)
     // Com uma saída em andamento a tela vira NAVEGAÇÃO (mapa em tela cheia + folha de ação); a Central (ofertas, resumo, histórico) fica a um toque
     const [view, setView] = useState<'map' | 'central'>('central')
     const [sheetOpen, setSheetOpen] = useState(false)
@@ -81,7 +89,7 @@ export default function DriverDeliveriesScreen() {
             const ids = new Set(of.map((o) => o.id))
             if (seenOffers.current) {
                 const novas = of.filter((o) => !seenOffers.current!.has(o.id) && (!st.live || !o.store || !st.radiusKm || haversineKm(st.live, o.store) <= st.radiusKm))
-                if (novas.length) {
+                if (novas.length && ac.length === 0) {   // durante o Percurso (saída em andamento) NÃO avisa: as ofertas esperam a saída acabar
                     setFresh((f) => new Set([...f, ...novas.map((o) => o.id)]))
                     toast(`Nova entrega: ${novas[0].storeName} · ${brl(novas[0].price)}`, { icon: '🛵' })
                     try { navigator.vibrate?.(120) } catch { /* sem vibração */ }
@@ -120,10 +128,34 @@ export default function DriverDeliveriesScreen() {
         if (active.length === 0) setView('central')
         hadActive.current = active.length > 0
     }, [active.length])
+    useEffect(() => {
+        if (active.length > 0) {
+            if (runStart.current == null) { runStart.current = Date.now(); setSummary(null) }
+            setRunIds((prev) => { let changed = false; const n = { ...prev }; active.forEach((a) => { if (n[a.id] == null) { n[a.id] = a.price; changed = true } }); return changed ? n : prev })
+        } else if (runStart.current != null && loaded) {
+            const delivered = Object.keys(runIds).filter((id) => done.some((d) => d.id === id))
+            if (delivered.length) setSummary({ count: delivered.length, earn: delivered.reduce((a, id) => a + runIds[id], 0), minutes: Math.max(1, Math.round((Date.now() - runStart.current) / 60000)) })
+            runStart.current = null; setRunIds({})
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [active, done])
+    // A tela fica ACESA no Percurso (o motorista dirige e olha o celular)
+    const inPercurso = active.length > 0 && view === 'map'
+    useEffect(() => {
+        if (!inPercurso) return
+        let lock: { release?: () => Promise<void> } | null = null
+        let off = false
+        const get = async () => { try { lock = await (navigator as any).wakeLock?.request('screen') } catch { /* sem suporte: segue normal */ } }
+        get()
+        const vis = () => { if (document.visibilityState === 'visible' && !off) get() }
+        document.addEventListener('visibilitychange', vis)
+        return () => { off = true; document.removeEventListener('visibilitychange', vis); lock?.release?.().catch(() => {}) }
+    }, [inPercurso])
     const cap = capacityState(active.length, state?.capacity ?? 1)
     const usedUnits = active.reduce((a, d) => a + d.units, 0)
     const vol = unitsState(usedUnits, state?.capacityUnits ?? null)
     const phase = phaseOf(active)
+    useEffect(() => { setSheetOpen(phase === 'at_store') }, [phase])   // na loja a folha abre sozinha: é a hora de conferir os pedidos
     const store = active[0]?.store ?? null
     const naive = useMemo(() => routeOrder(store, active), [active, store])
     // ROTA OTIMIZADA: com 2+ paradas a ordem vem da Optimization API do Mapbox (ruas de verdade, mão única), não da linha reta; falhou: vizinho mais próximo
@@ -232,6 +264,12 @@ export default function DriverDeliveriesScreen() {
             else setCodeError(`Código incorreto${r.attemptsLeft != null ? ` — restam ${r.attemptsLeft} tentativas` : ''}. Confira com a loja.`)
         } catch (e: any) { setCodeError(e?.message || 'Não foi possível confirmar.') } finally { setBusy(null) }
     }
+    const readyN = active.filter((a) => a.orderStatus == null || a.orderStatus === 'ready').length
+    const allReady = readyN === active.length
+    const runTotal = Math.max(Object.keys(runIds).length, active.length)
+    const runDone = Math.max(0, runTotal - active.length)
+    const runEarn = Object.values(runIds).reduce((a, v) => a + v, 0) || earnings(active)
+    const remKm = phase === 'delivering' ? routeKm(myPos ?? store, ordered) : 0
     const loadSummary = active.length > 0 ? loadLabel(active.reduce((a, d) => a + d.itemsCount, 0), usedUnits) : ''
     // Na porta: o botão "Estou no local" avisa o cliente; o servidor só aceita a até 150 m do endereço, então a tela mostra o quanto falta
     const doorM = current?.to && myPos ? Math.round(haversineKm(myPos, current.to) * 1000) : null
@@ -249,9 +287,12 @@ export default function DriverDeliveriesScreen() {
                 </div>
             </div>
         ) : (
-            <button onClick={() => setCodeOpen(true)} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 w-full" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)', boxShadow: '0 6px 18px #f9731655' }}>
-                <Package size={17} /> Peguei os {active.length} {active.length === 1 ? 'pedido' : 'pedidos'}
-            </button>
+            <div className="flex flex-col gap-1.5">
+                <button onClick={() => setCodeOpen(true)} disabled={!allReady} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 w-full disabled:opacity-45" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)', boxShadow: allReady ? '0 6px 18px #f9731655' : 'none' }}>
+                    <Package size={17} /> Peguei os {active.length} {active.length === 1 ? 'pedido' : 'pedidos'}
+                </button>
+                {!allReady && <p className="text-[11px] font-black text-center" style={{ color: '#b45309' }}>⏳ Esperando a loja marcar pronto: {readyN} de {active.length}</p>}
+            </div>
         )
     ) : phase !== 'delivering' ? (
         <button
@@ -282,6 +323,17 @@ export default function DriverDeliveriesScreen() {
     return (
         <div className={active.length > 0 && view === 'map' ? 'hidden' : 'pb-6 flex flex-col gap-4'}>   {/* com a navegação aberta a Central não existe na página (só o mapa e a folha): nem as ofertas atrás dela ficam clicáveis */}
             <div ref={anchor} aria-hidden className="h-0" />
+            {/* ===== Saída concluída: o resumo aparece quando a corrida acaba (e só então as ofertas voltam à vista) ===== */}
+            {summary && active.length === 0 && (
+                <section className="rounded-3xl p-4 flex items-center gap-3" style={{ background: `${GREEN}18`, border: `1.5px solid ${GREEN}` }}>
+                    <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style={{ background: GREEN }}><Check size={22} strokeWidth={3} /></span>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[15px] font-black" style={{ color: colors.textPrimary }}>Saída concluída! 🎉</p>
+                        <p className="text-[12px] font-bold" style={{ color: colors.textSecondary }}>{summary.count} {summary.count === 1 ? 'entrega' : 'entregas'} · {brl(summary.earn)} · {summary.minutes} min</p>
+                    </div>
+                    <button onClick={() => setSummary(null)} className="h-8 px-3 rounded-full text-[12px] font-black flex-shrink-0" style={{ background: `${colors.border}60`, color: colors.textPrimary }}>Ok</button>
+                </section>
+            )}
             {/* ===== Resumo do dia ===== */}
             <section className="rounded-3xl p-4 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #f97316, #be123c)', boxShadow: '0 10px 30px rgba(249,115,22,0.35)' }}>
                 <div className="flex items-start gap-3">
@@ -504,7 +556,6 @@ export default function DriverDeliveriesScreen() {
                         <DeliveryNavMap me={myPos} store={store} storeName={active[0]?.storeName} stops={navStops} target={navTarget} height="100%" full voice={state?.voice} colors={colors} />
                         <div className="absolute left-2 flex items-center gap-2" style={{ top: 88 }}>
                             <button onClick={() => setView('central')} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 shadow-lg bg-white text-slate-800 active:scale-95 transition"><Bike size={14} /> Central</button>
-                            {visibleOffers.length > 0 && <button onClick={() => setView('central')} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 shadow-lg text-white active:scale-95 transition" style={{ background: GREEN }}><Zap size={13} /> {visibleOffers.length} {visibleOffers.length === 1 ? 'nova entrega' : 'novas entregas'}</button>}
                         </div>
                     </div>
                     <div className="rounded-t-3xl px-4 pt-3 pb-5 flex flex-col gap-2.5 shadow-[0_-8px_24px_rgba(0,0,0,0.18)]" style={{ background: colors.surface, borderTop: `1px solid ${colors.border}` }}>
@@ -513,9 +564,14 @@ export default function DriverDeliveriesScreen() {
                                 {navTarget?.kind === 'store' ? <StoreIcon size={17} /> : (ordered.findIndex((d) => d.id === current?.id) + 1)}
                             </span>
                             <span className="min-w-0 flex-1">
-                                <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: ORANGE }}>{PHASE_LABEL[phase]} · {active.length} {active.length === 1 ? 'entrega' : 'entregas'} · {loadSummary} · {brl(earnings(active))}</span>
+                                <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: ORANGE }}>{PHASE_LABEL[phase]} · {phase === 'delivering' ? `entrega ${runDone + 1} de ${runTotal}` : `${active.length} ${active.length === 1 ? 'entrega' : 'entregas'} · ${loadSummary}`}</span>
                                 <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{phase === 'delivering' && current ? current.customerName : active[0].storeName}</span>
                                 <span className="block text-[12px] truncate" style={{ color: colors.textSecondary }}>{phase === 'delivering' && current ? current.address : shortAddress(active[0].storeAddress)}</span>
+                                <span className="flex items-center gap-1.5 mt-1">
+                                    {phase === 'delivering' && remKm > 0.05 && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ background: soft, color: colors.textPrimary }}>faltam {remKm.toFixed(1).replace('.', ',')} km · ~{etaMinutes(remKm)} min</span>}
+                                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ background: `${GREEN}22`, color: '#16a34a' }}>saída {brl(runEarn)}</span>
+                                </span>
+                                {phase === 'delivering' && runTotal > 1 && <span className="block h-1 rounded-full mt-1.5 overflow-hidden" style={{ background: soft }}><span className="block h-full rounded-full" style={{ width: `${Math.round((runDone / runTotal) * 100)}%`, background: GREEN, transition: 'width .5s' }} /></span>}
                             </span>
                             {sheetOpen ? <ChevronDown size={20} style={{ color: colors.textSecondary }} /> : <ChevronUp size={20} style={{ color: colors.textSecondary }} />}
                         </button>
@@ -538,7 +594,8 @@ export default function DriverDeliveriesScreen() {
                                         <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Pedidos desta saída</p>
                                         {ordered.map((d, i) => (
                                             <div key={d.id} className="rounded-2xl p-3" style={{ background: soft }}>
-                                                <p className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{i + 1}. {d.customerName}</p>
+                                                <p className="text-[12px] font-black flex items-center justify-between gap-2" style={{ color: colors.textPrimary }}><span className="truncate">{i + 1}. {d.customerName}</span>
+                                                    {d.orderStatus == null ? null : d.orderStatus === 'ready' ? <span className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: `${GREEN}22`, color: '#16a34a' }}>Pronto ✓</span> : <span className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#f59e0b22', color: '#b45309' }}>Em preparo…</span>}</p>
                                                 <ul className="mt-0.5">{itemsList(d.items).map((it, k) => <li key={k} className="text-[12px] flex items-center gap-1.5" style={{ color: colors.textSecondary }}><Check size={11} style={{ color: GREEN }} />{it}</li>)}</ul>
                                             </div>
                                         ))}

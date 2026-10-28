@@ -55,6 +55,8 @@ update orders set status = 'preparing' where id in ({esc(R1['order_id'])}::uuid,
 sql += case('1 aceita a entrega (cabe em volume)', drv, f"insert into ride_applications (ride_request_id, applicant_id, proposed_price) select r.id, {esc(drv)}::uuid, r.offered_price from ride_offers r where r.id = {esc(R1['id'])}::uuid;", 'ok')
 sql += f"delete from delivery_pickup_codes where driver_id = {esc(drv)}::uuid;\n"
 sql += case('2a chega na loja (gera o código)', drv, f"update ride_requests set driver_en_route = true, driver_departed_at = now(), driver_arrived_at = now() where id = {esc(R1['id'])}::uuid;", 'ok')
+sql += case('2b o motorista vê o estado do pedido SÓ das corridas dele', drv, f"if (select count(*) from get_my_pickup_status(array[{esc(R1['id'])}::uuid, {esc(R2['id'])}::uuid])) <> 1 then raise exception 'esperava só a corrida dele'; end if; if (select order_status from get_my_pickup_status(array[{esc(R1['id'])}::uuid]) limit 1) not in ('preparing','ready') then raise exception 'estado inesperado'; end if;", 'ok')
+sql += case('2c estranho não vê o estado do pedido de ninguém', stranger, f"if exists (select 1 from get_my_pickup_status(array[{esc(R1['id'])}::uuid])) then raise exception 'vazou'; end if;", 'ok')
 sql += case('2 não grava a retirada direto', drv, f"update ride_requests set ride_started_at = now() where id = {esc(R1['id'])}::uuid;", 'pickup_code_required')
 sql += f"""
 select 'CODE|' || coalesce((select code from delivery_pickup_codes where store_id = {esc(store['id'])}::uuid and driver_id = {esc(drv)}::uuid and used_at is null), 'SEM CÓDIGO');

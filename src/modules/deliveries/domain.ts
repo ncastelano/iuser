@@ -27,6 +27,8 @@ export interface ActiveDelivery {
     started: boolean
     /** o motorista tocou "Estou no local": o cliente foi avisado de que ele está na porta */
     atDoor: boolean
+    /** estado do pedido na loja (`preparing` | `ready`...): a tela mostra "Pronto ✓" ou "Em preparo…" antes do código de retirada; null = ainda não carregou */
+    orderStatus: string | null
 }
 
 /** Uma entrega aberta (ainda sem motorista), vista por quem está no raio */
