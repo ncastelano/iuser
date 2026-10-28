@@ -9,6 +9,8 @@ import { toast } from '@/lib/toast'
 interface AcceptedRide {
     id: string
     requesterName: string
+    /** entrega de pedido de loja: a navegação é a da Central de entregas (/entregas), não a das corridas */
+    isDelivery: boolean
 }
 
 // Global, montado em providers.tsx: assim que o passageiro aceita a
@@ -33,7 +35,7 @@ export function RideAcceptedDialog() {
 
         const { data: rides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id')
+            .select('id, requester_id, order_id')
             .eq('driver_id', userId)
             .eq('status', 'accepted')
             .eq('driver_en_route', false)
@@ -50,7 +52,7 @@ export function RideAcceptedDialog() {
         setPending(
             rides.map((r) => {
                 const p = profilesById.get(r.requester_id)
-                return { id: r.id, requesterName: (p?.profileSlug ? `@${p.profileSlug}` : p?.name || 'Passageiro') }
+                return { id: r.id, requesterName: (p?.profileSlug ? `@${p.profileSlug}` : p?.name || 'Passageiro'), isDelivery: !!(r as any).order_id }
             })
         )
     }, [])
@@ -108,6 +110,10 @@ export function RideAcceptedDialog() {
             // sem sessionStorage: segue e redireciona mesmo assim
         }
 
+        if (current.isDelivery) {   // entrega de loja: vai (ou continua) na Central de entregas, que já abre no mapa
+            if (!window.location.pathname.startsWith('/entregas')) router.push('/entregas')
+            return
+        }
         toast.success(`${current.requesterName} aceitou sua proposta! Indo pra navegação...`)
         router.push('/aceitar-corridas/mapa')
     }, [pending, router])

@@ -131,7 +131,7 @@ export default function ScreenDirector() {
                 switch (cmd.op) {
                     case 'goto': reply(id, true); window.location.assign(cmd.path); return
                     case 'caption': setCaption(cmd.text); return reply(id, true)
-                    case 'text': return reply(id, true, (document.body.innerText || '').slice(0, 6000))
+                    case 'text': return reply(id, true, (document.body.innerText || '').slice(0, 80000))
                     case 'list': {
                         const items = Array.from(document.querySelectorAll<HTMLElement>('button, a, [role=button], input, textarea, select')).filter(visible).map((el) => {
                             const r = el.getBoundingClientRect()

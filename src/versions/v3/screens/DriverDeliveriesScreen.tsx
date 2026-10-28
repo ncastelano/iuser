@@ -224,7 +224,7 @@ export default function DriverDeliveriesScreen() {
     ) : null
 
     return (
-        <div className="pb-6 flex flex-col gap-4">
+        <div className={active.length > 0 && view === 'map' ? 'hidden' : 'pb-6 flex flex-col gap-4'}>   {/* com a navegação aberta a Central não existe na página (só o mapa e a folha): nem as ofertas atrás dela ficam clicáveis */}
             <div ref={anchor} aria-hidden className="h-0" />
             {/* ===== Resumo do dia ===== */}
             <section className="rounded-3xl p-4 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #f97316, #be123c)', boxShadow: '0 10px 30px rgba(249,115,22,0.35)' }}>
