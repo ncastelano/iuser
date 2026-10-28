@@ -25,6 +25,8 @@ export interface ActiveDelivery {
     enRoute: boolean
     arrived: boolean
     started: boolean
+    /** o motorista tocou "Estou no local": o cliente foi avisado de que ele está na porta */
+    atDoor: boolean
 }
 
 /** Uma entrega aberta (ainda sem motorista), vista por quem está no raio */

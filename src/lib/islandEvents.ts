@@ -16,6 +16,7 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     order_delivered: { level: 'success', icon: '🎉', label: 'Avaliar', duration: 7000 },
     delivery_driver_assigned: { level: 'info', icon: '🛵', label: 'Acompanhar' },
     delivery_picked_up: { level: 'info', icon: '📦', label: 'Acompanhar', duration: 6000 },
+    delivery_at_door: { level: 'success', icon: '🚪', label: 'Ver pedido', duration: 20000 },   // o entregador avisou "Estou no local": o cliente precisa ir receber
     // loja
     order_new: { level: 'message', icon: '🛎️', label: 'Abrir', duration: 7000 },
     delivery_driver_accepted: { level: 'info', icon: '🛵', label: 'Ver' },

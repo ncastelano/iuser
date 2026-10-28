@@ -212,6 +212,9 @@ class Driver:
         for s in order:
             self.go((s['lat'], s['lng']), f"entrega para {s['name']}")
             time.sleep(1.2)
+            as_user(self.id, f"select arrive_at_destination({esc(s['id'])}::uuid, {s['lat']}, {s['lng']});")   # "Estou no local": o cliente é avisado
+            log(f"  🚪 {self.name} chegou no endereço de {s['name']} e avisou: estou no local")
+            time.sleep(random.uniform(4, 7))   # o cliente vai até a porta
             as_user(self.id, f"select complete_ride({esc(s['id'])}::uuid, {s['lat']}, {s['lng']});")
             log(f"  🎉 {self.name} ENTREGOU para {s['name']} (R$ {s['price']:.2f})".replace('.', ','))
             time.sleep(random.uniform(2, 3))

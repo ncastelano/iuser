@@ -73,6 +73,17 @@ sql += case('8 retirada com o código certo e pedido pronto', drv, f"if (confirm
 sql += f"""
 select 'STARTED|' || (select (ride_started_at is not null)::text from ride_requests where id = {esc(R1['id'])}::uuid);
 """
+buyer = q_local(f"select buyer_id from orders where id = {esc(R1['order_id'])}::uuid")[0]['buyer_id']
+DEST = f"(select destination_lat from ride_requests where id = {esc(R1['id'])}::uuid), (select destination_lng from ride_requests where id = {esc(R1['id'])}::uuid)"
+FAR = f"(select destination_lat + 0.01 from ride_requests where id = {esc(R1['id'])}::uuid), (select destination_lng from ride_requests where id = {esc(R1['id'])}::uuid)"
+sql += case('8a concluir SEM avisar "Estou no local" é recusado', drv, f"perform complete_ride({esc(R1['id'])}::uuid, {DEST});", 'arrival_required')
+sql += case('8b "Estou no local" longe do endereço é recusado', drv, f"perform arrive_at_destination({esc(R1['id'])}::uuid, {FAR});", 'até 150 m')
+sql += case('8c gravar a coluna direto é negado', drv, f"update ride_requests set arrived_destination_at = now() where id = {esc(R1['id'])}::uuid;", 'arrival_rpc_only')
+sql += case('8d estranho não avisa pela entrega dos outros', stranger, f"perform arrive_at_destination({esc(R1['id'])}::uuid, {DEST});", 'Sem permissão')
+sql += case('8e motorista na porta: "Estou no local"', drv, f"perform arrive_at_destination({esc(R1['id'])}::uuid, {DEST});", 'ok')
+sql += case('8f o CLIENTE recebe o aviso de que o entregador chegou', buyer, "if not exists (select 1 from profile_notifications where profile_id = auth.uid() and kind = 'delivery_at_door' and created_at > now() - interval '1 minute') then raise exception 'cliente sem aviso'; end if;", 'ok')
+sql += case('8g avisar de novo não duplica nem erra', drv, f"if (arrive_at_destination({esc(R1['id'])}::uuid, {DEST})->>'already')::boolean is not true then raise exception 'esperava already'; end if;", 'ok')
+sql += case('8h depois do aviso, conclui a entrega', drv, f"perform complete_ride({esc(R1['id'])}::uuid, {DEST});", 'ok')
 sql += f"update orders set status = 'ready' where id = {esc(R2['order_id'])}::uuid;\n"
 sql += case('9a segunda entrega: aceita e chega', drv, f"insert into ride_applications (ride_request_id, applicant_id, proposed_price) select r.id, {esc(drv)}::uuid, r.offered_price from ride_offers r where r.id = {esc(R2['id'])}::uuid; update ride_requests set driver_en_route = true, driver_departed_at = now(), driver_arrived_at = now() where id = {esc(R2['id'])}::uuid;", 'ok')
 sql += case('9 segunda saída: 5 erros travam', drv, f"""

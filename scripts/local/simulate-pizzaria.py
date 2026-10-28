@@ -30,7 +30,7 @@ import argparse, json, math, os, random, re, sys, threading, time, urllib.reques
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import psql, q_local  # noqa: E402
+from _common import psql, q_local, ROOT  # noqa: E402
 
 UUID = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 R = random.Random()
@@ -70,7 +70,7 @@ COURIERS = []
 IUSER_DRIVERS = []
 DRV = {}   # estado em memória de cada motorista iUser (posição, quando saiu, quando entregou o último)
 EAGER = {'dani': 0.85, 'leo': 0.6, 'rafa': 0.75, 'tito': 0.45}   # disposição de cada um para aceitar uma entrega que aparece
-CFG = {'stage': False, 'stage_grace': 30.0, 'stage_speed': 5.0, 'mode': 'iuser', 'manual_drivers': [], 'couriers': True, 'bag': 6.0, 'max_stops': 5, 'reach': 3.5, 'wait': 45.0, 'load': 20.0, 'scale': 6.0, 'app': os.environ.get('APP_URL', 'http://localhost:3100')}
+CFG = {'stage': False, 'stage_grace': 30.0, 'stage_speed': 5.0, 'mode': 'iuser', 'manual_drivers': [], 'couriers': True, 'bag': 6.0, 'max_stops': 5, 'reach': 3.5, 'wait': 45.0, 'load': 20.0, 'scale': 6.0, 'drive_kmh': 60.0, 'app': os.environ.get('APP_URL', 'http://localhost:3100')}
 FEATURED_EMAIL = 'cliente-007@staging.iuser.test'   # a cliente que a página /tres-telas acompanha (pede com frequência)
 FEATURED = None
 STORE_POS = (-8.7580, -63.8995)
@@ -489,9 +489,90 @@ def drv_move(d, to):
     psql(['-c', f"update driver_pricing set live_lat = {to[0]}, live_lng = {to[1]}, live_updated_at = now() where driver_id = {esc(d['id'])}::uuid"])
 
 
+# ---- movimento pelas RUAS: o motorista não pula de um ponto a outro; uma thread o leva pela rota do Mapbox, uma posição por segundo (dá para ver o trajeto inteiro no mapa)
+def _mapbox_token():
+    for f in ('.env.local', '.env.development.local'):
+        pth = os.path.join(ROOT, f)
+        if os.path.exists(pth):
+            m = re.search(r'^NEXT_PUBLIC_MAPBOX_TOKEN=(\S+)', open(pth).read(), re.M)
+            if m:
+                return m.group(1).strip('"\'')
+    return os.environ.get('NEXT_PUBLIC_MAPBOX_TOKEN', '')
+
+
+MAPBOX_TOKEN = _mapbox_token()
+ROUTES = {}   # cache de rotas (origem e destino arredondados): evita pedir a mesma rua ao Mapbox toda hora
+
+
+def road_route(a, b):
+    key = (round(a[0], 4), round(a[1], 4), round(b[0], 4), round(b[1], 4))
+    if key in ROUTES:
+        return ROUTES[key]
+    pts = [a, b]
+    try:
+        with urllib.request.urlopen(f"https://api.mapbox.com/directions/v5/mapbox/driving/{a[1]},{a[0]};{b[1]},{b[0]}?geometries=geojson&overview=full&access_token={MAPBOX_TOKEN}", timeout=12) as r:
+            got = [(c[1], c[0]) for c in json.loads(r.read())['routes'][0]['geometry']['coordinates']]
+            if len(got) >= 2:
+                pts = got
+    except Exception as e:  # noqa: BLE001
+        log(f"  (Mapbox sem resposta: {str(e)[:60]} — indo em linha reta)")
+    ROUTES[key] = pts
+    return pts
+
+
+def drv_goto(d, to):
+    """Manda o motorista para `to`; ele chega andando (drv_moving diz se ainda está a caminho)."""
+    st = DRV.setdefault(d['id'], {})
+    mv = st.get('mv')
+    if mv and mv['to'] == to:
+        return
+    st['mv'] = {'to': to, 'route': None, 'd': 0.0}
+
+
+def drv_moving(d):
+    return DRV.setdefault(d['id'], {}).get('mv') is not None
+
+
+def mover_thread(stop):
+    """1 posição por segundo para cada motorista que está indo a algum lugar."""
+    step_km = CFG['drive_kmh'] / 3600.0
+    while not stop.is_set():
+        t0 = time.time()
+        for d in IUSER_DRIVERS:
+            st = DRV.get(d['id'])
+            mv = st.get('mv') if st else None
+            if not mv:
+                continue
+            try:
+                if mv['route'] is None:
+                    mv['route'] = road_route(drv_pos(d), mv['to'])
+                    cum = [0.0]
+                    for i in range(len(mv['route']) - 1):
+                        cum.append(cum[-1] + hav_km(mv['route'][i], mv['route'][i + 1]))
+                    mv['cum'] = cum
+                    mv['i'] = 0
+                mv['d'] += step_km
+                if mv['d'] >= mv['cum'][-1]:
+                    drv_move(d, mv['to'])
+                    st['mv'] = None
+                    continue
+                i = mv['i']
+                while mv['cum'][i + 1] < mv['d']:
+                    i += 1
+                mv['i'] = i
+                seg = mv['cum'][i + 1] - mv['cum'][i]
+                f = (mv['d'] - mv['cum'][i]) / seg if seg else 1
+                a, b = mv['route'][i], mv['route'][i + 1]
+                drv_move(d, (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f))
+            except Exception as e:  # noqa: BLE001
+                log(f"  ✗ mover {d['name']}: {str(e).splitlines()[0][:100]}")
+                st['mv'] = None
+        stop.wait(max(0.1, 1.0 - (time.time() - t0)))
+
+
 def drv_rides(d):
     return q_local(f"""select r.id, r.order_id, r.recipient_name, r.destination_lat, r.destination_lng, r.origin_lat, r.origin_lng, r.offered_price,
-        r.driver_en_route, r.driver_arrived_at, r.ride_started_at, extract(epoch from now() - r.created_at) as age, o.status as order_status, o.buyer_id
+        r.driver_en_route, r.driver_arrived_at, r.ride_started_at, r.arrived_destination_at, extract(epoch from now() - r.created_at) as age, o.status as order_status, o.buyer_id
         from ride_requests r join orders o on o.id = r.order_id
         where r.driver_id = {esc(d['id'])}::uuid and r.status = 'accepted' and o.store_id = {esc(STORE['id'])}::uuid order by r.created_at""")
 
@@ -550,6 +631,7 @@ def drivers_run(speed=1.0):
         rides = drv_rides(d)
         if not rides:
             DRV.setdefault(d['id'], {}).pop('left', None)
+            DRV[d['id']].pop('going_store', None)
             continue
         st = DRV.setdefault(d['id'], {})
         ids = ','.join(esc(r['id']) + '::uuid' for r in rides)
@@ -562,11 +644,20 @@ def drivers_run(speed=1.0):
                 st['left'] = time.time()
                 log(f"  🛵 {d['name']} saiu para a loja ({len(rides)} entrega(s) aceita(s))")
                 continue
+            # aceitou mais uma DEPOIS de já estar na loja (o app permite): a nova acompanha o motorista, senão a retirada de todas de uma vez nunca vale
+            late = [r for r in rides if not r['driver_arrived_at']]
+            if late and len(late) < len(rides):
+                lids = ','.join(esc(r['id']) + '::uuid' for r in late)
+                psql(['-c', f"update ride_requests set driver_en_route = true, driver_departed_at = coalesce(driver_departed_at, now()), driver_arrived_at = now() where id in ({lids})"])
+                log(f"  🛵 {d['name']}: {len(late)} entrega(s) aceita(s) já com ele na loja")
+                continue
             if not rides[0]['driver_arrived_at']:
-                trip = max(6.0, hav_km(drv_pos(d), STORE_POS) / 28.0 * 3600.0 / sc)
-                if time.time() - st.setdefault('left', time.time()) < trip:
+                if not st.get('going_store'):
+                    drv_goto(d, STORE_POS); st['going_store'] = True
                     continue
-                drv_move(d, STORE_POS)
+                if drv_moving(d):
+                    continue   # ainda andando pelas ruas até a loja
+                st['going_store'] = False
                 psql(['-c', f"update ride_requests set driver_arrived_at = now() where id in ({ids})"])
                 st['arrived'] = time.time()
                 log(f"  🛵 {d['name']} chegou na loja e espera o pedido")
@@ -586,10 +677,21 @@ def drivers_run(speed=1.0):
         here = drv_pos(d)
         nxt = min(started, key=lambda r: hav_km(here, (float(r['destination_lat']), float(r['destination_lng']))))
         dest = (float(nxt['destination_lat']), float(nxt['destination_lng']))
-        leg = max(8.0, hav_km(here, dest) / 28.0 * 3600.0 / sc)
-        if time.time() - st.setdefault('last_leg', time.time()) < leg:
+        if st.get('leg_to') != dest:
+            if time.time() - st.setdefault('last_leg', time.time()) < 3:
+                continue   # um instante para ajeitar a mochila antes de sair
+            drv_goto(d, dest); st['leg_to'] = dest
             continue
-        drv_move(d, dest)
+        if drv_moving(d):
+            continue   # ainda andando pelas ruas até o cliente
+        if not nxt['arrived_destination_at']:   # chegou na porta: toca "Estou no local" e o cliente é avisado na hora
+            as_user(d['id'], f"select arrive_at_destination({esc(nxt['id'])}::uuid, {dest[0]}, {dest[1]});")
+            st['door_at'] = time.time()
+            log(f"  🚪 {d['name']} chegou no endereço de {nxt['recipient_name'] or 'cliente'} e avisou: estou no local")
+            continue
+        if time.time() - st.get('door_at', 0) < R.uniform(5, 9):
+            continue   # o cliente leva uns segundos para ir até a porta
+        st['leg_to'] = None
         as_user(d['id'], f"select complete_ride({esc(nxt['id'])}::uuid, {dest[0]}, {dest[1]});")
         st['last_leg'] = time.time()
         owner_say(nxt['buyer_id'], 'Entregue! Bom apetite. 🍕')
@@ -748,10 +850,11 @@ def main():
     ap.add_argument('--manual-drivers', default='', help='motoristas iUser que NÃO são simulados (a pessoa mexe na mão em /entregas), ex.: dani,leo')
     ap.add_argument('--stage', action='store_true', help='TEATRO: a Dani (motorista), a Gabriela (cliente) e o dono são conduzidos pelas telas de /tres-telas; o simulador não atende os pedidos dela nem a corrida da Dani')
     ap.add_argument('--stage-speed', type=float, default=5.0, help='TEATRO: velocidade da Dani no mapa (5 = 5x a de uma moto na cidade)')
+    ap.add_argument('--drive-kmh', type=float, default=60.0, help='velocidade dos motoristas iUser pelas ruas (km/h); menor = dá para acompanhar o trajeto inteiro no mapa')
     ap.add_argument('--no-couriers', action='store_true', help='sem motoboys: entrega vai direto de pronto para entregue')
     ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick', 'featured', 'rate'])
     a = ap.parse_args()
-    CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()] or (['*'] if a.stage else []), stage=a.stage, stage_speed=a.stage_speed, couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale)
+    CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()] or (['*'] if a.stage else []), stage=a.stage, stage_speed=a.stage_speed, couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale, drive_kmh=a.drive_kmh)
     load()
     if a.once:
         return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order, 'rate': lambda: (rate_everything(), review_featured())}[a.once])
@@ -765,6 +868,8 @@ def main():
     loop(a.every, make_order, stop)
     loop(a.appts_every, make_appointment, stop)
     loop(a.featured_every, featured_order, stop)
+    if CFG['mode'] == 'iuser':
+        threading.Thread(target=mover_thread, args=(stop,), daemon=True).start()   # os motoristas andam pelas ruas, uma posição por segundo
     if a.stage:
         log('TEATRO ligado: os motoristas, a Gabriela e o dono agem pelas telas (/tres-telas); o simulador cuida do resto da cidade.')
     if not a.manual:

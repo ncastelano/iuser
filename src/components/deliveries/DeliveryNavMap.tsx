@@ -3,13 +3,14 @@
 // MAPA DE NAVEGAÇÃO da Central de entregas (/entregas): mapa de verdade (Mapbox) com a loja, as paradas numeradas, o motorista e a ROTA — a rota viva
 // (você → próximo ponto, em azul, refeita conforme ele anda), o plano da saída inteira (loja → paradas, tracejado laranja) —, mais o GUIA: a próxima
 // manobra ("Em 300 m: vire à direita na Rua X"), a distância e o tempo até o ponto, voz opcional e o modo centralizar/movimentar (arrastar o mapa solta a câmera).
-// Só apresentação: quem decide o alvo é a tela; as rotas vêm da Directions API do Mapbox (mesmo token do resto do app).
+// SABER ONDE: a loja ("Retirar aqui"), cada parada (com o nome do cliente), a saída e você aparecem com NOME no mapa; no começo de cada trecho a câmera mostra a rota INTEIRA por uns
+// segundos e depois passa a seguir o motorista; os atalhos "Retirada → 1 → 2" levam a câmera a cada ponto (e soltam o mapa). Só apresentação: quem decide o alvo é a tela; as rotas vêm da Directions API do Mapbox (mesmo token do resto do app).
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { ArrowUp, CornerUpLeft, CornerUpRight, Flag, LocateFixed, Maximize2, Minimize2, MoveLeft, MoveRight, RotateCw, Store as StoreIcon } from 'lucide-react'
+import { ArrowUp, Package, CornerUpLeft, CornerUpRight, Flag, LocateFixed, Maximize2, Minimize2, MoveLeft, MoveRight, RotateCw, Store as StoreIcon } from 'lucide-react'
 import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
@@ -18,7 +19,7 @@ import { trackMapboxRequest } from '@/lib/mapboxTelemetry'
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 export interface NavPoint { lat: number; lng: number }
-export interface NavStop { id: string; n: number; to: NavPoint; label?: string }
+export interface NavStop { id: string; n: number; to: NavPoint; label?: string; address?: string }
 export interface NavTarget extends NavPoint { id: string; kind: 'store' | 'stop'; label: string }
 
 interface Maneuver { text: string; meters: number; type: string; modifier?: string }
@@ -67,10 +68,22 @@ const dot = (bg: string, txt: string, size = 26, ring = false) => {
     return el
 }
 
+/** Marcador com NOME: a etiqueta em cima e o pino embaixo (o ponto exato fica na base do pino) */
+const labeled = (bg: string, txt: string, label: string, size = 30, strong = false) => {
+    const el = document.createElement('div')
+    el.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none'
+    const tag = document.createElement('div')
+    tag.textContent = label
+    tag.style.cssText = `max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:${strong ? bg : '#fff'};color:${strong ? '#fff' : '#0f172a'};border:2px solid ${bg};border-radius:10px;padding:2px 8px;font:800 11px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.28);margin-bottom:3px`
+    el.appendChild(tag)
+    el.appendChild(dot(bg, txt, size, strong))
+    return el
+}
+
 export default function DeliveryNavMap({
-    me, store, stops, target, height, full, onToggleFull, voice, colors,
+    me, store, storeName, stops, target, height, full, onToggleFull, voice, colors,
 }: {
-    me: NavPoint | null; store: NavPoint | null; stops: NavStop[]; target: NavTarget | null
+    me: NavPoint | null; store: NavPoint | null; storeName?: string; stops: NavStop[]; target: NavTarget | null
     height: number | string; full?: boolean; onToggleFull?: () => void; voice?: boolean; colors: any
 }) {
     const box = useRef<HTMLDivElement>(null)
@@ -79,7 +92,11 @@ export default function DeliveryNavMap({
     const [follow, setFollow] = useState(true)
     const followRef = useRef(true)
     const [live, setLive] = useState<Live | null>(null)
-    const marks = useRef<{ store?: mapboxgl.Marker; me?: mapboxgl.Marker; stops: Map<string, mapboxgl.Marker> }>({ stops: new Map() })
+    const marks = useRef<{ store?: mapboxgl.Marker; me?: mapboxgl.Marker; start?: mapboxgl.Marker; stops: Map<string, mapboxgl.Marker> }>({ stops: new Map() })
+    const overviewUntil = useRef(0)   // até quando a câmera fica mostrando a rota INTEIRA (no início de cada trecho) antes de voltar a seguir o motorista
+    const targetRef = useRef(target)   // o alvo da vez, lido pelo laço de animação da câmera
+    targetRef.current = target
+    const zoomNow = useRef(16)         // o zoom da câmera: se aproxima suavemente do endereço (16 longe → ~18 na porta)
     const lastFetch = useRef<{ at: number; from: [number, number] | null; target: string | null }>({ at: 0, from: null, target: null })
     const fitted = useRef<string>('')
 
@@ -123,18 +140,34 @@ export default function DeliveryNavMap({
         const m = map.current
         if (!m || !ready) return
         if (store) {
-            if (!marks.current.store) marks.current.store = new mapboxgl.Marker({ element: dot(GREEN, 'L', 30) }).setLngLat([store.lng, store.lat]).addTo(m)
-            else marks.current.store.setLngLat([store.lng, store.lat])
+            const isTarget = target?.kind === 'store'
+            marks.current.store?.remove()
+            marks.current.store = new mapboxgl.Marker({ element: labeled(GREEN, '🏪', isTarget ? `Retirar aqui · ${storeName || 'Loja'}` : (storeName || 'Loja'), isTarget ? 36 : 28, isTarget), anchor: 'bottom' }).setLngLat([store.lng, store.lat]).addTo(m)
         }
         const keep = new Set(stops.map((s) => s.id))
         marks.current.stops.forEach((mk, id) => { if (!keep.has(id)) { mk.remove(); marks.current.stops.delete(id) } })
         stops.forEach((s) => {
             marks.current.stops.get(s.id)?.remove()
             const cur = target?.kind === 'stop' && target.id === s.id
-            marks.current.stops.set(s.id, new mapboxgl.Marker({ element: dot(cur ? ORANGE : '#c2410c', String(s.n), cur ? 34 : 26, cur) }).setLngLat([s.to.lng, s.to.lat]).addTo(m))
+            const who = (s.label || '').trim().split(/\s+/)[0]
+            marks.current.stops.set(s.id, new mapboxgl.Marker({ element: labeled(cur ? ORANGE : '#c2410c', String(s.n), cur ? `Entregar aqui${who ? ` · ${who}` : ''}` : (who || `Entrega ${s.n}`), cur ? 36 : 26, cur), anchor: 'bottom' }).setLngLat([s.to.lng, s.to.lat]).addTo(m))
         })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ready, stopsKey, target?.id, store?.lat, store?.lng])
+    }, [ready, stopsKey, target?.id, store?.lat, store?.lng, storeName])
+
+    // ---- "Saída": de onde o motorista partiu neste trecho (só no caminho até a loja; nas entregas a saída é a própria loja)
+    const legStart = useRef<[number, number] | null>(null)
+    useEffect(() => {
+        const m = map.current
+        marks.current.start?.remove(); marks.current.start = undefined
+        legStart.current = null
+        if (!m || !ready || !target || target.kind !== 'store') return
+        const at = shown.current || (me ? ([me.lng, me.lat] as [number, number]) : null)
+        if (!at) return
+        legStart.current = at
+        marks.current.start = new mapboxgl.Marker({ element: labeled('#64748b', '', 'Saída', 14), anchor: 'bottom' }).setLngLat(at).addTo(m)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ready, target?.id, target?.kind])
 
     // ---- você: o marcador (e a câmera) DESLIZAM de uma posição à outra em 1 s, em vez de pular; o rumo vem do movimento (suavizado)
     const shown = useRef<[number, number] | null>(null)
@@ -179,7 +212,13 @@ export default function DeliveryNavMap({
                 hdg.current = (hdg.current + Math.max(-1.2, Math.min(1.2, dh * 0.08)) + 360) % 360
                 shown.current = p
                 marks.current.me?.setLngLat(p)
-                if (followRef.current) map.current?.jumpTo({ center: p, bearing: hdg.current, zoom: 16, pitch: 40 })
+                // A câmera "chega junto": quanto mais perto do alvo, mais perto ela fica (suave, nunca de um salto), e a inclinação diminui para ver a porta
+                const tg = targetRef.current
+                const dm = tg ? haversineKm(p, [tg.lng, tg.lat]) * 1000 : 9999
+                const wantZoom = dm > 450 ? 16 : dm > 120 ? 16 + (450 - dm) / 330 * 1.4 : 17.4 + Math.max(0, (120 - dm) / 120) * 0.6
+                zoomNow.current += (wantZoom - zoomNow.current) * 0.035
+                const wantPitch = dm > 300 ? 40 : 40 - (300 - dm) / 300 * 18
+                if (followRef.current && now > overviewUntil.current) map.current?.jumpTo({ center: p, bearing: hdg.current, zoom: zoomNow.current, pitch: wantPitch })
                 if (k >= 1) anim.current = null
             }
             raf = requestAnimationFrame(tick)
@@ -229,6 +268,24 @@ export default function DeliveryNavMap({
         m.easeTo({ center: at, zoom: 16, bearing: hdg.current, pitch: 40, duration: 600 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ready, follow])
+    // VISÃO GERAL no início de cada trecho (e ao abrir o mapa): mostra você, o alvo da vez e as paradas por uns segundos — onde pegar, onde entregar — e só então passa a seguir o motorista
+    useEffect(() => {
+        const m = map.current
+        if (!m || !ready || !target) return
+        const b = new mapboxgl.LngLatBounds()
+        if (shown.current) b.extend(shown.current); else if (me) b.extend([me.lng, me.lat])
+        b.extend([target.lng, target.lat]); if (store) b.extend([store.lng, store.lat]); stops.forEach((s) => b.extend([s.to.lng, s.to.lat]))
+        if (b.isEmpty()) return
+        overviewUntil.current = performance.now() + 4600
+        m.fitBounds(b, { padding: { top: 130, bottom: 90, left: 56, right: 56 }, maxZoom: 16.2, duration: 1100, pitch: 0, bearing: 0 })
+        const t = setTimeout(() => {
+            if (!followRef.current || !shown.current) return
+            overviewUntil.current = 0
+            m.easeTo({ center: shown.current, zoom: zoomNow.current, bearing: hdg.current, pitch: 40, duration: 1400 })
+        }, 3600)
+        return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ready, target?.id])
     // enquadra tudo ao abrir / quando a saída muda (e não está seguindo)
     useEffect(() => {
         const m = map.current
@@ -249,6 +306,16 @@ export default function DeliveryNavMap({
         legKey: target ? `${target.kind}-${target.id}` : null, introMessage: target ? (target.kind === 'store' ? 'Indo para a loja.' : 'Indo para a entrega.') : undefined,
     })
 
+    // ---- atalhos: leva a câmera a um ponto (e solta o mapa)
+    const flyTo = (p: NavPoint) => { setFollow(false); overviewUntil.current = 0; map.current?.flyTo({ center: [p.lng, p.lat], zoom: 16.6, pitch: 0, bearing: 0, duration: 900 }) }
+    const flyAll = () => {
+        const m = map.current; if (!m) return
+        setFollow(false); overviewUntil.current = 0
+        const b = new mapboxgl.LngLatBounds()
+        if (me) b.extend([me.lng, me.lat]); if (store) b.extend([store.lng, store.lat]); stops.forEach((s) => b.extend([s.to.lng, s.to.lat]))
+        if (!b.isEmpty()) m.fitBounds(b, { padding: { top: 130, bottom: 90, left: 56, right: 56 }, maxZoom: 16, duration: 900, pitch: 0, bearing: 0 })
+    }
+
     // ---- guia: a próxima manobra
     const next = live?.steps && live.steps.length > 1 ? { dist: live.steps[0].meters, m: live.steps[1] } : null
     const arrived = !!live && live.km * 1000 < 40
@@ -263,6 +330,7 @@ export default function DeliveryNavMap({
                         {arrived ? <Flag size={26} /> : next ? <ManeuverIcon type={next.m.type} modifier={next.m.modifier} /> : <ArrowUp size={26} />}
                     </span>
                     <span className="min-w-0 flex-1">
+                        <span className="block text-[10px] font-black uppercase tracking-wide leading-none mb-0.5" style={{ color: target.kind === 'store' ? '#86efac' : '#fdba74' }}>{target.kind === 'store' ? `🏪 Retirada${storeName ? ` · ${storeName}` : ''}` : '📦 Entrega'}</span>
                         <span className="block text-[17px] font-black leading-tight">{arrived ? 'Você chegou' : next ? `Em ${meters(next.dist)}` : live ? `Siga por ${meters(live.km * 1000)}` : 'Calculando a rota…'}</span>
                         <span className="block text-[12px] opacity-90 leading-snug line-clamp-2">{arrived ? target.label : next ? next.m.text : target.label}</span>
                     </span>
@@ -272,6 +340,18 @@ export default function DeliveryNavMap({
                             <span className="block text-[11px] opacity-80">{meters(live.km * 1000)}</span>
                         </span>
                     )}
+                </div>
+            )}
+            {/* O plano da saída: Retirada → 1 → 2 ...  (toque leva a câmera até o ponto) */}
+            {(store || stops.length > 0) && (
+                <div className="absolute left-2 right-14 bottom-9 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    {store && (() => { const on = target?.kind === 'store'; return (
+                        <button onClick={() => flyTo(store)} className="flex-shrink-0 h-8 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1 shadow-md active:scale-95 transition" style={on ? { background: GREEN, color: '#fff' } : { background: '#fff', color: '#0f172a', border: `2px solid ${GREEN}` }}><StoreIcon size={12} /> Retirada</button>
+                    ) })()}
+                    {stops.map((s) => { const on = target?.kind === 'stop' && target.id === s.id; const who = (s.label || '').trim().split(/\s+/)[0]; return (
+                        <button key={s.id} onClick={() => flyTo(s.to)} className="flex-shrink-0 h-8 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1 shadow-md active:scale-95 transition" style={on ? { background: ORANGE, color: '#fff' } : { background: '#fff', color: '#0f172a', border: '2px solid #c2410c' }}><Package size={12} /> {s.n}{who ? ` · ${who}` : ''}</button>
+                    ) })}
+                    {(stops.length > 0 || store) && <button onClick={flyAll} className="flex-shrink-0 h-8 px-2.5 rounded-full text-[11px] font-black shadow-md active:scale-95 transition" style={{ background: '#0f172a', color: '#fff' }}>Ver tudo</button>}
                 </div>
             )}
             {/* Controles */}

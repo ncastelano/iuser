@@ -33,14 +33,14 @@ export async function fetchDriverState(me: string): Promise<DriverState> {
 
 export async function fetchActive(me: string): Promise<ActiveDelivery[]> {
     const { data, error } = await supabase.from('ride_requests')
-        .select('id, order_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, recipient_name, sender_name, object_description, offered_price, distance_km, delivery_units, items_count, payment_method, cash_change_for, driver_en_route, driver_arrived_at, ride_started_at, created_at')
+        .select('id, order_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, recipient_name, sender_name, object_description, offered_price, distance_km, delivery_units, items_count, payment_method, cash_change_for, driver_en_route, driver_arrived_at, ride_started_at, arrived_destination_at, created_at')
         .eq('driver_id', me).eq('status', 'accepted').not('order_id', 'is', null).order('created_at')
     if (error) throw error
     return ((data || []) as any[]).map((r) => ({
         id: r.id, orderId: r.order_id, storeName: r.sender_name || 'Loja', storeAddress: r.origin_address || '', store: pos(r.origin_lat, r.origin_lng),
         customerName: r.recipient_name || 'Cliente', address: r.destination_address || '', to: pos(r.destination_lat, r.destination_lng),
         items: r.object_description || '', price: Number(r.offered_price) || 0, km: num(r.distance_km), units: Number(r.delivery_units) || 1, itemsCount: Number(r.items_count) || 1, paymentMethod: r.payment_method || null, cashChangeFor: num(r.cash_change_for),
-        enRoute: !!r.driver_en_route, arrived: !!r.driver_arrived_at, started: !!r.ride_started_at,
+        enRoute: !!r.driver_en_route, arrived: !!r.driver_arrived_at, started: !!r.ride_started_at, atDoor: !!r.arrived_destination_at,
     }))
 }
 
@@ -92,6 +92,12 @@ export async function pickUpOrders(ids: string[], code: string): Promise<PickupR
     const r = data as any
     if (r?.ok) { ids.forEach((i) => notifyRideStatus(i, 'started')); return { ok: true } }
     return { ok: false, error: r?.error === 'code_locked' ? 'code_locked' : 'wrong_code', attemptsLeft: r?.attempts_left ?? null, retryInS: r?.retry_in_s ?? null }
+}
+
+/** "Estou no local": avisa o CLIENTE de que o entregador está na porta. O servidor confere que é a sua entrega, que o pedido já foi retirado e que você está a até 150 m do endereço. */
+export async function arriveAtDestination(id: string, at: LatLng): Promise<void> {
+    const { error } = await supabase.rpc('arrive_at_destination', { p_ride: id, p_lat: at.lat, p_lng: at.lng })
+    if (error) throw new Error(error.message || 'Não foi possível avisar o cliente.')
 }
 
 /** Conclui UMA entrega: o servidor confere que é a sua, que já saiu da loja e que você está a até 100 m do destino */

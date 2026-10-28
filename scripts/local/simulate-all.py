@@ -34,8 +34,9 @@ STATUS_FILE = STATE / 'status.json'
 CONTROL_FILE = STATE / 'control'
 
 SIMS = {
-    'eco': {'tag': 'eco', 'script': HERE / 'simulate-ecosystem.py', 'color': '36', 'name': 'ecossistema'},
-    'pizzaria': {'tag': 'pizza', 'script': HERE / 'simulate-pizzaria.py', 'color': '35', 'name': 'pizzaria'},
+    # `log`: o log CRU de cada simulador (sem prefixo) — a página /tres-telas lê o da pizzaria em /tmp/sim-pizzaria.log (rota /api/dev/observer)
+    'eco': {'tag': 'eco', 'script': HERE / 'simulate-ecosystem.py', 'color': '36', 'name': 'ecossistema', 'log': '/tmp/sim-ecosystem.log'},
+    'pizzaria': {'tag': 'pizza', 'script': HERE / 'simulate-pizzaria.py', 'color': '35', 'name': 'pizzaria', 'log': '/tmp/sim-pizzaria.log'},
 }
 ALIASES = {'eco': 'eco', 'ecossistema': 'eco', 'pizza': 'pizzaria', 'pizzaria': 'pizzaria'}
 TTY = sys.stdout.isatty()
@@ -92,8 +93,15 @@ class Child:
         threading.Thread(target=self._pump, args=(self.proc,), daemon=True).start()
 
     def _pump(self, proc):
+        try:
+            raw = open(self.spec['log'], 'w', buffering=1)
+        except OSError:
+            raw = None
         for line in proc.stdout:
             emit(self.spec['tag'], self.spec['color'], line.rstrip('\n'))
+            if raw:
+                try: raw.write(line)
+                except OSError: pass
 
     def running(self):
         return self.proc is not None and self.proc.poll() is None

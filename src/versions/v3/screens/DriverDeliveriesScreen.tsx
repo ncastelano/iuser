@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from '@/lib/toast'
-import { Bike, Check, ChevronDown, ChevronUp, Clock3, Flame, Layers, MapPin, Minus, Navigation, Package, Plus, Power, Sparkles, Star, Store as StoreIcon, Zap } from 'lucide-react'
+import { Bike, Check, ChevronDown, DoorOpen, ChevronUp, Clock3, Flame, Layers, MapPin, Minus, Navigation, Package, Plus, Power, Sparkles, Star, Store as StoreIcon, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -18,7 +18,7 @@ import { isLocalDevOnly } from '@/lib/devOnly'
 import { fetchOptimizedRoute, fetchRoadPath } from '@/lib/mapboxRoute'
 import DeliveryNavMap, { type NavStop, type NavTarget } from '@/components/deliveries/DeliveryNavMap'
 import {
-    acceptOffer, arriveAtStore, brl, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchMyReviews, fetchOffers, haversineKm, itemsList,
+    acceptOffer, arriveAtDestination, arriveAtStore, brl, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchMyReviews, fetchOffers, haversineKm, itemsList,
     leaveForStore, mapsUrl, paymentRecap, phaseOf, pickUpOrders, PHASE_LABEL, routeKm, routeOrder, setCapacity, setCapacityUnits, setOnline, unitsState, fitsUnits, loadLabel, shortAddress, suggestBatches, wazeUrl, withinRadius,
     type ActiveDelivery, type DeliveryOffer, type DoneToday, type DriverState, type LatLng, type MyReviews,
 } from '@/modules/deliveries'
@@ -156,21 +156,21 @@ export default function DriverDeliveriesScreen() {
     const acceptMany = (list: DeliveryOffer[]) => run('combo', async () => { for (const o of list) await acceptOffer(o, userId as string) }, `${list.length} entregas aceitas!`)
     const ids = active.map((a) => a.id)
 
-    // Concluir exige estar a até 100 m do destino: usa o GPS do aparelho (em teste local, dá para marcar "estou no local")
-    const finish = (d: ActiveDelivery, atDestination = false) => run(`f-${d.id}`, async () => {
+    // Duas etapas na porta do cliente: "Estou no local" (avisa o cliente; o servidor confere que está a até 150 m) e, depois, "Entreguei" (até 100 m). Usa o GPS do aparelho (em teste local, dá para marcar "estou no local")
+    const whereAmI = async (d: ActiveDelivery, atDestination: boolean): Promise<LatLng> => {
         if (!d.to) throw new Error('Esta entrega está sem localização.')
-        let at: LatLng = d.to
         const stagePos = state?.live   // TEATRO: dentro do /tres-telas o GPS simulado (que anda até a parada) vale como a posição do aparelho
-        if (!atDestination && devGps() && stagePos) at = stagePos
-        else if (!atDestination) {
-            at = await new Promise<LatLng>((resolve, reject) => {
-                if (!navigator.geolocation) return reject(new Error('Ative a localização para concluir.'))
-                navigator.geolocation.getCurrentPosition((p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }), () => reject(new Error('Ative a localização do aparelho para concluir a entrega.')), { enableHighAccuracy: true, timeout: 9000 })
-            })
-        }
-        await completeDelivery(d.id, at)
-    }, 'Entrega concluída! 🎉')
+        if (atDestination) return d.to
+        if (devGps() && stagePos) return stagePos
+        return new Promise<LatLng>((resolve, reject) => {
+            if (!navigator.geolocation) return reject(new Error('Ative a localização para avisar o cliente e concluir.'))
+            navigator.geolocation.getCurrentPosition((p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }), () => reject(new Error('Ative a localização do aparelho para avisar o cliente e concluir a entrega.')), { enableHighAccuracy: true, timeout: 9000 })
+        })
+    }
+    const arriveDoor = (d: ActiveDelivery, atDestination = false) => run(`a-${d.id}`, async () => { await arriveAtDestination(d.id, await whereAmI(d, atDestination)) }, `${firstName(d.customerName)} foi avisado(a) de que você chegou 🚪`)
+    const finish = (d: ActiveDelivery, atDestination = false) => run(`f-${d.id}`, async () => { await completeDelivery(d.id, await whereAmI(d, atDestination)) }, 'Entrega concluída! 🎉')
 
+    const firstName = (n: string) => (n || 'O cliente').trim().split(/\s+/)[0]
     const eta = (to: LatLng | null, from: LatLng | null) => (to && from ? etaMinutes(haversineKm(from, to)) : null)
     const myPos = state?.live ?? null
     // O mapa guia o motorista até o ALVO da vez: a loja (até pegar os pedidos) e depois cada parada, na ordem da rota
@@ -220,7 +220,7 @@ export default function DriverDeliveriesScreen() {
         return () => clearInterval(t)
     }, [userId])
     if (!userId) return <p className="py-16 text-center text-sm" style={{ color: colors.textSecondary }}>Entre na sua conta para ver as entregas.</p>
-    const navStops: NavStop[] = ordered.filter((d) => d.to).map((d, i) => ({ id: d.id, n: i + 1, to: d.to as LatLng, label: d.address }))
+    const navStops: NavStop[] = ordered.filter((d) => d.to).map((d, i) => ({ id: d.id, n: i + 1, to: d.to as LatLng, label: d.customerName, address: d.address }))
     // A ação principal da etapa (a mesma no cartão e no mapa ampliado)
     const confirmCode = async () => {
         if (codeValue.length < 4) { setCodeError('Digite os 4 números que a loja informou.'); return }
@@ -233,6 +233,9 @@ export default function DriverDeliveriesScreen() {
         } catch (e: any) { setCodeError(e?.message || 'Não foi possível confirmar.') } finally { setBusy(null) }
     }
     const loadSummary = active.length > 0 ? loadLabel(active.reduce((a, d) => a + d.itemsCount, 0), usedUnits) : ''
+    // Na porta: o botão "Estou no local" avisa o cliente; o servidor só aceita a até 150 m do endereço, então a tela mostra o quanto falta
+    const doorM = current?.to && myPos ? Math.round(haversineKm(myPos, current.to) * 1000) : null
+    const doorHint = doorM == null ? 'Chegando ao endereço, avise o cliente.' : doorM <= 150 ? `Você está a ${doorM} m: avise o cliente que chegou.` : `Falta ${doorM >= 1000 ? `${(doorM / 1000).toFixed(1).replace('.', ',')} km` : `${doorM} m`} para o endereço (chegue a até 150 m para avisar).`
     const primaryAction = active.length === 0 ? null : phase === 'at_store' ? (
         codeOpen ? (
             <div className="flex flex-col gap-2 w-full rounded-2xl p-3" style={{ background: `${ORANGE}12`, border: `1.5px solid ${ORANGE}` }}>
@@ -264,8 +267,16 @@ export default function DriverDeliveriesScreen() {
         >
             {phase === 'accepted' ? <><Navigation size={17} /> Sair para a loja</> : <><MapPin size={17} /> Cheguei na loja</>}
         </button>
+    ) : current && !current.atDoor ? (
+        <div className="flex flex-col gap-1.5">
+            <button onClick={() => arriveDoor(current)} disabled={busy === `a-${current.id}`} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 w-full" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)', boxShadow: '0 6px 18px #f9731655' }}><DoorOpen size={18} /> Estou no local</button>
+            <p className="text-[11px] font-bold text-center" style={{ color: colors.textSecondary }}>{doorHint}</p>
+        </div>
     ) : current ? (
-        <button onClick={() => finish(current)} disabled={busy === `f-${current.id}`} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 w-full" style={{ background: GREEN, boxShadow: '0 6px 18px #22c55e55' }}><Check size={18} strokeWidth={3} /> Entreguei</button>
+        <div className="flex flex-col gap-1.5">
+            <p className="text-[12px] font-black text-center flex items-center justify-center gap-1.5" style={{ color: '#16a34a' }}><Check size={14} strokeWidth={3} /> {firstName(current.customerName)} foi avisado(a). Entregue o pedido e confirme.</p>
+            <button onClick={() => finish(current)} disabled={busy === `f-${current.id}`} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 w-full" style={{ background: GREEN, boxShadow: '0 6px 18px #22c55e55' }}><Check size={18} strokeWidth={3} /> Entreguei</button>
+        </div>
     ) : null
 
     return (
@@ -329,7 +340,7 @@ export default function DriverDeliveriesScreen() {
                             </div>) })}
                     </div>
 
-                    <DeliveryNavMap me={myPos} store={store} stops={navStops} target={navTarget} height={310} voice={state?.voice} colors={colors} onToggleFull={() => setView('map')} />
+                    <DeliveryNavMap me={myPos} store={store} storeName={active[0]?.storeName} stops={navStops} target={navTarget} height={310} voice={state?.voice} colors={colors} onToggleFull={() => setView('map')} />
                     <p className="text-[11px] -mt-1 flex items-center gap-1.5 flex-wrap" style={{ color: colors.textSecondary }}>{ordered.length} parada(s) · ~{routeKm(store, ordered).toFixed(1)} km · ~{etaMinutes(routeKm(store, ordered))} min de rota{optimized && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-black" style={{ background: `${GREEN}22`, color: '#16a34a' }}><Sparkles size={10} /> Rota otimizada{savedKm >= 0.05 ? ` · −${savedKm.toFixed(1).replace('.', ',')} km` : ''}</span>}</p>
 
                     {/* Etapas antes de sair da loja */}
@@ -377,7 +388,7 @@ export default function DriverDeliveriesScreen() {
                                 </ul>
                                 <div className="rounded-2xl px-3 py-2 text-[12px] font-bold" style={pay.collect ? { background: '#f59e0b22', color: '#b45309' } : { background: `${GREEN}22`, color: '#16a34a' }}>{pay.label}{pay.note ? ` · ${pay.note}` : ''}</div>
                                 {primaryAction}
-                                {isLocalDevOnly() && <button onClick={() => finish(current, true)} className="text-[11px] font-bold underline self-center" style={{ color: colors.textSecondary }}>Estou no local (teste)</button>}
+                                {isLocalDevOnly() && <button onClick={() => (current.atDoor ? finish(current, true) : arriveDoor(current, true))} className="text-[11px] font-bold underline self-center" style={{ color: colors.textSecondary }}>{current.atDoor ? 'Entreguei (teste)' : 'Estou no local (teste)'}</button>}
                                 {ordered.length > 1 && (
                                     <div className="flex flex-col gap-1.5 pt-1">
                                         <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Depois</p>
@@ -437,12 +448,13 @@ export default function DriverDeliveriesScreen() {
                                             <p className="flex items-center gap-1.5 text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{o.storeName}{fresh.has(o.id) && <span className="text-[9px] px-1.5 py-0.5 rounded-full text-white" style={{ background: GREEN }}>NOVA</span>}</p>
                                             <p className="text-[12px] truncate" style={{ color: colors.textSecondary }}>{itemsList(o.items).slice(0, 2).join(', ') || 'Pedido da loja'}</p>
                                             <p className="text-[11px] font-black mt-0.5" style={{ color: fitsUnits(usedUnits, o.units, state?.capacityUnits ?? null) ? ORANGE : '#ef4444' }}>{loadLabel(o.itemsCount, o.units)}{fitsUnits(usedUnits, o.units, state?.capacityUnits ?? null) ? '' : ' · não cabe na sua mochila'}</p>
-                                            <p className="text-[12px] flex items-center gap-1 mt-0.5 truncate" style={{ color: colors.textPrimary }}><MapPin size={11} style={{ color: ORANGE }} /> {shortAddress(o.address)}</p>
+                                            {/* ONDE PEGAR e ONDE ENTREGAR, rotulados: é o que o motorista precisa saber antes de aceitar */}
+                                            <p className="text-[12px] flex items-center gap-1 mt-1.5 truncate" style={{ color: colors.textPrimary }}><StoreIcon size={11} className="flex-shrink-0" style={{ color: GREEN }} /><b style={{ color: '#16a34a' }}>Retirar</b> {shortAddress(o.storeAddress) || o.storeName}{toStore != null ? ` · a ${toStore.toFixed(1).replace('.', ',')} km de você` : ''}</p>
+                                            <p className="text-[12px] flex items-center gap-1 mt-0.5 truncate" style={{ color: colors.textPrimary }}><MapPin size={11} className="flex-shrink-0" style={{ color: ORANGE }} /><b style={{ color: ORANGE }}>Entregar</b> {shortAddress(o.address)}{o.km != null ? ` · ${o.km.toFixed(1).replace('.', ',')} km da loja` : ''}</p>
                                         </div>
-                                        <div className="text-right flex-shrink-0"><p className="text-lg font-black leading-none" style={{ color: '#16a34a' }}>{brl(o.price)}</p><p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>{o.km != null ? `${o.km.toFixed(1)} km` : ''}{e ? ` · ~${e} min` : ''}</p></div>
+                                        <div className="text-right flex-shrink-0"><p className="text-lg font-black leading-none" style={{ color: '#16a34a' }}>{brl(o.price)}</p><p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>{e ? `~${e} min` : ''}</p></div>
                                     </div>
                                     <div className="mt-3 flex items-center gap-2">
-                                        {toStore != null && <span className="text-[11px] font-bold px-2 py-1 rounded-full" style={{ background: soft, color: colors.textSecondary }}>Loja a {toStore.toFixed(1)} km de você</span>}
                                         <span className="flex-1" />
                                         <button onClick={() => accept(o)} disabled={!canTakeMore || busy === `o-${o.id}` || !fitsUnits(usedUnits, o.units, state?.capacityUnits ?? null)} className="h-10 px-5 rounded-full text-[13px] font-black text-white flex items-center gap-1.5 transition active:scale-95 disabled:opacity-40" style={{ background: ORANGE }}><Check size={15} strokeWidth={3} /> Aceitar</button>
                                     </div>
@@ -489,7 +501,7 @@ export default function DriverDeliveriesScreen() {
             {active.length > 0 && view === 'map' && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-x-0 bottom-0 z-[45] flex flex-col" style={{ top: shellTop, background: colors.background }}>
                     <div className="relative flex-1 min-h-0">
-                        <DeliveryNavMap me={myPos} store={store} stops={navStops} target={navTarget} height="100%" full voice={state?.voice} colors={colors} />
+                        <DeliveryNavMap me={myPos} store={store} storeName={active[0]?.storeName} stops={navStops} target={navTarget} height="100%" full voice={state?.voice} colors={colors} />
                         <div className="absolute left-2 flex items-center gap-2" style={{ top: 88 }}>
                             <button onClick={() => setView('central')} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 shadow-lg bg-white text-slate-800 active:scale-95 transition"><Bike size={14} /> Central</button>
                             {visibleOffers.length > 0 && <button onClick={() => setView('central')} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 shadow-lg text-white active:scale-95 transition" style={{ background: GREEN }}><Zap size={13} /> {visibleOffers.length} {visibleOffers.length === 1 ? 'nova entrega' : 'novas entregas'}</button>}
@@ -538,7 +550,7 @@ export default function DriverDeliveriesScreen() {
                         <div className="flex items-center gap-2">
                             {navTarget && <a href={wazeUrl(navTarget)} target="_blank" rel="noreferrer" className="flex-1 h-9 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5" style={{ background: '#33ccff33', color: '#0891b2' }}><Navigation size={13} /> Waze</a>}
                             {navTarget && <a href={mapsUrl(navTarget)} target="_blank" rel="noreferrer" className="flex-1 h-9 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5" style={{ background: '#4285f433', color: '#2563eb' }}><MapPin size={13} /> Google Maps</a>}
-                            {isLocalDevOnly() && phase === 'delivering' && current && <button onClick={() => finish(current, true)} className="text-[11px] font-bold underline px-1" style={{ color: colors.textSecondary }}>Estou no local (teste)</button>}
+                            {isLocalDevOnly() && phase === 'delivering' && current && <button onClick={() => (current.atDoor ? finish(current, true) : arriveDoor(current, true))} className="text-[11px] font-bold underline px-1" style={{ color: colors.textSecondary }}>{current.atDoor ? 'Entreguei (teste)' : 'Estou no local (teste)'}</button>}
                         </div>
                     </div>
                 </div>, document.body)}

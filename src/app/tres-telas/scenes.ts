@@ -133,8 +133,17 @@ async function clientWait(c: Ctx) {
     await st.goto('client', '/carrinho?aba=pedidos')
     c.say('client', 'acompanhando o pedido')
     const t0 = Date.now()
+    let atDoor = false
     while (alive(c) && Date.now() - t0 < 6 * 60_000) {
         await human(c, 6, 9)
+        const page = (await st.soft('client', { op: 'text' })) as string | null
+        if (!atDoor && page && /está no seu endereço/.test(page)) {   // o entregador tocou "Estou no local": a ilha avisa
+            atDoor = true
+            await st.caption('client', '🚪 O entregador chegou!')
+            await st.soft('client', { op: 'scroll', by: -400, ms: 900 }); await human(c, 2, 3)
+            await st.caption('client', '🚶 Indo receber o pedido na porta'); await human(c, 3, 4)
+            await st.caption('client', '⏳ Esperando o pedido chegar')
+        }
         await st.soft('client', { op: 'scroll', by: pick([-200, 240, 160]), ms: 1100 })
         if (Date.now() - t0 > 40_000 && (await review(c))) return
         if ((c.obs()?.featured || []).length === 0 && Date.now() - t0 > 30_000) {   // não há mais pedido em andamento: recarrega a lista e tenta avaliar
@@ -286,13 +295,28 @@ async function driverSlice(c: Ctx, name: string) {
                     await st.soft('driver', { op: 'click', target: { text: 'Peguei os' } }); await human(c, 2, 3)
                     continue
                 }
-                if (text.includes('Entreguei')) {
-                    c.say('driver', 'indo entregar'); await st.caption('driver', '🧭 Seguindo para a entrega')
-                    await human(c, 1, 2); await waitText(c, 'driver', 'Você chegou', 80)   // o trajeto até o cliente: o GPS anda no mapa até chegar
-                    await human(c, 1, 1.8); await st.soft('driver', { op: 'click', target: { text: 'Entreguei' } })
+                // Na porta do cliente são DOIS toques: "Estou no local" (o cliente é avisado na hora) e, depois que ele sai para receber, "Entreguei"
+                if (text.includes('foi avisado')) {
+                    c.say('driver', 'esperando o cliente na porta'); await st.caption('driver', '🚪 Cliente avisado — esperando ele chegar na porta')
+                    await human(c, 3.5, 5.5)   // o cliente vai até a porta
+                    await st.caption('driver', '🤝 Entregando o pedido')
+                    await human(c, 1, 1.8); await st.soft('driver', { op: 'click', target: { text: 'Entreguei', exact: true } })
                     await human(c, 2.5, 3.5)
                     c.say('driver', 'entregou!'); await st.caption('driver', '🎉 Entregue!')
                     await human(c, 2, 3)
+                    continue
+                }
+                if (text.includes('Estou no local')) {
+                    c.say('driver', 'indo entregar'); await st.caption('driver', '🧭 Seguindo para a entrega')
+                    await human(c, 1, 2); await waitText(c, 'driver', 'Você chegou', 80)   // o trajeto até o cliente: o GPS anda no mapa até chegar
+                    await st.caption('driver', '🚪 Chegou! Avisando o cliente: estou no local')
+                    await human(c, 1, 1.8); await st.soft('driver', { op: 'click', target: { text: 'Estou no local', exact: true } })
+                    await human(c, 2, 3)
+                    continue
+                }
+                if (text.includes('Entreguei')) {
+                    await human(c, 1, 1.8); await st.soft('driver', { op: 'click', target: { text: 'Entreguei', exact: true } })
+                    await human(c, 2.5, 3.5)
                     continue
                 }
                 // entrega nova aparecendo "do nada": aceita

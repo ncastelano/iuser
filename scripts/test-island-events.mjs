@@ -28,3 +28,7 @@ test('agendamento: mostra o serviço e a data', () => {
   const e = islandEventFor({ kind: 'appointment_new', meta: { title: 'Corte', date: '2026-10-30', time: '14:00' } })
   assert.match(e.text, /Corte/); assert.match(e.text, /30\/10\/2026 às 14:00/)
 })
+test('"Estou no local": o aviso ao cliente fica 20 s na ilha e leva ao pedido', () => {
+  const e = islandEventFor({ kind: 'delivery_at_door', meta: { title: 'Dani chegou', text: 'Dani está no seu endereço com o pedido da Pizzaria — vá receber', path: '/carrinho?aba=pedidos' } })
+  assert.ok(e && e.level === 'success' && e.duration >= 15000); assert.equal(e.path, '/carrinho?aba=pedidos'); assert.match(e.text, /está no seu endereço/); assert.equal(e.actionLabel, 'Ver pedido')
+})
