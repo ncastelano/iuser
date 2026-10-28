@@ -9,13 +9,9 @@ import { hexToRgb } from '@/lib/color'
 import { useCartStore } from '@/store/useCartStore'
 import { useChatUnread } from '@/hooks/useChatUnread'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import PlanAvatarRing, { PlanRingFrame } from '@/components/PlanAvatarRing'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useInsideShell } from '@/components/InsideShell'
 import PageTabs, { type Tab } from '@/components/PageTabs'
-
-// Cores da borda giratória das chamadas do visitante (laranja → amarelo → vermelho)
-const GLOW_COLORS = ['#f97316', '#facc15', '#ef4444', '#f97316']
-const GLOW_STOPS = [...GLOW_COLORS, GLOW_COLORS[0]].map((c, i) => `${c} ${Math.round((i / GLOW_COLORS.length) * 360)}deg`).join(', ')
 
 export type { Tab }
 
@@ -224,28 +220,26 @@ export default function Header({
         }
     }, [activeTabId])
 
+    // Abas da faixa (v2): pílulas planas, sem sombra. Inativa = vidro leve com borda fina; ativa = laranja cheio; aba com status (perfil/loja aberta ou fechada) =
+    // tom suave da cor do status (verde/vermelho) com borda na cor, e cheio só quando é a ativa; chamada à ação (Nova loja, Ser motorista) = contorno laranja suave.
     const getTabBackground = (tab: Tab): string => {
-        if (tab.statusColor) {
-            return tab.statusColor
-        }
-        if (tab.isActive) {
-            return 'linear-gradient(135deg, #f97316, #dc2626)'
-        }
-        return 'transparent'
+        if (tab.isActive) return tab.statusColor ? tab.statusColor : 'linear-gradient(135deg, #f97316, #dc2626)'
+        if (tab.statusColor) return `${tab.statusColor}1f`
+        if (tab.glow) return '#f9731614'
+        return `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`
     }
 
     const getTabTextColor = (tab: Tab): string => {
-        if (tab.statusColor) {
-            return '#ffffff'
-        }
-        if (tab.isActive) {
-            return '#ffffff'
-        }
+        if (tab.isActive) return '#ffffff'
+        if (tab.glow) return '#ea580c'
         return colors.textPrimary
     }
 
     const getTabBorder = (tab: Tab): string => {
-        return tab.isActive ? '#f97316' : '#ffffff'
+        if (tab.isActive) return tab.statusColor || '#f97316'
+        if (tab.statusColor) return tab.statusColor
+        if (tab.glow) return '#f97316'
+        return colors.border
     }
 
     // Dentro da casca da 3.0 a navbar e o menu já existem: aqui sobram só o voltar/título, as abas e a busca da página.
@@ -452,7 +446,7 @@ export default function Header({
                     </div>
 
                     {greeting && (
-                        <h1 className="text-lg sm:text-2xl lg:text-3xl font-extrabold mt-1 tracking-tight break-words">
+                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mt-2 tracking-tight break-words">
                             {greeting}
                         </h1>
                     )}
@@ -460,7 +454,7 @@ export default function Header({
                     {enhancedTabs.length > 0 && (
                         <div
                             ref={tabsScrollRef}
-                            className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
+                            className="flex gap-2 mt-3 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
                             style={{
                                 overflowY: 'visible',
                                 scrollSnapType: 'x proximity',
@@ -480,23 +474,14 @@ export default function Header({
                                         data-tab-id={tab.id}
                                         onClick={tab.onClick}
                                         disabled={loading}
-                                        className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
+                                        className="relative flex items-center pl-1 pr-3.5 h-10 rounded-full text-xs sm:text-sm font-bold transition-colors duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
                                         style={{
-                                            background: tab.glow && !isActive ? colors.surface : backgroundColor,
-                                            backdropFilter: 'blur(10px)',
+                                            background: backgroundColor,
                                             color: textColor,
                                             overflow: 'visible',
                                             scrollSnapAlign: 'start',
-                                            border: `1.5px solid ${tab.glow && !isActive ? 'transparent' : borderColor}`,
-                                            ...(isActive && !tab.statusColor ? {
-                                                boxShadow: `0 2px 8px #f9731640`,
-                                                fontWeight: 'bold',
-                                            } : {}),
-                                            ...(isActive && tab.statusColor ? {
-                                                boxShadow: `0 2px 8px ${tab.statusColor}60`,
-                                                fontWeight: 'bold',
-                                                transform: 'scale(1.05)',
-                                            } : {}),
+                                            border: `1.5px solid ${borderColor}`,
+                                            boxShadow: 'none',
                                         }}
                                     >
                                         {tab.imageUrl ? (
@@ -505,26 +490,23 @@ export default function Header({
                                                 <img
                                                     src={tab.imageUrl}
                                                     alt=""
-                                                    className="h-7 w-7 sm:h-9 sm:w-9 object-cover rounded-full flex-shrink-0"
+                                                    className="h-8 w-8 object-cover rounded-full flex-shrink-0"
                                                 />
                                             </PlanAvatarRing>
                                         ) : (
                                             <div
-                                                className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                                className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
                                                 style={{
-                                                    background: isActive
-                                                        ? (tab.statusColor ? `${tab.statusColor}cc` : 'linear-gradient(135deg, #f97316, #dc2626)')
-                                                        : 'transparent',
-                                                    backdropFilter: 'blur(10px)',
+                                                    background: isActive ? 'rgba(255,255,255,0.22)' : tab.glow ? '#f97316' : `${colors.border}66`,
                                                 }}
                                             >
                                                 <tab.icon
-                                                    size={14}
-                                                    color={textColor}
+                                                    size={15}
+                                                    color={isActive || tab.glow ? '#ffffff' : textColor}
                                                 />
                                             </div>
                                         )}
-                                        <span className="ml-1.5 sm:ml-2">{tab.label}</span>
+                                        <span className="ml-2">{tab.label}</span>
 
                                         {tab.indicator && (
                                             <div className="absolute -top-1 -right-1 flex gap-0.5">
@@ -559,25 +541,6 @@ export default function Header({
                                     </button>
                                 )
 
-                                // Chamada à ação do visitante: borda giratória laranja/amarelo/vermelho, com um halo esfumaçado atrás
-                                if (tab.glow && !isActive) {
-                                    return (
-                                        <PlanRingFrame key={tab.id} colors={GLOW_COLORS} radius="9999px" width={2} className="flex-shrink-0 mx-1.5">
-                                            <span
-                                                aria-hidden
-                                                className="plan-ring-inset pointer-events-none absolute"
-                                                style={{
-                                                    inset: -3,
-                                                    borderRadius: 9999,
-                                                    background: `conic-gradient(from var(--plan-ring-angle), ${GLOW_STOPS})`,
-                                                    filter: 'blur(7px)',
-                                                    opacity: 0.6,
-                                                }}
-                                            />
-                                            {button}
-                                        </PlanRingFrame>
-                                    )
-                                }
                                 return button
                             })}
                         </div>
@@ -613,7 +576,7 @@ export default function Header({
                                 WebkitBackdropFilter: 'blur(16px) saturate(180%)',
                                 border: `1.5px solid ${isExpanded ? '#f97316' : colors.border}`,
                                 transition: 'border-color 0.3s ease-in-out',
-                                boxShadow: isExpanded ? `0 0 0 1px #f97316, 0 0 8px #f9731640` : colors.shadow,
+                                boxShadow: isExpanded ? `0 0 0 1px #f97316` : 'none',
                             }}
                             onClick={() => {
                                 if (inputRef.current) {

@@ -791,8 +791,8 @@ function HomePageContent() {
                             <button
                                 onClick={() => setShowLocationDialog(true)}
                                 disabled={isSavingLocation}
-                                className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
-                                style={{ color: colors.textPrimary }}
+                                className="flex items-center gap-1.5 text-xs font-bold h-8 px-3 rounded-full transition-colors disabled:opacity-50"
+                                style={{ color: colors.textPrimary, background: `${colors.border}40`, border: `1px solid ${colors.border}` }}
                             >
                                 <MapPin size={14} />
                                 {isSavingLocation
