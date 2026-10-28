@@ -44,7 +44,8 @@
     "test:deliveries": "node --test scripts/test-deliveries.mjs",
     "test:toast": "node --test scripts/test-toast.mjs",
     "test:handoff": "python3 scripts/local/test-handoff.py",
-    "test:island-events": "node --test scripts/test-island-events.mjs"
+    "test:island-events": "node --test scripts/test-island-events.mjs",
+    "test:manual-crypto": "node --test scripts/test-manual-crypto.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -59,6 +60,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "@simplewebauthn/browser": "14.0.0",
+    "@simplewebauthn/server": "14.0.3",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.100.1",
     "@tanstack/react-query": "^5.99.0",
