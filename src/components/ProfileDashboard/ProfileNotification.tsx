@@ -49,7 +49,7 @@ const FILTERS: { id: Filter; label: string; kinds: string[] | null }[] = [
     { id: 'comments', label: 'Comentários', kinds: ['publication_comment', 'profile_comment', 'comment_reply'] },
     { id: 'followers', label: 'Seguidores', kinds: ['follow', 'invite_signup'] },
     { id: 'visits', label: 'Visitas', kinds: ['profile_view', 'link_visit'] },
-    { id: 'orders', label: 'Pedidos e entregas', kinds: ['order_new', 'order_accepted', 'order_ready', 'order_rejected', 'order_delivered', 'delivery_driver_assigned', 'delivery_driver_accepted', 'delivery_driver_arrived', 'delivery_picked_up', 'delivery_at_door', 'delivery_message', 'delivery_issue', 'delivery_order_ready', 'delivery_completed', 'delivery_done', 'delivery_driver_cancelled', 'delivery_cancelled'] },
+    { id: 'orders', label: 'Pedidos e entregas', kinds: ['order_new', 'order_accepted', 'order_ready', 'order_rejected', 'order_delivered', 'delivery_driver_assigned', 'delivery_driver_accepted', 'delivery_driver_arrived', 'delivery_picked_up', 'delivery_at_door', 'delivery_message', 'delivery_issue', 'delivery_order_ready', 'delivery_completed', 'delivery_done', 'delivery_driver_cancelled', 'delivery_cancelled', 'favorite_invite', 'favorite_accepted', 'favorite_declined'] },
     { id: 'agenda', label: 'Agenda', kinds: ['appointment_new', 'appointment_confirmed', 'appointment_cancelled', 'appointment_changed'] },
     { id: 'services', label: 'Serviços', kinds: ['service_application', 'service_selected', 'service_completed', 'service_review', 'ride_application', 'ride_selected', 'ride_review', 'customer_review'] },
 ]
@@ -87,6 +87,9 @@ const KIND_ICON: Record<string, { icon: typeof Bell; color: string }> = {
     delivery_at_door: { icon: Bike, color: '#22c55e' },
     delivery_message: { icon: MessageCircle, color: '#0ea5e9' },
     delivery_issue: { icon: CalendarX, color: '#ef4444' },
+    favorite_invite: { icon: Star, color: '#eab308' },
+    favorite_accepted: { icon: Star, color: '#22c55e' },
+    favorite_declined: { icon: Star, color: '#94a3b8' },
     delivery_order_ready: { icon: PackageCheck, color: '#a855f7' },
     delivery_completed: { icon: CheckCircle2, color: '#22c55e' },
     delivery_done: { icon: CheckCircle2, color: '#3b82f6' },

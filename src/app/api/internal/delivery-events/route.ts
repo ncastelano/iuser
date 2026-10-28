@@ -122,8 +122,11 @@ export async function POST() {
                 originLng: store.store_lng,
                 // raio ampliado sem mudar o valor: só o anel novo; valor mudou (ou rodada 1): todo o raio
                 requirePayoutPix: d.flow_version === 2,
+                // fim da janela dos favoritos: avisa os demais motoristas do raio inteiro (os favoritos já foram avisados primeiro)
+                skipFavorites: ev.kind === 'favorites_window_ended',
                 innerRadiusKm:
-                    ev.kind === 'tick' && ev.old_radius != null ? Number(ev.old_radius)
+                    ev.kind === 'favorites_window_ended' ? null
+                    : ev.kind === 'tick' && ev.old_radius != null ? Number(ev.old_radius)
                     : ev.kind === 'round_started' && ev.old_radius != null && !(ev.data as { price_changed?: boolean } | null)?.price_changed ? Number(ev.old_radius)
                     : null,
             })

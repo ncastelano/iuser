@@ -1375,6 +1375,7 @@ export default function StoreOrders({
 
             {callDriverOrder && (
                 <CallIuserDriverDialog
+                    storeId={storeId}
                     order={callDriverOrder}
                     onClose={() => setCallDriverOrder(null)}
                     onDispatched={(id) => setDispatchedOrderIds((prev) => new Set(prev).add(id))}

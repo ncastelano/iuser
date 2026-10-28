@@ -1,15 +1,18 @@
 // components/StoreDashboard/CallIuserDriverDialog.tsx
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTheme } from '@/app/contexts/theme'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
 import { toast } from '@/lib/toast'
-import { Truck, X } from 'lucide-react'
+import { Star, Truck, X } from 'lucide-react'
+import { acceptedOnly, fetchStoreFavorites, windowLabel, type FavoritesState } from '@/modules/favorites'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 interface Props {
+    /** a loja do pedido: é ela que tem (ou não) motoristas favoritos */
+    storeId?: string
     order: { id: string; buyer_name?: string | null; buyer_profile_slug?: string | null; deliveryFee: number; delivery_address?: string | null }
     onClose: () => void
     onDispatched: (orderId: string) => void
@@ -17,15 +20,25 @@ interface Props {
 
 // Entrega iUser: chama um motorista da plataforma pra levar esse pedido, com
 // o frete da Tarifa iUser (a taxa que o cliente pagou). Aparece pros motoristas em /aceitar-corridas.
-export default function CallIuserDriverDialog({ order, onClose, onDispatched }: Props) {
+export default function CallIuserDriverDialog({ storeId, order, onClose, onDispatched }: Props) {
     const { colors } = useTheme()
     const [busy, setBusy] = useState(false)
+    // Favoritos: só aparece a escolha se a loja tem favorito aceito; começa no padrão da loja ("favoritos primeiro" ligado ou não)
+    const [fav, setFav] = useState<FavoritesState | null>(null)
+    const [mode, setMode] = useState<'favorites' | 'all'>('all')
+    useEffect(() => {
+        if (!storeId) return
+        fetchStoreFavorites(storeId).then((f) => { setFav(f); setMode(f.favoritesFirst && acceptedOnly(f.items).length > 0 ? 'favorites' : 'all') }).catch(() => { })
+    }, [storeId])
+    const hasFavorites = !!fav && acceptedOnly(fav.items).length > 0
 
     const submit = async () => {
         setBusy(true)
         try {
-            await callAdminApi('/api/store-orders/dispatch-driver', { orderId: order.id })
-            toast.success('Motorista chamado! Os motoristas foram avisados.')
+            const res = await callAdminApi('/api/store-orders/dispatch-driver', { orderId: order.id, ...(hasFavorites ? { mode } : {}) }) as { favoritesFirst?: { available?: boolean } | null } | undefined
+            if (hasFavorites && mode === 'favorites') {
+                toast.success(res?.favoritesFirst?.available ? `Seus favoritos foram avisados primeiro (${windowLabel(fav!.windowSeconds)}).` : 'Nenhum favorito disponível agora: avisei todos os motoristas.')
+            } else toast.success('Motorista chamado! Os motoristas foram avisados.')
             onDispatched(order.id)
             onClose()
         } catch (err: any) {
@@ -57,6 +70,25 @@ export default function CallIuserDriverDialog({ order, onClose, onDispatched }: 
                 <p className="text-[11px] mb-4" style={{ color: colors.textSecondary }}>
                     É a taxa de entrega que o cliente pagou, definida pela tarifa do iUser. O primeiro motorista que aceitar fica com a entrega.
                 </p>
+
+                {hasFavorites && (
+                    <div className="mb-4">
+                        <div className="grid grid-cols-2 gap-1.5 p-1 rounded-full" style={{ background: `${colors.border}40` }}>
+                            {([['favorites', 'Favoritos primeiro'], ['all', 'Todos']] as const).map(([k, label]) => (
+                                <button key={k} type="button" onClick={() => setMode(k)} disabled={busy}
+                                    className="h-9 rounded-full text-xs font-black flex items-center justify-center gap-1 transition active:scale-95"
+                                    style={mode === k ? { background: '#f97316', color: '#fff' } : { color: colors.textSecondary }}>
+                                    {k === 'favorites' && <Star size={12} />}{label}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[11px] mt-1.5" style={{ color: colors.textSecondary }}>
+                            {mode === 'favorites'
+                                ? `Seus ${acceptedOnly(fav!.items).length} favoritos recebem a entrega por ${windowLabel(fav!.windowSeconds)}; se nenhum estiver disponível, vai para todos.`
+                                : 'A entrega vai para todos os motoristas do raio ao mesmo tempo.'}
+                        </p>
+                    </div>
+                )}
 
                 <button
                     onClick={submit}

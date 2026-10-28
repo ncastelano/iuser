@@ -27,6 +27,7 @@ import {
     leaveForStore, mapsUrl, paymentRecap, phaseOf, pickUpOrders, PHASE_LABEL, routeKm, routeOrder, setCapacity, setCapacityUnits, setOnline, unitsState, fitsUnits, loadLabel, shortAddress, suggestBatches, wazeUrl, withinRadius,
     type ActiveDelivery, type DeliveryOffer, type DoneToday, type DriverState, type LatLng, type MyReviews,
 } from '@/modules/deliveries'
+import { countdown, fetchMyExclusiveOffers, fetchMyFavoriteStores, leaveStore, respondInvite, secondsLeft, type ExclusiveOffer, type MyFavoriteStore } from '@/modules/favorites'
 
 /** GPS de teste (só LOCAL): dentro do /tres-telas, ou em qualquer aba com `localStorage.iuser_dev_gps = 1` */
 /** Botões de TESTE ("Estou no local (teste)"): só no ambiente local e só se o desenvolvedor ligar (localStorage.iuser_dev_teste = 1) — fora disso nunca aparecem */
@@ -58,6 +59,10 @@ export default function DriverDeliveriesScreen() {
     const [active, setActive] = useState<ActiveDelivery[]>([])
     const [offers, setOffers] = useState<DeliveryOffer[]>([])
     const [done, setDone] = useState<DoneToday[]>([])
+    // FAVORITOS: entregas em janela exclusiva para mim (selo + contagem) e as lojas que me convidaram / de que sou favorito
+    const [exclusive, setExclusive] = useState<Record<string, ExclusiveOffer>>({})
+    const [favStores, setFavStores] = useState<MyFavoriteStore[]>([])
+    const [tick, setTick] = useState(0)
     const [loaded, setLoaded] = useState(false)
     const [busy, setBusy] = useState<string | null>(null)
     const [showDone, setShowDone] = useState(false)
@@ -90,10 +95,11 @@ export default function DriverDeliveriesScreen() {
     const refresh = useCallback(async () => {
         if (!userId) return
         try {
-            const [st, ac, of, dn] = await Promise.all([fetchDriverState(userId), fetchActive(userId), fetchOffers(), fetchDoneToday(userId)])
+            const [st, ac, of, dn, ex] = await Promise.all([fetchDriverState(userId), fetchActive(userId), fetchOffers(), fetchDoneToday(userId), fetchMyExclusiveOffers().catch(() => [] as ExclusiveOffer[])])
             const keep = simLive.current && Date.now() - simLive.current.at < 6000 ? simLive.current.pos : null
             setState(keep ? { ...st, live: keep } : st); setActive(ac); setDone(dn)
             setOffers(of)
+            setExclusive(Object.fromEntries(ex.map((e) => [e.rideId, e])))
             // avisa as entregas novas (depois da primeira carga)
             const ids = new Set(of.map((o) => o.id))
             if (seenOffers.current) {
@@ -123,6 +129,20 @@ export default function DriverDeliveriesScreen() {
         return () => { supabase.removeChannel(ch) }
     }, [userId, loadReviews])
     useEffect(() => { refresh(); const t = setInterval(refresh, 3000); return () => clearInterval(t) }, [refresh])
+    const loadFavStores = useCallback(() => { if (userId) fetchMyFavoriteStores().then(setFavStores).catch(() => {}) }, [userId])
+    useEffect(() => { loadFavStores(); const t = setInterval(loadFavStores, 15000); return () => clearInterval(t) }, [loadFavStores])
+    const hasExclusive = Object.keys(exclusive).length > 0
+    useEffect(() => { if (!hasExclusive) return; const t = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(t) }, [hasExclusive])   // contagem regressiva do selo
+    const answerInvite = async (storeId: string, accept: boolean) => {
+        setBusy(`fav-${storeId}`)
+        try { await respondInvite(storeId, accept); toast.success(accept ? 'Pronto! Você é um entregador favorito dessa loja.' : 'Convite recusado.'); loadFavStores() }
+        catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(null) }
+    }
+    const leaveFav = async (storeId: string) => {
+        setBusy(`fav-${storeId}`)
+        try { await leaveStore(storeId); toast.success('Você saiu dos favoritos dessa loja.'); loadFavStores() }
+        catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(null) }
+    }
     useEffect(() => {
         if (!userId) return
         const ch = supabase.channel(`driver-deliveries-${userId}`)
@@ -473,6 +493,42 @@ export default function DriverDeliveriesScreen() {
                 </section>
             )}
 
+            {/* ===== Lojas que me favoritaram: convites para responder e as lojas de que já sou favorito ===== */}
+            {favStores.length > 0 && (
+                <section className="flex flex-col gap-2">
+                    {favStores.filter((f) => f.status === 'invited').map((f) => (
+                        <div key={f.storeId} className="rounded-3xl p-4" style={{ background: '#eab30818', border: '1.5px solid #eab308' }}>
+                            <div className="flex items-center gap-3">
+                                {f.logo ? <img src={f.logo} alt="" className="w-11 h-11 rounded-2xl object-cover flex-shrink-0" /> : <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style={{ background: '#eab308' }}><StoreIcon size={20} /></span>}
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-black uppercase flex items-center gap-1" style={{ color: '#a16207' }}><Star size={11} fill="#eab308" stroke="#eab308" /> Convite de loja</p>
+                                    <p className="text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{f.storeName} quer você entre os entregadores favoritos</p>
+                                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>Você recebe as entregas dessa loja primeiro, por alguns minutos. Pode sair quando quiser.</p>
+                                </div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                <button onClick={() => answerInvite(f.storeId, false)} disabled={busy === `fav-${f.storeId}`} className="h-10 rounded-full text-[13px] font-black disabled:opacity-50 active:scale-95" style={{ background: `${colors.border}60`, color: colors.textPrimary }}>Recusar</button>
+                                <button onClick={() => answerInvite(f.storeId, true)} disabled={busy === `fav-${f.storeId}`} className="h-10 rounded-full text-[13px] font-black text-white disabled:opacity-50 active:scale-95" style={{ background: ORANGE }}>Aceitar</button>
+                            </div>
+                        </div>
+                    ))}
+                    {favStores.some((f) => f.status === 'accepted') && (
+                        <div className="rounded-3xl p-3.5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                            <p className="text-[11px] font-black uppercase tracking-wide flex items-center gap-1 mb-1.5" style={{ color: colors.textSecondary }}><Star size={11} fill="#eab308" stroke="#eab308" /> Você é favorito de</p>
+                            <div className="flex flex-col gap-1.5">
+                                {favStores.filter((f) => f.status === 'accepted').map((f) => (
+                                    <div key={f.storeId} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: soft }}>
+                                        {f.logo ? <img src={f.logo} alt="" className="w-8 h-8 rounded-xl object-cover flex-shrink-0" /> : <span className="w-8 h-8 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ background: GREEN }}><StoreIcon size={15} /></span>}
+                                        <span className="min-w-0 flex-1 text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{f.storeName}</span>
+                                        <button onClick={() => leaveFav(f.storeId)} disabled={busy === `fav-${f.storeId}`} className="text-[11px] font-bold underline disabled:opacity-50" style={{ color: colors.textSecondary }}>Sair</button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </section>
+            )}
+
             {/* ===== Entregas disponíveis ===== */}
             <section>
                 <div className="flex items-end justify-between mb-2.5">
@@ -506,8 +562,10 @@ export default function DriverDeliveriesScreen() {
                         {visibleOffers.map((o) => {
                             const e = o.store ? etaMinutes(o.km ?? 1.5) : null
                             const toStore = myPos && o.store ? haversineKm(myPos, o.store) : null
+                            const ex = exclusive[o.id], exLeft = ex && tick >= 0 ? secondsLeft(ex.until) : 0
                             return (
-                                <div key={o.id} className="rounded-3xl p-4 transition" style={{ background: colors.surface, border: fresh.has(o.id) ? `1.5px solid ${GREEN}` : `1px solid ${colors.border}`, boxShadow: fresh.has(o.id) ? '0 6px 20px #22c55e30' : 'none' }}>
+                                <div key={o.id} className="rounded-3xl p-4 transition" style={{ background: colors.surface, border: ex && exLeft > 0 ? '1.5px solid #eab308' : fresh.has(o.id) ? `1.5px solid ${GREEN}` : `1px solid ${colors.border}`, boxShadow: ex && exLeft > 0 ? '0 6px 20px #eab30830' : fresh.has(o.id) ? '0 6px 20px #22c55e30' : 'none' }}>
+                                    {ex && exLeft > 0 && <p className="-mt-1 mb-2.5 text-[11px] font-black flex items-center gap-1" style={{ color: '#a16207' }}><Star size={12} fill="#eab308" stroke="#eab308" /> Favorita da {ex.storeName} · exclusiva por {countdown(exLeft)}</p>}
                                     <div className="flex items-start gap-3">
                                         <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style={{ background: GREEN }}><StoreIcon size={20} /></span>
                                         <div className="min-w-0 flex-1">

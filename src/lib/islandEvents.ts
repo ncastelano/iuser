@@ -30,6 +30,10 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     delivery_order_ready: { level: 'success', icon: '🍕', label: 'Retirar', duration: 8000 },
     delivery_completed: { level: 'success', icon: '💰', label: 'Ver' },
     delivery_cancelled: { level: 'error', icon: '⚠️', label: 'Ver', duration: 7000 },
+    // favoritos: o convite da loja (motorista) e a resposta do motorista (loja)
+    favorite_invite: { level: 'info', icon: '⭐', label: 'Responder', duration: 9000 },
+    favorite_accepted: { level: 'success', icon: '⭐', label: 'Ver', duration: 6500 },
+    favorite_declined: { level: 'info', icon: '⭐', label: 'Ver', duration: 6000 },
 }
 
 export function islandEventFor(n: RawNotification): IslandEvent | null {

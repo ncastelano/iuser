@@ -42,6 +42,7 @@
     "test:flash": "node --test scripts/test-flash.mjs",
     "test:people": "node --test scripts/test-people.mjs",
     "test:deliveries": "node --test scripts/test-deliveries.mjs",
+    "test:favorites": "node --test scripts/test-favorites.mjs",
     "test:toast": "node --test scripts/test-toast.mjs",
     "test:handoff": "python3 scripts/local/test-handoff.py",
     "test:island-events": "node --test scripts/test-island-events.mjs",

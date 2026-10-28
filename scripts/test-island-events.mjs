@@ -39,6 +39,10 @@ test('frase pronta e "estou no local" trazem a RESPOSTA de um toque; o aviso de 
   assert.equal(msg?.reply, undefined); assert.equal(msg?.level, 'message'); assert.match(msg.text, /Estou em frente/)
   const issue = islandEventFor({ kind: 'delivery_issue', meta: { title: 'Entrega com problema', text: 'Dani com Ana: ninguém atende na porta', path: '/painel-loja/x' } })
   assert.equal(issue?.level, 'error'); assert.ok(issue.duration >= 10000)
+  // favoritos: convite (motorista) e resposta (loja)
+  const inv = islandEventFor({ kind: 'favorite_invite', meta: { title: 'Convite de loja', text: 'Pizzaria quer você entre os entregadores favoritos', path: '/entregas' } })
+  assert.equal(inv?.level, 'info'); assert.equal(inv?.path, '/entregas'); assert.match(inv.text, /favoritos/)
+  assert.equal(islandEventFor({ kind: 'favorite_accepted', meta: { title: 'Novo entregador favorito', text: '@dani agora é seu entregador favorito', path: '/painel-loja/x' } })?.level, 'success')
   // a resposta só existe se vierem a entrega E o código
   assert.equal(islandEventFor({ kind: 'delivery_at_door', meta: { title: 'x', text: 'y', reply_code: 'coming' } })?.reply, undefined)
 })

@@ -45,6 +45,7 @@ import StoreOrders from './StoreOrders'
 import StoreDeliveryBoard from './StoreDeliveryBoard'
 import StoreFeedback from './StoreFeedback'
 import StoreDeliverySettings from './StoreDeliverySettings'
+import StoreFavoriteDrivers from './StoreFavoriteDrivers'
 import StorePaymentMethods from './StorePaymentMethods'
 import StoreWhatsAppBot from './StoreWhatsAppBot'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
@@ -924,6 +925,9 @@ export default function StoreDashboard({
                     onRefresh={loadDashboard}
                 />
             </div>
+
+            {/* ===== Entregadores favoritos: recebem as entregas primeiro ===== */}
+            <StoreFavoriteDrivers storeId={store.id} v3={insideShell} />
 
             </>
             )}

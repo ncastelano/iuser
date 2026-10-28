@@ -72,4 +72,13 @@ for (const [cat, u] of [['Pizzas tradicionais', 1], ['Pizzas especiais', 1], ['P
 
 // A pizzaria passa a usar o entregador iUser (o banco recalcula o frete pela tarifa da plataforma)
 await api('PATCH', `/rest/v1/stores?storeSlug=eq.pizzaria-forno-de-ouro`, { iuser_delivery_enabled: true }, { Prefer: 'return=minimal' })
+// Entregadores FAVORITOS da pizzaria (aceitos): Dani e Rafa recebem a entrega primeiro (2 min); Léo e Tito só veem depois — e Tito tem um convite esperando para testar a resposta
+{
+    const [st] = await api('GET', `/rest/v1/stores?select=id&storeSlug=eq.pizzaria-forno-de-ouro&limit=1`)
+    if (st) {
+        const by = (k) => DRIVERS.find((d) => d.key === k)?.id
+        const rows = [['dani', 'accepted'], ['rafa', 'accepted'], ['tito', 'invited']].filter(([k]) => by(k)).map(([k, status]) => ({ store_id: st.id, driver_id: by(k), status, responded_at: status === 'accepted' ? new Date().toISOString() : null }))
+        await upsert('store_favorite_drivers', rows, 'store_id,driver_id')
+    }
+}
 console.log(`${DRIVERS.length} entregadores iUser: ${DRIVERS.map((d) => `${d.name} (cabem ${d.cap} entregas / ${d.units} un.)`).join(', ')}. A pizzaria usa o entregador iUser.`)
