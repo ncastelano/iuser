@@ -26,5 +26,5 @@ test('avaliação recebida mostra as estrelas e o trecho', () => {
 })
 test('agendamento: mostra o serviço e a data', () => {
   const e = islandEventFor({ kind: 'appointment_new', meta: { title: 'Corte', date: '2026-10-30', time: '14:00' } })
-  assert.match(e.text, /Corte/); assert.match(e.text, /30\/10 às 14:00/)
+  assert.match(e.text, /Corte/); assert.match(e.text, /30\/10\/2026 às 14:00/)
 })
