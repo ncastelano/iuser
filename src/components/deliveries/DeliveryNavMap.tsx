@@ -136,15 +136,48 @@ export default function DeliveryNavMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ready, stopsKey, target?.id, store?.lat, store?.lng])
 
+    // ---- você: o marcador (e a câmera) DESLIZAM de uma posição à outra em 1 s, em vez de pular; o rumo vem do movimento (suavizado)
+    const shown = useRef<[number, number] | null>(null)
+    const anim = useRef<{ from: [number, number]; to: [number, number]; t0: number } | null>(null)
+    const hdg = useRef(0)
     useEffect(() => {
         const m = map.current
         if (!m || !ready || !me) return
+        const to: [number, number] = [me.lng, me.lat]
         if (!marks.current.me) {
             const el = document.createElement('div')
             el.innerHTML = vehicleMarkerHtml('moto', BLUE, 'Você')
-            marks.current.me = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat([me.lng, me.lat]).addTo(m)
-        } else marks.current.me.setLngLat([me.lng, me.lat])
+            marks.current.me = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(to).addTo(m)
+            shown.current = to
+            return
+        }
+        const cur = shown.current
+        if (!cur || haversineKm(cur, to) * 1000 > 600) { shown.current = to; anim.current = null; marks.current.me.setLngLat(to); return }   // salto grande (outra saída): sem deslizar
+        anim.current = { from: cur, to, t0: performance.now() }
     }, [ready, me?.lat, me?.lng])
+    useEffect(() => {
+        if (!ready) return
+        let raf = 0
+        const tick = (now: number) => {
+            const a = anim.current
+            const cur = shown.current
+            if (a && cur) {
+                const k = Math.min(1, (now - a.t0) / 1000)
+                const p: [number, number] = [a.from[0] + (a.to[0] - a.from[0]) * k, a.from[1] + (a.to[1] - a.from[1]) * k]
+                if (haversineKm(cur, p) * 1000 > 0.2) {
+                    const dh = ((bearing(cur, p) - hdg.current + 540) % 360) - 180
+                    hdg.current = (hdg.current + dh * 0.1 + 360) % 360
+                }
+                shown.current = p
+                marks.current.me?.setLngLat(p)
+                if (followRef.current) map.current?.jumpTo({ center: p, bearing: hdg.current, zoom: 16, pitch: 40 })
+                if (k >= 1) anim.current = null
+            }
+            raf = requestAnimationFrame(tick)
+        }
+        raf = requestAnimationFrame(tick)
+        return () => cancelAnimationFrame(raf)
+    }, [ready])
 
     // ---- plano da saída (loja → paradas)
     useEffect(() => {
@@ -177,15 +210,16 @@ export default function DeliveryNavMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ready, me?.lat, me?.lng, target?.id])
 
-    // ---- câmera: segue o motorista (de frente para a rota); solta quando ele mexe no mapa
+    // ---- câmera: ao ligar o "seguir" (ou abrir o mapa) vai até o motorista; depois quem a move é o laço acima, junto com o marcador
     useEffect(() => {
         const m = map.current
-        if (!m || !ready) return
-        if (follow && me) {
-            const ahead = live?.coords.find((c) => haversineKm([me.lng, me.lat], c) * 1000 > 35)
-            m.easeTo({ center: [me.lng, me.lat], zoom: 16, bearing: ahead ? bearing([me.lng, me.lat], ahead) : m.getBearing(), pitch: 38, duration: 900 })
-        }
-    }, [ready, follow, me?.lat, me?.lng, live?.coords.length])
+        const at = shown.current || (me ? ([me.lng, me.lat] as [number, number]) : null)
+        if (!m || !ready || !follow || !at) return
+        const ahead = live?.coords.find((c) => haversineKm(at, c) * 1000 > 35)
+        if (ahead) hdg.current = bearing(at, ahead)
+        m.easeTo({ center: at, zoom: 16, bearing: hdg.current, pitch: 40, duration: 600 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ready, follow])
     // enquadra tudo ao abrir / quando a saída muda (e não está seguindo)
     useEffect(() => {
         const m = map.current

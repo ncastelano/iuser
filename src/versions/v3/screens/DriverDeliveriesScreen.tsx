@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { isLocalDevOnly } from '@/lib/devOnly'
-import { fetchOptimizedRoute } from '@/lib/mapboxRoute'
+import { fetchOptimizedRoute, fetchRoadPath } from '@/lib/mapboxRoute'
 import DeliveryNavMap, { type NavStop, type NavTarget } from '@/components/deliveries/DeliveryNavMap'
 import {
     acceptOffer, arriveAtStore, brl, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchMyReviews, fetchOffers, haversineKm, itemsList,
@@ -167,19 +167,42 @@ export default function DriverDeliveriesScreen() {
     const navTarget: NavTarget | null = active.length === 0 ? null
         : phase !== 'delivering' ? (store ? { id: 'store', kind: 'store', lat: store.lat, lng: store.lng, label: `${active[0].storeName} · ${shortAddress(active[0].storeAddress)}` } : null)
         : current?.to ? { id: current.id, kind: 'stop', lat: current.to.lat, lng: current.to.lng, label: current.address } : null
-    // TEATRO (só local, só dentro do /tres-telas): o "GPS" anda sozinho até o ALVO que a tela mostra (a loja a caminho; depois cada parada), em passos de 1 s
+    // TEATRO (só local, só dentro do /tres-telas): o "GPS" ANDA PELAS RUAS até o ALVO que a tela mostra (a loja a caminho; depois cada parada) — segue a rota do Mapbox, ~58 km/h, uma posição por segundo
     const gpsRef = useRef({ phase, target: navTarget, pos: state?.live ?? null })
     gpsRef.current = { phase, target: navTarget, pos: state?.live ?? null }
+    const gpsPath = useRef<{ key: string; pts: [number, number][]; cum: number[]; dist: number } | null>(null)
+    const gpsLoading = useRef(false)
     useEffect(() => {
         if (!userId || !isLocalDevOnly() || typeof window === 'undefined' || window.parent === window) return
+        const SPEED_M_S = 16
         const t = setInterval(() => {
             const { phase: ph, target, pos } = gpsRef.current
             if (!target || !pos || (ph !== 'to_store' && ph !== 'delivering')) return
-            const d = haversineKm(pos, target)
-            if (d < 0.012) return
-            const step = Math.min(d, 0.045)   // ~160 km/h: dá para ver o trajeto em segundos
-            const k = step / d
-            const next = { lat: pos.lat + (target.lat - pos.lat) * k, lng: pos.lng + (target.lng - pos.lng) * k }
+            const key = `${ph}:${target.id}`
+            let r = gpsPath.current
+            if (!r || r.key !== key) {
+                if (gpsLoading.current) return
+                gpsLoading.current = true
+                fetchRoadPath([pos.lng, pos.lat], [target.lng, target.lat]).then((pts) => {
+                    const path = pts || [[pos.lng, pos.lat], [target.lng, target.lat]]
+                    const cum = [0]
+                    for (let i = 0; i < path.length - 1; i++) cum.push(cum[i] + haversineKm({ lat: path[i][1], lng: path[i][0] }, { lat: path[i + 1][1], lng: path[i + 1][0] }) * 1000)
+                    gpsPath.current = { key, pts: path, cum, dist: 0 }
+                }).finally(() => { gpsLoading.current = false })
+                return
+            }
+            r.dist += SPEED_M_S
+            const total = r.cum[r.cum.length - 1]
+            let next: LatLng
+            if (r.dist >= total) next = { lat: target.lat, lng: target.lng }
+            else {
+                let i = 0
+                while (r.cum[i + 1] < r.dist) i++
+                const seg = r.cum[i + 1] - r.cum[i]
+                const f = seg ? (r.dist - r.cum[i]) / seg : 1
+                next = { lng: r.pts[i][0] + (r.pts[i + 1][0] - r.pts[i][0]) * f, lat: r.pts[i][1] + (r.pts[i + 1][1] - r.pts[i][1]) * f }
+            }
+            if (haversineKm(pos, next) * 1000 < 0.5) return
             setState((st) => (st ? { ...st, live: next } : st))
             supabase.from('driver_pricing').update({ live_lat: next.lat, live_lng: next.lng, live_updated_at: new Date().toISOString() }).eq('driver_id', userId).then(() => {})
         }, 1000)
