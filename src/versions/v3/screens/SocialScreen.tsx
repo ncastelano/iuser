@@ -1,15 +1,16 @@
 // src/versions/v3/screens/SocialScreen.tsx
 //
-// SOCIAL (/social): a parte social do iUser. Abas (a atual vai na URL, `?aba=`): INÍCIO — várias seções como a home: FLASH (as postagens rápidas; o feed
-// completo é o /flash), PUBLICAÇÕES das pessoas, PESSOAS PERTO de você, LOCAIS COM MAIS PESSOAS (bairros; toque abre quem está lá), EM DESTAQUE (mais pontos),
-// NOVOS por aqui, QUEM OFERECE SERVIÇOS e COMUNIDADES — e as listas do antigo /social: MELHORES PERFIS, QUEM EU SIGO, QUEM ME SEGUE e ENTRARAM POR ÚLTIMO
-// (`components/social/SocialProfileList`). A busca (nome ou @) vale para a aba aberta; sem texto, ao tocar nela aparecem os últimos perfis visitados.
-// Cada seção carrega sozinha (esqueleto próprio) e some se vier vazia. Só dado público. Regras e fontes em `modules/people` (e `modules/flash`).
+// SOCIAL (/social): a parte social do iUser, em três abas (a atual vai na URL, `?aba=`): AGORA NO MUNDO — tudo do iUser, em seções como a home: FLASH (as postagens
+// rápidas; o feed completo é o /flash), MELHORES PERFIS (mais pontos, logo abaixo do Flash), PUBLICAÇÕES das pessoas, PESSOAS PERTO de você, LOCAIS COM MAIS PESSOAS
+// (bairros; toque abre quem está lá), NOVOS por aqui, QUEM OFERECE SERVIÇOS e COMUNIDADES —; QUEM EU SIGO — os flashes e as publicações de quem a pessoa segue e a lista
+// de quem ela segue —; e QUEM ME SEGUE (a lista dos seguidores). As listas são `components/social/SocialProfileList`. A busca (nome ou @) vale para a aba aberta; sem
+// texto, ao tocar nela aparecem os últimos perfis visitados. Cada seção carrega sozinha (esqueleto próprio) e some se vier vazia. Só dado público. Regras e fontes em
+// `modules/people` (e `modules/flash`).
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Award, ChevronRight, Clock, Heart, Home, MapPin, MessageCircle, Plus, Radar as RadarIcon, Search, Sparkles, Star, Trophy, UserPlus, Users, Wrench, X, Zap } from 'lucide-react'
+import { ChevronRight, Clock, Globe, Heart, MapPin, MessageCircle, Plus, Radar as RadarIcon, Search, Sparkles, Star, Trophy, UserPlus, Users, Wrench, X, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -26,7 +27,7 @@ const ORANGE = '#f97316'
 const DEVICE_LOCATION_KEY = 'iuser_device_location'
 
 type SocialTab = 'inicio' | SocialListTab
-const LIST_TABS: SocialListTab[] = ['melhores', 'sigo', 'seguem', 'novos']
+const LIST_TABS: SocialListTab[] = ['sigo', 'seguem']
 
 /** Carrega uma seção sozinha (null = carregando; [] = vazia; erro vira vazia) */
 function useSection<T>(load: () => Promise<T[]>, deps: unknown[]): T[] | null {
@@ -88,16 +89,17 @@ function PersonTile({ p, detail, colors, onOpen }: { p: Person; detail?: React.R
     )
 }
 
-function FlashSection({ colors, onOpen, onNew, onAll }: { colors: any; onOpen: (f: FlashItem) => void; onNew: () => void; onAll: () => void }) {
-    const flashes = useSection(() => loadFlashes(12), [])
+function FlashSection({ colors, onOpen, onNew, onAll, following = false }: { colors: any; onOpen: (f: FlashItem) => void; onNew: () => void; onAll: () => void; following?: boolean }) {
+    const flashes = useSection(() => loadFlashes(12, following ? 'following' : 'all'), [following])
+    if (following && flashes && flashes.length === 0) return null
     return (
-        <Section colors={colors} icon={Zap} title="Flash" subtitle="Posts rápidos das pessoas, em tela cheia" onAll={onAll} allLabel="Abrir o feed">
+        <Section colors={colors} icon={Zap} title={following ? 'Flash de quem você segue' : 'Flash'} subtitle={following ? 'Os posts rápidos dos seus contatos' : 'Posts rápidos das pessoas, em tela cheia'} onAll={onAll} allLabel={following ? 'Ver no feed' : 'Abrir o feed'}>
             {flashes === null ? <SkelRow colors={colors} w={128} h={210} n={3} /> : (
                 <Row>
-                    <button onClick={onNew} className="snap-start flex-shrink-0 w-[128px] h-[210px] rounded-3xl flex flex-col items-center justify-center gap-2 transition active:scale-95" style={{ border: `2px dashed ${ORANGE}`, color: ORANGE, background: `${ORANGE}10` }}>
+                    {!following && <button onClick={onNew} className="snap-start flex-shrink-0 w-[128px] h-[210px] rounded-3xl flex flex-col items-center justify-center gap-2 transition active:scale-95" style={{ border: `2px dashed ${ORANGE}`, color: ORANGE, background: `${ORANGE}10` }}>
                         <span className="w-11 h-11 rounded-full flex items-center justify-center text-white" style={{ background: ORANGE }}><Plus size={22} strokeWidth={3} /></span>
                         <span className="text-[12px] font-black">Postar um flash</span>
-                    </button>
+                    </button>}
                     {flashes.map((f) => {
                         const src = mediaSrc(f)
                         const [c1, c2] = flashGradient(f.id)
@@ -125,11 +127,11 @@ function FlashSection({ colors, onOpen, onNew, onAll }: { colors: any; onOpen: (
     )
 }
 
-function PublicationsSection({ colors, onOpen }: { colors: any; onOpen: (f: FlashItem) => void }) {
-    const pubs = useSection(() => loadPublications(10), [])
+function PublicationsSection({ colors, onOpen, following = false }: { colors: any; onOpen: (f: FlashItem) => void; following?: boolean }) {
+    const pubs = useSection(() => loadPublications(10, following ? 'following' : 'all'), [following])
     if (pubs && pubs.length === 0) return null
     return (
-        <Section colors={colors} icon={Sparkles} title="Publicações das pessoas" subtitle="O que estão compartilhando agora" onAll={() => onOpen(pubs![0])} allLabel="Ver">
+        <Section colors={colors} icon={Sparkles} title={following ? 'Publicações de quem você segue' : 'Publicações das pessoas'} subtitle={following ? 'O que seus contatos estão compartilhando' : 'O que estão compartilhando agora'} onAll={() => onOpen(pubs![0])} allLabel="Ver">
             {pubs === null ? <SkelRow colors={colors} w={236} h={210} n={2} /> : (
                 <Row>
                     {pubs.map((f) => {
@@ -177,11 +179,9 @@ export default function SocialScreen() {
     const setTab = (t: SocialTab) => router.replace(t === 'inicio' ? '/social' : `/social?aba=${t}`, { scroll: false })
     const isList = tab !== 'inicio'
     const tabs: Tab[] = [
-        { id: 'inicio', label: 'Início', icon: Home, onClick: () => setTab('inicio'), isActive: tab === 'inicio' },
-        { id: 'melhores', label: 'Melhores perfis', icon: Trophy, onClick: () => setTab('melhores'), isActive: tab === 'melhores' },
+        { id: 'inicio', label: 'Agora no mundo', icon: Globe, onClick: () => setTab('inicio'), isActive: tab === 'inicio' },
         { id: 'sigo', label: 'Quem eu sigo', icon: Heart, onClick: () => setTab('sigo'), isActive: tab === 'sigo' },
         { id: 'seguem', label: 'Quem me segue', icon: Users, onClick: () => setTab('seguem'), isActive: tab === 'seguem' },
-        { id: 'novos', label: 'Entraram por último', icon: Sparkles, onClick: () => setTab('novos'), isActive: tab === 'novos' },
     ]
     const [searchFocused, setSearchFocused] = useState(false)
     const openPost = (f: FlashItem) => router.push(f.kind === 'publication' && f.link ? `/${f.authorSlug}/${f.link}` : `/flash?de=${f.id}`)
@@ -219,7 +219,8 @@ export default function SocialScreen() {
     const nearby = useSection(() => (origin === undefined ? Promise.resolve([]) : loadNearbyPeople(origin, userId || null, 12)), [origin, userId])
     const places = useSection(() => loadPlaces(8), [])
     const inPlace = useSection(() => (place ? loadPeopleInPlace(place, 24) : Promise.resolve([])), [place])
-    const top = useSection(() => loadTopPeople(6), [])
+    const [topMore, setTopMore] = useState(false)
+    const top = useSection(() => loadTopPeople(topMore ? 30 : 6), [topMore])
     const fresh = useSection(() => loadNewPeople(14), [])
     const providers = useSection(() => loadServiceProviders(10), [])
     const communities = useSection<CommunityCard>(() => loadCommunities(8), [])
@@ -228,7 +229,7 @@ export default function SocialScreen() {
         <div className="pb-6">
             <header>
                 <h1 className="flex items-center gap-2 text-2xl font-black" style={{ color: colors.textPrimary }}><Users size={24} style={{ color: ORANGE }} /> Social</h1>
-                <p className="text-[13px] mt-0.5" style={{ color: colors.textSecondary }}>Quem está por aqui, o que está postando, os melhores perfis e quem você segue.</p>
+                <p className="text-[13px] mt-0.5" style={{ color: colors.textSecondary }}>O que está rolando no mundo, de quem você segue e de quem te segue.</p>
                 <div className="mt-3 -mx-4 px-4"><PageTabs tabs={tabs} /></div>
                 <div className="relative mt-2">
                     <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
@@ -260,6 +261,13 @@ export default function SocialScreen() {
 
             {isList ? (
                 <div className="mt-4">
+                    {tab === 'sigo' && userId && !q.trim() && (
+                        <>
+                            <FlashSection following colors={colors} onOpen={(f) => router.push(`/flash?de=${f.id}`)} onNew={() => {}} onAll={() => router.push('/flash')} />
+                            <PublicationsSection following colors={colors} onOpen={openPost} />
+                            <h2 className="flex items-center gap-1.5 text-[17px] font-black mt-7 mb-1" style={{ color: colors.textPrimary }}><Heart size={17} style={{ color: ORANGE }} /> Quem você segue</h2>
+                        </>
+                    )}
                     <SocialProfileList tab={tab as SocialListTab} query={q} onOpenProfile={(p) => { saveRecent(p); router.push(`/${p.profileSlug}`) }} />
                 </div>
             ) : searching ? (
@@ -277,6 +285,24 @@ export default function SocialScreen() {
             ) : (
                 <>
                     <FlashSection colors={colors} onOpen={(f) => router.push(`/flash?de=${f.id}`)} onNew={() => router.push(userId ? '/flash?novo=1' : '/login?redirect=/flash')} onAll={() => router.push('/flash')} />
+
+                    {/* Melhores perfis (mais pontos): logo abaixo do Flash */}
+                    {!(top && top.length === 0) && (
+                        <Section colors={colors} icon={Trophy} title="Melhores perfis" subtitle="As pessoas com mais pontos no iUser" onAll={() => setTopMore((v) => !v)} allLabel={topMore ? 'Ver menos' : 'Ver mais'}>
+                            {top === null ? <Skel w="100%" h={topMore ? 600 : 250} colors={colors} /> : (
+                                <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                    {top.map((p, i) => (
+                                        <button key={p.id} onClick={() => openPerson(p)} className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition active:opacity-70" style={i ? { borderTop: `1px solid ${colors.border}` } : undefined}>
+                                            <span className="w-6 text-center text-[13px] font-black" style={{ color: i === 0 ? '#eab308' : i === 1 ? '#94a3b8' : i === 2 ? '#c2763a' : colors.textSecondary }}>{i + 1}</span>
+                                            <Avatar path={p.avatarPath} name={p.name} size={40} />
+                                            <span className="min-w-0 flex-1"><span className="block text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{p.name}</span><span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span></span>
+                                            <span className="text-[12px] font-black flex items-center gap-1 flex-shrink-0" style={{ color: ORANGE }}><Star size={12} fill={ORANGE} /> {p.points}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </Section>
+                    )}
 
                     <PublicationsSection colors={colors} onOpen={openPost} />
 
@@ -327,24 +353,6 @@ export default function SocialScreen() {
                                         <button onClick={() => setPlace(null)} className="text-xs font-black flex items-center gap-1" style={{ color: colors.textSecondary }}><X size={13} /> Limpar</button>
                                     </div>
                                     {inPlace === null ? <SkelRow colors={colors} w={112} h={150} n={3} /> : <Row>{inPlace.map((p) => <PersonTile key={p.id} p={p} colors={colors} onOpen={openPerson} detail={p.points > 0 ? `${p.points} pts` : undefined} />)}</Row>}
-                                </div>
-                            )}
-                        </Section>
-                    )}
-
-                    {/* Em destaque (mais pontos) */}
-                    {!(top && top.length === 0) && (
-                        <Section colors={colors} icon={Award} title="Em destaque" subtitle="As pessoas com mais pontos no iUser" onAll={() => setTab('melhores')} allLabel="Ranking">
-                            {top === null ? <Skel w="100%" h={250} colors={colors} /> : (
-                                <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                                    {top.map((p, i) => (
-                                        <button key={p.id} onClick={() => openPerson(p)} className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition active:opacity-70" style={i ? { borderTop: `1px solid ${colors.border}` } : undefined}>
-                                            <span className="w-6 text-center text-[13px] font-black" style={{ color: i === 0 ? '#eab308' : i === 1 ? '#94a3b8' : i === 2 ? '#c2763a' : colors.textSecondary }}>{i + 1}</span>
-                                            <Avatar path={p.avatarPath} name={p.name} size={40} />
-                                            <span className="min-w-0 flex-1"><span className="block text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{p.name}</span><span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span></span>
-                                            <span className="text-[12px] font-black flex items-center gap-1 flex-shrink-0" style={{ color: ORANGE }}><Star size={12} fill={ORANGE} /> {p.points}</span>
-                                        </button>
-                                    ))}
                                 </div>
                             )}
                         </Section>

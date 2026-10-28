@@ -76,5 +76,6 @@ export async function loadCommunities(limit = 8): Promise<CommunityCard[]> {
     return (data || []).map((c: any) => ({ id: c.id, slug: c.slug, name: c.name, city: c.city || null, image: c.image_url ? supabase.storage.from('community-photos').getPublicUrl(c.image_url).data.publicUrl : null }))
 }
 
-export const loadFlashes = (limit = 12) => fetchFeed('all', null, 'flash').then((r) => r.slice(0, limit))
-export const loadPublications = (limit = 10) => fetchFeed('all', null, 'publication').then((r) => r.slice(0, limit))
+/** `mode='following'`: só de quem a pessoa segue (sem login volta vazio) */
+export const loadFlashes = (limit = 12, mode: 'all' | 'following' = 'all') => fetchFeed(mode, null, 'flash').then((r) => r.slice(0, limit))
+export const loadPublications = (limit = 10, mode: 'all' | 'following' = 'all') => fetchFeed(mode, null, 'publication').then((r) => r.slice(0, limit))

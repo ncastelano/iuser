@@ -118,7 +118,7 @@ export default function FeaturedProfiles({
 
     const handleViewAll = () => {
         startNavProgress()
-        router.push('/social?aba=melhores')
+        router.push('/social')
     }
 
     // ===== LOADING =====

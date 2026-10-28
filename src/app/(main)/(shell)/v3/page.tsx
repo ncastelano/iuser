@@ -964,7 +964,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="pessoa" title="OUTDOOR iUSER" subtitle="Os perfis com mais pontos do iUser" onSeeAll={() => go('/social?aba=melhores')} colors={colors} />
+                            <SectionHeader type="pessoa" title="OUTDOOR iUSER" subtitle="Os perfis com mais pontos do iUser" onSeeAll={() => go('/social')} colors={colors} />
                             {people === null ? <Skeleton colors={colors} /> : people.length === 0 ? null : (
                                 <Strip>
                                     {people.map((p) => (

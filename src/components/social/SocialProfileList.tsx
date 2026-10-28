@@ -1,7 +1,7 @@
 // src/components/social/SocialProfileList.tsx
 //
-// As listas de perfis do Social, uma por aba: MELHORES PERFIS (mais pontos primeiro), QUEM EU SIGO, QUEM ME SEGUE e ENTRARAM POR ÚLTIMO.
-// Era a página /social antiga; agora é a parte de baixo da página Social. A busca (`query`) filtra a lista carregada. Só dado público do perfil.
+// As listas de perfis do Social, uma por aba: QUEM EU SIGO e QUEM ME SEGUE (os melhores perfis agora são uma seção de "Agora no mundo").
+// Era a página /social antiga; agora é a parte de baixo das abas do Social. A busca (`query`) filtra a lista carregada. Só dado público do perfil.
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -15,7 +15,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useLastSeen } from '@/hooks/useLastSeen'
 import SocialProfileCard, { type SocialCardStore } from './SocialProfileCard'
 
-export type SocialListTab = 'melhores' | 'sigo' | 'seguem' | 'novos'
+export type SocialListTab = 'sigo' | 'seguem'
 
 interface ProfileWithDetails {
     id: string
@@ -80,33 +80,19 @@ export default function SocialProfileList({ tab, query, onOpenProfile }: {
         setError(null)
         try {
             let q = supabase.from('profiles').select(PROFILE_COLUMNS).eq('is_active', true)
-            // Na aba Melhores a ordem vem do banco (mais pontos primeiro); o resto ordena aqui
-            let rankedIds: string[] | null = null
             const info = new Map<string, { points: number }>()
 
-            if (tab === 'sigo' || tab === 'seguem') {
-                // Sem conta não há ninguém pra listar
-                if (!userId) { setProfiles([]); setLoadingData(false); return }
-                const { data: rel, error: relError } = tab === 'sigo'
-                    ? await supabase.from('follows').select('following_id').eq('follower_id', userId).order('created_at', { ascending: false }).limit(200)
-                    : await supabase.from('follows').select('follower_id').eq('following_id', userId).order('created_at', { ascending: false }).limit(200)
-                if (relError) throw relError
-                const ids = (rel || []).map((r: any) => (tab === 'sigo' ? r.following_id : r.follower_id))
-                if (ids.length === 0) { setProfiles([]); setLoadingData(false); return }
-                q = q.in('id', ids)
-            } else if (tab === 'novos') {
-                q = q.order('created_at', { ascending: false })
-            } else {
-                // Melhores: quem tem mais pontos primeiro
-                const { data: ranked, error: rankError } = await supabase.rpc('get_best_profiles', { p_limit: 100 })
-                if (rankError) throw rankError
-                rankedIds = ((ranked || []) as { id: string }[]).map((r) => r.id)
-                ;(ranked || []).forEach((r: any) => info.set(r.id, { points: r.points }))
-                if (rankedIds.length === 0) { setProfiles([]); setLoadingData(false); return }
-                q = q.in('id', rankedIds)
-            }
+            // Sem conta não há ninguém pra listar
+            if (!userId) { setProfiles([]); setLoadingData(false); return }
+            const { data: rel, error: relError } = tab === 'sigo'
+                ? await supabase.from('follows').select('following_id').eq('follower_id', userId).order('created_at', { ascending: false }).limit(200)
+                : await supabase.from('follows').select('follower_id').eq('following_id', userId).order('created_at', { ascending: false }).limit(200)
+            if (relError) throw relError
+            const ids = (rel || []).map((r: any) => (tab === 'sigo' ? r.following_id : r.follower_id))
+            if (ids.length === 0) { setProfiles([]); setLoadingData(false); return }
+            q = q.in('id', ids)
 
-            const { data, error: qError } = rankedIds ? await q : await q.limit(100)
+            const { data, error: qError } = await q.limit(100)
             if (qError) {
                 console.error('Erro ao buscar perfis:', qError)
                 setError('Erro ao carregar perfis')
@@ -116,22 +102,18 @@ export default function SocialProfileList({ tab, query, onOpenProfile }: {
             }
 
             if (data) {
-                // As outras abas também mostram os pontos nos cartões
-                if (!rankedIds && data.length > 0) {
+                // Os pontos aparecem nos cartões
+                if (data.length > 0) {
                     const { data: extra } = await supabase.rpc('get_profiles_ranking_info', { p_ids: data.map((p: any) => p.id) })
                     ;(extra || []).forEach((r: any) => info.set(r.id, { points: r.points }))
                 }
-                let mapped = data.map((p: any) => ({
+                const mapped = data.map((p: any) => ({
                     ...p,
                     avatar_url: getAvatarUrl(supabase, p.avatar_url),
                     ratings_avg: p.ratings_avg ?? null,
                     ratings_count: p.ratings_count ?? null,
                     points: info.get(p.id)?.points ?? 0,
                 }))
-                if (rankedIds) {
-                    const order = new Map(rankedIds.map((id, i) => [id, i]))
-                    mapped = mapped.sort((a: any, b: any) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
-                }
                 setProfiles(mapped)
             }
         } catch (err) {
