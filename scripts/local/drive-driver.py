@@ -215,6 +215,8 @@ class Driver:
             as_user(self.id, f"select arrive_at_destination({esc(s['id'])}::uuid, {s['lat']}, {s['lng']});")   # "Estou no local": o cliente é avisado
             log(f"  🚪 {self.name} chegou no endereço de {s['name']} e avisou: estou no local")
             time.sleep(random.uniform(4, 7))   # o cliente vai até a porta
+            pin = q_local(f"select pin from delivery_proofs where ride_id = {esc(s['id'])}::uuid")[0]['pin']   # o cliente diz o código de entrega na porta
+            as_user(self.id, f"select submit_delivery_proof({esc(s['id'])}::uuid, 'pin', {esc(pin)});")
             as_user(self.id, f"select complete_ride({esc(s['id'])}::uuid, {s['lat']}, {s['lng']});")
             log(f"  🎉 {self.name} ENTREGOU para {s['name']} (R$ {s['price']:.2f})".replace('.', ','))
             time.sleep(random.uniform(2, 3))

@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from '@/lib/toast'
 import { setShellCompact } from '@/lib/shellCompact'
-import { Bike, Check, ChevronDown, DoorOpen, MessageCircle, ChevronUp, Clock3, Flame, Layers, MapPin, Minus, Navigation, Package, Plus, Power, Sparkles, Star, Store as StoreIcon, Zap } from 'lucide-react'
+import { Bike, Camera, Check, ChevronDown, DoorOpen, MessageCircle, ChevronUp, Clock3, Flame, Layers, MapPin, Minus, Navigation, Package, Plus, Power, Sparkles, Star, Store as StoreIcon, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -24,7 +24,7 @@ import { fetchOptimizedRoute, fetchRoadPath } from '@/lib/mapboxRoute'
 import DeliveryNavMap, { type NavStop, type NavTarget } from '@/components/deliveries/DeliveryNavMap'
 import {
     acceptOffer, arriveAtDestination, arriveAtStore, brl, DRIVER_QUICK, sendDeliveryMessage, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchMyReviews, fetchOffers, haversineKm, itemsList,
-    leaveForStore, mapsUrl, paymentRecap, phaseOf, pickUpOrders, PHASE_LABEL, routeKm, routeOrder, setCapacity, setCapacityUnits, setOnline, unitsState, fitsUnits, loadLabel, shortAddress, suggestBatches, wazeUrl, withinRadius,
+    cleanPin, photoWaitLeft, PROOF_REASONS, submitProofPhoto, submitProofPin, leaveForStore, mapsUrl, paymentRecap, phaseOf, pickUpOrders, PHASE_LABEL, routeKm, routeOrder, setCapacity, setCapacityUnits, setOnline, unitsState, fitsUnits, loadLabel, shortAddress, suggestBatches, wazeUrl, withinRadius,
     type ActiveDelivery, type DeliveryOffer, type DoneToday, type DriverState, type LatLng, type MyReviews,
 } from '@/modules/deliveries'
 import { countdown, fetchMyExclusiveOffers, fetchMyFavoriteStores, leaveStore, respondInvite, secondsLeft, type ExclusiveOffer, type MyFavoriteStore } from '@/modules/favorites'
@@ -132,7 +132,8 @@ export default function DriverDeliveriesScreen() {
     const loadFavStores = useCallback(() => { if (userId) fetchMyFavoriteStores().then(setFavStores).catch(() => {}) }, [userId])
     useEffect(() => { loadFavStores(); const t = setInterval(loadFavStores, 15000); return () => clearInterval(t) }, [loadFavStores])
     const hasExclusive = Object.keys(exclusive).length > 0
-    useEffect(() => { if (!hasExclusive) return; const t = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(t) }, [hasExclusive])   // contagem regressiva do selo
+    const waitingProof = active.some((a) => a.atDoor && !a.proof && photoWaitLeft(a.arrivedAt) > 0)   // a foto só vale 2 min depois da chegada: o relógio anda
+    useEffect(() => { if (!hasExclusive && !waitingProof) return; const t = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(t) }, [hasExclusive, waitingProof])   // contagem regressiva do selo e da espera da foto
     const answerInvite = async (storeId: string, accept: boolean) => {
         setBusy(`fav-${storeId}`)
         try { await respondInvite(storeId, accept); toast.success(accept ? 'Pronto! Você é um entregador favorito dessa loja.' : 'Convite recusado.'); loadFavStores() }
@@ -235,6 +236,23 @@ export default function DriverDeliveriesScreen() {
     }
     const arriveDoor = (d: ActiveDelivery, atDestination = false) => run(`a-${d.id}`, async () => { await arriveAtDestination(d.id, await whereAmI(d, atDestination)) }, `${firstName(d.customerName)} foi avisado(a) de que você chegou 🚪`)
     const finish = (d: ActiveDelivery, atDestination = false) => run(`f-${d.id}`, async () => { await completeDelivery(d.id, await whereAmI(d, atDestination)) }, 'Entrega concluída! 🎉')
+
+    // PROVA DE ENTREGA: o cliente diz o código de 4 dígitos na porta (ou, se não responde, o motorista registra uma foto depois de 2 min)
+    const [pin, setPin] = useState('')
+    const [photoReason, setPhotoReason] = useState<'no_answer' | 'no_pin' | 'left_at_door'>('no_answer')
+    const photoInput = useRef<HTMLInputElement>(null)
+    const confirmPin = (d: ActiveDelivery) => run(`p-${d.id}`, async () => {
+        const r = await submitProofPin(d.id, pin)
+        if (!r.ok) {
+            setPin('')
+            throw new Error(r.error === 'locked' ? `Muitos erros. Tente de novo em ${Math.ceil((r.secondsLeft ?? 300) / 60)} min ou registre a foto.` : `Código errado. Restam ${r.attemptsLeft ?? 0} tentativas.`)
+        }
+        setPin('')
+    }, 'Código confirmado ✓')
+    const sendPhoto = (d: ActiveDelivery, file: File) => run(`p-${d.id}`, async () => {
+        const r = await submitProofPhoto(d.id, userId as string, file, photoReason)
+        if (!r.ok) throw new Error(`Espere mais ${r.secondsLeft ?? 0} s: o cliente precisa de um tempo para responder.`)
+    }, 'Foto registrada ✓')
 
     const firstName = (n: string) => (n || 'O cliente').trim().split(/\s+/)[0]
     const eta = (to: LatLng | null, from: LatLng | null) => (to && from ? etaMinutes(haversineKm(from, to)) : null)
@@ -347,9 +365,34 @@ export default function DriverDeliveriesScreen() {
             <button onClick={() => arriveDoor(current)} disabled={busy === `a-${current.id}`} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 w-full" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)', boxShadow: '0 6px 18px #f9731655' }}><DoorOpen size={18} /> Estou no local</button>
             {doorHint && <p className="text-[11px] font-bold text-center" style={{ color: colors.textSecondary }}>{doorHint}</p>}
         </div>
+    ) : current && !current.proof ? (
+        <div className="flex flex-col gap-2">
+            <p className="text-[12px] font-black text-center flex items-center justify-center gap-1.5" style={{ color: '#16a34a' }}><Check size={14} strokeWidth={3} /> {firstName(current.customerName)} foi avisado(a). Peça o código de 4 dígitos.</p>
+            <div className="flex gap-2">
+                <input value={pin} onChange={(e) => setPin(cleanPin(e.target.value))} inputMode="numeric" autoComplete="one-time-code" placeholder="Código do cliente" aria-label="Código do cliente" disabled={current.proofLockedSec > 0}
+                    className="flex-1 min-w-0 h-12 rounded-full text-center text-xl font-black tracking-[0.3em] outline-none" style={{ background: soft, color: colors.textPrimary, border: `1.5px solid ${colors.border}` }} />
+                <button onClick={() => confirmPin(current)} disabled={pin.length !== 4 || busy === `p-${current.id}` || current.proofLockedSec > 0} className="h-12 px-5 rounded-full text-[14px] font-black text-white disabled:opacity-40 active:scale-95" style={{ background: GREEN }}>Confirmar</button>
+            </div>
+            {current.proofLockedSec > 0 && <p className="text-[11px] font-bold text-center" style={{ color: '#ef4444' }}>Código bloqueado por erros. Tente em {Math.ceil(current.proofLockedSec / 60)} min ou registre a foto.</p>}
+            {(() => {
+                const wait = photoWaitLeft(current.arrivedAt)
+                return wait > 0 ? (
+                    <p className="text-[11px] text-center" style={{ color: colors.textSecondary }}>Cliente não responde? Em {Math.floor(wait / 60)}:{String(wait % 60).padStart(2, '0')} você poderá registrar uma foto.</p>
+                ) : (
+                    <div className="rounded-2xl p-2.5 flex flex-col gap-2" style={{ background: soft }}>
+                        <p className="text-[11px] font-black text-center" style={{ color: colors.textPrimary }}>Sem o código? Registre uma foto de onde deixou o pedido.</p>
+                        <div className="flex gap-1.5 justify-center flex-wrap">
+                            {PROOF_REASONS.map((r) => <button key={r.code} onClick={() => setPhotoReason(r.code)} className="h-7 px-2.5 rounded-full text-[11px] font-black active:scale-95" style={photoReason === r.code ? { background: ORANGE, color: '#fff' } : { background: `${colors.border}60`, color: colors.textSecondary }}>{r.label}</button>)}
+                        </div>
+                        <input ref={photoInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(current, f) }} />
+                        <button onClick={() => photoInput.current?.click()} disabled={busy === `p-${current.id}`} className="h-10 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50" style={{ background: colors.surface, color: colors.textPrimary, border: `1.5px solid ${colors.border}` }}><Camera size={15} /> Tirar foto da entrega</button>
+                    </div>
+                )
+            })()}
+        </div>
     ) : current ? (
         <div className="flex flex-col gap-1.5">
-            <p className="text-[12px] font-black text-center flex items-center justify-center gap-1.5" style={{ color: '#16a34a' }}><Check size={14} strokeWidth={3} /> {firstName(current.customerName)} foi avisado(a). Entregue o pedido e confirme.</p>
+            <p className="text-[12px] font-black text-center flex items-center justify-center gap-1.5" style={{ color: '#16a34a' }}><Check size={14} strokeWidth={3} /> {current.proof === 'pin' ? 'Código confirmado' : 'Foto registrada'}. Pode concluir a entrega.</p>
             <button onClick={() => finish(current)} disabled={busy === `f-${current.id}`} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 w-full" style={{ background: GREEN, boxShadow: '0 6px 18px #22c55e55' }}><Check size={18} strokeWidth={3} /> Entreguei</button>
         </div>
     ) : null

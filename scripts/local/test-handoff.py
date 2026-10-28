@@ -97,12 +97,33 @@ sql += case('8p estranho não participa da conversa', stranger, f"perform send_d
 sql += case('8q estranho não lê as mensagens da entrega', stranger, f"if exists (select 1 from delivery_messages where ride_id = {esc(R1['id'])}::uuid) then raise exception 'vazou'; end if;", 'ok')
 sql += case('8r a loja lê a conversa da entrega dela', store['owner_id'], f"if (select count(*) from delivery_messages where ride_id = {esc(R1['id'])}::uuid) < 3 then raise exception 'loja sem a conversa'; end if;", 'ok')
 sql += case('8s não dá para escrever direto na tabela', drv, f"insert into delivery_messages (ride_id, sender_id, sender_role, code) values ({esc(R1['id'])}::uuid, auth.uid(), 'driver', 'at_gate');", 'permission denied|row-level|42501')
+
+# ----- PROVA DE ENTREGA (migration 20261130000011): sem prova não conclui; código do cliente ou foto depois de 2 min
+sql += f"select set_config('t.pin', (select pin from delivery_proofs where ride_id = {esc(R1['id'])}::uuid), false);\n"
+sql += case('8p1 concluir SEM a prova é recusado', drv, f"perform complete_ride({esc(R1['id'])}::uuid, {DEST});", 'proof_required')
+sql += case('8p2 o cliente vê o código do pedido que saiu', buyer, f"if (get_delivery_proof_view({esc(R1['order_id'])}::uuid)->>'pin') is distinct from current_setting('t.pin') then raise exception 'cliente sem o código'; end if;", 'ok')
+sql += case('8p3 a loja acompanha mas NÃO vê o código', store['owner_id'], f"if (get_delivery_proof_view({esc(R1['order_id'])}::uuid)->>'pin') is not null then raise exception 'a loja viu o código'; end if; if (get_delivery_proof_view({esc(R1['order_id'])}::uuid)->>'stage') <> 'delivering' then raise exception 'sem etapa'; end if;", 'ok')
+sql += case('8p4 o motorista NÃO vê o código', drv, f"if (select count(*) from get_my_delivery_proofs(array[{esc(R1['id'])}::uuid])) <> 1 then raise exception 'sem estado'; end if; perform pin from delivery_proofs;", 'permission denied|42501')
+sql += case('8p5 estranho não vê a prova do pedido', stranger, f"if get_delivery_proof_view({esc(R1['order_id'])}::uuid) is not null then raise exception 'vazou'; end if;", 'ok')
+sql += case('8p6 estranho não registra prova', stranger, f"perform submit_delivery_proof({esc(R1['id'])}::uuid, 'pin', '0000');", 'Sem permissão')
+sql += case('8p7 código errado conta a tentativa', drv, f"if submit_delivery_proof({esc(R1['id'])}::uuid, 'pin', 'xxxx')->>'error' is distinct from 'wrong_pin' then raise exception 'esperava wrong_pin'; end if;", 'ok')
+sql += case('8p8 foto antes de 2 min da chegada: espere', drv, f"if submit_delivery_proof({esc(R1['id'])}::uuid, 'photo', null, auth.uid()::text || '/p.jpg', 'no_answer')->>'error' is distinct from 'wait' then raise exception 'esperava wait'; end if;", 'ok')
+sql += case('8p9 foto em pasta de outra pessoa é recusada', drv, f"perform submit_delivery_proof({esc(R1['id'])}::uuid, 'photo', null, '{stranger}/p.jpg', 'no_answer');", 'Foto inválida')
+sql += case('8pa 5 erros travam por 5 min', drv, f"for i in 1..4 loop perform submit_delivery_proof({esc(R1['id'])}::uuid, 'pin', 'xxxx'); end loop; if submit_delivery_proof({esc(R1['id'])}::uuid, 'pin', current_setting('t.pin'))->>'error' is distinct from 'locked' then raise exception 'esperava locked'; end if;", 'ok')
+sql += f"update delivery_proofs set locked_until = null, attempts = 0 where ride_id = {esc(R1['id'])}::uuid;\n"
+sql += case('8pb código certo registra a prova', drv, f"if (submit_delivery_proof({esc(R1['id'])}::uuid, 'pin', current_setting('t.pin'))->>'ok')::boolean is not true then raise exception 'esperava ok'; end if;", 'ok')
+sql += case('8pc o cliente vê "entregue com código" e o código some', buyer, f"if (get_delivery_proof_view({esc(R1['order_id'])}::uuid)->>'method') <> 'pin' or (get_delivery_proof_view({esc(R1['order_id'])}::uuid)->>'pin') is not null then raise exception 'estado errado'; end if;", 'ok')
 sql += case('8h depois do aviso, conclui a entrega', drv, f"perform complete_ride({esc(R1['id'])}::uuid, {DEST});", 'ok')
 sql += f"update orders set status = 'ready' where id = {esc(R2['order_id'])}::uuid;\n"
 sql += case('9a segunda entrega: aceita e chega', drv, f"insert into ride_applications (ride_request_id, applicant_id, proposed_price) select r.id, {esc(drv)}::uuid, r.offered_price from ride_offers r where r.id = {esc(R2['id'])}::uuid; update ride_requests set driver_en_route = true, driver_departed_at = now(), driver_arrived_at = now() where id = {esc(R2['id'])}::uuid;", 'ok')
 sql += case('9 segunda saída: 5 erros travam', drv, f"""
     for i in 1..5 loop perform confirm_pickup(array[{esc(R2['id'])}::uuid], '----'); end loop;
     if confirm_pickup(array[{esc(R2['id'])}::uuid], '----')->>'error' is distinct from 'code_locked' then raise exception 'esperava code_locked'; end if;""", 'ok')
+
+sql += f"update ride_requests set ride_started_at = now(), arrived_destination_at = now() - interval '3 minutes' where id = {esc(R2['id'])}::uuid;\n"
+sql += case('9p1 sem o código do cliente: foto depois de 2 min', drv, f"if (submit_delivery_proof({esc(R2['id'])}::uuid, 'photo', null, auth.uid()::text || '/prova.jpg', 'no_answer')->>'ok')::boolean is not true then raise exception 'esperava ok'; end if;", 'ok')
+sql += case('9p2 o cliente e a loja recebem o aviso da foto', store['owner_id'], f"if not exists (select 1 from profile_notifications where profile_id = auth.uid() and kind = 'delivery_message' and meta->>'title' like 'Entrega registrada com foto%' and created_at > now() - interval '1 minute') then raise exception 'loja sem aviso'; end if;", 'ok')
+sql += case('9p3 depois da foto conclui', drv, f"perform complete_ride({esc(R2['id'])}::uuid, (select destination_lat from ride_requests where id = {esc(R2['id'])}::uuid), (select destination_lng from ride_requests where id = {esc(R2['id'])}::uuid));", 'ok')
 sql += f"update driver_vehicles set delivery_capacity_units = 0.5 where driver_id = {esc(drv)}::uuid;\n"
 sql += case('10 não cabe em volume', drv, f"insert into ride_applications (ride_request_id, applicant_id, proposed_price) select r.id, {esc(drv)}::uuid, r.offered_price from ride_offers r where r.id = {esc(R3['id'])}::uuid;", 'delivery_capacity_units_full')
 sql += "rollback;\n"

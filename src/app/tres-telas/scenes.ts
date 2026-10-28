@@ -305,6 +305,16 @@ async function driverSlice(c: Ctx, name: string) {
                         await st.caption('driver', '💬 “Estou em frente ao endereço”'); await st.soft('driver', { op: 'click', target: { text: 'Estou em frente' } })
                     }
                     await human(c, 3.5, 5.5)   // o cliente vai até a porta
+                    // PROVA DE ENTREGA: o cliente diz o código de 4 dígitos e o motorista o digita (o Teatro pega o código no servidor local)
+                    if (text.includes('Peça o código')) {
+                        const pin = await fetch(`/api/dev/proof?driver=${encodeURIComponent(name)}`).then((r) => r.json()).then((j) => j.pin as string | null).catch(() => null)
+                        if (!pin) { await st.caption('driver', '⏳ Esperando o cliente dizer o código'); await human(c, 3, 5); continue }
+                        await st.caption('driver', '🔢 O cliente disse o código de entrega')
+                        await human(c, 1, 1.8); await st.soft('driver', { op: 'type', target: { selector: 'input[aria-label="Código do cliente"]' }, text: pin })
+                        await human(c, 0.8, 1.4); await st.soft('driver', { op: 'click', target: { text: 'Confirmar', exact: true } })
+                        await human(c, 2, 3)
+                        continue
+                    }
                     await st.caption('driver', '🤝 Entregando o pedido')
                     await human(c, 1, 1.8); await st.soft('driver', { op: 'click', target: { text: 'Entreguei', exact: true } })
                     await human(c, 2.5, 3.5)

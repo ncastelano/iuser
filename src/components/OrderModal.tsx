@@ -2,6 +2,7 @@
 'use client'
 
 import OrderReviewPanel from '@/components/OrderReviewPanel'
+import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck, Globe, Store, ShoppingCart, CreditCard, Coins, Calendar, User, Phone } from 'lucide-react'
 
 export interface GroupedOrder {
@@ -393,6 +394,9 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                                 </div>
                             </div>
                         </div>
+
+                        {/* Prova da entrega (código do cliente ou foto do entregador) */}
+                        {deliveryAddress && <div className="-mx-3.5"><DeliveryProofCard orderId={order.id as string} role="store" light enabled={['preparing', 'ready', 'paid'].includes(order.status)} /></div>}
 
                         {/* Troca de avaliações (só aparece em pedido concluído, se a loja ligou) */}
                         {order.status === 'paid' && <OrderReviewPanel orderId={order.id} />}

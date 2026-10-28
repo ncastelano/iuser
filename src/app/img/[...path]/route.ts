@@ -9,7 +9,7 @@ export const runtime = 'edge'
 
 const BUCKETS = new Set([
     'avatars', 'backgrounds', 'community-photos', 'driver-car-photos', 'driver-selfie-photos', 'mural-images', 'posts',
-    'product-images', 'ride-object-photos', 'service-request-photos', 'store-links', 'store-logos', 'flash-media',
+    'product-images', 'ride-object-photos', 'service-request-photos', 'store-links', 'store-logos', 'flash-media', 'delivery-proofs',
 ])
 const IMAGE_TYPES: Record<string, string> = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif',

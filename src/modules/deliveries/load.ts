@@ -43,11 +43,18 @@ export async function fetchActive(me: string): Promise<ActiveDelivery[]> {
         const { data: sts } = await supabase.rpc('get_my_pickup_status', { p_rides: waiting })
         ;((sts || []) as { ride_id: string; order_status: string }[]).forEach((x) => st.set(x.ride_id, x.order_status))
     }
+    // Na porta: a prova de entrega já registrada (o código em si NUNCA vem para o motorista)
+    const atDoorIds = ((data || []) as any[]).filter((r) => r.arrived_destination_at).map((r) => r.id)
+    const pf = new Map<string, { method: 'pin' | 'photo' | null; locked: number }>()
+    if (atDoorIds.length) {
+        const { data: ps } = await supabase.rpc('get_my_delivery_proofs', { p_rides: atDoorIds })
+        ;((ps || []) as { ride_id: string; method: 'pin' | 'photo' | null; locked_seconds: number }[]).forEach((x) => pf.set(x.ride_id, { method: x.method, locked: Number(x.locked_seconds) || 0 }))
+    }
     return ((data || []) as any[]).map((r) => ({
         id: r.id, orderId: r.order_id, storeName: r.sender_name || 'Loja', storeAddress: r.origin_address || '', store: pos(r.origin_lat, r.origin_lng),
         customerName: r.recipient_name || 'Cliente', address: r.destination_address || '', to: pos(r.destination_lat, r.destination_lng),
         items: r.object_description || '', price: Number(r.offered_price) || 0, km: num(r.distance_km), units: Number(r.delivery_units) || 1, itemsCount: Number(r.items_count) || 1, paymentMethod: r.payment_method || null, cashChangeFor: num(r.cash_change_for),
-        enRoute: !!r.driver_en_route, arrived: !!r.driver_arrived_at, started: !!r.ride_started_at, atDoor: !!r.arrived_destination_at, orderStatus: st.get(r.id) ?? null,
+        enRoute: !!r.driver_en_route, arrived: !!r.driver_arrived_at, started: !!r.ride_started_at, atDoor: !!r.arrived_destination_at, arrivedAt: r.arrived_destination_at ? new Date(r.arrived_destination_at).getTime() : null, proof: pf.get(r.id)?.method ?? null, proofLockedSec: pf.get(r.id)?.locked ?? 0, orderStatus: st.get(r.id) ?? null,
     }))
 }
 
@@ -111,6 +118,28 @@ export async function sendDeliveryMessage(rideId: string, code: string): Promise
 export async function arriveAtDestination(id: string, at: LatLng): Promise<void> {
     const { error } = await supabase.rpc('arrive_at_destination', { p_ride: id, p_lat: at.lat, p_lng: at.lng })
     if (error) throw new Error(error.message || 'Não foi possível avisar o cliente.')
+}
+
+export type ProofResult = { ok: true } | { ok: false; error: 'wrong_pin' | 'locked' | 'wait'; attemptsLeft?: number; secondsLeft?: number }
+
+/** Prova de entrega por CÓDIGO: o cliente diz os 4 dígitos na porta. Errado não é exceção (o servidor conta as tentativas: 5 erros travam por 5 min). */
+export async function submitProofPin(id: string, pin: string): Promise<ProofResult> {
+    const { data, error } = await supabase.rpc('submit_delivery_proof', { p_ride: id, p_method: 'pin', p_pin: pin })
+    if (error) throw new Error(error.message || 'Não foi possível confirmar o código.')
+    const r = data as { ok: boolean; error?: 'wrong_pin' | 'locked' | 'wait'; attempts_left?: number; seconds_left?: number }
+    return r.ok ? { ok: true } : { ok: false, error: r.error || 'wrong_pin', attemptsLeft: r.attempts_left, secondsLeft: r.seconds_left }
+}
+
+/** Prova por FOTO (o cliente não respondeu): envia a foto para a pasta do motorista e registra com o motivo */
+export async function submitProofPhoto(id: string, me: string, file: File, reason: 'no_answer' | 'no_pin' | 'left_at_door'): Promise<ProofResult> {
+    const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+    const path = `${me}/${id}-${Date.now()}.${ext}`
+    const up = await supabase.storage.from('delivery-proofs').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
+    if (up.error) throw new Error('Não consegui enviar a foto. Tente de novo.')
+    const { data, error } = await supabase.rpc('submit_delivery_proof', { p_ride: id, p_method: 'photo', p_photo: path, p_reason: reason })
+    if (error) throw new Error(error.message || 'Não foi possível registrar a foto.')
+    const r = data as { ok: boolean; error?: 'wrong_pin' | 'locked' | 'wait'; seconds_left?: number }
+    return r.ok ? { ok: true } : { ok: false, error: r.error || 'wait', secondsLeft: r.seconds_left }
 }
 
 /** Conclui UMA entrega: o servidor confere que é a sua, que já saiu da loja e que você está a até 100 m do destino */

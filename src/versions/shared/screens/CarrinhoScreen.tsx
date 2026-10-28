@@ -1,6 +1,7 @@
 // src/app/(main)/carrinho/page.tsx
 'use client'
 
+import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/store/useCartStore'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
@@ -445,6 +446,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         price: i.total_price,
                         created_at: o.created_at,
                         status: o.status,
+                        order_id: o.id,
                         checkout_id: o.checkout_id,
                         buyer_id: o.buyer_id,
                         buyer_name: o.buyer_name,
@@ -1270,6 +1272,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             if (!groups[p.checkout_id]) {
                 groups[p.checkout_id] = {
                     checkout_id: p.checkout_id,
+                    order_id: p.order_id,
                     store_name: p.store_name,
                     store_id: p.store_id,
                     created_at: p.created_at,
@@ -1452,6 +1455,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         </div>
                     )}
 
+                    <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} />
                     <div className="px-3.5 py-2.5 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${colors.border}` }}>
                         {order.items.map((item: any, idx: number) => (
                             <div key={idx} className="flex items-center justify-between gap-2 text-[13px]">
@@ -1516,6 +1520,9 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                             order.status === 'paid' ? '#3b82f6' : '#ef4444',
                         }}
                     ></div>
+                </div>
+                <div className="-mx-3.5">
+                    <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} light />
                 </div>
                 <div className="space-y-2">
                     {order.items.map((item: any, idx: number) => (

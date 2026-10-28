@@ -1,7 +1,7 @@
 // Testes das regras puras da Central de entregas do motorista (src/modules/deliveries/domain.ts). Rodar: npm run test:deliveries
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { capacityState, phaseOf, routeOrder, routeKm, suggestBatches, withinRadius, paymentRecap, itemsList, shortAddress, etaMinutes, haversineKm, earnings } from '../src/modules/deliveries/domain.ts'
+import { cleanPin, photoWaitLeft, PROOF_PHOTO_WAIT_SEC, PROOF_REASONS, capacityState, phaseOf, routeOrder, routeKm, suggestBatches, withinRadius, paymentRecap, itemsList, shortAddress, etaMinutes, haversineKm, earnings } from '../src/modules/deliveries/domain.ts'
 
 const STORE = { lat: -8.758, lng: -63.8995 }
 const near = (dx, dy) => ({ lat: STORE.lat + dx, lng: STORE.lng + dy })
@@ -67,4 +67,15 @@ test('volume: o que cabe na mochila em unidades', async () => {
   const offers = [mk('a', 0.010, 1), mk('b', 0.011, 1), mk('c', 0.012, 1), mk('d', 0.013, 1)]
   assert.ok(suggestBatches(offers, 4, 3.5, 3, 2)[0].offers.length <= 2)
   assert.deepEqual(suggestBatches([mk('x', 0.01, 3)], 4, 3.5, 3, 2), [])   // nenhuma sugestão que a mochila não comporte
+})
+
+test('prova de entrega: código só com 4 números e foto só depois da espera', () => {
+    assert.equal(cleanPin('48 2a1-9'), '4821')
+    assert.equal(cleanPin('abc'), '')
+    assert.equal(PROOF_PHOTO_WAIT_SEC, 120)
+    const t = 1_000_000
+    assert.equal(photoWaitLeft(null, t), 120)
+    assert.equal(photoWaitLeft(t - 30_000, t), 90)
+    assert.equal(photoWaitLeft(t - 130_000, t), 0)
+    assert.deepEqual(PROOF_REASONS.map((r) => r.code), ['no_answer', 'no_pin', 'left_at_door'])
 })

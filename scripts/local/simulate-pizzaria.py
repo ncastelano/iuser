@@ -705,6 +705,12 @@ def drivers_run(speed=1.0):
         if time.time() - st.get('door_at', 0) < R.uniform(5, 9):
             continue   # o cliente leva uns segundos para ir até a porta
         st['leg_to'] = None
+        # PROVA DE ENTREGA: o cliente diz o código de 4 dígitos na porta (aqui lido do banco local); às vezes o motorista erra um dígito antes
+        pin = q_local(f"select pin from delivery_proofs where ride_id = {esc(nxt['id'])}::uuid")[0]['pin']
+        if R.random() < 0.08:
+            as_user(d['id'], f"select submit_delivery_proof({esc(nxt['id'])}::uuid, 'pin', '{(int(pin) + 1) % 10000:04d}');")
+            log(f"  🔢 {d['name']} errou o código; pediu de novo ao cliente")
+        as_user(d['id'], f"select submit_delivery_proof({esc(nxt['id'])}::uuid, 'pin', {esc(pin)});")
         as_user(d['id'], f"select complete_ride({esc(nxt['id'])}::uuid, {dest[0]}, {dest[1]});")
         st['last_leg'] = time.time()
         owner_say(nxt['buyer_id'], 'Entregue! Bom apetite. 🍕')

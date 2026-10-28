@@ -27,12 +27,31 @@ export interface ActiveDelivery {
     started: boolean
     /** o motorista tocou "Estou no local": o cliente foi avisado de que ele está na porta */
     atDoor: boolean
+    /** quando o motorista tocou "Estou no local" (ms) — a foto de prova só vale 2 min depois */
+    arrivedAt: number | null
+    /** a prova de entrega já registrada: código do cliente ou foto (a conclusão exige uma delas) */
+    proof: 'pin' | 'photo' | null
+    /** segundos que faltam para destravar o código (5 erros travam por 5 min) */
+    proofLockedSec: number
     /** estado do pedido na loja (`preparing` | `ready`...): a tela mostra "Pronto ✓" ou "Em preparo…" antes do código de retirada; null = ainda não carregou */
     orderStatus: string | null
 }
 
 /** Oferta de entrega mais velha que isso não aparece mais para o motorista: o pedido já esfriou (a loja continua vendo "sem motorista") */
 export const OFFER_MAX_AGE_MIN = 90
+
+/** Espera, depois de "Estou no local", para o motorista poder registrar a FOTO no lugar do código do cliente (o cliente teve tempo de responder) */
+export const PROOF_PHOTO_WAIT_SEC = 120
+/** Por que o motorista registra a foto em vez do código (o texto completo é só rótulo; o banco guarda o código) */
+export const PROOF_REASONS: { code: 'no_answer' | 'no_pin' | 'left_at_door'; label: string }[] = [
+    { code: 'no_answer', label: 'Ninguém atendeu' },
+    { code: 'no_pin', label: 'Cliente sem o código' },
+    { code: 'left_at_door', label: 'Deixei na porta' },
+]
+/** Quantos segundos faltam para a foto valer (0 = já vale) */
+export const photoWaitLeft = (arrivedAt: number | null, now = Date.now()) => (arrivedAt == null ? PROOF_PHOTO_WAIT_SEC : Math.max(0, Math.ceil(PROOF_PHOTO_WAIT_SEC - (now - arrivedAt) / 1000)))
+/** O código tem 4 dígitos: só números, no máximo 4 */
+export const cleanPin = (v: string) => v.replace(/\D/g, '').slice(0, 4)
 
 /** Frases PRONTAS do motorista para o cliente durante a entrega (o texto completo mora no banco: _delivery_msg_text). `issue`: também avisa a loja. */
 export const DRIVER_QUICK: { code: string; label: string; issue?: boolean }[] = [
