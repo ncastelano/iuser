@@ -138,8 +138,12 @@ export default function DeliveryNavMap({
 
     // ---- você: o marcador (e a câmera) DESLIZAM de uma posição à outra em 1 s, em vez de pular; o rumo vem do movimento (suavizado)
     const shown = useRef<[number, number] | null>(null)
-    const anim = useRef<{ from: [number, number]; to: [number, number]; t0: number } | null>(null)
+    const anim = useRef<{ from: [number, number]; to: [number, number]; t0: number; dur: number } | null>(null)
+    const lastPosAt = useRef(0)
+    const posDt = useRef(1000)   // intervalo médio entre as posições que chegam: o deslize dura exatamente isso, para não parar e arrancar a cada passo
     const hdg = useRef(0)
+    const hdgTarget = useRef(0)
+    const hdgRef = useRef<[number, number] | null>(null)
     useEffect(() => {
         const m = map.current
         if (!m || !ready || !me) return
@@ -153,7 +157,10 @@ export default function DeliveryNavMap({
         }
         const cur = shown.current
         if (!cur || haversineKm(cur, to) * 1000 > 600) { shown.current = to; anim.current = null; marks.current.me.setLngLat(to); return }   // salto grande (outra saída): sem deslizar
-        anim.current = { from: cur, to, t0: performance.now() }
+        const nowMs = performance.now()
+        if (lastPosAt.current) posDt.current = Math.min(3000, Math.max(400, posDt.current * 0.6 + (nowMs - lastPosAt.current) * 0.4))
+        lastPosAt.current = nowMs
+        anim.current = { from: cur, to, t0: nowMs, dur: posDt.current * 1.04 }
     }, [ready, me?.lat, me?.lng])
     useEffect(() => {
         if (!ready) return
@@ -162,12 +169,14 @@ export default function DeliveryNavMap({
             const a = anim.current
             const cur = shown.current
             if (a && cur) {
-                const k = Math.min(1, (now - a.t0) / 1000)
+                const k = Math.min(1, (now - a.t0) / a.dur)
                 const p: [number, number] = [a.from[0] + (a.to[0] - a.from[0]) * k, a.from[1] + (a.to[1] - a.from[1]) * k]
-                if (haversineKm(cur, p) * 1000 > 0.2) {
-                    const dh = ((bearing(cur, p) - hdg.current + 540) % 360) - 180
-                    hdg.current = (hdg.current + dh * 0.1 + 360) % 360
-                }
+                // rumo-alvo só a cada ≥ 4 m andados (evita o ruído dos pontinhos da rota) e a câmera gira devagar atrás dele (no máx. ~1,2°/quadro)
+                const ref = hdgRef.current
+                if (!ref) hdgRef.current = cur
+                else if (haversineKm(ref, p) * 1000 >= 4) { hdgTarget.current = bearing(ref, p); hdgRef.current = p }
+                const dh = ((hdgTarget.current - hdg.current + 540) % 360) - 180
+                hdg.current = (hdg.current + Math.max(-1.2, Math.min(1.2, dh * 0.08)) + 360) % 360
                 shown.current = p
                 marks.current.me?.setLngLat(p)
                 if (followRef.current) map.current?.jumpTo({ center: p, bearing: hdg.current, zoom: 16, pitch: 40 })

@@ -23,6 +23,9 @@ import {
     type ActiveDelivery, type DeliveryOffer, type DoneToday, type DriverState, type LatLng, type MyReviews,
 } from '@/modules/deliveries'
 
+/** GPS de teste (só LOCAL): dentro do /tres-telas, ou em qualquer aba com `localStorage.iuser_dev_gps = 1` */
+const devGps = () => isLocalDevOnly() && typeof window !== 'undefined' && (window.parent !== window || !!window.localStorage.getItem('iuser_dev_gps'))
+
 const ORANGE = '#f97316'
 const GREEN = '#22c55e'
 
@@ -60,6 +63,7 @@ export default function DriverDeliveriesScreen() {
     const anchor = useRef<HTMLDivElement>(null)
     const [shellTop, setShellTop] = useState('0px')   // onde acaba a ilha (a var --shell-top vive na casca; o portal vai para o body e precisa do valor)
     useEffect(() => { if (anchor.current) setShellTop(getComputedStyle(anchor.current).getPropertyValue('--shell-top').trim() || '0px') }, [view])
+    const simLive = useRef<{ pos: LatLng; at: number } | null>(null)   // GPS de teste: a posição simulada vale mais que a que o banco devolve (que chega atrasada e fazia o marcador voltar um passo)
     const seenOffers = useRef<Set<string> | null>(null)
     const [fresh, setFresh] = useState<Set<string>>(new Set())
 
@@ -67,7 +71,8 @@ export default function DriverDeliveriesScreen() {
         if (!userId) return
         try {
             const [st, ac, of, dn] = await Promise.all([fetchDriverState(userId), fetchActive(userId), fetchOffers(), fetchDoneToday(userId)])
-            setState(st); setActive(ac); setDone(dn)
+            const keep = simLive.current && Date.now() - simLive.current.at < 6000 ? simLive.current.pos : null
+            setState(keep ? { ...st, live: keep } : st); setActive(ac); setDone(dn)
             setOffers(of)
             // avisa as entregas novas (depois da primeira carga)
             const ids = new Set(of.map((o) => o.id))
@@ -151,7 +156,7 @@ export default function DriverDeliveriesScreen() {
         if (!d.to) throw new Error('Esta entrega está sem localização.')
         let at: LatLng = d.to
         const stagePos = state?.live   // TEATRO: dentro do /tres-telas o GPS simulado (que anda até a parada) vale como a posição do aparelho
-        if (!atDestination && isLocalDevOnly() && typeof window !== 'undefined' && window.parent !== window && stagePos) at = stagePos
+        if (!atDestination && devGps() && stagePos) at = stagePos
         else if (!atDestination) {
             at = await new Promise<LatLng>((resolve, reject) => {
                 if (!navigator.geolocation) return reject(new Error('Ative a localização para concluir.'))
@@ -173,7 +178,7 @@ export default function DriverDeliveriesScreen() {
     const gpsPath = useRef<{ key: string; pts: [number, number][]; cum: number[]; dist: number } | null>(null)
     const gpsLoading = useRef(false)
     useEffect(() => {
-        if (!userId || !isLocalDevOnly() || typeof window === 'undefined' || window.parent === window) return
+        if (!userId || !devGps()) return
         const SPEED_M_S = 16
         const t = setInterval(() => {
             const { phase: ph, target, pos } = gpsRef.current
@@ -203,6 +208,7 @@ export default function DriverDeliveriesScreen() {
                 next = { lng: r.pts[i][0] + (r.pts[i + 1][0] - r.pts[i][0]) * f, lat: r.pts[i][1] + (r.pts[i + 1][1] - r.pts[i][1]) * f }
             }
             if (haversineKm(pos, next) * 1000 < 0.5) return
+            simLive.current = { pos: next, at: Date.now() }
             setState((st) => (st ? { ...st, live: next } : st))
             supabase.from('driver_pricing').update({ live_lat: next.lat, live_lng: next.lng, live_updated_at: new Date().toISOString() }).eq('driver_id', userId).then(() => {})
         }, 1000)
