@@ -1,17 +1,21 @@
-// src/versions/v3/screens/PessoasScreen.tsx
+// src/versions/v3/screens/SocialScreen.tsx
 //
-// PESSOAS (3.0): a "página inicial" das pessoas do iUser, em várias seções como a home — FLASH (as postagens rápidas; o feed completo é o /flash),
-// PUBLICAÇÕES das pessoas, PESSOAS PERTO de você, LOCAIS COM MAIS PESSOAS (bairros; toque abre quem está lá), EM DESTAQUE (mais pontos),
-// NOVOS por aqui, QUEM OFERECE SERVIÇOS e COMUNIDADES; e uma busca por nome ou @. Cada seção carrega sozinha (esqueleto próprio) e some se vier vazia.
-// Só dado público. Regras e fontes em `modules/people` (e `modules/flash` para os flashes e publicações).
+// SOCIAL (/social): a parte social do iUser. Abas (a atual vai na URL, `?aba=`): INÍCIO — várias seções como a home: FLASH (as postagens rápidas; o feed
+// completo é o /flash), PUBLICAÇÕES das pessoas, PESSOAS PERTO de você, LOCAIS COM MAIS PESSOAS (bairros; toque abre quem está lá), EM DESTAQUE (mais pontos),
+// NOVOS por aqui, QUEM OFERECE SERVIÇOS e COMUNIDADES — e as listas do antigo /social: MELHORES PERFIS, QUEM EU SIGO, QUEM ME SEGUE e ENTRARAM POR ÚLTIMO
+// (`components/social/SocialProfileList`). A busca (nome ou @) vale para a aba aberta; sem texto, ao tocar nela aparecem os últimos perfis visitados.
+// Cada seção carrega sozinha (esqueleto próprio) e some se vier vazia. Só dado público. Regras e fontes em `modules/people` (e `modules/flash`).
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Award, ChevronRight, Heart, MapPin, MessageCircle, Plus, Radar as RadarIcon, Search, Sparkles, Star, UserPlus, Users, Wrench, X, Zap } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Award, ChevronRight, Clock, Heart, Home, MapPin, MessageCircle, Plus, Radar as RadarIcon, Search, Sparkles, Star, Trophy, UserPlus, Users, Wrench, X, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import PageTabs, { type Tab } from '@/components/PageTabs'
+import SocialProfileList, { type SocialListTab } from '@/components/social/SocialProfileList'
+import { useRecentProfiles } from '@/hooks/useRecentProfiles'
 import { flashGradient, mediaSrc, shortCount, timeAgo, authorAvatarUrl, type FlashItem } from '@/modules/flash'
 import {
     avatarOf, canSearch, formatKm, joinedLabel, loadCommunities, loadFlashes, loadNearbyPeople, loadNewPeople, loadPeopleInPlace, loadPlaces, loadPublications,
@@ -20,6 +24,9 @@ import {
 
 const ORANGE = '#f97316'
 const DEVICE_LOCATION_KEY = 'iuser_device_location'
+
+type SocialTab = 'inicio' | SocialListTab
+const LIST_TABS: SocialListTab[] = ['melhores', 'sigo', 'seguem', 'novos']
 
 /** Carrega uma seção sozinha (null = carregando; [] = vazia; erro vira vazia) */
 function useSection<T>(load: () => Promise<T[]>, deps: unknown[]): T[] | null {
@@ -155,12 +162,28 @@ function PublicationsSection({ colors, onOpen }: { colors: any; onOpen: (f: Flas
     )
 }
 
-export default function PessoasScreen() {
+export default function SocialScreen() {
     const router = useRouter()
+    const params = useSearchParams()
     const { colors } = useTheme()
     const { userId } = useProfile()
     const soft = `${colors.border}40`
-    const openPerson = (p: Person) => router.push(`/${p.slug}`)
+    const { recent, reload: reloadRecent, save: saveRecent, remove: removeRecent, clear: clearRecent } = useRecentProfiles()
+    const openPerson = (p: Person) => { saveRecent({ id: p.id, name: p.name, profileSlug: p.slug, avatar_url: p.avatarPath }); router.push(`/${p.slug}`) }
+
+    // Aba aberta: vem da URL (?aba=melhores...), então o link do ranking, o voltar e o compartilhar caem no lugar certo
+    const aba = params.get('aba')
+    const tab: SocialTab = LIST_TABS.includes(aba as SocialListTab) ? (aba as SocialListTab) : 'inicio'
+    const setTab = (t: SocialTab) => router.replace(t === 'inicio' ? '/social' : `/social?aba=${t}`, { scroll: false })
+    const isList = tab !== 'inicio'
+    const tabs: Tab[] = [
+        { id: 'inicio', label: 'Início', icon: Home, onClick: () => setTab('inicio'), isActive: tab === 'inicio' },
+        { id: 'melhores', label: 'Melhores perfis', icon: Trophy, onClick: () => setTab('melhores'), isActive: tab === 'melhores' },
+        { id: 'sigo', label: 'Quem eu sigo', icon: Heart, onClick: () => setTab('sigo'), isActive: tab === 'sigo' },
+        { id: 'seguem', label: 'Quem me segue', icon: Users, onClick: () => setTab('seguem'), isActive: tab === 'seguem' },
+        { id: 'novos', label: 'Entraram por último', icon: Sparkles, onClick: () => setTab('novos'), isActive: tab === 'novos' },
+    ]
+    const [searchFocused, setSearchFocused] = useState(false)
     const openPost = (f: FlashItem) => router.push(f.kind === 'publication' && f.link ? `/${f.authorSlug}/${f.link}` : `/flash?de=${f.id}`)
 
     // Onde a pessoa está (para "perto de você"): o endereço do perfil; visitante, o local definido neste aparelho
@@ -181,7 +204,7 @@ export default function PessoasScreen() {
 
     // Busca
     const [q, setQ] = useState('')
-    const searching = canSearch(q)
+    const searching = !isList && canSearch(q)
     const [found, setFound] = useState<Person[] | null>(null)
     useEffect(() => {
         if (!searching) { setFound(null); return }
@@ -204,16 +227,42 @@ export default function PessoasScreen() {
     return (
         <div className="pb-6">
             <header>
-                <h1 className="flex items-center gap-2 text-2xl font-black" style={{ color: colors.textPrimary }}><Users size={24} style={{ color: ORANGE }} /> Pessoas</h1>
-                <p className="text-[13px] mt-0.5" style={{ color: colors.textSecondary }}>Quem está por aqui, o que está postando e onde tem mais gente.</p>
-                <div className="relative mt-3">
+                <h1 className="flex items-center gap-2 text-2xl font-black" style={{ color: colors.textPrimary }}><Users size={24} style={{ color: ORANGE }} /> Social</h1>
+                <p className="text-[13px] mt-0.5" style={{ color: colors.textSecondary }}>Quem está por aqui, o que está postando, os melhores perfis e quem você segue.</p>
+                <div className="mt-3 -mx-4 px-4"><PageTabs tabs={tabs} /></div>
+                <div className="relative mt-2">
                     <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
-                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar pessoas por nome ou @" className="w-full h-12 rounded-full pl-11 pr-11 text-[14px] focus:outline-none" style={{ background: soft, color: colors.textPrimary }} />
+                    <input value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => { setSearchFocused(true); reloadRecent() }} onBlur={() => setTimeout(() => setSearchFocused(false), 200)} placeholder="Buscar pessoas por nome ou @" className="w-full h-12 rounded-full pl-11 pr-11 text-[14px] focus:outline-none" style={{ background: soft, color: colors.textPrimary }} />
                     {q && <button onClick={() => setQ('')} aria-label="Limpar" className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: `${colors.border}70`, color: colors.textPrimary }}><X size={14} /></button>}
                 </div>
             </header>
 
-            {searching ? (
+            {/* Últimos perfis visitados: ao tocar na busca sem texto */}
+            {searchFocused && !q.trim() && recent.length > 0 && (
+                <div className="rounded-3xl p-4 mt-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}><Clock size={13} /> Últimos perfis visitados</span>
+                        <button onMouseDown={(e) => e.preventDefault()} onClick={clearRecent} className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Limpar tudo</button>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        {recent.map((r) => (
+                            <div key={r.id} className="relative">
+                                <button onMouseDown={(e) => e.preventDefault()} onClick={() => router.push(`/${r.profileSlug}`)} className="flex flex-col items-center gap-1 transition active:scale-95">
+                                    <Avatar path={r.avatar_url} name={r.name} size={56} />
+                                    <span className="text-[10px] font-bold truncate max-w-[64px]" style={{ color: colors.textSecondary }}>@{r.profileSlug}</span>
+                                </button>
+                                <button onMouseDown={(e) => e.preventDefault()} onClick={() => removeRecent(r.id)} aria-label="Remover" className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ background: ORANGE, border: '2px solid #fff' }}><X size={10} /></button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {isList ? (
+                <div className="mt-4">
+                    <SocialProfileList tab={tab as SocialListTab} query={q} onOpenProfile={(p) => { saveRecent(p); router.push(`/${p.profileSlug}`) }} />
+                </div>
+            ) : searching ? (
                 <Section colors={colors} icon={Search} title="Resultado da busca" subtitle={found ? (found.length ? `${peopleLabel(found.length)} encontradas` : 'Ninguém com esse nome ou @') : 'Buscando…'}>
                     <div className="flex flex-col gap-2">
                         {found === null ? [0, 1, 2].map((i) => <Skel key={i} w="100%" h={64} colors={colors} />) : found.map((p) => (
@@ -285,7 +334,7 @@ export default function PessoasScreen() {
 
                     {/* Em destaque (mais pontos) */}
                     {!(top && top.length === 0) && (
-                        <Section colors={colors} icon={Award} title="Em destaque" subtitle="As pessoas com mais pontos no iUser" onAll={() => router.push('/social')} allLabel="Ranking">
+                        <Section colors={colors} icon={Award} title="Em destaque" subtitle="As pessoas com mais pontos no iUser" onAll={() => setTab('melhores')} allLabel="Ranking">
                             {top === null ? <Skel w="100%" h={250} colors={colors} /> : (
                                 <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                     {top.map((p, i) => (

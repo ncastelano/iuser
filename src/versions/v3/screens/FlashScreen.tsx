@@ -264,7 +264,7 @@ export default function FlashScreen() {
         scroller.current?.scrollTo({ top: 0 })
     }, [mode])
     useEffect(() => { loadFirst() }, [loadFirst, userId])
-    // Vindo da página Pessoas: ?de=<id> abre no flash tocado; ?novo=1 já abre o postar
+    // Vindo da página Social: ?de=<id> abre no flash tocado; ?novo=1 já abre o postar
     const jumped = useRef(false)
     useEffect(() => {
         if (loading || jumped.current) return
@@ -337,7 +337,7 @@ export default function FlashScreen() {
                         ))}
                     </div>
                 </div>
-                <button onClick={() => router.push('/pessoas')} aria-label="Voltar para Pessoas" className="absolute top-2.5 left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white transition active:scale-95" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}><ArrowLeft size={18} /></button>
+                <button onClick={() => router.push('/social')} aria-label="Voltar para o Social" className="absolute top-2.5 left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white transition active:scale-95" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}><ArrowLeft size={18} /></button>
                 <button onClick={() => (userId ? setComposing(true) : loginFirst())} aria-label="Postar um flash" className="absolute top-2.5 right-3 z-20 h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black text-white transition active:scale-95" style={{ background: ORANGE, boxShadow: '0 4px 14px rgba(249,115,22,0.5)' }}><Plus size={15} strokeWidth={3} /> Flash</button>
 
                 {fresh > 0 && (

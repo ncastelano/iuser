@@ -1,4 +1,4 @@
-// Cartão de perfil do /social: foto com borda (e a foto da loja, se a pessoa tiver uma), nome, pontos, o que a pessoa faz,
+// Cartão de perfil do /social (Social): foto com borda (e a foto da loja, se a pessoa tiver uma), nome, pontos, o que a pessoa faz,
 // e os dois botões que importam — Seguir e Conversar. Clicar no resto do cartão abre o perfil.
 'use client'
 

@@ -56,7 +56,7 @@ test('troca de versão: página equivalente ou home válida, sem 404', () => {
     assert.equal(equivalentPath('v2', '/v3'), '/') // a home da 3.0 volta para a home da 2.0
     assert.equal(equivalentPath('v2', '/painel-loja/minha-loja'), '/')
   assert.equal(equivalentPath('v2', '/flash'), '/')
-  assert.equal(equivalentPath('v2', '/pessoas'), '/')
+  assert.equal(equivalentPath('v2', '/social'), '/')
   assert.equal(equivalentPath('v2', '/entregas'), '/')
   assert.equal(equivalentPath('v2', '/editar-loja/minha-loja'), '/')
     assert.equal(equivalentPath('v2', '/veiculo/abc'), '/')
@@ -71,7 +71,7 @@ test('casca da 3.0: todas as páginas na v3, exceto o link público do entregado
     assert.equal(usesShell('v3', '/aceitar-corridas'), true)
 })
 test('na v2 só as páginas exclusivas da 3.0 usam a casca', () => {
-    assert.equal(usesShell('v2', '/social'), false)
+    assert.equal(usesShell('v2', '/social'), true) // Social só existe na 3.0: na 2.0 abre dentro da casca
     assert.equal(usesShell('v2', '/'), false)
     assert.equal(usesShell('v2', '/painel-perfil'), true)
     assert.equal(usesShell('v2', '/veiculo/abc'), true)

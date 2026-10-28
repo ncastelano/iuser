@@ -36,7 +36,7 @@ import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
 import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
-import { rankStyle } from '../../social/SocialProfileCard'
+import { rankStyle } from '@/components/social/SocialProfileCard'
 import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
 import { toast } from '@/lib/toast'
@@ -964,7 +964,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="pessoa" title="OUTDOOR iUSER" subtitle="Os perfis com mais pontos do iUser" onSeeAll={() => go('/social')} colors={colors} />
+                            <SectionHeader type="pessoa" title="OUTDOOR iUSER" subtitle="Os perfis com mais pontos do iUser" onSeeAll={() => go('/social?aba=melhores')} colors={colors} />
                             {people === null ? <Skeleton colors={colors} /> : people.length === 0 ? null : (
                                 <Strip>
                                     {people.map((p) => (

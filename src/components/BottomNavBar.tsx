@@ -1,6 +1,6 @@
 // src/components/BottomNavBar.tsx
 //
-// A barra de navegação flutuante de baixo: Carrinho, Conversas, a logo do iUser no centro, Radar e Pessoas.
+// A barra de navegação flutuante de baixo: Carrinho, Conversas, a logo do iUser no centro, Radar e Social.
 // Nas páginas de compra ganha em cima a faixa do carrinho, fundida a ela. Só apresentação: quem usa (a casca da 3.0 e a home da 2.0)
 // passa as contagens, a foto e o que cada toque faz. Constantes de medida exportadas para quem precisa reservar espaço embaixo.
 'use client'
@@ -105,7 +105,7 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
                         <BarButton colors={colors} active={active === 'radar'} label="Radar" onClick={onRadar}>
                             <Radar size={21} />
                         </BarButton>
-                        <BarButton colors={colors} active={active === 'people'} label="Pessoas" onClick={onPeople}>
+                        <BarButton colors={colors} active={active === 'people'} label="Social" onClick={onPeople}>
                             <Users size={21} />
                         </BarButton>
 

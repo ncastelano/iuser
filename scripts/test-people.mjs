@@ -1,4 +1,4 @@
-// Testes das regras puras da página /pessoas (src/modules/people/domain.ts). Rodar: npm run test:people
+// Testes das regras puras da página /social (src/modules/people/domain.ts). Rodar: npm run test:people
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { distanceKm, personFromMapRow, sortNearby, formatKm, peopleLabel, joinedLabel, placeFromRow, normalizeQuery, canSearch } from '../src/modules/people/domain.ts'

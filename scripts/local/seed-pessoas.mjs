@@ -1,4 +1,4 @@
-// Dá um bairro (endereço) às pessoas que já aparecem no Radar (banco LOCAL), para a página /pessoas ter "locais com mais pessoas" de verdade.
+// Dá um bairro (endereço) às pessoas que já aparecem no Radar (banco LOCAL), para a página /social ter "locais com mais pessoas" de verdade.
 // Só mexe em quem tem "Visível no Radar" ligado e ainda NÃO tem endereço. Idempotente.
 //   node scripts/local/seed-pessoas.mjs
 import { execFileSync } from 'node:child_process'

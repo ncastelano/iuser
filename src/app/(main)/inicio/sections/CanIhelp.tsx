@@ -99,8 +99,8 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
         { label: 'Contratar serviço', desc: 'Descreva o que você precisa', color: '#7c3aed', icon: Wrench, onClick: () => go('/solicitar-servico') },
         { label: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', color: '#ea580c', icon: Car, onClick: () => go('/pedir-motorista') },
         { label: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', color: '#0891b2', icon: Radar, onClick: () => go('/radar') },
-        // A página de pessoas (3.0): abre na casca da 3.0 mesmo para quem está na 2.0
-        { label: 'Pessoas', desc: 'Flash, publicações e gente perto de você', color: '#f97316', icon: Users, onClick: () => go('/pessoas') },
+        // A página Social (3.0): abre na casca da 3.0 mesmo para quem está na 2.0
+        { label: 'Social', desc: 'Flash, publicações, melhores perfis e gente perto de você', color: '#f97316', icon: Users, onClick: () => go('/social') },
         // As páginas de imóveis abrem na casca da 3.0 mesmo para quem está na 2.0 (não têm versão própria); os imóveis em si aparecem na seção "Imóveis para alugar"
         { label: 'Buscar imóvel', desc: 'Casa, apartamento, salas comerciais, kitnets, etc.', color: '#16a34a', icon: Home, onClick: () => go('/imoveis') },
     ]

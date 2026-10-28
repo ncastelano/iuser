@@ -1,4 +1,4 @@
-// src/modules/people/domain.ts — regras puras da página /pessoas: o que é uma "pessoa" na lista, distância, ordenação e textos.
+// src/modules/people/domain.ts — regras puras da página /social: o que é uma "pessoa" na lista, distância, ordenação e textos.
 // Sem React nem rede; testado em scripts/test-people.mjs (npm run test:people).
 
 export interface Person {

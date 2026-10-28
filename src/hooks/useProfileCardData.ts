@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { useLastSeen } from '@/hooks/useLastSeen'
-import type { SocialCardProfile, SocialCardStore } from '@/app/(main)/social/SocialProfileCard'
+import type { SocialCardProfile, SocialCardStore } from '@/components/social/SocialProfileCard'
 
 const COLUMNS = 'id, name, avatar_url, "profileSlug", description, bio, address:public_address, ratings_avg, ratings_count, category, chat_enabled, show_location, show_in_social'
 

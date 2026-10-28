@@ -56,7 +56,7 @@ import {
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useMyGraduation, GraduationOverview, GraduationCommissions, GraduationTree } from './MyGraduation'
 import { useMyPoints, MyPointsBody } from './MyPoints'
-import { rankStyle } from '@/app/(main)/social/SocialProfileCard'
+import { rankStyle } from '@/components/social/SocialProfileCard'
 
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====

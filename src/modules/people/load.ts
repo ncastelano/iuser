@@ -1,4 +1,4 @@
-// src/modules/people/load.ts — as fontes de cada seção da página /pessoas. Só dado PÚBLICO (nome, @, foto, pontos, bairro).
+// src/modules/people/load.ts — as fontes de cada seção da página /social. Só dado PÚBLICO (nome, @, foto, pontos, bairro).
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { fetchFeed } from '@/modules/flash'
