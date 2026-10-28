@@ -8,18 +8,21 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/serverPush'
 import { notifyDriversOfRide } from '@/lib/notifyDrivers'
+import { pushLiveNotifications } from '@/lib/livePush'
 import { reajustPushBody, reservationNoticeText } from '@/modules/delivery-search'
 
 const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
 
 export async function POST() {
+    // Avisos da ilha (entrega, favoritos) que ainda não chegaram como push: o mesmo ping do banco também cuida deles
+    const livePushed = await pushLiveNotifications().catch((e) => { console.error('[delivery-events] push da ilha', e); return 0 })
     const { data: events } = await supabaseAdmin
         .from('order_delivery_events')
         .update({ processed_at: new Date().toISOString() })
         .is('processed_at', null)
         .select('id, dispatch_id, kind, old_radius, new_radius, round_id, data')
         .limit(50)
-    if (!events || events.length === 0) return NextResponse.json({ processed: 0 })
+    if (!events || events.length === 0) return NextResponse.json({ processed: 0, livePushed })
 
     for (const ev of events) {
         try {
@@ -136,5 +139,5 @@ export async function POST() {
             console.error('[delivery-events] falha no evento', ev.id, err)
         }
     }
-    return NextResponse.json({ processed: events.length })
+    return NextResponse.json({ processed: events.length, livePushed })
 }

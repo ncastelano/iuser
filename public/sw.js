@@ -47,9 +47,11 @@ function showPushNotification(data) {
     silent: false,
     vibrate: data.urgent ? [300, 120, 300, 120, 500] : [200, 100, 200],
     requireInteraction: !!data.urgent,
-    data: { url: data.url || '/', rideAlert: alert || null },
+    data: { url: data.url || '/', rideAlert: alert || null, replyAction: data.replyAction || null },
   }
   if (alert) options.actions = rideActions(alert)
+  // Aviso da ilha com resposta pronta (ex.: o entregador chegou → "Já estou descendo"): um botão que responde sem abrir o app
+  else if (data.replyAction) options.actions = [{ action: 'live-reply', title: data.replyAction.label }]
   return self.registration.showNotification(data.title, options)
 }
 
@@ -71,6 +73,16 @@ self.addEventListener('push', (event) => {
             return c.visibilityState === 'visible' && u.pathname === target.pathname && u.searchParams.get('c') === target.searchParams.get('c')
           } catch (e) { return false }
         })
+        return watching ? undefined : showPushNotification(data)
+      })
+    )
+    return
+  }
+  // Aviso da ilha com o app aberto e visível: a ilha já mostrou, o aparelho não repete
+  if (data.live) {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        const watching = clientList.some((c) => c.visibilityState === 'visible')
         return watching ? undefined : showPushNotification(data)
       })
     )
@@ -143,9 +155,33 @@ async function applyFromNotification(event, data) {
   }
 }
 
+async function replyFromNotification(data) {
+  const r = data.replyAction
+  const notify = (title, body) =>
+    self.registration.showNotification(title, { body, icon: '/android-chrome-192x192.png', badge: '/favicon-128x128.png', tag: 'live-reply-' + r.rideId, data: { url: data.url || '/' } })
+  try {
+    const res = await fetch('/api/deliveries/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ rideId: r.rideId, code: r.code }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (res.ok) return notify('Resposta enviada', '“' + r.label + '”')
+    return notify('Não deu para responder', res.status === 401 ? 'Abra o iUser e entre na sua conta.' : (json.error || 'Toque para abrir.'))
+  } catch (e) {
+    return notify('Sem conexão', 'Não deu para enviar a resposta. Toque para abrir.')
+  }
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const data = event.notification.data || {}
+
+  if (event.action === 'live-reply' && data.replyAction) {
+    event.waitUntil(replyFromNotification(data))
+    return
+  }
 
   if (event.action && event.action.startsWith('apply-') && data.rideAlert) {
     event.waitUntil(applyFromNotification(event, data))
