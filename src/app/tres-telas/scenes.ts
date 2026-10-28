@@ -228,6 +228,18 @@ async function waitText(c: Ctx, who: Who, text: string, maxS: number) {
     return false
 }
 
+/** O código de retirada, lido no quadro do DONO (é a loja quem o vê e informa ao motorista): "<Nome> chegou para retirar ... Código de retirada 1234" */
+async function storeCodeFor(c: Ctx, driverName: string): Promise<string | null> {
+    for (let i = 0; i < 3; i++) {
+        const t = (await c.st.soft('owner', { op: 'text' })) as string | null
+        const m = t && new RegExp(driverName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' chegou para retirar[\\s\\S]*?CÓDIGO DE RETIRADA\\s*(\\d{4})', 'i').exec(t)
+        if (m) return m[1]
+        if (!c.st.where('owner').startsWith('/painel-loja/')) await c.st.goto('owner', '/painel-loja/pizzaria-forno-de-ouro')
+        await sleep(2500)
+    }
+    return null
+}
+
 async function driverSlice(c: Ctx, name: string) {
     const st = c.st
     {
@@ -250,14 +262,27 @@ async function driverSlice(c: Ctx, name: string) {
                     await human(c, 1, 2); await st.soft('driver', { op: 'click', target: { text: 'Cheguei na loja' } }); await human(c, 2, 3)
                     continue
                 }
-                if (text.includes('Confira os pedidos') || text.includes('Peguei os')) {
-                    // só pega quando a loja já marcou o pedido dela como pronto
+                // A caixa do CÓDIGO DE RETIRADA está aberta: a loja (quadro do dono) informa o código depois de conferir o que entrega; o motorista digita
+                if (text.includes('Confirmar retirada')) {
+                    const code = await storeCodeFor(c, name)
+                    if (!code) { await st.caption('driver', '⏳ Esperando o código da loja'); await human(c, 4, 6); continue }
+                    await st.caption('driver', '🔑 A loja conferiu e informou o código')
+                    await human(c, 1.5, 2.5)
+                    await st.soft('driver', { op: 'type', target: { selector: 'input[aria-label="Código de retirada"]' }, text: code })
+                    await human(c, 0.8, 1.4)
+                    c.say('driver', 'confirmou a retirada'); await st.caption('driver', '📦 Retirada confirmada')
+                    await st.soft('driver', { op: 'click', target: { text: 'Confirmar retirada' } })
+                    await human(c, 3, 4)   // se ainda tem pedido em preparo o app avisa na ilha e a caixa continua aberta: o laço tenta de novo
+                    continue
+                }
+                if (text.includes('Peguei os')) {
+                    // pega quando a loja já marcou o pedido dela como pronto (o banco confere de qualquer jeito)
                     const featured = c.obs()?.featured || []
                     if (featured.some((o) => o.status !== 'ready' && o.delivery_option === 'entrega')) {
                         await st.caption('driver', '⏳ Esperando o pedido ficar pronto'); await human(c, 4, 6); continue
                     }
                     await st.soft('driver', { op: 'scroll', by: 260, ms: 1000 }); await human(c, 1.5, 2.5)
-                    c.say('driver', 'pegou os pedidos'); await st.caption('driver', '📦 Pegou os pedidos')
+                    await st.caption('driver', '📦 Vai retirar os pedidos')
                     await st.soft('driver', { op: 'click', target: { text: 'Peguei os' } }); await human(c, 2, 3)
                     continue
                 }

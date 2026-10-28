@@ -12,6 +12,8 @@ export interface DriverState {
     live: LatLng | null
     radiusKm: number | null
     capacity: number
+    /** quanto cabe em VOLUME (unidades); null = sem limite por volume */
+    capacityUnits: number | null
     vehicle: string
     /** orientação por voz ligada (preferência do motorista) */
     voice: boolean
@@ -20,31 +22,31 @@ export interface DriverState {
 export async function fetchDriverState(me: string): Promise<DriverState> {
     const [{ data: pr }, { data: veh }] = await Promise.all([
         supabase.from('driver_pricing').select('driver_mode_active, live_lat, live_lng, delivery_radius_km, voice_navigation_enabled').eq('driver_id', me).maybeSingle(),
-        supabase.from('driver_vehicles').select('car_model, vehicle_kind, delivery_capacity').eq('driver_id', me),
+        supabase.from('driver_vehicles').select('car_model, vehicle_kind, delivery_capacity, delivery_capacity_units').eq('driver_id', me),
     ])
     const v = ((veh || []) as any[]).sort((a, b) => (Number(b.delivery_capacity) || 1) - (Number(a.delivery_capacity) || 1))[0]
     return {
         online: !!(pr as any)?.driver_mode_active, live: pos((pr as any)?.live_lat, (pr as any)?.live_lng), radiusKm: num((pr as any)?.delivery_radius_km),
-        capacity: Number(v?.delivery_capacity) || 1, vehicle: v ? [v.vehicle_kind, v.car_model].filter(Boolean).join(' · ') : '', voice: !!(pr as any)?.voice_navigation_enabled,
+        capacity: Number(v?.delivery_capacity) || 1, capacityUnits: v?.delivery_capacity_units != null ? Number(v.delivery_capacity_units) : null, vehicle: v ? [v.vehicle_kind, v.car_model].filter(Boolean).join(' · ') : '', voice: !!(pr as any)?.voice_navigation_enabled,
     }
 }
 
 export async function fetchActive(me: string): Promise<ActiveDelivery[]> {
     const { data, error } = await supabase.from('ride_requests')
-        .select('id, order_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, recipient_name, sender_name, object_description, offered_price, distance_km, payment_method, cash_change_for, driver_en_route, driver_arrived_at, ride_started_at, created_at')
+        .select('id, order_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, recipient_name, sender_name, object_description, offered_price, distance_km, delivery_units, items_count, payment_method, cash_change_for, driver_en_route, driver_arrived_at, ride_started_at, created_at')
         .eq('driver_id', me).eq('status', 'accepted').not('order_id', 'is', null).order('created_at')
     if (error) throw error
     return ((data || []) as any[]).map((r) => ({
         id: r.id, orderId: r.order_id, storeName: r.sender_name || 'Loja', storeAddress: r.origin_address || '', store: pos(r.origin_lat, r.origin_lng),
         customerName: r.recipient_name || 'Cliente', address: r.destination_address || '', to: pos(r.destination_lat, r.destination_lng),
-        items: r.object_description || '', price: Number(r.offered_price) || 0, km: num(r.distance_km), paymentMethod: r.payment_method || null, cashChangeFor: num(r.cash_change_for),
+        items: r.object_description || '', price: Number(r.offered_price) || 0, km: num(r.distance_km), units: Number(r.delivery_units) || 1, itemsCount: Number(r.items_count) || 1, paymentMethod: r.payment_method || null, cashChangeFor: num(r.cash_change_for),
         enRoute: !!r.driver_en_route, arrived: !!r.driver_arrived_at, started: !!r.ride_started_at,
     }))
 }
 
 export async function fetchOffers(): Promise<DeliveryOffer[]> {
     const { data, error } = await supabase.from('ride_offers')
-        .select('id, order_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, object_description, offered_price, distance_km, created_at, status')
+        .select('id, order_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, object_description, offered_price, distance_km, delivery_units, items_count, created_at, status')
         .eq('status', 'pending').not('order_id', 'is', null).order('created_at', { ascending: false }).limit(40)
     if (error) throw error
     const rows = (data || []) as any[]
@@ -58,7 +60,7 @@ export async function fetchOffers(): Promise<DeliveryOffer[]> {
     return rows.map((r) => ({
         id: r.id, orderId: r.order_id, storeName: String(storeOf.get(r.id) || 'Loja'), storeAddress: r.origin_address || '', store: pos(r.origin_lat, r.origin_lng),
         address: r.destination_address || '', to: pos(r.destination_lat, r.destination_lng), items: r.object_description || '',
-        price: Number(r.offered_price) || 0, km: num(r.distance_km), createdAt: r.created_at,
+        price: Number(r.offered_price) || 0, km: num(r.distance_km), units: Number(r.delivery_units) || 1, itemsCount: Number(r.items_count) || 1, createdAt: r.created_at,
     }))
 }
 
@@ -73,7 +75,7 @@ export async function fetchDoneToday(me: string): Promise<DoneToday[]> {
 /** Aceita a entrega pelo valor oferecido (fixo). O banco recusa se a mochila já está cheia ou se outra pessoa chegou antes. */
 export async function acceptOffer(offer: Pick<DeliveryOffer, 'id' | 'price'>, me: string): Promise<void> {
     const { error } = await supabase.from('ride_applications').insert({ ride_request_id: offer.id, applicant_id: me, proposed_price: offer.price })
-    if (error) throw new Error(error.hint === 'delivery_capacity_full' || /mochila/i.test(error.message) ? error.message : (/duplicate|unique/i.test(error.message) ? 'Você já aceitou esta entrega.' : error.message || 'Não foi possível aceitar.'))
+    if (error) throw new Error(error.hint === 'delivery_capacity_full' || error.hint === 'delivery_capacity_units_full' || /mochila/i.test(error.message) ? error.message : (/duplicate|unique/i.test(error.message) ? 'Você já aceitou esta entrega.' : error.message || 'Não foi possível aceitar.'))
 }
 
 const patch = async (ids: string[], fields: Record<string, any>) => {
@@ -82,7 +84,15 @@ const patch = async (ids: string[], fields: Record<string, any>) => {
 }
 export async function leaveForStore(ids: string[]) { await patch(ids, { driver_en_route: true, driver_departed_at: new Date().toISOString() }); ids.forEach((i) => notifyRideStatus(i, 'en_route')) }
 export async function arriveAtStore(ids: string[]) { await patch(ids, { driver_arrived_at: new Date().toISOString() }); ids.forEach((i) => notifyRideStatus(i, 'arrived')) }
-export async function pickUpOrders(ids: string[]) { await patch(ids, { ride_started_at: new Date().toISOString() }); ids.forEach((i) => notifyRideStatus(i, 'started')) }
+export type PickupResult = { ok: true } | { ok: false; error: 'wrong_code' | 'code_locked'; attemptsLeft: number | null; retryInS: number | null }
+/** RETIRADA com o código que a loja informou ao conferir o que entregou: vale para todos os pedidos da saída de uma vez (o banco exige os pedidos PRONTOS) */
+export async function pickUpOrders(ids: string[], code: string): Promise<PickupResult> {
+    const { data, error } = await supabase.rpc('confirm_pickup', { p_rides: ids, p_code: code.trim() })
+    if (error) throw new Error(error.message || 'Não foi possível confirmar a retirada.')
+    const r = data as any
+    if (r?.ok) { ids.forEach((i) => notifyRideStatus(i, 'started')); return { ok: true } }
+    return { ok: false, error: r?.error === 'code_locked' ? 'code_locked' : 'wrong_code', attemptsLeft: r?.attempts_left ?? null, retryInS: r?.retry_in_s ?? null }
+}
 
 /** Conclui UMA entrega: o servidor confere que é a sua, que já saiu da loja e que você está a até 100 m do destino */
 export async function completeDelivery(id: string, at: LatLng): Promise<void> {
@@ -93,6 +103,12 @@ export async function completeDelivery(id: string, at: LatLng): Promise<void> {
 
 export async function setCapacity(me: string, n: number): Promise<void> {
     const { error } = await supabase.from('driver_vehicles').update({ delivery_capacity: Math.min(8, Math.max(1, Math.round(n))) }).eq('driver_id', me)
+    if (error) throw error
+}
+/** Quanto cabe em VOLUME (unidades; null = sem limite). O banco confere ao aceitar cada entrega. */
+export async function setCapacityUnits(me: string, units: number | null): Promise<void> {
+    const v = units == null ? null : Math.min(100, Math.max(0.5, Math.round(units * 2) / 2))
+    const { error } = await supabase.from('driver_vehicles').update({ delivery_capacity_units: v }).eq('driver_id', me)
     if (error) throw error
 }
 export async function setOnline(me: string, on: boolean): Promise<void> {

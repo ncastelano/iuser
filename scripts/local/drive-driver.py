@@ -197,7 +197,12 @@ class Driver:
                     log("  🏪 a loja marcou os pedidos como prontos")
                 time.sleep(3)
             time.sleep(2)
-            as_user(self.id, f"update ride_requests set ride_started_at = now() where id in ({ids});")
+            code = q_local(f"select code from delivery_pickup_codes where store_id = {esc(self.store['id'])}::uuid and driver_id = {esc(self.id)}::uuid and used_at is null")
+            log(f"  🔑 a loja conferiu os pedidos e informou o código de retirada ({code[0]['code'] if code else 'sem código'})")
+            time.sleep(1.5)
+            out = as_user(self.id, f"select confirm_pickup(array[{ids.replace('::uuid', '')}]::uuid[], {esc(code[0]['code'] if code else '')});")
+            if '"ok": true' not in out:
+                raise RuntimeError('retirada recusada: ' + out.strip().splitlines()[-2][:120])
             log(f"  📦 {self.name} PEGOU {len(rides)} pedido(s) e saiu para entregar")
             rides = self.rides()
         stops = [{'id': r['id'], 'lat': float(r['lat']), 'lng': float(r['lng']), 'name': r['recipient_name'] or 'cliente', 'price': float(r['offered_price'])} for r in rides if r['started']]

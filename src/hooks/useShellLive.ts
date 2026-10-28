@@ -35,6 +35,7 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
                 .from('ride_requests')
                 .select('id, status, driver_en_route, driver_arrived_at, ride_started_at')
                 .eq('requester_id', userId)
+                .is('order_id', null)   // a entrega de um pedido de loja é pedida pela LOJA (o dono é o solicitante), mas não é uma corrida da pessoa
                 .in('status', ['pending', 'accepted'])
                 .order('created_at', { ascending: false })
                 .limit(1)

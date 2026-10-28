@@ -41,7 +41,8 @@
     "test:flash": "node --test scripts/test-flash.mjs",
     "test:people": "node --test scripts/test-people.mjs",
     "test:deliveries": "node --test scripts/test-deliveries.mjs",
-    "test:toast": "node --test scripts/test-toast.mjs"
+    "test:toast": "node --test scripts/test-toast.mjs",
+    "test:handoff": "python3 scripts/local/test-handoff.py"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

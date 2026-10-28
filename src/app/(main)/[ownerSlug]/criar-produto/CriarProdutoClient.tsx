@@ -61,6 +61,7 @@ export function CriarProdutoClient() {
     const [name, setName] = useState('')
     const [description, setDescription] = useState('')
     const [price, setPrice] = useState('')
+    const [deliveryUnits, setDeliveryUnits] = useState('1')
     const [priceType, setPriceType] = useState('fixed')
     const [category, setCategory] = useState('')
     const [productType, setProductType] = useState(searchParams.get('type') === 'service' ? 'service' : 'physical')
@@ -114,6 +115,7 @@ export function CriarProdutoClient() {
                     image_url: imagePath,
                     store_id: storeId,
                     has_addons: hasAddons,
+                    delivery_units: parseFloat(deliveryUnits) || 1,
                 })
                 .select('slug')
                 .single()
@@ -341,6 +343,32 @@ export function CriarProdutoClient() {
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Volume na entrega: quanto UMA unidade ocupa na mochila do motorista (a loja define; o motorista vê o total do pedido e só aceita o que cabe) */}
+                            {productType !== 'service' && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                        Volume na entrega
+                                    </label>
+                                    <select
+                                        value={deliveryUnits}
+                                        onChange={(e) => setDeliveryUnits(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 transition-all"
+                                        style={{
+                                            background: colors.surface,
+                                            borderColor: colors.border,
+                                            color: colors.textPrimary,
+                                            '--tw-ring-color': '#f97316',
+                                        } as React.CSSProperties}
+                                    >
+                                        <option value="0.25">Pequeno — lata, bebida, doce (¼)</option>
+                                        <option value="0.5">Médio — porção, sobremesa (½)</option>
+                                        <option value="1">Grande — pizza, prato, marmita (1)</option>
+                                        <option value="2">Extra grande — combo, bolo (2)</option>
+                                    </select>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>Serve para o motorista saber quanto cabe na mochila dele.</p>
+                                </div>
+                            )}
 
                             {/* Categoria e Tipo */}
                             <div className="grid grid-cols-2 gap-4">

@@ -19,7 +19,7 @@ import { fetchOptimizedRoute, fetchRoadPath } from '@/lib/mapboxRoute'
 import DeliveryNavMap, { type NavStop, type NavTarget } from '@/components/deliveries/DeliveryNavMap'
 import {
     acceptOffer, arriveAtStore, brl, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchMyReviews, fetchOffers, haversineKm, itemsList,
-    leaveForStore, mapsUrl, paymentRecap, phaseOf, pickUpOrders, PHASE_LABEL, routeKm, routeOrder, setCapacity, setOnline, shortAddress, suggestBatches, wazeUrl, withinRadius,
+    leaveForStore, mapsUrl, paymentRecap, phaseOf, pickUpOrders, PHASE_LABEL, routeKm, routeOrder, setCapacity, setCapacityUnits, setOnline, unitsState, fitsUnits, loadLabel, shortAddress, suggestBatches, wazeUrl, withinRadius,
     type ActiveDelivery, type DeliveryOffer, type DoneToday, type DriverState, type LatLng, type MyReviews,
 } from '@/modules/deliveries'
 
@@ -58,6 +58,9 @@ export default function DriverDeliveriesScreen() {
     const [view, setView] = useState<'map' | 'central'>('central')
     const [sheetOpen, setSheetOpen] = useState(false)
     const hadActive = useRef(false)
+    const [codeOpen, setCodeOpen] = useState(false)
+    const [codeValue, setCodeValue] = useState('')
+    const [codeError, setCodeError] = useState<string | null>(null)
     const [reviews, setReviews] = useState<MyReviews | null>(null)
     const [optSeq, setOptSeq] = useState<Record<string, number> | null>(null)
     const anchor = useRef<HTMLDivElement>(null)
@@ -118,6 +121,8 @@ export default function DriverDeliveriesScreen() {
         hadActive.current = active.length > 0
     }, [active.length])
     const cap = capacityState(active.length, state?.capacity ?? 1)
+    const usedUnits = active.reduce((a, d) => a + d.units, 0)
+    const vol = unitsState(usedUnits, state?.capacityUnits ?? null)
     const phase = phaseOf(active)
     const store = active[0]?.store ?? null
     const naive = useMemo(() => routeOrder(store, active), [active, store])
@@ -139,8 +144,8 @@ export default function DriverDeliveriesScreen() {
     const current = pendingStops[0] ?? null
     const visibleOffers = useMemo(() => withinRadius(offers, state?.live ?? null, state?.radiusKm ?? null).filter((o) => !active.some((a) => a.id === o.id)), [offers, state, active])
     // Em andamento só cabem entregas da MESMA loja enquanto o motorista ainda não saiu com os pedidos
-    const canTakeMore = !!state?.online && !cap.full && phase !== 'delivering'
-    const combos = useMemo(() => (canTakeMore ? suggestBatches(visibleOffers, cap.left).filter((b) => b.offers.length > 1) : []), [visibleOffers, cap.left, canTakeMore])
+    const canTakeMore = !!state?.online && !cap.full && !vol.full && phase !== 'delivering'
+    const combos = useMemo(() => (canTakeMore ? suggestBatches(visibleOffers, cap.left, 3.5, 3, vol.left).filter((b) => b.offers.length > 1) : []), [visibleOffers, cap.left, canTakeMore, vol.left])
     const todayTotal = earnings(done)
 
     const run = async (key: string, fn: () => Promise<void>, ok?: string) => {
@@ -217,13 +222,47 @@ export default function DriverDeliveriesScreen() {
     if (!userId) return <p className="py-16 text-center text-sm" style={{ color: colors.textSecondary }}>Entre na sua conta para ver as entregas.</p>
     const navStops: NavStop[] = ordered.filter((d) => d.to).map((d, i) => ({ id: d.id, n: i + 1, to: d.to as LatLng, label: d.address }))
     // A ação principal da etapa (a mesma no cartão e no mapa ampliado)
-    const primaryAction = active.length === 0 ? null : phase !== 'delivering' ? (
+    const confirmCode = async () => {
+        if (codeValue.length < 4) { setCodeError('Digite os 4 números que a loja informou.'); return }
+        setBusy('step')
+        try {
+            const r = await pickUpOrders(ids, codeValue)
+            if (r.ok) { setCodeOpen(false); setCodeValue(''); setCodeError(null); toast.success('Retirada confirmada! Boa entrega.'); await refresh() }
+            else if (r.error === 'code_locked') setCodeError(`Muitas tentativas erradas. Tente de novo em ${Math.max(1, Math.ceil((r.retryInS ?? 300) / 60))} min ou peça à loja para conferir.`)
+            else setCodeError(`Código incorreto${r.attemptsLeft != null ? ` — restam ${r.attemptsLeft} tentativas` : ''}. Confira com a loja.`)
+        } catch (e: any) { setCodeError(e?.message || 'Não foi possível confirmar.') } finally { setBusy(null) }
+    }
+    const loadSummary = active.length > 0 ? loadLabel(active.reduce((a, d) => a + d.itemsCount, 0), usedUnits) : ''
+    const primaryAction = active.length === 0 ? null : phase === 'at_store' ? (
+        codeOpen ? (
+            <div className="flex flex-col gap-2 w-full rounded-2xl p-3" style={{ background: `${ORANGE}12`, border: `1.5px solid ${ORANGE}` }}>
+                <p className="text-[12px] font-black" style={{ color: colors.textPrimary }}>Código de retirada <span className="font-bold" style={{ color: colors.textSecondary }}>— a loja informa depois de conferir os {active.length} {active.length === 1 ? 'pedido' : 'pedidos'} ({loadSummary})</span></p>
+                <input value={codeValue} onChange={(e) => { setCodeValue(e.target.value.replace(/\D/g, '').slice(0, 4)); setCodeError(null) }} inputMode="numeric" autoComplete="one-time-code" placeholder="0000" aria-label="Código de retirada" maxLength={4}
+                    className="h-14 rounded-2xl text-center text-3xl font-black tracking-[0.6em] outline-none" style={{ background: colors.surface, color: colors.textPrimary, border: `1.5px solid ${codeError ? '#ef4444' : colors.border}` }} />
+                {codeError && <p className="text-[12px] font-bold" style={{ color: '#ef4444' }}>{codeError}</p>}
+                <div className="flex gap-2">
+                    <button onClick={() => { setCodeOpen(false); setCodeValue(''); setCodeError(null) }} className="h-11 px-4 rounded-full text-[13px] font-black" style={{ background: `${colors.border}60`, color: colors.textPrimary }}>Voltar</button>
+                    <button onClick={confirmCode} disabled={busy === 'step' || codeValue.length < 4} className="flex-1 h-11 rounded-full text-[14px] font-black text-white flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: GREEN }}><Check size={16} strokeWidth={3} /> Confirmar retirada</button>
+                </div>
+            </div>
+        ) : (
+            <button onClick={() => setCodeOpen(true)} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 w-full" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)', boxShadow: '0 6px 18px #f9731655' }}>
+                <Package size={17} /> Peguei os {active.length} {active.length === 1 ? 'pedido' : 'pedidos'}
+            </button>
+        )
+    ) : phase !== 'delivering' ? (
         <button
-            onClick={() => run('step', () => (phase === 'accepted' ? leaveForStore(ids) : phase === 'to_store' ? arriveAtStore(ids) : pickUpOrders(ids)))}
+            onClick={() => run('step', async () => {
+                // só as entregas que ainda não registraram a etapa (aceitar mais uma depois de sair deixa a saída com etapas diferentes; o banco recusa reescrever uma etapa)
+                const toLeave = active.filter((a) => !a.enRoute).map((a) => a.id)
+                const toArrive = active.filter((a) => !a.arrived).map((a) => a.id)
+                if (phase === 'accepted') await leaveForStore(toLeave)
+                else { if (toLeave.length) await leaveForStore(toLeave); if (toArrive.length) await arriveAtStore(toArrive) }
+            })}
             disabled={busy === 'step'}
             className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 w-full" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)', boxShadow: '0 6px 18px #f9731655' }}
         >
-            {phase === 'accepted' ? <><Navigation size={17} /> Sair para a loja</> : phase === 'to_store' ? <><MapPin size={17} /> Cheguei na loja</> : <><Package size={17} /> Peguei os {active.length} {active.length === 1 ? 'pedido' : 'pedidos'}</>}
+            {phase === 'accepted' ? <><Navigation size={17} /> Sair para a loja</> : <><MapPin size={17} /> Cheguei na loja</>}
         </button>
     ) : current ? (
         <button onClick={() => finish(current)} disabled={busy === `f-${current.id}`} className="h-12 rounded-full text-[15px] font-black text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 w-full" style={{ background: GREEN, boxShadow: '0 6px 18px #22c55e55' }}><Check size={18} strokeWidth={3} /> Entreguei</button>
@@ -251,12 +290,26 @@ export default function DriverDeliveriesScreen() {
                         <div><p className="text-[10px] uppercase font-black opacity-80">Entregas hoje</p><p className="text-lg font-black leading-tight">{done.length}</p></div>
                     </div>
                 </div>
+                {state?.capacityUnits != null && (
+                    <div className="mt-3">
+                        <div className="flex items-center justify-between text-[11px] font-black"><span>Volume na mochila</span><span>{usedUnits.toFixed(1).replace('.', ',').replace(',0', '')} / {state.capacityUnits.toFixed(1).replace('.', ',').replace(',0', '')} un.</span></div>
+                        <div className="h-2 rounded-full mt-1 overflow-hidden" style={{ background: 'rgba(255,255,255,0.28)' }}><div className="h-full rounded-full" style={{ width: `${Math.round(vol.ratio * 100)}%`, background: vol.ratio >= 1 ? '#fecaca' : '#fff', transition: 'width .4s' }} /></div>
+                    </div>
+                )}
                 <div className="mt-3 flex items-center justify-between rounded-2xl px-3 py-2" style={{ background: 'rgba(0,0,0,0.22)' }}>
                     <span className="text-[12px] font-bold flex items-center gap-1.5"><Package size={14} /> Quantas entregas cabem na sua mochila?</span>
                     <span className="flex items-center gap-2">
                         <button aria-label="Menos" onClick={() => state && state.capacity > 1 && run('cap', () => setCapacity(userId, state.capacity - 1))} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.25)' }}><Minus size={14} /></button>
                         <b className="w-4 text-center">{state ? state.capacity : '–'}</b>
                         <button aria-label="Mais" onClick={() => state && state.capacity < 8 && run('cap', () => setCapacity(userId, state.capacity + 1))} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.25)' }}><Plus size={14} /></button>
+                    </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between rounded-2xl px-3 py-2" style={{ background: 'rgba(0,0,0,0.22)' }}>
+                    <span className="text-[12px] font-bold flex items-center gap-1.5"><Layers size={14} /> Quanto cabe em volume? <span className="opacity-80 font-normal">(1 pizza grande = 1 un.)</span></span>
+                    <span className="flex items-center gap-2">
+                        <button aria-label="Menos volume" onClick={() => state && run('cap', () => setCapacityUnits(userId as string, state.capacityUnits == null ? null : state.capacityUnits - 1 < 1 ? null : state.capacityUnits - 1))} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.25)' }}><Minus size={14} /></button>
+                        <b className="min-w-[2.2rem] text-center text-[12px]">{state ? (state.capacityUnits == null ? 'livre' : `${state.capacityUnits.toFixed(1).replace('.0', '').replace('.', ',')} un.`) : '–'}</b>
+                        <button aria-label="Mais volume" onClick={() => state && run('cap', () => setCapacityUnits(userId as string, state.capacityUnits == null ? 4 : state.capacityUnits + 1))} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.25)' }}><Plus size={14} /></button>
                     </span>
                 </div>
             </section>
@@ -383,6 +436,7 @@ export default function DriverDeliveriesScreen() {
                                         <div className="min-w-0 flex-1">
                                             <p className="flex items-center gap-1.5 text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{o.storeName}{fresh.has(o.id) && <span className="text-[9px] px-1.5 py-0.5 rounded-full text-white" style={{ background: GREEN }}>NOVA</span>}</p>
                                             <p className="text-[12px] truncate" style={{ color: colors.textSecondary }}>{itemsList(o.items).slice(0, 2).join(', ') || 'Pedido da loja'}</p>
+                                            <p className="text-[11px] font-black mt-0.5" style={{ color: fitsUnits(usedUnits, o.units, state?.capacityUnits ?? null) ? ORANGE : '#ef4444' }}>{loadLabel(o.itemsCount, o.units)}{fitsUnits(usedUnits, o.units, state?.capacityUnits ?? null) ? '' : ' · não cabe na sua mochila'}</p>
                                             <p className="text-[12px] flex items-center gap-1 mt-0.5 truncate" style={{ color: colors.textPrimary }}><MapPin size={11} style={{ color: ORANGE }} /> {shortAddress(o.address)}</p>
                                         </div>
                                         <div className="text-right flex-shrink-0"><p className="text-lg font-black leading-none" style={{ color: '#16a34a' }}>{brl(o.price)}</p><p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>{o.km != null ? `${o.km.toFixed(1)} km` : ''}{e ? ` · ~${e} min` : ''}</p></div>
@@ -390,7 +444,7 @@ export default function DriverDeliveriesScreen() {
                                     <div className="mt-3 flex items-center gap-2">
                                         {toStore != null && <span className="text-[11px] font-bold px-2 py-1 rounded-full" style={{ background: soft, color: colors.textSecondary }}>Loja a {toStore.toFixed(1)} km de você</span>}
                                         <span className="flex-1" />
-                                        <button onClick={() => accept(o)} disabled={!canTakeMore || busy === `o-${o.id}`} className="h-10 px-5 rounded-full text-[13px] font-black text-white flex items-center gap-1.5 transition active:scale-95 disabled:opacity-40" style={{ background: ORANGE }}><Check size={15} strokeWidth={3} /> Aceitar</button>
+                                        <button onClick={() => accept(o)} disabled={!canTakeMore || busy === `o-${o.id}` || !fitsUnits(usedUnits, o.units, state?.capacityUnits ?? null)} className="h-10 px-5 rounded-full text-[13px] font-black text-white flex items-center gap-1.5 transition active:scale-95 disabled:opacity-40" style={{ background: ORANGE }}><Check size={15} strokeWidth={3} /> Aceitar</button>
                                     </div>
                                 </div>
                             )
@@ -447,7 +501,7 @@ export default function DriverDeliveriesScreen() {
                                 {navTarget?.kind === 'store' ? <StoreIcon size={17} /> : (ordered.findIndex((d) => d.id === current?.id) + 1)}
                             </span>
                             <span className="min-w-0 flex-1">
-                                <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: ORANGE }}>{PHASE_LABEL[phase]} · {active.length} {active.length === 1 ? 'entrega' : 'entregas'} · {brl(earnings(active))}</span>
+                                <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: ORANGE }}>{PHASE_LABEL[phase]} · {active.length} {active.length === 1 ? 'entrega' : 'entregas'} · {loadSummary} · {brl(earnings(active))}</span>
                                 <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{phase === 'delivering' && current ? current.customerName : active[0].storeName}</span>
                                 <span className="block text-[12px] truncate" style={{ color: colors.textSecondary }}>{phase === 'delivering' && current ? current.address : shortAddress(active[0].storeAddress)}</span>
                             </span>

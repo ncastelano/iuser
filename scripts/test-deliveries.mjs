@@ -5,7 +5,7 @@ import { capacityState, phaseOf, routeOrder, routeKm, suggestBatches, withinRadi
 
 const STORE = { lat: -8.758, lng: -63.8995 }
 const near = (dx, dy) => ({ lat: STORE.lat + dx, lng: STORE.lng + dy })
-const offer = (id, to, price = 8, storeName = 'Pizzaria') => ({ id, orderId: id, storeName, storeAddress: '', store: STORE, address: id, to, items: '', price, km: null, createdAt: '' })
+const offer = (id, to, price = 8, storeName = 'Pizzaria') => ({ id, orderId: id, storeName, storeAddress: '', store: STORE, address: id, to, items: '', price, km: null, units: 1, itemsCount: 1, createdAt: '' })
 
 test('mochila: ocupada, livre e cheia', () => {
     assert.deepEqual(capacityState(2, 4), { used: 2, capacity: 4, left: 2, full: false, ratio: 0.5 })
@@ -51,4 +51,20 @@ test('textos: itens, endereço curto, tempo e ganho', () => {
     assert.ok(etaMinutes(1) >= 1)
     assert.ok(haversineKm(STORE, near(0.01, 0)) > 1)
     assert.equal(earnings([{ price: 8 }, { price: 9.5 }]), 17.5)
+})
+
+test('volume: o que cabe na mochila em unidades', async () => {
+  const { unitsState, fitsUnits, loadLabel, suggestBatches } = await import('../src/modules/deliveries/domain.ts')
+  assert.equal(unitsState(2, null).full, false)
+  assert.equal(unitsState(6, 6).full, true)
+  assert.equal(fitsUnits(5, 1, 6), true)
+  assert.equal(fitsUnits(5.5, 1, 6), false)
+  assert.equal(fitsUnits(99, 5, null), true)
+  assert.equal(loadLabel(3, 2.5), '3 itens · 2,5 un.')
+  assert.equal(loadLabel(1, 1), '1 item · 1 un.')
+  // combo respeita o volume: 4 entregas de 1 un. com 2 un. sobrando → no máx. 2 no grupo
+  const mk = (id, lat, units) => ({ id, orderId: id, storeName: 'P', storeAddress: '', store: { lat: -8.76, lng: -63.9 }, address: id, to: { lat: -8.76 + lat, lng: -63.9 }, items: '', price: 8, km: null, units, itemsCount: 1, createdAt: '' })
+  const offers = [mk('a', 0.010, 1), mk('b', 0.011, 1), mk('c', 0.012, 1), mk('d', 0.013, 1)]
+  assert.ok(suggestBatches(offers, 4, 3.5, 3, 2)[0].offers.length <= 2)
+  assert.deepEqual(suggestBatches([mk('x', 0.01, 3)], 4, 3.5, 3, 2), [])   // nenhuma sugestão que a mochila não comporte
 })

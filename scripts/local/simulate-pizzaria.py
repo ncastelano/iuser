@@ -572,7 +572,11 @@ def drivers_run(speed=1.0):
                 log(f"  🛵 {d['name']} chegou na loja e espera o pedido")
                 continue
             if all(r['order_status'] == 'ready' for r in rides) and time.time() - st.get('arrived', 0) >= CFG['load'] / sc:
-                psql(['-c', f"update ride_requests set ride_started_at = now() where id in ({ids})"])
+                code = q_local(f"select code from delivery_pickup_codes where store_id = {esc(STORE['id'])}::uuid and driver_id = {esc(d['id'])}::uuid and used_at is null")   # a loja conferiu e informou o código
+                out = as_user(d['id'], f"select confirm_pickup(array[{ids.replace('::uuid', '')}]::uuid[], {esc(code[0]['code'] if code else '')});")
+                if '"ok": true' not in out:
+                    log(f"  ✗ {d['name']}: retirada recusada")
+                    continue
                 for r in rides:
                     owner_say(r['buyer_id'], f"Seu pedido saiu para entrega com {d['name']}! 🛵")
                 st['last_leg'] = time.time()

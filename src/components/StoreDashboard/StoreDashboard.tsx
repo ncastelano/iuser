@@ -42,6 +42,7 @@ import StoreOperatingDays from './StoreOperatingDays'
 import StoreDepositEditor from './StoreDepositEditor'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
+import StoreDeliveryBoard from './StoreDeliveryBoard'
 import StoreFeedback from './StoreFeedback'
 import StoreDeliverySettings from './StoreDeliverySettings'
 import StorePaymentMethods from './StorePaymentMethods'
@@ -727,6 +728,11 @@ export default function StoreDashboard({
                     storeName={store.name}
                     onOrderCountsChange={onOrderCountsChange}
                 />
+            </div>
+
+            {/* ===== Entregas dos motoristas iUser: quem leva os pedidos, código de retirada e saídas por período ===== */}
+            <div className={insideShell ? 'mb-6' : ''}>
+                <StoreDeliveryBoard storeId={store.id} v3={insideShell} />
             </div>
 
             </>
