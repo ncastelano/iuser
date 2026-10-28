@@ -29,6 +29,7 @@
     "test:store-links": "node --test scripts/test-store-links.mjs",
     "test:store-model": "node --test scripts/test-store-model.mjs",
     "dev:local": "node scripts/local/dev.mjs",
+    "sim": "python3 -u scripts/local/simulate-all.py",
     "test:store-slots": "node --test scripts/test-store-slots.mjs",
     "test:tariff-summary": "node --test scripts/test-tariff-summary.mjs",
     "test:appointment-deposit": "node --test scripts/test-appointment-deposit.mjs",
