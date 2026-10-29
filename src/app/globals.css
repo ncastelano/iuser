@@ -346,6 +346,20 @@ html[data-iuser-theme="escuro-cinza"] :is([style*="box-shadow"][style*="rgb(249,
 html[data-iuser-theme="escuro-cinza"] :is([style^="color:rgb(249, 115, 22"], [style^="color: rgb(249, 115, 22"], [style*=";color:rgb(249, 115, 22"], [style*="; color:rgb(249, 115, 22"], [style*=";color: rgb(249, 115, 22"], [style*="; color: rgb(249, 115, 22"], [style^="color:rgba(249, 115, 22"], [style^="color: rgba(249, 115, 22"], [style*=";color:rgba(249, 115, 22"], [style*="; color:rgba(249, 115, 22"], [style*=";color: rgba(249, 115, 22"], [style*="; color: rgba(249, 115, 22"], [style^="color:#f97316"], [style^="color: #f97316"], [style*=";color:#f97316"], [style*="; color:#f97316"], [style*=";color: #f97316"], [style*="; color: #f97316"], [style^="color:rgb(234, 88, 12"], [style^="color: rgb(234, 88, 12"], [style*=";color:rgb(234, 88, 12"], [style*="; color:rgb(234, 88, 12"], [style*=";color: rgb(234, 88, 12"], [style*="; color: rgb(234, 88, 12"], [style^="color:rgba(234, 88, 12"], [style^="color: rgba(234, 88, 12"], [style*=";color:rgba(234, 88, 12"], [style*="; color:rgba(234, 88, 12"], [style*=";color: rgba(234, 88, 12"], [style*="; color: rgba(234, 88, 12"], [style^="color:#ea580c"], [style^="color: #ea580c"], [style*=";color:#ea580c"], [style*="; color:#ea580c"], [style*=";color: #ea580c"], [style*="; color: #ea580c"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
     color: var(--bw-text) !important;
 }
+/* ícones preenchidos/contornados em laranja (ex.: a estrela da nota no cabeçalho da loja usa `fill`/`stroke` no style) */
+html[data-iuser-theme="escuro-cinza"] :is([style*="fill:rgb(249, 115, 22"], [style*="fill: rgb(249, 115, 22"], [style*="fill:rgba(249, 115, 22"], [style*="fill: rgba(249, 115, 22"], [style*="fill:#f97316"], [style*="fill: #f97316"], [style*="fill:rgb(234, 88, 12"], [style*="fill: rgb(234, 88, 12"], [style*="fill:#ea580c"], [style*="fill: #ea580c"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    fill: var(--bw-text) !important;
+}
+html[data-iuser-theme="escuro-cinza"] :is([style*="stroke:rgb(249, 115, 22"], [style*="stroke: rgb(249, 115, 22"], [style*="stroke:rgba(249, 115, 22"], [style*="stroke: rgba(249, 115, 22"], [style*="stroke:#f97316"], [style*="stroke: #f97316"], [style*="stroke:rgb(234, 88, 12"], [style*="stroke: rgb(234, 88, 12"], [style*="stroke:#ea580c"], [style*="stroke: #ea580c"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    stroke: var(--bw-text) !important;
+}
+/* ... e os que usam o ATRIBUTO do SVG (ex.: <Star fill="#f97316" /> nos pontos do Social) */
+html[data-iuser-theme="escuro-cinza"] :is(svg[fill="#f97316"], svg[fill="#ea580c"], [fill="#f97316"], [fill="#ea580c"], svg[fill="rgb(249, 115, 22)"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    fill: var(--bw-text) !important;
+}
+html[data-iuser-theme="escuro-cinza"] :is(svg[stroke="#f97316"], svg[stroke="#ea580c"], [stroke="#f97316"], [stroke="#ea580c"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    stroke: var(--bw-text) !important;
+}
 /* classes do Tailwind (laranja) */
 html[data-iuser-theme="escuro-cinza"] :is([class*="bg-orange-50"], [class*="bg-orange-100"], [class*="bg-orange-200"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *) {
     background-color: var(--bw-tint) !important;
