@@ -430,7 +430,7 @@ function LoginAndRegisterContent({ onLoginSuccess, initialMode = 'login' }: Logi
                             <p className="text-sm" style={{ color: textSecondary }}>
                                 {isLogin
                                     ? 'Entre e mostre o que você tem de melhor!'
-                                    : 'Comece a vender em minutos. Taxa 0%! '
+                                    : 'Comece a vender em minutos. Taxa do iUser 0%! '
                                 }
                             </p>
 

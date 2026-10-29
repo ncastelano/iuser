@@ -15,6 +15,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
 import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { isDigitalCart } from '@/modules/digital'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHours } from '@/lib/storeHours'
 import { toast } from '@/lib/toast'
@@ -203,9 +204,6 @@ export default function CatalogoClientPage() {
         }
     }, [storeConfig, deliveryOption])
 
-    const canChooseReceivingMethod = !!(storeConfig?.accepts_delivery && storeConfig?.accepts_pickup)
-    const onlyPickupAvailable = !!(storeConfig?.accepts_pickup && !storeConfig?.accepts_delivery)
-    const onlyDeliveryAvailable = !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
 
     // ========== CORES DO HEADER ==========
     const surfaceRgb = hexToRgb(colors.surface)
@@ -424,6 +422,13 @@ export default function CatalogoClientPage() {
         if (!storeKey) return []
         return itemsByStore[storeKey] || []
     }, [itemsByStore, storeKey])
+
+    // Carrinho só de produto DIGITAL: sem entrega nem retirada de verdade (retirada + Pix; o acesso abre quando a loja confirma o pagamento)
+    const digitalOnly = isDigitalCart(cartItems)
+    const canChooseReceivingMethod = !digitalOnly && !!(storeConfig?.accepts_delivery && storeConfig?.accepts_pickup)
+    const onlyPickupAvailable = digitalOnly || !!(storeConfig?.accepts_pickup && !storeConfig?.accepts_delivery)
+    const onlyDeliveryAvailable = !digitalOnly && !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
+    useEffect(() => { if (digitalOnly && deliveryOption !== 'retirada') setDeliveryOption('retirada') }, [digitalOnly, deliveryOption])
 
     useEffect(() => {
         const items = cartItems.map(item => ({
@@ -1768,8 +1773,8 @@ export default function CatalogoClientPage() {
                                                 <Store size={18} />
                                             </div>
                                             <div>
-                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não tem entrega</p>
-                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
+                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{digitalOnly ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
+                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digitalOnly ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                             </div>
                                         </div>
                                     ) : onlyDeliveryAvailable ? (
@@ -1976,7 +1981,7 @@ export default function CatalogoClientPage() {
                                             { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: storeConfig?.accepts_pix },
                                             { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: storeConfig?.accepts_card },
                                             { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: storeConfig?.accepts_cash },
-                                        ]).filter(opt => opt.enabled).map((opt) => {
+                                        ]).filter(opt => opt.enabled && (!digitalOnly || opt.value === 'pix')).map((opt) => {
                                             const selected = paymentMethod === opt.value
                                             return (
                                                 <button

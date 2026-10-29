@@ -3,6 +3,7 @@
 
 import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/store/useCartStore'
+import { isDigitalCart } from '@/modules/digital'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
 import { validateCampaignCode, calculateCampaignDiscountAmount, type CampaignDiscount } from '@/lib/campaignRedemption'
@@ -238,6 +239,15 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // Opções selecionadas por loja
     const [deliveryOptionByStore, setDeliveryOptionByStore] = useState<Record<string, 'entrega' | 'retirada'>>({})
     const [paymentMethodByStore, setPaymentMethodByStore] = useState<Record<string, 'pix' | 'cartao' | 'dinheiro'>>({})
+
+    // Lojas cujo carrinho é só de produto digital: retirada + Pix (não há entrega, cartão nem dinheiro para conteúdo digital)
+    useEffect(() => {
+        for (const slug of Object.keys(itemsByStore)) {
+            if (!isDigitalCart(itemsByStore[slug] || [])) continue
+            setDeliveryOptionByStore((prev) => (prev[slug] === 'retirada' ? prev : { ...prev, [slug]: 'retirada' }))
+            setPaymentMethodByStore((prev) => (prev[slug] === 'pix' ? prev : { ...prev, [slug]: 'pix' }))
+        }
+    }, [itemsByStore])
     const [cashChangeByStore, setCashChangeByStore] = useState<Record<string, string>>({})
     const [cardContactlessByStore, setCardContactlessByStore] = useState<Record<string, boolean | null>>({})
 
@@ -1731,9 +1741,11 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                         const canCard = config.accepts_card
                                         const canCash = config.accepts_cash
 
-                                        const canChooseReceivingMethod = canDelivery && canPickup
-                                        const onlyPickupAvailable = canPickup && !canDelivery
-                                        const onlyDeliveryAvailable = canDelivery && !canPickup
+                                        // Carrinho só de produto DIGITAL: sem entrega nem retirada de verdade; o pedido segue como retirada e o acesso abre quando a loja confirma o Pix
+                                        const digital = isDigitalCart(items || [])
+                                        const canChooseReceivingMethod = !digital && canDelivery && canPickup
+                                        const onlyPickupAvailable = digital || (canPickup && !canDelivery)
+                                        const onlyDeliveryAvailable = !digital && canDelivery && !canPickup
                                         const bagDeliveryEstimate = computeDeliveryFee(slug, deliveryLoc)
                                         const cashChangeFor = cashChangeByStore[slug] || ''
                                         const cardIsContactless = cardContactlessByStore[slug] ?? null
@@ -1838,8 +1850,8 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                                 <Store size={18} />
                                                             </div>
                                                             <div>
-                                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não tem entrega</p>
-                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
+                                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{digital ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
+                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digital ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                                             </div>
                                                         </div>
                                                     ) : onlyDeliveryAvailable ? (
@@ -1994,7 +2006,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                             { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: canPix },
                                                             { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: canCard },
                                                             { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: canCash },
-                                                        ]).filter(opt => opt.enabled).map((opt) => {
+                                                        ]).filter(opt => opt.enabled && (!digital || opt.value === 'pix')).map((opt) => {
                                                             const selected = paymentOpt === opt.value
                                                             return (
                                                                 <button

@@ -265,7 +265,7 @@ function CriarLojaComCadastroContent() {
     const storeIcons = [Store, Sparkles, Store, Sparkles]
     const actionWords = ['venda', 'compre', 'compartilhe']
     const actionIcons = [Sparkles, Sparkles, Sparkles]
-    const taxWords = ['Taxa 0%!', 'sem taxa!']
+    const taxWords = ['Taxa iUser 0%!', 'sem taxa do iUser!']
     const taxIcons = [Sparkles, Sparkles]
 
     useEffect(() => {

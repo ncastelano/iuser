@@ -332,7 +332,7 @@ function ConviteContent() {
                 <div className="flex items-center justify-center gap-2 flex-wrap">
                     {chip('Sua loja')}
                     {chip('Venda em tempo real')}
-                    {chip('Taxa 0% no Pré-pago ou pague só pelo que usar no Pós-pago')}
+                    {chip('Taxa do iUser 0% no Pré-pago ou pague só pelo que usar no Pós-pago')}
                 </div>
             </HomeGlassCard>
 

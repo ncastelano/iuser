@@ -10,6 +10,7 @@ import { useInsideShell } from '@/components/InsideShell'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
+import { releaseOrder } from '@/modules/digital'
 import { hexToRgb } from '@/lib/color'
 import {
     Send,
@@ -288,6 +289,13 @@ export default function StoreOrders({
                 return
             }
 
+            // Pedido SÓ de produto digital: não tem preparo nem entrega — a loja confirma o Pix e libera o acesso
+            const productIds = [...new Set((ordersData || []).flatMap((o: any) => (o.order_items || []).map((i: any) => i.product_id).filter(Boolean)))] as string[]
+            const digitalIds = new Set<string>()
+            if (productIds.length > 0) {
+                const { data: types } = await supabase.from('products').select('id').eq('type', 'digital').in('id', productIds)
+                ;(types || []).forEach((t: any) => digitalIds.add(t.id))
+            }
             const grouped = (ordersData || []).map(order => {
                 const items = order.order_items || []
                 const subtotal = items.reduce((acc: number, i: any) => acc + Number(i.total_price || 0), 0)
@@ -297,6 +305,7 @@ export default function StoreOrders({
                     store_id: storeId,
                     checkout_id: order.checkout_id,
                     buyer_id: order.buyer_id,
+                    is_digital: items.length > 0 && items.every((i: any) => digitalIds.has(i.product_id)),
                     buyer_name: order.buyer_name,
                     buyer_profile_slug: order.buyer_profile_slug,
                     created_at: order.created_at,
@@ -560,6 +569,16 @@ export default function StoreOrders({
     const handleOrderAction = async (status: string, target: any = selectedOrder) => {
         const selectedOrder = target
         if (!selectedOrder) return
+
+        // Produto digital: "Liberar acesso" confirma o Pix e abre o conteúdo para o cliente (release_digital_order; só a dona da loja)
+        if (status === 'release') {
+            try {
+                await releaseOrder(selectedOrder.id)
+                toast.success('Acesso liberado! O cliente já pode abrir o conteúdo.')
+                loadOrders?.()
+            } catch (e: any) { toast.error(e?.message || 'Não foi possível liberar') }
+            return
+        }
 
         try {
             const { error } = await supabase
@@ -935,7 +954,8 @@ export default function StoreOrders({
         const waiting = active.id === 'ready' && iuserDeliveryEnabled ? ready.filter((o: any) => dispatchedOrderIds.has(o.id) && !acceptedDispatchIds.has(o.id)) : []
         const rest = active.list.filter((o: any) => !waiting.includes(o))
         const quickFor = (o: any): { label: string; next: string } | null =>
-            o.status === 'pending' ? { label: 'Aceitar', next: 'preparing' }
+            o.is_digital && o.status !== 'paid' && o.status !== 'rejected' ? { label: 'Liberar acesso', next: 'release' }
+            : o.status === 'pending' ? { label: 'Aceitar', next: 'preparing' }
                 : o.status === 'preparing' ? { label: 'Pronto', next: 'ready' }
                     // entrega: quem conclui é o motorista; a loja só finaliza o que o cliente retira
                     : o.status === 'ready' && !o.delivery_address ? { label: 'Finalizar', next: 'paid' }

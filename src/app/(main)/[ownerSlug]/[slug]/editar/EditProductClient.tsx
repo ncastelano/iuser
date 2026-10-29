@@ -21,6 +21,7 @@ import Header from '@/components/Header'
 import { Spinner } from '@/components/Spinner'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import ProductAddonsManager from '@/components/StoreDashboard/ProductAddonsManager'
+import DigitalContentManager from '@/components/digital/DigitalContentManager'
 import { EditServiceClient } from './EditServiceClient'
 
 export function EditProductClient() {
@@ -456,7 +457,7 @@ export function EditProductClient() {
                             </div>
 
                             {/* Volume na entrega: quanto UMA unidade ocupa na mochila do motorista (a loja define; o motorista vê o total do pedido e só aceita o que cabe) */}
-                            {productType !== 'service' && (
+                            {productType !== 'service' && productType !== 'digital' && (
                                 <div className="space-y-2">
                                     <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                         Volume na entrega
@@ -524,7 +525,8 @@ export function EditProductClient() {
                                 </div>
                             </div>
 
-                            {/* Duração e Estoque */}
+                            {/* Duração e Estoque (digital não tem: o acesso abre quando o pedido é pago) */}
+                            {productType !== 'digital' && (
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
@@ -563,6 +565,7 @@ export function EditProductClient() {
                                     />
                                 </div>
                             </div>
+                            )}
 
                             {/* Ativo */}
                             <div className="flex items-center gap-3">
@@ -606,6 +609,12 @@ export function EditProductClient() {
                                     <ProductAddonsManager productId={product.id} storeId={product.store_id} colors={colors} />
                                 )}
                             </div>
+
+                            {productType === 'digital' && (
+                                <div className="pt-4 border-t" style={{ borderColor: colors.border }}>
+                                    <DigitalContentManager productId={product.id} />
+                                </div>
+                            )}
 
                             {/* Botão de deletar */}
                             <div className="pt-4 border-t" style={{ borderColor: colors.border }}>

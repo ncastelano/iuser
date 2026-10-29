@@ -171,7 +171,7 @@ function RegisterContent() {
   const actionWords = ['venda', 'compre', 'compartilhe']
   const actionIcons = [TrendingUp, ShoppingCart, Share2]
 
-  const taxWords = ['Taxa 0%!', 'sem taxa!']
+  const taxWords = ['Taxa iUser 0%!', 'sem taxa do iUser!']
   const taxIcons = [Sparkles, Percent]
 
   // Timer para avançar uma palavra por vez

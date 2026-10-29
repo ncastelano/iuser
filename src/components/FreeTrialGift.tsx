@@ -160,17 +160,17 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
                             {[
                                 {
                                     icon: Store,
-                                    title: 'Taxa 0% na loja',
+                                    title: 'Taxa iUser 0% na loja',
                                     text: 'No pós-pago a loja paga R$ 0,50 por venda, R$ 0,50 por produto cadastrado e R$ 0,50 por publicação. Durante o brinde você vende, cadastra e publica à vontade, sem pagar nada por isso.',
                                 },
                                 {
                                     icon: Car,
-                                    title: 'Taxa 0% no motorista',
+                                    title: 'Taxa iUser 0% no motorista',
                                     text: 'Cada corrida finalizada custa R$ 0,50 no pós-pago. Com o brinde você faz quantas corridas quiser e fica com tudo, sem a taxa por corrida.',
                                 },
                                 {
                                     icon: Wrench,
-                                    title: 'Taxa 0% em serviços',
+                                    title: 'Taxa iUser 0% em serviços',
                                     text: 'Publicar um serviço, no perfil ou na loja, custa R$ 0,50, e se inscrever num pedido também gera taxa. Durante o brinde você publica e se inscreve sem pagar nada.',
                                 },
                             ].map(({ icon: Icon, title, text }) => (

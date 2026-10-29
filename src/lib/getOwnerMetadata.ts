@@ -472,7 +472,7 @@ export async function generateInviteMetadata(ref: string | undefined): Promise<M
 
         const displayName = inviter.name || `@${inviter.profileSlug}`
         const title = `${displayName} te chamou pro iUser`
-        const description = `Entre pelo convite de @${inviter.profileSlug}: compre, venda, dirija ou preste serviço no iUser. Taxa 0% no plano ou só R$ 0,50 por transação.`
+        const description = `Entre pelo convite de @${inviter.profileSlug}: compre, venda, dirija ou preste serviço no iUser. Taxa do iUser 0% no plano ou só R$ 0,50 por transação (cartão e Pix têm a taxa do próprio meio de pagamento).`
         const rawAvatarUrl = getPublicStorageUrl('avatars', inviter.avatar_url)
         const avatarUrl = rawAvatarUrl ? toThumbUrl(rawAvatarUrl) : defaultLogoUrl
 

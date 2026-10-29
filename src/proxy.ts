@@ -46,6 +46,7 @@ const IGNORED_ROUTES = [
     '/planos/pos-pago',
     '/planos/pre-pago',
     '/meus-servicos',
+    '/minhas-compras-digitais',
     '/administrador',
     '/aceitar-corridas/mapa',
     '/pedir-motorista/escolher-local',

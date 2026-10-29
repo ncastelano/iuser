@@ -12,6 +12,7 @@ import { createStoreOrder, CreateStoreOrderError } from '@/lib/createStoreOrder'
 import { useCheckoutFlow } from '@/lib/useCheckoutFlow'
 import { isEstimateRejection } from '@/modules/delivery-estimate'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { isDigitalCart } from '@/modules/digital'
 import { useCartStore, type CartItem, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from '@/lib/toast'
@@ -82,9 +83,11 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
         return { day: next.dayLabel, open: next.time }
     }, [storeConfig?.business_hours])
 
-    const canChooseReceivingMethod = !!(storeConfig?.accepts_delivery && storeConfig?.accepts_pickup)
-    const onlyPickupAvailable = !!(storeConfig?.accepts_pickup && !storeConfig?.accepts_delivery)
-    const onlyDeliveryAvailable = !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
+    // Carrinho só de produto DIGITAL: não há entrega nem retirada de verdade — o pedido segue como "retirada" e o acesso abre quando a loja confirma o pagamento
+    const digitalOnly = isDigitalCart(cartItems)
+    const canChooseReceivingMethod = !digitalOnly && !!(storeConfig?.accepts_delivery && storeConfig?.accepts_pickup)
+    const onlyPickupAvailable = digitalOnly || !!(storeConfig?.accepts_pickup && !storeConfig?.accepts_delivery)
+    const onlyDeliveryAvailable = !digitalOnly && !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
 
     // ===== FINALIZAÇÃO =====
     const [checkoutLoading, setCheckoutLoading] = useState(false)
@@ -105,10 +108,11 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
 
     // Se a loja só tem uma forma de recebimento, já seleciona sozinha.
     useEffect(() => {
+        if (digitalOnly && deliveryOption !== 'retirada') { setDeliveryOption('retirada'); return }
         if (!storeConfig || deliveryOption) return
         if (storeConfig.accepts_pickup && !storeConfig.accepts_delivery) setDeliveryOption('retirada')
         else if (storeConfig.accepts_delivery && !storeConfig.accepts_pickup) setDeliveryOption('entrega')
-    }, [storeConfig, deliveryOption])
+    }, [storeConfig, deliveryOption, digitalOnly])
 
     // ===== DADOS DO COMPRADOR LOGADO =====
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -502,7 +506,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
 
     return {
         storeConfig, isStoreOpen, nextAvailable,
-        canChooseReceivingMethod, onlyPickupAvailable, onlyDeliveryAvailable,
+        canChooseReceivingMethod, onlyPickupAvailable, onlyDeliveryAvailable, digitalOnly,
         checkoutStep, setCheckoutStep, checkoutLoading, startCheckout,
         deliveryOption, setDeliveryOption, paymentMethod, setPaymentMethod,
         cashChangeFor, setCashChangeFor, cardIsContactless, setCardIsContactless,
