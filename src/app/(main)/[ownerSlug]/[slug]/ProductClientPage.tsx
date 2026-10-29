@@ -1326,7 +1326,7 @@ export function ProductClientPage({
                             {product.type === 'digital' && (
                                 <>
                                     <DigitalCurriculum productId={product.id} />
-                                    <Link href="/minhas-compras-digitais" className="self-start inline-flex items-center gap-2 h-11 px-4 rounded-full text-sm font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                    <Link href="/carrinho?aba=digital" className="self-start inline-flex items-center gap-2 h-11 px-4 rounded-full text-sm font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
                                         <GraduationCap size={16} /> Já comprou? Abrir minhas compras digitais
                                     </Link>
                                 </>

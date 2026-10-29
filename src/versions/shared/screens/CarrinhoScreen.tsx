@@ -34,8 +34,7 @@ import {
     Plus,
     Minus,
     Trash2,
-    PackageCheck,
-} from 'lucide-react'
+    PackageCheck, GraduationCap } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -49,6 +48,8 @@ import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import PageTabs from '@/components/PageTabs'
+import DigitalLibrary from '@/components/digital/DigitalLibrary'
+import { fetchLibrary } from '@/modules/digital'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import type { UiVersion } from '@/versions/registry'
@@ -274,13 +275,20 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         return !!id && checkoutFlowByStoreId[id] === 'v2'
     }
 
+    // Compras digitais já liberadas (selo da aba Digital)
+    const [digitalCount, setDigitalCount] = useState(0)
+    useEffect(() => {
+        if (!currentUserId) { setDigitalCount(0); return }
+        fetchLibrary().then((l) => setDigitalCount(l.length)).catch(() => setDigitalCount(0))
+    }, [currentUserId])
+
     // ===== ESTADO DA TAB ATIVA =====
     const [activeTab, setActiveTab] = useState<string>('carrinho')
-    // ?aba=pedidos|avaliacoes abre direto nessa aba (a barra do topo leva pros pedidos quando o carrinho está vazio)
+    // ?aba=pedidos|avaliacoes|digital abre direto nessa aba (a barra do topo leva pros pedidos quando o carrinho está vazio)
     useEffect(() => {
         try {
             const aba = new URLSearchParams(window.location.search).get('aba')
-            if (aba === 'pedidos' || aba === 'avaliacoes') setActiveTab(aba)
+            if (aba === 'pedidos' || aba === 'avaliacoes' || aba === 'digital') setActiveTab(aba)
         } catch { /* sem window */ }
     }, [])
 
@@ -1397,6 +1405,16 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     onClick: () => setActiveTab('pedidos'),
                 },
                 {
+                    id: 'digital',
+                    label: 'Digital',
+                    icon: GraduationCap,
+                    sectionId: 'section-digital',
+                    indicator: null,
+                    badge: digitalCount > 0 ? { count: digitalCount, color: '#f97316' } : null,
+                    isActive: activeTab === 'digital',
+                    onClick: () => setActiveTab('digital'),
+                },
+                {
                     id: 'avaliacoes',
                     label: 'Avaliações',
                     icon: Star,
@@ -1408,7 +1426,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             ]
 
         return tabList
-    }, [currentUserId, activeOrderCounts, pendingReviews.length, activeTab, cartItemCount])
+    }, [currentUserId, activeOrderCounts, pendingReviews.length, activeTab, cartItemCount, digitalCount])
 
     const OrderCard = ({ order }: { order: any }) => {
         const statusStyle = getStatusStyles(order.status)
@@ -2495,6 +2513,17 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                     ))}
                                 </div>
                             )}
+                        </section>
+                    )}
+
+                    {/* Seção Digital - o que a pessoa comprou de curso, aula, e-book e arquivo (liberado pela loja) */}
+                    {currentUserId && activeTab === 'digital' && (
+                        <section id="section-digital" className="scroll-mt-24">
+                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}><GraduationCap size={16} /></div>
+                                <h2 className="text-base font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>Compras digitais</h2>
+                            </div>
+                            <DigitalLibrary userId={currentUserId} />
                         </section>
                     )}
 
