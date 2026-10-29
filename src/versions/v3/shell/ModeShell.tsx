@@ -23,7 +23,7 @@ import { useShellLive } from '@/hooks/useShellLive'
 import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
 import { useShellCompact } from '@/lib/shellCompact'
 import { toastStyle } from '@/lib/toastStyle'
-import BottomNavBar, { BAR_SPACE, STRIP_H } from '@/components/BottomNavBar'
+import BottomNavBar, { BAR_SPACE } from '@/components/BottomNavBar'
 import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
 import { switchVersion, versionLabel } from '@/versions/client'
 
@@ -698,8 +698,8 @@ export default function ModeShell({ children }: {
                 marginTop: navH,
                 minHeight: `calc(100dvh - ${navH})`,
                 ['--shell-top' as string]: navH,
-                paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${cartStrip ? STRIP_H : 0}px)` : 40,
-                ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${cartStrip ? STRIP_H : 0}px)` : '0px',
+                paddingBottom: barShown ? SHELL_BOTTOM : 40,
+                ['--shell-bottom' as string]: barShown ? SHELL_BOTTOM : '0px',
                 animation: rising ? 'shellRise 700ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
             }}
         >
@@ -785,7 +785,7 @@ export default function ModeShell({ children }: {
             <style>{`@keyframes islandPop { 0% { transform: scale(.94); } 100% { transform: scale(1); } }`}</style>
         </div>
 
-        {/* BARRA de baixo: carrinho, conversas, iUser no centro, radar e Social (o hub abre pela ilha do topo) */}
+        {/* BARRA de baixo: carrinho (que cresce na linha nas páginas de compra), conversas, iUser no centro, radar, Social e o botão do MODO ativo (abre o hub, como a ilha do topo) */}
         {barShown && (
             <BottomNavBar
                 colors={colors}
@@ -794,7 +794,8 @@ export default function ModeShell({ children }: {
                 cartTotal={cartTotal}
                 orderCounts={orderCounts}
                 unread={topUnread}
-                showCartStrip={cartStrip}
+                cartExpanded={cartStrip}
+                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={32} />, kind: view.icon, label: idle.label, onOpen: openHub }}
                 onCart={() => go(cartStrip || !(topCart === 0 && ordersActive > 0) ? '/carrinho' : '/carrinho?aba=pedidos')}
                 onChat={() => go(userId ? chatPath : '/login')}
                 onHome={() => (shellPath === '/' ? window.scrollTo({ top: 0, behavior: 'smooth' }) : go('/'))}
