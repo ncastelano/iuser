@@ -672,7 +672,7 @@ export default function ModeShell({ children }: {
     // A faixa da barra: o que está vivo além do carrinho e dos status (a corrida e os pedidos novos da loja)
     const barExtras = (live?.parts || []).filter((x) => x.key === 'ride' || x.key === 'store-p' || x.key === 'store-s').map((x) => ({ key: x.key as string, text: x.text, color: x.color, path: x.path || live!.path }))
     // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
-    const stripShown = barShown && stripVisible({ active: activeKey, cartExpanded: cartStrip, cartCount: topCart, orderCounts, extras: barExtras.length })
+    const stripShown = barShown && stripVisible({ active: activeKey, cartExpanded: cartStrip, cartCount: topCart, extras: barExtras.length })
 
     const idle = headerView
     return (
@@ -714,7 +714,6 @@ export default function ModeShell({ children }: {
                 cartExpanded={cartStrip}
                 mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: openHub }}
                 onCart={() => go(cartStrip || !(topCart === 0 && ordersActive > 0) ? '/carrinho' : '/carrinho?aba=pedidos')}
-                onOrders={() => go('/carrinho?aba=pedidos')}
                 message={islandMsg && msgStyle ? { id: islandMsg.id, text: islandMsg.text, description: islandMsg.description, icon: islandMsg.icon, glyph: msgStyle.glyph, color: msgStyle.color, action: islandMsg.action ? { label: islandMsg.action.label, onClick: islandMsg.action.onClick } : undefined } : null}
                 extras={barExtras}
                 customCard={islandMsg?.custom ? islandMsg.custom(islandMsg.id) : null}

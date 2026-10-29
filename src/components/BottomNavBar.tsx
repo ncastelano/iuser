@@ -3,7 +3,8 @@
 // A NAVBAR COMPLETA (a antiga ilha do topo foi mesclada aqui) — UMA peça sólida só, embaixo:
 //   · em cima, quando há o que mostrar, a FAIXA (a "ilha" embutida), colada à barra, sem divisória, numa cor neutra suave:
 //       - os AVISOS do sistema (lib/toast): a faixa vira o MENSAGEIRO por um momento (cor e símbolo do tipo, texto, botão de ação; tocar dispensa);
-//       - senão, o que está vivo: o carrinho (itens · total, nas páginas de compra), a corrida pedida, os pedidos novos da loja e os STATUS dos pedidos (novos, em preparo, prontos);
+//       - senão, o que está vivo: o carrinho (itens · total, nas páginas de compra), a corrida pedida e os pedidos novos da loja;
+//   · os STATUS dos pedidos (novos, em preparo, prontos) ficam nas BOLINHAS coloridas embaixo do botão do carrinho;
 //       - cada chip é um botão que leva ao seu lugar;
 //   · embaixo, seis botões IGUAIS (mesmo tamanho): Carrinho, Conversas, MODO (a foto do modo ativo, com o selinho do tipo; abre o hub) · Radar, Social, Lupa (procurar e explorar).
 // Só apresentação: quem usa (a casca da 3.0) passa as contagens, a foto e o que cada toque faz. Constantes de medida exportadas para quem reserva espaço embaixo.
@@ -29,20 +30,22 @@ export interface BarMessage { id: string | number; text: string; description?: s
 /** Chip da faixa além do carrinho e dos status: a corrida, os pedidos novos da loja... (cada um na sua cor, levando ao seu lugar) */
 export interface BarExtra { key: string; text: string; color: string; path: string }
 
-/** A faixa de cima (fixa, sem contar o aviso passageiro) aparece quando há carrinho (páginas de compra), pedidos em andamento ou chips extras — e o carrinho some dela na página do carrinho */
-export function stripVisible({ active, cartExpanded, cartCount, orderCounts, extras = 0 }: { active: BarKey | null; cartExpanded: boolean; cartCount: number; orderCounts: OrderStatusCounts; extras?: number }): boolean {
+/** A faixa de cima (fixa, sem contar o aviso passageiro) aparece quando há carrinho (páginas de compra) ou chips extras (corrida, pedidos da loja) — e o carrinho some dela na página do carrinho */
+export function stripVisible({ active, cartExpanded, cartCount, extras = 0 }: { active: BarKey | null; cartExpanded: boolean; cartCount: number; extras?: number }): boolean {
     if (extras > 0) return true
     if (active === 'cart') return false
-    return (cartExpanded && cartCount > 0) || orderCounts.pending + orderCounts.preparing + orderCounts.ready > 0
+    return cartExpanded && cartCount > 0
 }
 
-// Botão da barra: ícone (tamanho único) + (selo de quantidade) + traço laranja quando é a página atual
-function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, colors, children }: {
-    active: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; colors: any; children: ReactNode
+// Botão da barra: ícone (tamanho único) + (selo de quantidade) + (bolinhas de status dos pedidos embaixo, só no carrinho) + traço laranja quando é a página atual
+function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, orders, colors, children }: {
+    active: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; orders?: OrderStatusCounts; colors: any; children: ReactNode
 }) {
+    const ordersOn = !!orders && (orders.pending > 0 || orders.preparing > 0 || orders.ready > 0)
     return (
         <button onClick={onClick} aria-label={label} aria-current={active ? 'page' : undefined} className="relative flex-1 min-w-0 h-full flex items-center justify-center transition active:scale-90" style={{ color: active ? '#f97316' : colors.textPrimary }}>
-            <span className="relative flex items-center justify-center w-10 h-10">
+            {/* com bolinhas de pedidos a linha do ícone sobe um pouco para elas caberem embaixo */}
+            <span className="relative flex items-center justify-center w-10 h-10" style={{ transform: ordersOn ? 'translateY(-6px)' : undefined, transition: 'transform 200ms ease' }}>
                 {children}
                 {badge > 0 && pulse && !active && <span aria-hidden className="absolute top-0 right-0 min-w-[18px] h-[18px] rounded-full animate-ping pointer-events-none" style={{ background: badgeColor, opacity: 0.55 }} />}
                 {badge > 0 && (
@@ -51,7 +54,14 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
                     </span>
                 )}
             </span>
-            <span aria-hidden className="absolute left-1/2 -translate-x-1/2 rounded-full transition-all" style={{ bottom: 4, width: active ? 16 : 0, height: 3, background: '#f97316', opacity: active ? 1 : 0 }} />
+            {ordersOn && orders && (
+                <span className="absolute left-1/2 -translate-x-1/2 flex items-center gap-[3px] pointer-events-none" style={{ bottom: 5 }} aria-label="Pedidos em andamento">
+                    {ORDER_COLORS.map(([k, color]) => (
+                        orders[k] > 0 ? <span key={k} className="min-w-[14px] h-[14px] px-[3px] rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: color, boxShadow: `0 0 0 1.5px ${colors.background}` }}>{orders[k] > 9 ? '9+' : orders[k]}</span> : null
+                    ))}
+                </span>
+            )}
+            <span aria-hidden className="absolute left-1/2 -translate-x-1/2 rounded-full transition-all" style={{ bottom: 4, width: active ? 16 : 0, height: 3, background: '#f97316', opacity: active && !ordersOn ? 1 : 0 }} />
         </button>
     )
 }
@@ -74,7 +84,7 @@ function ModeButton({ mode, colors }: { mode: ModeButtonProps; colors: any }) {
     )
 }
 
-export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, cartExpanded = false, mode, message = null, extras = [], customCard = null, onDismiss, onGo, onCart, onOrders, onChat, onHome, onRadar, onPeople }: {
+export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, cartExpanded = false, mode, message = null, extras = [], customCard = null, onDismiss, onGo, onCart, onChat, onHome, onRadar, onPeople }: {
     colors: any
     active: BarKey | null
     cartCount: number
@@ -93,15 +103,13 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     onDismiss: () => void
     onGo: (path: string) => void
     onCart: () => void
-    onOrders: () => void
     onChat: () => void
     onHome: () => void
     onRadar: () => void
     onPeople: () => void
 }) {
     const showCart = cartExpanded && cartCount > 0 && active !== 'cart'
-    const ordersOn = orderCounts.pending + orderCounts.preparing + orderCounts.ready > 0 && active !== 'cart'
-    const strip = !!message || stripVisible({ active, cartExpanded, cartCount, orderCounts, extras: extras.length })
+    const strip = !!message || stripVisible({ active, cartExpanded, cartCount, extras: extras.length })
     const money = cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
     return (
         <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 z-40 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM }}>
@@ -136,24 +144,11 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
                                         <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{x.text}</span>
                                     </button>
                                 ))}
-                                {ordersOn && (
-                                    <button onClick={onOrders} tabIndex={strip ? 0 : -1} aria-label="Pedidos em andamento" className="flex items-center gap-2 flex-shrink-0 h-9 ml-auto active:opacity-70">
-                                        {!showCart && extras.length === 0 && <span className="text-[12px] font-black" style={{ color: colors.textSecondary }}>Seus pedidos</span>}
-                                        {ORDER_COLORS.map(([k, color, name]) => (
-                                            orderCounts[k] > 0 ? (
-                                                <span key={k} title={name} className="flex items-center gap-1 text-[11px] font-black">
-                                                    <span className="min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: color }}>{orderCounts[k] > 9 ? '9+' : orderCounts[k]}</span>
-                                                    <span className="hidden min-[400px]:inline" style={{ color: colors.textSecondary }}>{name}</span>
-                                                </span>
-                                            ) : null
-                                        ))}
-                                    </button>
-                                )}
                             </div>
                         )}
                     </div>
                     <div className="flex items-center px-1.5" style={{ height: BAR_H }}>
-                        <BarButton colors={colors} active={active === 'cart'} label="Carrinho" onClick={onCart} badge={active === 'cart' ? 0 : cartCount}>
+                        <BarButton colors={colors} active={active === 'cart'} label="Carrinho" onClick={onCart} badge={active === 'cart' ? 0 : cartCount} orders={active === 'cart' ? undefined : orderCounts}>
                             <ShoppingCart size={21} />
                         </BarButton>
                         <BarButton colors={colors} active={active === 'chat'} label="Conversas" onClick={onChat} badge={unread} badgeColor="#16a34a" pulse={unread > 0}>
