@@ -1,8 +1,10 @@
 // src/components/BottomNavBar.tsx
 //
-// A barra de navegação flutuante de baixo — UMA peça sólida só, igual à ilha:
-//   · em cima, quando há o que mostrar, a FAIXA: o carrinho (itens · total, nas páginas de compra) e os STATUS dos pedidos (novos, em preparo, prontos). Colada à barra
-//     (sem divisória), numa cor neutra suave; os dois lados são botões (carrinho → /carrinho, status → pedidos);
+// A NAVBAR COMPLETA (a antiga ilha do topo foi mesclada aqui) — UMA peça sólida só, embaixo:
+//   · em cima, quando há o que mostrar, a FAIXA (a "ilha" embutida), colada à barra, sem divisória, numa cor neutra suave:
+//       - os AVISOS do sistema (lib/toast): a faixa vira o MENSAGEIRO por um momento (cor e símbolo do tipo, texto, botão de ação; tocar dispensa);
+//       - senão, o que está vivo: o carrinho (itens · total, nas páginas de compra), a corrida pedida, os pedidos novos da loja e os STATUS dos pedidos (novos, em preparo, prontos);
+//       - cada chip é um botão que leva ao seu lugar;
 //   · embaixo, seis botões IGUAIS (mesmo tamanho): Carrinho, Conversas, MODO (a foto do modo ativo, com o selinho do tipo; abre o hub) · Radar, Social, Lupa (procurar e explorar).
 // Só apresentação: quem usa (a casca da 3.0) passa as contagens, a foto e o que cada toque faz. Constantes de medida exportadas para quem reserva espaço embaixo.
 'use client'
@@ -14,7 +16,7 @@ import type { OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 export const BAR_BOTTOM = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
 export const BAR_H = 58
-export const STRIP_H = 34
+export const STRIP_H = 36
 // Espaço que a barra ocupa (sem a faixa)
 export const BAR_SPACE = 'calc(78px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
 
@@ -22,8 +24,14 @@ export type BarKey = 'cart' | 'chat' | 'home' | 'radar' | 'people'
 
 const ORDER_COLORS = [['pending', '#22c55e', 'novos'], ['preparing', '#eab308', 'em preparo'], ['ready', '#a855f7', 'prontos']] as const
 
-/** A faixa de cima aparece quando há carrinho para mostrar (páginas de compra) ou pedidos em andamento — e nunca na própria página do carrinho */
-export function stripVisible({ active, cartExpanded, cartCount, orderCounts }: { active: BarKey | null; cartExpanded: boolean; cartCount: number; orderCounts: OrderStatusCounts }): boolean {
+/** Um aviso do sistema (toast) mostrado na faixa */
+export interface BarMessage { id: string | number; text: string; description?: string; icon?: string; glyph: string; color: string; action?: { label: string; onClick: () => void } }
+/** Chip da faixa além do carrinho e dos status: a corrida, os pedidos novos da loja... (cada um na sua cor, levando ao seu lugar) */
+export interface BarExtra { key: string; text: string; color: string; path: string }
+
+/** A faixa de cima (fixa, sem contar o aviso passageiro) aparece quando há carrinho (páginas de compra), pedidos em andamento ou chips extras — e o carrinho some dela na página do carrinho */
+export function stripVisible({ active, cartExpanded, cartCount, orderCounts, extras = 0 }: { active: BarKey | null; cartExpanded: boolean; cartCount: number; orderCounts: OrderStatusCounts; extras?: number }): boolean {
+    if (extras > 0) return true
     if (active === 'cart') return false
     return (cartExpanded && cartCount > 0) || orderCounts.pending + orderCounts.preparing + orderCounts.ready > 0
 }
@@ -66,7 +74,7 @@ function ModeButton({ mode, colors }: { mode: ModeButtonProps; colors: any }) {
     )
 }
 
-export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, cartExpanded = false, mode, onCart, onOrders, onChat, onHome, onRadar, onPeople }: {
+export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, cartExpanded = false, mode, message = null, extras = [], customCard = null, onDismiss, onGo, onCart, onOrders, onChat, onHome, onRadar, onPeople }: {
     colors: any
     active: BarKey | null
     cartCount: number
@@ -77,6 +85,13 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     cartExpanded?: boolean
     /** O botão do modo ativo (foto + selinho); abre o menu de modos */
     mode?: ModeButtonProps
+    /** O aviso do sistema da vez (a faixa vira o mensageiro) */
+    message?: BarMessage | null
+    extras?: BarExtra[]
+    /** Cartão grande de um aviso (ex.: alerta de corrida): aparece logo acima da barra */
+    customCard?: ReactNode
+    onDismiss: () => void
+    onGo: (path: string) => void
     onCart: () => void
     onOrders: () => void
     onChat: () => void
@@ -84,34 +99,57 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     onRadar: () => void
     onPeople: () => void
 }) {
-    const showCart = cartExpanded && cartCount > 0
-    const ordersOn = orderCounts.pending + orderCounts.preparing + orderCounts.ready > 0
-    const strip = stripVisible({ active, cartExpanded, cartCount, orderCounts })
+    const showCart = cartExpanded && cartCount > 0 && active !== 'cart'
+    const ordersOn = orderCounts.pending + orderCounts.preparing + orderCounts.ready > 0 && active !== 'cart'
+    const strip = !!message || stripVisible({ active, cartExpanded, cartCount, orderCounts, extras: extras.length })
     const money = cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
     return (
-        <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 z-40 pointer-events-none" style={{ bottom: BAR_BOTTOM }}>
-            <div className="max-w-md mx-auto px-3">
-                {/* Uma peça só e sólida (como a ilha): a faixa de cima é só uma área da própria barra, sem divisória */}
-                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26 }}>
-                    <div aria-hidden={!strip} className="flex items-center gap-2 px-3.5 overflow-hidden" style={{ height: strip ? STRIP_H : 0, opacity: strip ? 1 : 0, background: `${colors.border}30`, transition: 'height 300ms ease, opacity 250ms ease' }}>
-                        {showCart ? (
-                            <button onClick={onCart} tabIndex={strip ? 0 : -1} aria-label={`Ver carrinho, ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}, ${money}`} className="flex items-center gap-1.5 min-w-0 flex-1 h-full text-left active:opacity-70">
-                                <ShoppingCart size={15} className="flex-shrink-0" style={{ color: '#f97316' }} />
-                                <span className="text-[12px] font-black truncate" style={{ color: colors.textPrimary }}>{cartCount} {cartCount === 1 ? 'item' : 'itens'} · {money}</span>
-                                <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
-                            </button>
-                        ) : <span className="flex-1 min-w-0 text-[12px] font-black truncate" style={{ color: colors.textSecondary }}>Seus pedidos</span>}
-                        {ordersOn && (
-                            <button onClick={onOrders} tabIndex={strip ? 0 : -1} aria-label="Pedidos em andamento" className="flex items-center gap-2 flex-shrink-0 h-full active:opacity-70">
-                                {ORDER_COLORS.map(([k, color, name]) => (
-                                    orderCounts[k] > 0 ? (
-                                        <span key={k} title={name} className="flex items-center gap-1 text-[11px] font-black">
-                                            <span className="min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: color }}>{orderCounts[k] > 9 ? '9+' : orderCounts[k]}</span>
-                                            <span className="hidden min-[400px]:inline" style={{ color: colors.textSecondary }}>{name}</span>
-                                        </span>
-                                    ) : null
+        <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 z-40 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM }}>
+            {customCard && <div className="max-w-md w-full mx-auto px-3 pointer-events-auto">{customCard}</div>}
+            <div className="max-w-md w-full mx-auto px-3">
+                {/* Uma peça só e sólida: a faixa de cima é só uma área da própria barra, sem divisória */}
+                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : `1px solid ${colors.border}`, boxShadow: '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease' }}>
+                    <div aria-hidden={!strip} className="flex items-center gap-2 px-3.5 overflow-hidden" style={{ minHeight: strip ? STRIP_H : 0, height: strip ? undefined : 0, opacity: strip ? 1 : 0, background: message ? `${message.color}14` : `${colors.border}30`, transition: 'min-height 300ms ease, opacity 250ms ease, background 250ms ease' }}>
+                        {message ? (
+                            <div className="flex items-center gap-2.5 w-full py-1.5" role="status" aria-live="polite">
+                                <button onClick={onDismiss} aria-label="Dispensar aviso" className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                                    <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[13px] font-black flex-shrink-0" style={{ background: message.color }}>{message.icon || message.glyph}</span>
+                                    <span className="min-w-0">
+                                        {message.description && <span className="block text-[10.5px] leading-snug" style={{ color: colors.textSecondary }}>{message.description}</span>}
+                                        <span className="block text-[13px] font-black leading-snug" style={{ color: colors.textPrimary }}>{message.text}</span>
+                                    </span>
+                                </button>
+                                {message.action && <button onClick={() => { message.action!.onClick(); onDismiss() }} className="flex-shrink-0 text-[12px] font-black px-3 py-1.5 rounded-full text-white active:scale-95" style={{ background: message.color }}>{message.action.label}</button>}
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar whitespace-nowrap" style={{ scrollbarWidth: 'none' }}>
+                                {showCart && (
+                                    <button onClick={onCart} tabIndex={strip ? 0 : -1} aria-label={`Ver carrinho, ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}, ${money}`} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
+                                        <ShoppingCart size={15} className="flex-shrink-0" style={{ color: '#f97316' }} />
+                                        <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{cartCount} {cartCount === 1 ? 'item' : 'itens'} · {money}</span>
+                                        <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                    </button>
+                                )}
+                                {extras.map((x) => (
+                                    <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
+                                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: x.color }} />
+                                        <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{x.text}</span>
+                                    </button>
                                 ))}
-                            </button>
+                                {ordersOn && (
+                                    <button onClick={onOrders} tabIndex={strip ? 0 : -1} aria-label="Pedidos em andamento" className="flex items-center gap-2 flex-shrink-0 h-9 ml-auto active:opacity-70">
+                                        {!showCart && extras.length === 0 && <span className="text-[12px] font-black" style={{ color: colors.textSecondary }}>Seus pedidos</span>}
+                                        {ORDER_COLORS.map(([k, color, name]) => (
+                                            orderCounts[k] > 0 ? (
+                                                <span key={k} title={name} className="flex items-center gap-1 text-[11px] font-black">
+                                                    <span className="min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: color }}>{orderCounts[k] > 9 ? '9+' : orderCounts[k]}</span>
+                                                    <span className="hidden min-[400px]:inline" style={{ color: colors.textSecondary }}>{name}</span>
+                                                </span>
+                                            ) : null
+                                        ))}
+                                    </button>
+                                )}
+                            </div>
                         )}
                     </div>
                     <div className="flex items-center px-1.5" style={{ height: BAR_H }}>

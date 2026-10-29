@@ -347,9 +347,8 @@ function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { rece
 
 
 // A ilha flutua no topo; o conteúdo da página começa abaixo dela (NAV_H, a mesma altura de antes: telas cheias usam --shell-top)
-const ISLAND_TOP = 'calc(8px + env(safe-area-inset-top))'
 const ISLAND_H = 56
-const ISLAND_H_COMPACT = 38   // ilha FINA das páginas de trabalho (Percurso do motorista): uma linha só
+const BAR_BOTTOM_VAR = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'   // o menu sobe a partir de onde fica a barra
 const NAV_H = 'calc(74px + env(safe-area-inset-top))'
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 // Espaço que a barra de baixo ocupa (var --shell-bottom): quem tem algo fixo embaixo se afasta dele
@@ -623,8 +622,6 @@ export default function ModeShell({ children }: {
     // A barra de baixo só nas páginas "raiz"
     const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/')) && !(shellPath === '/conversas' && threadOpen)
     const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
-    // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
-    const stripShown = barShown && stripVisible({ active: activeKey, cartExpanded: cartStrip, cartCount: topCart, orderCounts })
     // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha
     const storeNew = (() => {
         const modeSlug = activeMode.startsWith('loja:') ? activeMode.slice(5) : null
@@ -633,7 +630,6 @@ export default function ModeShell({ children }: {
         return { products: storeOrders[st.id]?.pending || 0, services: storeOrders[st.id]?.services || 0, name: st.name, path: `/painel-loja/${encodeURIComponent(st.slug)}`, prefer: !!modeSlug && st.slug === modeSlug }
     })()
     // AVISOS (lib/toast): enquanto há uma mensagem a ilha vira o MENSAGEIRO dela (cor e símbolo do tipo, some sozinha; tocar dispensa) e depois volta ao que era
-    useEffect(() => registerIslandConsumer(), [])
     const { msg: islandMsg, waiting: msgWaiting } = useIslandMessage()
     useEffect(() => {
         if (!islandMsg) return
@@ -667,20 +663,16 @@ export default function ModeShell({ children }: {
         destination: ['/', '/carrinho', '/conversas'].includes(shellPath) ? shellPath : '/',
     })
 
-    // A ilha cresce quando mostra vários avisos empilhados: o conteúdo da página (e --shell-top) desce o mesmo tanto
-    const islandRef = useRef<HTMLDivElement>(null)
-    const [islandH, setIslandH] = useState(0)
-    useEffect(() => {
-        const el = islandRef.current
-        if (!el || typeof ResizeObserver === 'undefined') return
-        const ro = new ResizeObserver(() => setIslandH(Math.round(el.getBoundingClientRect().height)))
-        ro.observe(el)
-        return () => ro.disconnect()
-    }, [])
+    // Sem ilha em cima: a página começa logo abaixo da área segura. Os avisos (toast) aparecem na FAIXA da barra de baixo; onde a barra não existe
+    // (páginas de produto/loja/mapas, conversa aberta) ou o Percurso cobre a tela, a pílula do topo (IslandToastFallback) cuida deles.
     const compactLabel = useShellCompact()
     const compact = !!compactLabel
-    const baseH = compact ? ISLAND_H_COMPACT : ISLAND_H
-    const navH = `calc(${compact ? 52 : 74}px + env(safe-area-inset-top) + ${Math.max(0, islandH - baseH)}px)`
+    const navH = 'calc(10px + env(safe-area-inset-top))'
+    useEffect(() => (barShown && !compact ? registerIslandConsumer() : undefined), [barShown, compact])
+    // A faixa da barra: o que está vivo além do carrinho e dos status (a corrida e os pedidos novos da loja)
+    const barExtras = (live?.parts || []).filter((x) => x.key === 'ride' || x.key === 'store-p' || x.key === 'store-s').map((x) => ({ key: x.key as string, text: x.text, color: x.color, path: x.path || live!.path }))
+    // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
+    const stripShown = barShown && stripVisible({ active: activeKey, cartExpanded: cartStrip, cartCount: topCart, orderCounts, extras: barExtras.length })
 
     const idle = headerView
     return (
@@ -692,7 +684,7 @@ export default function ModeShell({ children }: {
         `}</style>
         <Suspense fallback={null}><ChatThreadWatcher onChange={setThreadOpen} /></Suspense>
 
-        {/* A página: abaixo da ilha; sem cartão deslizando (o menu virou o hub) */}
+        {/* A página: começa logo abaixo da área segura (a ilha do topo foi mesclada à barra de baixo); sem cartão deslizando (o menu virou o hub) */}
         <div
             className="relative"
             style={{
@@ -710,83 +702,6 @@ export default function ModeShell({ children }: {
             </div>
         </div>
 
-        {/* Faixa do topo: cobre o que rola por baixo da ilha. Cor SÓLIDA da página (sem degradê: o fundo fica igual ao da página) */}
-        <div aria-hidden className="fixed top-0 left-0 right-0 z-30 pointer-events-none" style={{ height: navH, background: colors.background }} />
-
-        {/* ILHA: foto do modo + cumprimento — ou o que está vivo agora (corrida, pedido, mensagens). Tocar abre o hub (ou vai ao que está vivo). */}
-        <div className="fixed left-0 right-0 z-40 pointer-events-none" style={{ top: ISLAND_TOP }}>
-            <div className="max-w-5xl mx-auto px-3">
-                <div
-                    ref={islandRef}
-                    className="pointer-events-auto relative flex items-center gap-2.5 pl-2 pr-3"
-                    style={{
-                        minHeight: baseH,
-                        borderRadius: (islandH || baseH) > baseH + 4 ? 28 : 9999,
-                        // Sólida, da cor do fundo das páginas (escura só quando há algo vivo)
-                        background: colors.background,
-                        border: msgStyle ? `2px solid ${msgStyle.color}` : live ? `1.5px solid ${live.color}` : `1px solid ${colors.border}`,
-                        boxShadow: '0 6px 20px rgba(0,0,0,0.10)',
-                        opacity: drawerOpen ? 0 : 1,
-                        transition: 'opacity 200ms ease, background 300ms ease, border-color 200ms ease',
-                        animation: islandMsg ? 'islandPop 320ms cubic-bezier(.2,1.2,.4,1)' : undefined,
-                    }}
-                >
-                    {/* O cartão TODO é um botão: abre o hub (ou vai ao que está vivo) */}
-                    <button
-                        onClick={() => (islandMsg ? toast.dismiss(islandMsg.id) : !compact && live && live.path.split('?')[0] !== shellPath ? go(live.path) : openHub())}
-                        aria-label={islandMsg ? islandMsg.text : live ? live.title : 'Abrir menu'}
-                        className="absolute inset-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                    />
-                    <button onClick={openHub} aria-label={idle.label} className="relative flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2.5px #fff, 0 2px 8px rgba(0,0,0,0.22)' }}>
-                        <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={compact ? 26 : 40} />
-                    </button>
-                    <div className="relative flex-1 min-w-0 text-left py-1 pointer-events-none">
-                        {islandMsg && msgStyle ? (
-                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 min-w-0" role="status" aria-live="polite">
-                                <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[15px] font-black flex-shrink-0" style={{ background: msgStyle.color }}>{islandMsg.icon || msgStyle.glyph}</span>
-                                <span className="min-w-0 flex-1 basis-40">
-                                    {islandMsg.description && <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{islandMsg.description}</span>}
-                                    <span className="block text-[14px] font-black leading-snug" style={{ color: colors.textPrimary }}>{islandMsg.text}</span>
-                                </span>
-                                {islandMsg.action && (
-                                    <span role="button" onClick={(e) => { e.stopPropagation(); islandMsg.action!.onClick(); toast.dismiss(islandMsg.id) }} className={`pointer-events-auto flex-shrink-0 text-[12px] font-black px-3 py-1.5 rounded-full text-white cursor-pointer ${islandMsg.action.label.length > 10 ? 'ml-auto' : ''}`} style={{ background: msgStyle.color }}>{islandMsg.action.label}</span>
-                                )}
-                            </div>
-                        ) : compact ? (
-                            <span className="block text-[13px] font-black truncate leading-tight" style={{ color: colors.textPrimary }}>{compactLabel}</span>
-                        ) : live ? (
-                            <>
-                                <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{live.sub}</span>
-                                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
-                                    {(live.parts && live.parts.length > 0 ? live.parts : [{ text: live.title, color: live.color }]).map((pt, i) => (
-                                        <span key={i} role={pt.path ? 'button' : undefined} aria-label={pt.path ? pt.text : undefined}
-                                            onClick={pt.path ? (e) => { e.stopPropagation(); if (pt.path!.split('?')[0] !== shellPath || pt.path!.includes('?')) go(pt.path!); else openHub() } : undefined}
-                                            className={`flex items-center gap-1 min-w-0 ${pt.path ? 'pointer-events-auto cursor-pointer rounded-full px-1.5 -mx-1 py-0.5 active:bg-black/5' : ''}`}>
-                                            <span className="relative flex-shrink-0 w-2 h-2">
-                                                {i === 0 && <span className={`absolute inset-0 rounded-full ${live.hot ? 'animate-ping' : ''}`} style={{ background: pt.color, opacity: 0.6 }} />}
-                                                <span className="absolute inset-0 rounded-full" style={{ background: pt.color }} />
-                                            </span>
-                                            <span className={`${live.parts && live.parts.length > 1 ? 'text-[13px]' : 'text-sm'} font-black ${live.parts && live.parts.length > 1 ? 'whitespace-nowrap' : 'truncate'}`} style={{ color: colors.textPrimary }}>{pt.text}</span>
-                                        </span>
-                                    ))}
-                                </span>
-                            </>
-                        ) : (
-                            <>
-                                <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{idle.line1}</span>
-                                <span className="block text-[15px] font-black truncate leading-tight" style={{ color: colors.textPrimary }}>{idle.line2}</span>
-                            </>
-                        )}
-                    </div>
-                    <button onClick={openHub} aria-label="Abrir menu" aria-expanded={drawerOpen} className={`relative flex-shrink-0 rounded-full flex items-center justify-center ${compact ? 'w-7 h-7' : 'w-9 h-9'}`} style={{ background: `${colors.border}66`, color: colors.textPrimary }}>
-                        <ChevronDown size={compact ? 15 : 18} />
-                    </button>
-                </div>
-                {islandMsg?.custom && <div className="pointer-events-auto mt-2" style={{ opacity: drawerOpen ? 0 : 1 }}>{islandMsg.custom(islandMsg.id)}</div>}
-            </div>
-            <style>{`@keyframes islandPop { 0% { transform: scale(.94); } 100% { transform: scale(1); } }`}</style>
-        </div>
-
         {/* BARRA de baixo: faixa de cima (carrinho nas páginas de compra + status dos pedidos) e seis botões iguais: carrinho, conversas, MODO ativo (abre o hub), radar, Social e lupa */}
         {barShown && (
             <BottomNavBar
@@ -800,6 +715,11 @@ export default function ModeShell({ children }: {
                 mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: openHub }}
                 onCart={() => go(cartStrip || !(topCart === 0 && ordersActive > 0) ? '/carrinho' : '/carrinho?aba=pedidos')}
                 onOrders={() => go('/carrinho?aba=pedidos')}
+                message={islandMsg && msgStyle ? { id: islandMsg.id, text: islandMsg.text, description: islandMsg.description, icon: islandMsg.icon, glyph: msgStyle.glyph, color: msgStyle.color, action: islandMsg.action ? { label: islandMsg.action.label, onClick: islandMsg.action.onClick } : undefined } : null}
+                extras={barExtras}
+                customCard={islandMsg?.custom ? islandMsg.custom(islandMsg.id) : null}
+                onDismiss={() => { if (islandMsg) toast.dismiss(islandMsg.id) }}
+                onGo={(path) => go(path)}
                 onChat={() => go(userId ? chatPath : '/login')}
                 onHome={() => (shellPath === '/' ? window.scrollTo({ top: 0, behavior: 'smooth' }) : go('/'))}
                 onRadar={() => go('/radar')}
@@ -807,10 +727,10 @@ export default function ModeShell({ children }: {
             />
         )}
 
-        {/* HUB: a ilha cresce e vira o painel. Fundo escurecido; tocar fora fecha. */}
+        {/* HUB: o menu de modos SOBE da barra de baixo (o botão do modo abre). Fundo escurecido; tocar fora fecha. */}
         <div aria-hidden={!drawerOpen} className="fixed inset-0 z-[70]" style={{ pointerEvents: drawerOpen ? 'auto' : 'none', visibility: drawerOpen ? 'visible' : 'hidden', transition: `visibility 0s linear ${drawerOpen ? 0 : 480}ms` }}>
             <button aria-label="Fechar menu" onClick={() => setDrawerOpen(false)} className="absolute inset-0 w-full h-full cursor-default" style={{ background: 'rgba(0,0,0,0.5)', opacity: drawerOpen ? 1 : 0, transition: 'opacity 350ms ease' }} />
-            <div className="absolute left-0 right-0" style={{ top: ISLAND_TOP }}>
+            <div className="absolute left-0 right-0" style={{ bottom: BAR_BOTTOM_VAR }}>
                 <div className="max-w-2xl mx-auto px-3">
                     <div
                         role="dialog"
@@ -825,15 +745,15 @@ export default function ModeShell({ children }: {
                             ['--hub-panel' as string]: colors.surface,
                             ['--hub-line' as string]: colors.border,
                             borderRadius: 28,
-                            maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
+                            maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-top) - 10px - var(--staging-banner-h, 0px) - env(safe-area-inset-bottom))',
                             display: 'flex', flexDirection: 'column',
                             boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
-                            clipPath: drawerOpen ? 'inset(0% 0% 0% 0% round 28px)' : `inset(0% 0% calc(100% - ${ISLAND_H}px) 0% round 28px)`,
+                            clipPath: drawerOpen ? 'inset(0% 0% 0% 0% round 28px)' : 'inset(calc(100% - 58px) 0% 0% 0% round 28px)',
                             opacity: drawerOpen ? 1 : 0,
                             transition: 'clip-path 480ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease',
                         }}
                     >
-                        {/* Cabeçalho = a própria ilha, agora aberta. Logado: o cumprimento e o perfil mesclados num cartão só, no topo */}
+                        {/* Cabeçalho do menu. Logado: o cumprimento e o perfil mesclados num cartão só, no topo */}
                         {userId ? (
                             <HubProfileTop
                                 slug={profileSlug}
