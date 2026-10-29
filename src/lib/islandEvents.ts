@@ -37,6 +37,7 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     // caixa do entregador (repasse, maquininha) e contestação de entrega: o texto e o destino vêm prontos do banco
     dues_update: { level: 'info', icon: '💵', label: 'Ver', duration: 9000 },
     dispute_update: { level: 'message', icon: '⚖️', label: 'Ver', duration: 10000 },
+    moderation_update: { level: 'info', icon: '🚩', label: 'Ver', duration: 9000 },   // conteúdo seu foi ocultado ou restaurado pelo iUser
 }
 
 export function islandEventFor(n: RawNotification): IslandEvent | null {

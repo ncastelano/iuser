@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ChevronDown, Heart } from 'lucide-react'
+import ReportButton from '@/components/moderation/ReportButton'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { profileLabel } from '@/lib/profileDisplay'
 
@@ -174,15 +175,18 @@ export default function ProductReviewsV3({
                             </span>
                         </div>
                         {r.comment && <p className="mt-1.5 text-[14px] leading-relaxed" style={{ color: colors.textPrimary }}>{r.comment}</p>}
+                        <div className="mt-1.5 flex items-center gap-4">
                         <button
                             onClick={() => onToggleLike(r.id)}
                             aria-pressed={r.is_liked}
                             aria-label={r.is_liked ? 'Descurtir avaliação' : 'Curtir avaliação'}
-                            className="mt-1.5 flex items-center gap-1 text-[12px] font-black transition active:scale-95"
+                            className="flex items-center gap-1 text-[12px] font-black transition active:scale-95"
                             style={{ color: r.is_liked ? '#ef4444' : colors.textSecondary }}
                         >
                             <Heart size={14} fill={r.is_liked ? '#ef4444' : 'none'} />{r.like_count}
                         </button>
+                            <ReportButton type="product_review" id={r.id} authorId={r.profiles?.id} size={13} label="Denunciar" />
+                        </div>
                     </li>
                 ))}
             </ul>

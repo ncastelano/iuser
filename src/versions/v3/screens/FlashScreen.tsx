@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast'
+import ReportButton from '@/components/moderation/ReportButton'
 import { ArrowLeft, ArrowUp, Heart, ImagePlus, MessageCircle, Plus, Send, Share2, Trash2, UserPlus, X, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -102,6 +103,11 @@ function FlashCard({ item, me, onLike, onFollow, onComments, onShare, onDelete }
                     <span className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}><Share2 size={21} /></span>
                     <span className="text-[11px] font-black">{item.shareCount > 0 ? shortCount(item.shareCount) : ''}</span>
                 </button>
+                {!own && (
+                    <span className="flex flex-col items-center" title="Denunciar">
+                        <span className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}><ReportButton type={item.kind === 'publication' ? 'publication' : 'flash'} id={item.id} authorId={item.authorId} size={18} style={{ color: '#fff' }} /></span>
+                    </span>
+                )}
                 {own && item.kind === 'flash' && (
                     <button onClick={() => onDelete(item)} aria-label="Apagar" className="flex flex-col items-center text-white transition active:scale-90">
                         <span className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}><Trash2 size={19} /></span>
@@ -183,6 +189,7 @@ function CommentsSheet({ item, me, onClose, onCounted }: { item: FlashItem; me: 
                                     <p className="text-[13px] leading-snug break-words" style={{ color: colors.textPrimary }}>{c.content}</p>
                                 </div>
                                 {(me === c.authorId || me === item.authorId) && <button onClick={() => remove(c)} aria-label="Apagar comentário" className="self-start p-1" style={{ color: colors.textSecondary }}><Trash2 size={14} /></button>}
+                                <ReportButton type="flash_comment" id={c.id} authorId={c.authorId} size={13} className="self-start p-1" />
                             </div>
                         ))}
                 </div>

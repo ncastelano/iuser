@@ -45,6 +45,7 @@
     "test:favorites": "node --test scripts/test-favorites.mjs",
     "test:live-push": "node --test scripts/test-live-push.mjs",
     "test:dues": "node --test scripts/test-dues.mjs",
+    "test:moderation": "node --test scripts/test-moderation.mjs",
     "test:toast": "node --test scripts/test-toast.mjs",
     "test:handoff": "python3 scripts/local/test-handoff.py",
     "test:island-events": "node --test scripts/test-island-events.mjs",

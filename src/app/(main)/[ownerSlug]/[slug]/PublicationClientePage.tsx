@@ -2,6 +2,7 @@
 
 'use client'
 
+import ReportButton from '@/components/moderation/ReportButton'
 import { profileLabel } from '@/lib/profileDisplay'
 import { useParams, useRouter } from 'next/navigation'
 import { useInsideShell } from '@/components/InsideShell'
@@ -638,6 +639,7 @@ export function PublicationClientPage({
                                     <MessageCircle size={12} />
                                     {isBeingReplied ? 'Cancelar' : 'Responder'}
                                 </button>
+                                <ReportButton type="comment" id={comment.id} authorId={comment.profile_id} size={12} label="Denunciar" className="text-xs" />
                             </div>
                         </div>
                     </div>
@@ -915,6 +917,7 @@ export function PublicationClientPage({
                                 >
                                     <Share2 size={18} />
                                 </button>
+                                <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}><ReportButton type="publication" id={publication.id} authorId={publication.owner_id} size={17} /></span>
                             </div>
 
                             {/* Título (mobile - no header web já mostra) */}

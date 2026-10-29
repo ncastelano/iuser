@@ -1,6 +1,7 @@
 // app/(main)/comunidade/[communitySlug]/CommunityRoomClient.tsx
 'use client'
 
+import ReportButton from '@/components/moderation/ReportButton'
 import { useInsideShell } from '@/components/InsideShell'
 import LinkPreviewCard from '@/components/communities/LinkPreviewCard'
 import { extractFirstUrl, linkify } from '@/lib/linkify'
@@ -718,6 +719,7 @@ export default function CommunityRoomClient() {
                                             <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                                 {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: ptBR })}
                                             </span>
+                                            {!isMine && <ReportButton type="community_message" id={message.id} authorId={message.profile_id} size={12} className="opacity-70" />}
                                             {isMine && (
                                                 <div className="relative">
                                                     <button
