@@ -708,8 +708,8 @@ export default function ModeShell({ children }: {
             </div>
         </div>
 
-        {/* Faixa do topo: cobre o que rola por baixo da ilha */}
-        <div aria-hidden className="fixed top-0 left-0 right-0 z-30 pointer-events-none" style={{ height: navH, background: `linear-gradient(to bottom, ${colors.background} 70%, transparent)` }} />
+        {/* Faixa do topo: cobre o que rola por baixo da ilha. Cor SÓLIDA da página (sem degradê: o fundo fica igual ao da página) */}
+        <div aria-hidden className="fixed top-0 left-0 right-0 z-30 pointer-events-none" style={{ height: navH, background: colors.background }} />
 
         {/* ILHA: foto do modo + cumprimento — ou o que está vivo agora (corrida, pedido, mensagens). Tocar abre o hub (ou vai ao que está vivo). */}
         <div className="fixed left-0 right-0 z-40 pointer-events-none" style={{ top: ISLAND_TOP }}>
