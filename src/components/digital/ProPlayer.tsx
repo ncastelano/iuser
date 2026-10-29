@@ -154,9 +154,9 @@ export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext }:
 
             {/* fim da aula */}
             {ended && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center text-white p-6" style={{ background: 'rgba(8,8,12,.82)', backdropFilter: 'blur(6px)' }}>
-                    <CheckCircle2 size={44} style={{ color: '#22c55e' }} />
-                    <p className="text-lg font-black">Aula concluída!</p>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 sm:gap-3 text-center text-white p-3 sm:p-6" style={{ background: 'rgba(8,8,12,.82)', backdropFilter: 'blur(6px)' }}>
+                    <CheckCircle2 size={36} style={{ color: '#22c55e' }} />
+                    <p className="text-base sm:text-lg font-black">Aula concluída!</p>
                     {onNext ? (
                         <>
                             <p className="text-sm text-white/70">Próxima: <b className="text-white">{nextTitle}</b> {countdown !== null && <>em <b style={{ color: ORANGE }}>{countdown}s</b></>}</p>
@@ -177,7 +177,7 @@ export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext }:
 
             {/* controles */}
             {src && (
-                <div className="absolute inset-x-0 bottom-0 pt-16 pb-2 px-3 text-white transition-opacity duration-300" style={{ opacity: showControls ? 1 : 0, pointerEvents: showControls ? 'auto' : 'none', background: 'linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0))' }}>
+                <div className="absolute inset-x-0 bottom-0 pt-16 pb-2 px-3 text-white transition-opacity duration-300" style={{ opacity: showControls && !ended ? 1 : 0, pointerEvents: showControls && !ended ? 'auto' : 'none', background: 'linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0))' }}>
                     <p className="text-[13px] font-black truncate mb-2 px-1 opacity-90">{title}</p>
                     <div className="relative h-5 flex items-center group px-1">
                         <div className="absolute left-1 right-1 h-1.5 group-hover:h-2 rounded-full transition-all" style={{ background: 'rgba(255,255,255,.22)' }}>

@@ -8,8 +8,10 @@ import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { openItem, type OpenedItem } from '@/modules/digital'
 
-export default function DigitalViewer({ itemId, title, onEnded }: { itemId: string; title: string; onEnded?: () => void }) {
-    const { colors } = useTheme()
+export default function DigitalViewer({ itemId, title, onEnded, dark = false }: { itemId: string; title: string; onEnded?: () => void; dark?: boolean }) {
+    const theme = useTheme().colors
+    // dark: a sala de aula é sempre escura, qualquer que seja o tema do app
+    const colors = dark ? { ...theme, surface: '#13131a', border: '#262633', textPrimary: '#f5f5fa', textSecondary: '#9a9ab2' } : theme
     const [data, setData] = useState<OpenedItem | null>(null)
     const [error, setError] = useState<string | null>(null)
 

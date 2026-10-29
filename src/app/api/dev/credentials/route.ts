@@ -15,7 +15,16 @@ export async function GET(req: Request) {
         if (!u?.user?.email) return NextResponse.json({ error: 'dono sem e-mail' }, { status: 404 })
         return NextResponse.json({ email: u.user.email, password: DEV_TEST_PASSWORD })
     }
+    // profile-<slug>: qualquer perfil do banco LOCAL (a senha de teste vem de seed-motoboys.mjs / set-dev-password)
+    const prof = who?.match(/^profile-([a-z0-9-]+)$/)
+    if (prof) {
+        const { data: pr } = await supabaseAdmin.from('profiles').select('id').eq('profileSlug', prof[1]).maybeSingle()
+        if (!pr) return NextResponse.json({ error: 'perfil não encontrado' }, { status: 404 })
+        const { data: u } = await supabaseAdmin.auth.admin.getUserById(pr.id)
+        if (!u?.user?.email) return NextResponse.json({ error: 'perfil sem e-mail' }, { status: 404 })
+        return NextResponse.json({ email: u.user.email, password: DEV_TEST_PASSWORD })
+    }
     const drv = who?.match(/^driver-([a-z]+)$/)
     if (drv) return NextResponse.json({ email: `entregador-${drv[1]}@staging.iuser.test`, password: DEV_TEST_PASSWORD })   // motoristas iUser (seed-entregadores.mjs)
-    return NextResponse.json({ error: 'as=owner|client|driver-<chave>' }, { status: 400 })
+    return NextResponse.json({ error: 'as=owner|client|driver-<chave>|profile-<slug>' }, { status: 400 })
 }

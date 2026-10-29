@@ -88,7 +88,7 @@ export default function SalaDeAulaPage() {
                         {cur && isPlayable(cur) ? (
                             <ProPlayer key={cur.id} itemId={cur.id} title={cur.title} nextTitle={next?.title} onEnded={() => mark(cur.id)} onNext={next ? () => go(next.id) : null} />
                         ) : cur ? (
-                            <DigitalViewer itemId={cur.id} title={cur.title} />
+                            <DigitalViewer itemId={cur.id} title={cur.title} dark />
                         ) : (
                             <div className="rounded-2xl p-10 text-center" style={{ background: C.surface, border: `1px solid ${C.line}`, color: C.muted }}>Nada para abrir ainda.</div>
                         )}
@@ -101,13 +101,13 @@ export default function SalaDeAulaPage() {
                                     {lessonIdx >= 0 && <p className="text-[12px] mt-0.5" style={{ color: C.muted }}>Aula {lessonIdx + 1} de {lessons.length}{cur.duration_seconds ? ` · ${formatDuration(cur.duration_seconds)}` : ''}</p>}
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    <button type="button" disabled={!prev} onClick={() => prev && go(prev.id)} className="h-11 px-4 rounded-full text-sm font-black inline-flex items-center gap-1.5 disabled:opacity-30 transition active:scale-95" style={{ background: C.surface2, border: `1px solid ${C.line}` }}><ChevronLeft size={16} /> Anterior</button>
+                                    {lessons.length > 1 && <button type="button" disabled={!prev} onClick={() => prev && go(prev.id)} className="h-11 px-4 rounded-full text-sm font-black inline-flex items-center gap-1.5 disabled:opacity-30 transition active:scale-95" style={{ background: C.surface2, border: `1px solid ${C.line}` }}><ChevronLeft size={16} /> Anterior</button>}
                                     {done[cur.id] ? (
                                         <span className="h-11 px-4 rounded-full text-sm font-black inline-flex items-center gap-1.5" style={{ background: 'rgba(34,197,94,.14)', color: C.green }}><CheckCircle2 size={16} /> Concluída</span>
                                     ) : (
                                         <button type="button" onClick={() => mark(cur.id)} className="h-11 px-4 rounded-full text-sm font-black inline-flex items-center gap-1.5 transition active:scale-95" style={{ background: C.surface2, border: `1px solid ${C.line}` }}><CheckCircle2 size={16} /> Marcar como concluída</button>
                                     )}
-                                    <button type="button" disabled={!next} onClick={() => { if (next) { mark(cur.id); go(next.id) } }} className="h-11 px-5 rounded-full text-sm font-black inline-flex items-center gap-1.5 disabled:opacity-30 transition active:scale-95" style={{ background: C.orange, color: '#fff' }}>Próxima aula <ChevronRight size={16} /></button>
+                                    {lessons.length > 1 && <button type="button" disabled={!next} onClick={() => { if (next) { mark(cur.id); go(next.id) } }} className="h-11 px-5 rounded-full text-sm font-black inline-flex items-center gap-1.5 disabled:opacity-30 transition active:scale-95" style={{ background: C.orange, color: '#fff' }}>Próxima aula <ChevronRight size={16} /></button>}
                                 </div>
                                 <p className="text-[11px]" style={{ color: C.muted }}>Atalhos: espaço pausa · ← → pulam 5 s · J L pulam 10 s · F tela cheia · M som · &lt; &gt; velocidade</p>
                             </div>

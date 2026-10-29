@@ -481,6 +481,16 @@ export default function CatalogoClientPage() {
             return
         }
 
+        // Produto digital não tem observação nem adicionais: vai direto para o carrinho
+        if (product.type === 'digital') {
+            addItem(ownerSlug, { name: storeInfo.name, logo_url: storeInfo.logo_url ?? null }, {
+                id: product.id, name: product.name, price: product.price || 0, image_url: product.image_url || null, slug: product.slug, type: 'digital',
+                description: product.description || undefined, category: product.category || undefined,
+            } as any)
+            void cartAddedFeedback()
+            return
+        }
+
         setPendingProduct(product)
         setShowAddCommentModal(true)
     }
@@ -499,6 +509,7 @@ export default function CatalogoClientPage() {
             price: pendingProduct.price || 0,
             image_url: pendingProduct.image_url || null,
             slug: pendingProduct.slug,
+            type: pendingProduct.type || undefined,
             description: pendingProduct.description || undefined,
             category: pendingProduct.category || undefined,
         }
