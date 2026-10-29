@@ -36,13 +36,13 @@ const SLUG = 'pizzaria-forno-de-ouro', ADMIN_SLUG = 'admin-teste', CAT = 'Cursos
 const V = (title, seconds, preview = false) => ({ kind: 'video', title, seconds, preview })
 const DOC = (title, pages, preview = false) => ({ kind: 'pdf', title, pages, preview })
 const COURSES = [
-    { name: 'Aula Única: Massa Napolitana de 72 horas', price: 29.9, colors: ['#b91c1c', '#f97316'], emoji: '🍕', views: 640,
+    { name: 'Aula Única: Massa Napolitana de 72 horas', price: 29.9, colors: ['#b91c1c', '#f97316'], emoji: '🍕', views: 640, teaser: 8,
       desc: 'Uma aula completa e direta ao ponto: hidratação, fermentação em 3 dias e o ponto certo de abrir a massa. Acesso para sempre, no celular ou no computador.',
       modules: [{ title: null, items: [V('Massa napolitana: do preparo ao ponto de abrir', 14)] }] },
     { name: 'Aula Única: Molho de Tomate da Nonna', price: 19.9, colors: ['#991b1b', '#ef4444'], emoji: '🍅', views: 410,
       desc: 'O molho simples de 4 ingredientes que sustenta a pizzaria: tomate pelado, sal, azeite e manjericão. Uma aula e um segredo de cozimento.',
       modules: [{ title: null, items: [V('Molho de tomate da Nonna, passo a passo', 12)] }] },
-    { name: 'Curso Pizzaiolo Iniciante', price: 97, colors: ['#9a3412', '#f59e0b'], emoji: '👨‍🍳', views: 1220,
+    { name: 'Curso Pizzaiolo Iniciante', price: 97, colors: ['#9a3412', '#f59e0b'], emoji: '👨‍🍳', views: 1220, teaser: 10,
       desc: 'Do zero ao primeiro forno: ingredientes, fermentação, abertura, montagem e forno. 8 vídeo-aulas em 3 módulos, com apostila de receitas em PDF. A primeira aula é grátis.',
       modules: [
         { title: 'Módulo 1 · Primeiros passos', items: [V('Boas-vindas ao curso', 9, true), V('Ingredientes e equipamentos', 11), V('Fermentação sem mistério', 12)] },
@@ -53,7 +53,7 @@ const COURSES = [
             { heading: 'Molho simples', lines: ['400 g de tomate pelado amassado · 1 pitada de sal · fio de azeite · folhas de manjericão.', 'Sem cozinhar: o molho cozinha no forno junto com a pizza.'] },
             { heading: 'Montagem', lines: ['Molho, mussarela, ingredientes e, depois do forno, azeite e manjericão fresco.', 'Menos é mais: três ingredientes no máximo para a massa respirar.'] }])] },
       ] },
-    { name: 'Curso Pizzaiolo Profissional', price: 197, colors: ['#1e293b', '#b91c1c'], emoji: '🔥', views: 880,
+    { name: 'Curso Pizzaiolo Profissional', price: 197, colors: ['#1e293b', '#b91c1c'], emoji: '🔥', views: 880, teaser: 12,
       desc: 'O curso completo para quem quer viver de pizza: massas e fermentação, forno e finalização, e a parte de negócio — cardápio, precificação, delivery e atendimento. 12 vídeo-aulas, apostila e planilha de custos.',
       modules: [
         { title: 'Módulo 1 · Massas e fermentação', items: [V('Aula inaugural: o que faz uma pizza ser profissional', 10, true), V('Farinhas, hidratação e sal', 12), V('Fermentação longa e geladeira', 13), V('Massa de pizza em fatia e romana', 12)] },
@@ -89,6 +89,11 @@ const jobs = [], plan = []
 for (const c of COURSES) {
     c.id = uid(`prod:${c.name}`); c.slug = `${slugify(c.name)}-pizzaria`
     let n = 0, lesson = 0
+    if (c.teaser) {
+        const out = path.join(work, `${c.slug}-previa.mp4`)
+        jobs.push({ kind: 'video', out, title: c.name.replace(/^(Aula Única): /, ''), subtitle: 'Prévia · veja o que vem no curso', badge: 'PRÉVIA', c1: c.colors[0], c2: c.colors[1], emoji: c.emoji, seconds: c.teaser })
+        plan.push({ c, m: { title: null }, it: { kind: 'video', title: 'Prévia da vitrine', seconds: c.teaser }, n: 0, base: '00-previa', out, mime: 'video/mp4', ext: 'mp4', kind: 'video', teaser: true })
+    }
     const totalLessons = c.modules.flatMap((m) => m.items).filter((i) => i.kind === 'video').length
     for (const m of c.modules) for (const it of m.items) {
         n += 1
@@ -120,10 +125,10 @@ const [store] = await api('GET', `/rest/v1/stores?select=id&storeSlug=eq.${SLUG}
 if (!store) throw new Error('Pizzaria não encontrada: rode scripts/local/seed-pizzaria.mjs antes')
 
 const cover = (c) => {
-    const lines = wrap(c.name.replace(/^(Aula Única|Playlist|E-book): /, ''), 16), f = lines.length > 2 ? 46 : 54, baseY = 540 - 90 - (lines.length - 1) * (f + 8)
-    const t = lines.map((l, i) => `<text x="44" y="${baseY + i * (f + 8)}" font-family="Helvetica, Arial, sans-serif" font-size="${f}" font-weight="700" fill="#fff">${esc(l)}</text>`).join('')
+    const lines = wrap(c.name.replace(/^(Aula Única|Playlist|E-book): /, ''), 20), f = lines.length > 2 ? 58 : 70, baseY = 720 - 130 - (lines.length - 1) * (f + 10)
+    const t = lines.map((l, i) => `<text x="64" y="${baseY + i * (f + 10)}" font-family="Helvetica, Arial, sans-serif" font-size="${f}" font-weight="700" fill="#fff">${esc(l)}</text>`).join('')
     const tag = c.name.startsWith('Aula Única') ? 'AULA ÚNICA' : c.name.startsWith('Playlist') ? 'PLAYLIST' : c.name.startsWith('E-book') ? 'E-BOOK' : 'CURSO ONLINE'
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c.colors[0]}"/><stop offset="1" stop-color="${c.colors[1]}"/></linearGradient></defs><rect width="640" height="640" fill="url(#g)"/><circle cx="520" cy="120" r="170" fill="#fff" opacity=".1"/><circle cx="90" cy="560" r="130" fill="#fff" opacity=".08"/><rect x="44" y="44" width="${tag.length * 15 + 36}" height="38" rx="19" fill="#000" opacity=".28"/><text x="62" y="70" font-family="Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#fff">${tag}</text>${t}<text x="44" y="610" font-family="Helvetica, Arial, sans-serif" font-size="22" fill="#fff" opacity=".9">Pizzaria Forno de Ouro</text></svg>`
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c.colors[0]}"/><stop offset="1" stop-color="${c.colors[1]}"/></linearGradient></defs><rect width="1280" height="720" fill="url(#g)"/><circle cx="1050" cy="140" r="260" fill="#fff" opacity=".1"/><circle cx="160" cy="640" r="200" fill="#fff" opacity=".08"/><rect x="64" y="60" width="${tag.length * 20 + 44}" height="48" rx="24" fill="#000" opacity=".28"/><text x="86" y="93" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#fff">${tag}</text>${t}<text x="64" y="684" font-family="Helvetica, Arial, sans-serif" font-size="28" fill="#fff" opacity=".9">Pizzaria Forno de Ouro</text></svg>`
 }
 for (const c of COURSES) {
     await upload('product-images', `digital-${c.slug}.jpg`, await sharp(Buffer.from(cover(c))).jpeg({ quality: 82 }).toBuffer(), 'image/jpeg')
@@ -141,11 +146,11 @@ for (const p of plan) {
     const storagePath = `${admin.id}/${p.c.id}/${p.base}.${p.ext}`
     await upload('digital-files', storagePath, buf, p.mime)
     rows.push({ product_id: p.c.id, owner_id: admin.id, module_title: p.m.title, title: p.it.title, kind: p.kind, storage_path: storagePath, mime_type: p.mime, size_bytes: buf.length,
-        duration_seconds: p.it.kind === 'video' ? p.it.seconds : null, position: p.n, is_preview: !!p.it.preview })
+        duration_seconds: p.it.kind === 'video' ? p.it.seconds : null, position: p.n, is_preview: !!p.it.preview, is_teaser: !!p.teaser })
 }
 await api('POST', '/rest/v1/digital_contents', rows, { Prefer: 'return=minimal' })
 fs.rmSync(work, { recursive: true, force: true })
 
 console.log(`${COURSES.length} produtos digitais na ${SLUG} (categoria "${CAT}"): ${COURSES.map((c) => `${c.name} — R$ ${c.price.toFixed(2)}`).join(' | ')}`)
-console.log(`${rows.length} itens de conteúdo (${rows.filter((r) => r.kind === 'video').length} vídeos). Acesso: dono (admin-teste) abre tudo; cliente abre depois que a loja liberar o pedido.`)
+console.log(`${rows.length} itens de conteúdo (${rows.filter((r) => r.kind === 'video').length} vídeos, ${rows.filter((r) => r.is_teaser).length} prévias curtas). Acesso: dono (admin-teste) abre tudo; cliente abre depois que a loja liberar o pedido.`)
 console.log(`Área do curso Iniciante: /minhas-compras-digitais/${COURSES[2].id}`)

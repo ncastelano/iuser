@@ -1,8 +1,8 @@
 // src/app/(main)/inicio/sections/DigitalShowcase.tsx
 //
-// "Cursos e produtos digitais" da home 2.0: o mesmo desenho de "Produtos em destaque" (cartões em linha, 3 por vez, que alternam sozinhos).
-// Mostra os produtos digitais ativos que já têm conteúdo (curso, aula, playlist, e-book...), os mais vistos primeiro; tocar abre o produto e
-// "ver digitais" abre a lista completa (/digitais). Sem nenhum produto digital a seção some, como as outras vitrines.
+// "Cursos e produtos digitais" da home 2.0: uma fileira de cartões 16:9 que rola de lado, com a PRÉVIA em vídeo: um cartão por vez ganha vida a cada 3 s e, ao passar o mouse
+// (ou segurar o dedo), a prévia toca por até 15 s (DigitalCards). Mostra os produtos digitais ativos que já têm conteúdo, os mais vistos primeiro; "ver digitais" abre
+// /digitais. Sem nenhum produto digital a seção some, como as outras vitrines.
 'use client'
 
 import { useEffect, useState, ReactNode } from 'react'
@@ -11,10 +11,8 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { useTheme } from '@/app/contexts/theme'
 import { HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
-import ListingRowCard from '@/components/ListingRowCard'
-import { usePagedRotation } from '@/hooks/usePagedRotation'
-import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
-import { loadDigitalShowcase, PRODUCT_KIND_LABEL, type ShowcaseItem } from '@/modules/digital'
+import DigitalCards from '@/components/digital/DigitalCards'
+import { loadDigitalShowcase, type ShowcaseItem } from '@/modules/digital'
 
 export const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
 
@@ -30,10 +28,6 @@ export default function DigitalShowcase({ dragHandle }: { dragHandle?: ReactNode
         return () => { alive = false }
     }, [])
 
-    const list = items ?? []
-    const { page, dir, pages, goTo, handlers, visibleRange } = usePagedRotation(list.length, 3)
-    const visible = list.slice(visibleRange[0], visibleRange[1])
-
     if (items === null) {
         return (
             <div className="w-full">
@@ -41,44 +35,23 @@ export default function DigitalShowcase({ dragHandle }: { dragHandle?: ReactNode
                     {dragHandle}
                     <div className="h-6 rounded w-56 animate-pulse" style={{ background: `${colors.border}60` }} />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 overflow-hidden">
-                    {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[130px] rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />)}
+                <div className="flex gap-3 overflow-hidden">
+                    {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[250px] w-[272px] flex-shrink-0 rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />)}
                 </div>
             </div>
         )
     }
-    if (list.length === 0) return null
-
-    const open = (path: string) => { startNavProgress(); router.push(path) }
+    if (items.length === 0) return null
 
     return (
         <div className="relative w-full">
             <HomeSectionHeader
                 title="Cursos e produtos digitais"
-                subtitle="Vídeo-aulas, cursos, playlists e e-books para comprar e abrir na hora"
+                subtitle="Vídeo-aulas, cursos, playlists e e-books — passe o mouse ou segure para ver a prévia"
                 dragHandle={dragHandle}
-                action={<ViewServicesButton label="ver digitais" onClick={() => open('/digitais')} />}
+                action={<ViewServicesButton label="ver digitais" onClick={() => { startNavProgress(); router.push('/digitais') }} />}
             />
-            <div {...handlers}>
-                <div key={page} className={`grid grid-cols-1 md:grid-cols-3 gap-3 ${dir > 0 ? 'page-in-next' : 'page-in-prev'}`} style={{ touchAction: 'pan-y' }}>
-                    {visible.map((p) => (
-                        <ListingRowCard
-                            key={p.id}
-                            title={p.name}
-                            description={p.summary}
-                            imageUrl={p.imageUrl || p.storeLogo}
-                            priceLabel={brl(p.price)}
-                            sellerName={p.storeName}
-                            sellerImageUrl={p.storeLogo}
-                            views={p.viewCount}
-                            tag={p.freeItems > 0 ? `${PRODUCT_KIND_LABEL[p.kind]} · aula grátis` : PRODUCT_KIND_LABEL[p.kind]}
-                            onClick={() => open(`/${p.storeSlug}/${p.slug}`)}
-                        />
-                    ))}
-                </div>
-            </div>
-            <PageDots pages={pages} page={page} onGo={goTo} label="Ver cursos e produtos digitais, página" />
-            <style>{PAGE_SLIDE_CSS}</style>
+            <DigitalCards items={items} layout="strip" />
         </div>
     )
 }

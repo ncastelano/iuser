@@ -129,3 +129,38 @@ export function storagePathFor(uid: string, productId: string, fileName: string,
     const clean = fileName.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').slice(-80) || 'arquivo'
     return `${uid}/${productId}/${now}-${clean}`
 }
+
+// ------------------------------------------------------------------ prévia em vídeo na vitrine
+/** A vitrine só toca os primeiros 15 s da prévia; o vídeo curto marcado como prévia tem no máximo 30 s */
+export const PREVIEW_PLAY_SECONDS = 15
+export const TEASER_MAX_SECONDS = 30
+/** Um cartão por vez ganha vida: a cada 3 s o destaque passa para o próximo */
+export const SPOTLIGHT_MS = 3000
+/** Segurar o dedo (celular) por tanto tempo abre a prévia */
+export const HOLD_MS = 350
+
+/** Quantos segundos da prévia tocam: o vídeo inteiro se for curto, no máximo 15 s */
+export function previewPlaySeconds(durationSeconds: number | null | undefined): number {
+    const d = durationSeconds && durationSeconds > 0 ? durationSeconds : PREVIEW_PLAY_SECONDS
+    return Math.min(PREVIEW_PLAY_SECONDS, d)
+}
+
+/** Próximo cartão do destaque (volta ao primeiro no fim; se o atual saiu da lista, começa de novo) */
+export function nextSpotlightId(ids: string[], current: string | null): string | null {
+    if (ids.length === 0) return null
+    const i = current ? ids.indexOf(current) : -1
+    return ids[(i + 1) % ids.length]
+}
+
+/** A prévia curta precisa ser um vídeo de 1 a 30 s (o banco confere de novo) */
+export function validateTeaser(input: { isVideo: boolean; durationSeconds: number | null }): string | null {
+    if (!input.isVideo) return 'A prévia da vitrine precisa ser um vídeo.'
+    if (!input.durationSeconds || input.durationSeconds < 1) return 'Não deu para ler a duração do vídeo. Use um MP4.'
+    if (input.durationSeconds > TEASER_MAX_SECONDS) return `A prévia passa de ${TEASER_MAX_SECONDS} segundos. Use um trecho curto.`
+    return null
+}
+
+/** Movimento automático só se a pessoa não pediu menos movimento nem economia de dados */
+export function autoPreviewAllowed(env: { reducedMotion: boolean; saveData: boolean }): boolean {
+    return !env.reducedMotion && !env.saveData
+}

@@ -1,7 +1,7 @@
 // Testes das regras puras dos produtos digitais (src/modules/digital/domain.ts). Rodar: npm run test:digital
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES, productKindOf, summaryFromCounts, SHOWCASE_FILTERS, PRODUCT_KIND_LABEL } from '../src/modules/digital/domain.ts'
+import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES, productKindOf, summaryFromCounts, SHOWCASE_FILTERS, PRODUCT_KIND_LABEL, previewPlaySeconds, nextSpotlightId, validateTeaser, autoPreviewAllowed, PREVIEW_PLAY_SECONDS, SPOTLIGHT_MS, TEASER_MAX_SECONDS } from '../src/modules/digital/domain.ts'
 
 const it = (o) => ({ id: 'x', module_title: null, title: 't', kind: 'video', duration_seconds: null, size_bytes: null, position: 0, is_preview: false, unlocked: false, ...o })
 
@@ -75,4 +75,32 @@ test('resumo a partir das contagens e filtros da vitrine', () => {
     assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'arquivos'])
     assert.ok(SHOWCASE_FILTERS.find((f) => f.id === 'arquivos').kinds.includes('ebook'))
     assert.equal(PRODUCT_KIND_LABEL.aula, 'Aula única')
+})
+
+test('prévia: toca no máximo 15 s e o destaque passa de 3 em 3 s', () => {
+    assert.equal(PREVIEW_PLAY_SECONDS, 15); assert.equal(SPOTLIGHT_MS, 3000)
+    assert.equal(previewPlaySeconds(9), 9)
+    assert.equal(previewPlaySeconds(40), 15)
+    assert.equal(previewPlaySeconds(null), 15)
+    assert.equal(previewPlaySeconds(0), 15)
+})
+test('destaque: um cartão por vez, em volta', () => {
+    assert.equal(nextSpotlightId([], null), null)
+    assert.equal(nextSpotlightId(['a', 'b', 'c'], null), 'a')
+    assert.equal(nextSpotlightId(['a', 'b', 'c'], 'a'), 'b')
+    assert.equal(nextSpotlightId(['a', 'b', 'c'], 'c'), 'a')
+    assert.equal(nextSpotlightId(['a', 'b'], 'sumiu'), 'a')
+    assert.equal(nextSpotlightId(['só'], 'só'), 'só')
+})
+test('prévia curta: vídeo de 1 a 30 s', () => {
+    assert.equal(TEASER_MAX_SECONDS, 30)
+    assert.match(validateTeaser({ isVideo: false, durationSeconds: 10 }), /vídeo/)
+    assert.match(validateTeaser({ isVideo: true, durationSeconds: null }), /duração/)
+    assert.match(validateTeaser({ isVideo: true, durationSeconds: 31 }), /30 segundos/)
+    assert.equal(validateTeaser({ isVideo: true, durationSeconds: 30 }), null)
+})
+test('movimento automático respeita menos movimento e economia de dados', () => {
+    assert.equal(autoPreviewAllowed({ reducedMotion: false, saveData: false }), true)
+    assert.equal(autoPreviewAllowed({ reducedMotion: true, saveData: false }), false)
+    assert.equal(autoPreviewAllowed({ reducedMotion: false, saveData: true }), false)
 })

@@ -19,6 +19,7 @@ export default function DigitalContentManager({ productId }: { productId: string
     const [moduleTitle, setModuleTitle] = useState('')
     const [url, setUrl] = useState('')
     const [preview, setPreview] = useState(false)
+    const [teaser, setTeaser] = useState(false)
     const fileRef = useRef<HTMLInputElement>(null)
 
     const load = useCallback(async () => { try { setItems(await listOwnItems(productId)) } catch (e: any) { toast.error(e.message) } }, [productId])
@@ -31,15 +32,15 @@ export default function DigitalContentManager({ productId }: { productId: string
     const onFile = (f: File | undefined) => {
         if (!f || !userId) return
         run(async () => {
-            await addFileItem({ uid: userId, productId, file: f, title: title.trim() || f.name.replace(/\.[^.]+$/, ''), moduleTitle, isPreview: preview })
-            setTitle(''); setPreview(false)
-        }, 'Arquivo enviado ✓')
+            await addFileItem({ uid: userId, productId, file: f, title: title.trim() || (teaser ? 'Prévia da vitrine' : f.name.replace(/\.[^.]+$/, '')), moduleTitle: teaser ? undefined : moduleTitle, isPreview: preview, isTeaser: teaser })
+            setTitle(''); setPreview(false); setTeaser(false)
+        }, teaser ? 'Prévia da vitrine enviada ✓' : 'Arquivo enviado ✓')
         if (fileRef.current) fileRef.current.value = ''
     }
 
     const field = 'w-full h-11 rounded-full px-4 text-sm outline-none'
     const fs = { background: `${colors.border}26`, color: colors.textPrimary, border: `1px solid ${colors.border}` }
-    const asCurriculum: CurriculumItem[] = items.map((i) => ({ ...i, unlocked: true }))
+    const asCurriculum: CurriculumItem[] = items.filter((i) => !i.is_teaser).map((i) => ({ ...i, unlocked: true }))
     return (
         <div className="flex flex-col gap-3">
             <div>
@@ -52,7 +53,11 @@ export default function DigitalContentManager({ productId }: { productId: string
                 <input className={field} style={fs} placeholder="Módulo (opcional) — ex.: Módulo 1 · Primeiros passos" value={moduleTitle} onChange={(e) => setModuleTitle(e.target.value)} maxLength={100} list={`mods-${productId}`} />
                 <datalist id={`mods-${productId}`}>{groupByModule(items).filter((g) => g.title).map((g) => <option key={g.title} value={g.title!} />)}</datalist>
                 <label className="flex items-center gap-2 text-[12px] font-bold cursor-pointer" style={{ color: colors.textPrimary }}>
-                    <input type="checkbox" className="w-4 h-4 accent-orange-500" checked={preview} onChange={(e) => setPreview(e.target.checked)} /> Aula grátis (aparece aberta na vitrine)
+                    <input type="checkbox" className="w-4 h-4 accent-orange-500" checked={preview && !teaser} disabled={teaser} onChange={(e) => setPreview(e.target.checked)} /> Aula grátis (aparece aberta na vitrine)
+                </label>
+                <label className="flex items-start gap-2 text-[12px] font-bold cursor-pointer" style={{ color: colors.textPrimary }}>
+                    <input type="checkbox" className="w-4 h-4 mt-0.5 accent-orange-500" checked={teaser} onChange={(e) => setTeaser(e.target.checked)} />
+                    <span>É a <b>prévia da vitrine</b> (vídeo curto de até 30 s). Passa sozinho nos cartões da home e toca 15 s quando a pessoa passa o mouse ou segura o dedo. Não faz parte do que o cliente compra.</span>
                 </label>
                 <div className="flex gap-2">
                     <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} className="flex-1 h-11 rounded-full text-sm font-black inline-flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: '#f97316', color: '#fff' }}>
@@ -83,10 +88,14 @@ export default function DigitalContentManager({ productId }: { productId: string
                                     <span className="block text-[13px] font-bold truncate" style={{ color: colors.textPrimary }}>{it.title}</span>
                                     <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{[formatDuration(it.duration_seconds), formatSize(it.size_bytes), it.external_url ? 'link' : ''].filter(Boolean).join(' · ') || ' '}</span>
                                 </span>
-                                <button type="button" disabled={busy} onClick={() => run(() => setItemPreview(it.id, !it.is_preview))} className="text-[10px] font-black rounded-full px-2 py-1"
-                                    style={{ background: it.is_preview ? '#22c55e22' : `${colors.border}55`, color: it.is_preview ? '#16a34a' : colors.textSecondary }}>{it.is_preview ? 'Grátis' : 'Pago'}</button>
-                                <button type="button" aria-label="Subir" disabled={busy || idx <= 0} onClick={() => run(() => swapItems(it, items[idx - 1]))} className="p-1 disabled:opacity-30" style={{ color: colors.textSecondary }}><ArrowUp size={15} /></button>
-                                <button type="button" aria-label="Descer" disabled={busy || idx >= items.length - 1} onClick={() => run(() => swapItems(it, items[idx + 1]))} className="p-1 disabled:opacity-30" style={{ color: colors.textSecondary }}><ArrowDown size={15} /></button>
+                                {it.is_teaser ? (
+                                    <span className="text-[10px] font-black rounded-full px-2 py-1" style={{ background: '#0ea5e922', color: '#0284c7' }}>Prévia da vitrine</span>
+                                ) : (
+                                    <button type="button" disabled={busy} onClick={() => run(() => setItemPreview(it.id, !it.is_preview))} className="text-[10px] font-black rounded-full px-2 py-1"
+                                        style={{ background: it.is_preview ? '#22c55e22' : `${colors.border}55`, color: it.is_preview ? '#16a34a' : colors.textSecondary }}>{it.is_preview ? 'Grátis' : 'Pago'}</button>
+                                )}
+                                <button type="button" aria-label="Subir" disabled={busy || idx <= 0 || it.is_teaser || items[idx - 1].is_teaser} onClick={() => run(() => swapItems(it, items[idx - 1]))} className="p-1 disabled:opacity-30" style={{ color: colors.textSecondary }}><ArrowUp size={15} /></button>
+                                <button type="button" aria-label="Descer" disabled={busy || idx >= items.length - 1 || it.is_teaser} onClick={() => run(() => swapItems(it, items[idx + 1]))} className="p-1 disabled:opacity-30" style={{ color: colors.textSecondary }}><ArrowDown size={15} /></button>
                                 <button type="button" aria-label="Apagar" disabled={busy} onClick={() => { if (confirm(`Apagar "${it.title}"?`)) run(() => removeItem(it), 'Item apagado') }} className="p-1" style={{ color: '#ef4444' }}><Trash2 size={15} /></button>
                             </div>
                         )

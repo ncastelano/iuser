@@ -7,9 +7,8 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, GraduationCap, Search, X } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
-import ListingRowCard from '@/components/ListingRowCard'
-import { loadDigitalShowcase, PRODUCT_KIND_LABEL, SHOWCASE_FILTERS, type ShowcaseItem } from '@/modules/digital'
-import { brl } from '../inicio/sections/DigitalShowcase'
+import DigitalCards from '@/components/digital/DigitalCards'
+import { loadDigitalShowcase, SHOWCASE_FILTERS, type ShowcaseItem } from '@/modules/digital'
 
 export default function DigitaisPage() {
     const { colors } = useTheme()
@@ -32,12 +31,12 @@ export default function DigitaisPage() {
 
     return (
         <div className="min-h-dvh px-4 py-6 pb-28" style={{ background: colors.background, paddingTop: 'max(1.5rem, var(--shell-top, 0px))' }}>
-            <div className="max-w-5xl mx-auto flex flex-col gap-4">
+            <div className="max-w-6xl mx-auto flex flex-col gap-4">
                 <div className="flex items-center gap-3">
                     <button type="button" onClick={() => router.back()} aria-label="Voltar" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><ArrowLeft size={18} /></button>
                     <div className="min-w-0">
                         <h1 className="text-xl font-black leading-tight" style={{ color: colors.textPrimary }}>Cursos e produtos digitais</h1>
-                        <p className="text-[12px]" style={{ color: colors.textSecondary }}>Vídeo-aulas, cursos, playlists, e-books e arquivos. Pague com Pix e abra em Compras digitais.</p>
+                        <p className="text-[12px]" style={{ color: colors.textSecondary }}>Vídeo-aulas, cursos, playlists, e-books e arquivos. Passe o mouse ou segure o dedo para ver a prévia.</p>
                     </div>
                 </div>
 
@@ -68,22 +67,7 @@ export default function DigitaisPage() {
                         <p className="text-[12px]" style={{ color: colors.textSecondary }}>{q || filter !== 'todos' ? 'Tente outra busca ou outro filtro.' : 'Quando uma loja publicar um curso ou e-book, ele aparece aqui.'}</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {shown.map((p) => (
-                            <ListingRowCard
-                                key={p.id}
-                                title={p.name}
-                                description={p.summary}
-                                imageUrl={p.imageUrl || p.storeLogo}
-                                priceLabel={brl(p.price)}
-                                sellerName={p.storeName}
-                                sellerImageUrl={p.storeLogo}
-                                views={p.viewCount}
-                                tag={p.freeItems > 0 ? `${PRODUCT_KIND_LABEL[p.kind]} · aula grátis` : PRODUCT_KIND_LABEL[p.kind]}
-                                onClick={() => router.push(`/${p.storeSlug}/${p.slug}`)}
-                            />
-                        ))}
-                    </div>
+                    <DigitalCards items={shown} layout="grid" />
                 )}
             </div>
         </div>
