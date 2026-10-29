@@ -622,6 +622,29 @@ def drivers_accept(speed=1.0):
             log(f"  🛵 {d['name']} aceitou a entrega para {o['recipient_name'] or 'cliente'} (R$ {float(o['offered_price']):.2f}; mochila {len(mine)}/{d['cap']})".replace('.', ','))
 
 
+def settle_dues(speed=1.0):
+    """CAIXA do entregador: o dinheiro que recebeu na porta é repassado à loja (Pix ou em mãos) e a maquininha é devolvida; a loja confirma. Sem isso o banco barra o motorista (cash_limit/overdue)."""
+    sc = max(CFG.get('scale', 1), 1)
+    rows = q_local(f"""select d.id, d.kind, d.driver_id from store_dues d where d.store_id = {esc(STORE['id'])}::uuid and d.status = 'open'
+        and d.created_at < now() - make_interval(secs => {R.uniform(25, 70) / sc})""")
+    for d in rows:
+        drv = next((x for x in IUSER_DRIVERS if x['id'] == d['driver_id']), None)
+        if drv and is_manual(drv):
+            continue
+        try:
+            method = 'devolvida' if d['kind'] == 'machine' else R.choice(['pix', 'pix', 'em_maos'])
+            as_user(d['driver_id'], f"select declare_due({esc(d['id'])}::uuid, {esc(method)});")
+            log(f"  💵 {drv['name'] if drv else 'Motorista'} {'devolveu a maquininha' if d['kind'] == 'machine' else 'repassou o dinheiro à loja (' + method.replace('em_maos', 'em mãos') + ')'}")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ repasse: {str(e).splitlines()[0][:100]}")
+    for d in q_local(f"select id from store_dues where store_id = {esc(STORE['id'])}::uuid and status = 'declared' and declared_at < now() - make_interval(secs => {R.uniform(8, 25) / sc})"):
+        try:
+            as_user(STORE['owner_id'], f"select confirm_due({esc(d['id'])}::uuid, true);")
+            log("  ✅ a loja confirmou o recebimento")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ confirmação: {str(e).splitlines()[0][:100]}")
+
+
 def drivers_run(speed=1.0):
     """Quem aceitou: vai à loja, espera o pedido ficar pronto, pega todos de uma vez e entrega um por um (o mais perto primeiro)."""
     sc = CFG['scale']
@@ -821,7 +844,7 @@ def featured_order():
 def cycle_tick(speed):
     fns = [attend_orders, attend_appointments, attend_service_cycle, review_featured]
     if CFG['mode'] == 'iuser':
-        fns += [drivers_accept, drivers_run, rate_deliveries]
+        fns += [drivers_accept, drivers_run, rate_deliveries, settle_dues]
     elif CFG['couriers']:
         fns += [dispatch_batches, run_couriers]
     for fn in fns:

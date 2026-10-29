@@ -34,6 +34,9 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     favorite_invite: { level: 'info', icon: '⭐', label: 'Responder', duration: 9000 },
     favorite_accepted: { level: 'success', icon: '⭐', label: 'Ver', duration: 6500 },
     favorite_declined: { level: 'info', icon: '⭐', label: 'Ver', duration: 6000 },
+    // caixa do entregador (repasse, maquininha) e contestação de entrega: o texto e o destino vêm prontos do banco
+    dues_update: { level: 'info', icon: '💵', label: 'Ver', duration: 9000 },
+    dispute_update: { level: 'message', icon: '⚖️', label: 'Ver', duration: 10000 },
 }
 
 export function islandEventFor(n: RawNotification): IslandEvent | null {

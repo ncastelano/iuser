@@ -17,6 +17,8 @@ export const LIVE_PUSH_KINDS: Record<string, { urgent: boolean }> = {
     favorite_invite: { urgent: false },
     favorite_accepted: { urgent: false },
     favorite_declined: { urgent: false },
+    dues_update: { urgent: false },               // repasse a fazer/confirmar, maquininha a devolver
+    dispute_update: { urgent: true },             // entrega contestada / decisão do iUser
 }
 
 export interface LivePushRow { id: string; kind: string; meta?: Record<string, any> | null }

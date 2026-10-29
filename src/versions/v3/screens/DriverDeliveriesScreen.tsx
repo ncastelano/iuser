@@ -21,6 +21,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { isLocalDevOnly } from '@/lib/devOnly'
 import { fetchOptimizedRoute, fetchRoadPath } from '@/lib/mapboxRoute'
+import DriverDues from '@/components/deliveries/DriverDues'
 import DeliveryNavMap, { type NavStop, type NavTarget } from '@/components/deliveries/DeliveryNavMap'
 import {
     acceptOffer, arriveAtDestination, arriveAtStore, brl, DRIVER_QUICK, sendDeliveryMessage, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchMyReviews, fetchOffers, haversineKm, itemsList,
@@ -535,6 +536,9 @@ export default function DriverDeliveriesScreen() {
                     })()}
                 </section>
             )}
+
+            {/* ===== Caixa: dinheiro da porta a repassar, maquininha a devolver e entregas contestadas ===== */}
+            <DriverDues />
 
             {/* ===== Lojas que me favoritaram: convites para responder e as lojas de que já sou favorito ===== */}
             {favStores.length > 0 && (

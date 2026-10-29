@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { Camera, CheckCircle2, DoorOpen, KeyRound } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { supabase } from '@/lib/supabase/client'
+import DeliveryDisputeBox from '@/components/deliveries/DeliveryDisputeBox'
 
 interface ProofView { stage: 'waiting' | 'delivering' | 'delivered'; at_door: boolean; pin: string | null; method: 'pin' | 'photo' | null; reason: string | null; photo_path: string | null; proof_at: string | null }
 // O cartão do pedido da tela do carrinho é recriado a cada atualização da tela (componente definido dentro dela): guarda a última resposta por pedido (e não repete a consulta em < 5 s)
@@ -43,6 +44,7 @@ export default function DeliveryProofCard({ orderId, enabled = true, finished = 
     if (view.method) {
         const photo = view.photo_path ? supabase.storage.from('delivery-proofs').getPublicUrl(view.photo_path).data.publicUrl : null
         return (
+            <>
             <div className="mx-3.5 mb-3 rounded-2xl px-3 py-2.5 flex items-center gap-3" style={{ background: `${GREEN}14`, border: `1px solid ${GREEN}40` }}>
                 {photo ? <a href={photo} target="_blank" rel="noreferrer"><img src={photo} alt="Foto da entrega" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" /></a> : <CheckCircle2 size={22} style={{ color: GREEN }} className="flex-shrink-0" />}
                 <div className="min-w-0">
@@ -50,6 +52,8 @@ export default function DeliveryProofCard({ orderId, enabled = true, finished = 
                     {view.method === 'photo' && <p className="text-[11px]" style={{ color: sub }}>{REASON[view.reason || ''] || 'sem o código'} · toque na foto para ampliar</p>}
                 </div>
             </div>
+            {role === 'customer' && <DeliveryDisputeBox orderId={orderId} light={light} />}
+            </>
         )
     }
     if (view.stage !== 'delivering') return null

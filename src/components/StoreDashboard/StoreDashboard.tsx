@@ -43,6 +43,7 @@ import StoreDepositEditor from './StoreDepositEditor'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
 import StoreDeliveryBoard from './StoreDeliveryBoard'
+import StoreDeliveryDues from './StoreDeliveryDues'
 import StoreFeedback from './StoreFeedback'
 import StoreDeliverySettings from './StoreDeliverySettings'
 import StoreFavoriteDrivers from './StoreFavoriteDrivers'
@@ -735,6 +736,11 @@ export default function StoreDashboard({
             {/* ===== Entregas dos motoristas iUser: quem leva os pedidos, código de retirada e saídas por período ===== */}
             <div className={insideShell ? 'mb-6' : ''}>
                 <StoreDeliveryBoard storeId={store.id} v3={insideShell} />
+            </div>
+
+            {/* ===== Caixa das entregas: repasses do dinheiro da porta, maquininha e entregas contestadas ===== */}
+            <div className={insideShell ? 'mb-6' : ''}>
+                <StoreDeliveryDues storeId={store.id} v3={insideShell} />
             </div>
 
             </>
