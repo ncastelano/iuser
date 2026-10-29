@@ -160,6 +160,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
 
         toast.success('Configurações de entrega salvas!')
         setSaving(false)
+        window.dispatchEvent(new Event('store-delivery-saved'))   // o cartão "Entregadores favoritos" aparece/some conforme o Entregador do iUser
         if (onRefresh) onRefresh()
     }
 
@@ -279,7 +280,11 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                                 <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Faz entrega</span>
                             </div>
                             <button
-                                onClick={() => setAcceptsDelivery(!acceptsDelivery)}
+                                onClick={() => {
+                                    const next = !acceptsDelivery
+                                    setAcceptsDelivery(next)
+                                    if (!next) setIuserDelivery(false)   // sem entrega nenhuma, o entregador do iUser também fica desligado (o bloco continua aí para religar)
+                                }}
                                 className={`relative w-11 h-6 rounded-full transition-colors ${acceptsDelivery ? 'bg-orange-500' : 'bg-gray-400'}`}
                             >
                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsDelivery ? 'right-1' : 'left-1'}`} />
@@ -439,7 +444,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                         )}
 
                         {/* Entrega iUser: chamar motorista da plataforma (na 3.0 é a escolha lá em cima) */}
-                        {!v3 && acceptsDelivery && (
+                        {!v3 && (
                             <div
                                 className="p-3 rounded-2xl flex flex-col gap-2"
                                 style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}
@@ -450,7 +455,12 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                                         Entrega iUser
                                     </span>
                                     <button
-                                        onClick={() => setIuserDelivery(!iuserDelivery)}
+                                        onClick={() => {
+                                            // o Entregador do iUser é uma forma de oferecer entrega: ligar ele liga a entrega da loja (o banco não aceita um sem o outro)
+                                            const next = !iuserDelivery
+                                            setIuserDelivery(next)
+                                            if (next) setAcceptsDelivery(true)
+                                        }}
                                         className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${iuserDelivery ? 'bg-orange-500' : 'bg-gray-400'}`}
                                     >
                                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${iuserDelivery ? 'right-1' : 'left-1'}`} />

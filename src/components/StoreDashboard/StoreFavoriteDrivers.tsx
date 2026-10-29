@@ -27,7 +27,11 @@ export default function StoreFavoriteDrivers({ storeId, v3 = false }: { storeId:
     const [busy, setBusy] = useState<string | null>(null)
 
     useEffect(() => {
-        supabase.from('stores').select('iuser_delivery_enabled').eq('id', storeId).maybeSingle().then(({ data }) => setEnabled(!!data?.iuser_delivery_enabled))
+        const read = () => supabase.from('stores').select('iuser_delivery_enabled').eq('id', storeId).maybeSingle().then(({ data }) => setEnabled(!!data?.iuser_delivery_enabled))
+        read()
+        // as configurações de entrega avisam quando salvam (ligar/desligar o Entregador do iUser)
+        window.addEventListener('store-delivery-saved', read)
+        return () => window.removeEventListener('store-delivery-saved', read)
     }, [storeId])
 
     const load = useCallback(async () => { try { setState(await fetchStoreFavorites(storeId)) } catch { /* mantém o que já está na tela */ } }, [storeId])
@@ -43,6 +47,17 @@ export default function StoreFavoriteDrivers({ storeId, v3 = false }: { storeId:
         return () => { cancelled = true; clearTimeout(t) }
     }, [enabled, storeId, q, state?.items.length])
 
+    // 2.0: o cartão não some quando o Entregador do iUser está desligado — explica como ligar (na 3.0 a escolha fica em "Quem faz a entrega")
+    if (enabled === false && !v3) {
+        return (
+            <section className="rounded-3xl p-4 flex flex-col gap-1 mb-6" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                <h2 className="text-base font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Star size={16} style={{ color: ORANGE }} /> Entregadores favoritos</h2>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                    Ligue o &quot;Entrega iUser&quot; em Configurações de Entrega para convidar motoristas do iUser: eles recebem suas entregas primeiro.
+                </p>
+            </section>
+        )
+    }
     if (!enabled || !state) return null
     const left = slotsLeft(state.items)
     const soft = `${colors.border}40`

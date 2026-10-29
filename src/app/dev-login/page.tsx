@@ -14,6 +14,8 @@ export default function DevLoginPage() {
         const as = sp.get('as') || 'owner'
         const to = sp.get('to') || '/'
         if (!to.startsWith('/') || to.startsWith('//')) { setMsg('Destino inválido.'); return }
+        // &gps=1 liga o GPS de teste do motorista nesta aba (anda pelas ruas até o alvo do mapa); &gps=0 desliga
+        try { if (sp.get('gps') === '1') window.localStorage.setItem('iuser_dev_gps', '1'); else if (sp.get('gps') === '0') window.localStorage.removeItem('iuser_dev_gps') } catch { /* sem armazenamento */ }
         ;(async () => {
             const cred = await fetch(`/api/dev/credentials?as=${encodeURIComponent(as)}`).then((r) => (r.ok ? r.json() : null))
             if (!cred?.email) { setMsg('Conta de teste não encontrada (rode scripts/local/seed-motoboys.mjs).'); return }
