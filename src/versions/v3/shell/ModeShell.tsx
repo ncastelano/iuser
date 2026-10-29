@@ -23,7 +23,7 @@ import { useShellLive } from '@/hooks/useShellLive'
 import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
 import { useShellCompact } from '@/lib/shellCompact'
 import { toastStyle } from '@/lib/toastStyle'
-import BottomNavBar, { BAR_SPACE } from '@/components/BottomNavBar'
+import BottomNavBar, { BAR_SPACE, STRIP_H, stripVisible } from '@/components/BottomNavBar'
 import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
 import { switchVersion, versionLabel } from '@/versions/client'
 
@@ -623,6 +623,8 @@ export default function ModeShell({ children }: {
     // A barra de baixo só nas páginas "raiz"
     const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/')) && !(shellPath === '/conversas' && threadOpen)
     const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
+    // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
+    const stripShown = barShown && stripVisible({ active: activeKey, cartExpanded: cartStrip, cartCount: topCart, orderCounts })
     // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha
     const storeNew = (() => {
         const modeSlug = activeMode.startsWith('loja:') ? activeMode.slice(5) : null
@@ -698,8 +700,8 @@ export default function ModeShell({ children }: {
                 marginTop: navH,
                 minHeight: `calc(100dvh - ${navH})`,
                 ['--shell-top' as string]: navH,
-                paddingBottom: barShown ? SHELL_BOTTOM : 40,
-                ['--shell-bottom' as string]: barShown ? SHELL_BOTTOM : '0px',
+                paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px)` : 40,
+                ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px)` : '0px',
                 animation: rising ? 'shellRise 700ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
             }}
         >
@@ -785,7 +787,7 @@ export default function ModeShell({ children }: {
             <style>{`@keyframes islandPop { 0% { transform: scale(.94); } 100% { transform: scale(1); } }`}</style>
         </div>
 
-        {/* BARRA de baixo: carrinho (que cresce na linha nas páginas de compra), conversas, iUser no centro, radar, Social e o botão do MODO ativo (abre o hub, como a ilha do topo) */}
+        {/* BARRA de baixo: faixa de cima (carrinho nas páginas de compra + status dos pedidos) e seis botões iguais: carrinho, conversas, MODO ativo (abre o hub), radar, Social e lupa */}
         {barShown && (
             <BottomNavBar
                 colors={colors}
@@ -795,8 +797,9 @@ export default function ModeShell({ children }: {
                 orderCounts={orderCounts}
                 unread={topUnread}
                 cartExpanded={cartStrip}
-                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={48} />, kind: view.icon, label: idle.label, onOpen: openHub }}
+                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: openHub }}
                 onCart={() => go(cartStrip || !(topCart === 0 && ordersActive > 0) ? '/carrinho' : '/carrinho?aba=pedidos')}
+                onOrders={() => go('/carrinho?aba=pedidos')}
                 onChat={() => go(userId ? chatPath : '/login')}
                 onHome={() => (shellPath === '/' ? window.scrollTo({ top: 0, behavior: 'smooth' }) : go('/'))}
                 onRadar={() => go('/radar')}
