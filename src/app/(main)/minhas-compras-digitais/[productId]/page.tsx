@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Lock, PlayCircle } from 'lucide-react'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { supabase } from '@/lib/supabase/client'
 import { fetchCurriculum, formatDuration, formatSize, groupByModule, curriculumStats, type CurriculumItem } from '@/modules/digital'
@@ -13,11 +14,13 @@ import DigitalViewer from '@/components/digital/DigitalViewer'
 import ProPlayer from '@/components/digital/ProPlayer'
 import { kindIcon } from '@/components/digital/DigitalCurriculum'
 
-const C = { bg: '#09090d', surface: '#13131a', surface2: '#1a1a24', line: '#262633', text: '#f5f5fa', muted: '#9a9ab2', orange: '#f97316', green: '#22c55e' }
 const isPlayable = (i: CurriculumItem) => i.kind === 'video'
 
 export default function SalaDeAulaPage() {
     const router = useRouter()
+    const { colors } = useTheme()
+    // As cores seguem o tema do aplicativo (claro, escuro, preto e branco...); só o laranja e o verde são fixos
+    const C = { bg: colors.background, surface: colors.surface, surface2: `${colors.border}33`, line: colors.border, text: colors.textPrimary, muted: colors.textSecondary, orange: '#f97316', green: '#22c55e' }
     const { productId } = useParams<{ productId: string }>()
     const { userId, loading } = useProfile()
     const [items, setItems] = useState<CurriculumItem[] | null>(null)
@@ -77,7 +80,7 @@ export default function SalaDeAulaPage() {
                 </div>
 
                 {!fullAccess && (
-                    <div className="rounded-2xl px-4 py-3 text-[12px] font-bold flex items-center gap-2" style={{ background: 'rgba(249,115,22,.12)', border: '1px solid rgba(249,115,22,.35)', color: '#fdba74' }}>
+                    <div className="rounded-2xl px-4 py-3 text-[12px] font-bold flex items-center gap-2" style={{ background: 'rgba(249,115,22,.12)', border: '1px solid rgba(249,115,22,.35)', color: '#c2410c' }}>
                         <Lock size={14} /> Seu acesso completo abre quando a loja confirma o pagamento. Por enquanto você vê só o que está grátis.
                     </div>
                 )}
@@ -88,7 +91,7 @@ export default function SalaDeAulaPage() {
                         {cur && isPlayable(cur) ? (
                             <ProPlayer key={cur.id} itemId={cur.id} title={cur.title} nextTitle={next?.title} onEnded={() => mark(cur.id)} onNext={next ? () => go(next.id) : null} />
                         ) : cur ? (
-                            <DigitalViewer itemId={cur.id} title={cur.title} dark />
+                            <DigitalViewer itemId={cur.id} title={cur.title} />
                         ) : (
                             <div className="rounded-2xl p-10 text-center" style={{ background: C.surface, border: `1px solid ${C.line}`, color: C.muted }}>Nada para abrir ainda.</div>
                         )}
@@ -155,7 +158,7 @@ export default function SalaDeAulaPage() {
                                                         {done[it.id] ? <CheckCircle2 size={15} /> : play ? (active ? <PlayCircle size={15} /> : n) : kindIcon(it.kind, 13)}
                                                     </span>
                                                     <span className="min-w-0 flex-1">
-                                                        <span className="block text-[13px] font-bold leading-snug" style={{ color: active ? '#fff' : C.text }}>{it.title}</span>
+                                                        <span className="block text-[13px] font-bold leading-snug" style={{ color: C.text }}>{it.title}</span>
                                                         <span className="block text-[11px]" style={{ color: C.muted }}>{[play ? 'Vídeo' : it.kind === 'document' ? 'Material' : it.kind === 'audio' ? 'Áudio' : 'Link', formatDuration(it.duration_seconds), formatSize(it.size_bytes)].filter(Boolean).join(' · ')}</span>
                                                     </span>
                                                     {it.is_preview && <span className="text-[10px] font-black rounded-full px-2 py-0.5 flex-shrink-0" style={{ background: 'rgba(34,197,94,.16)', color: C.green }}>Grátis</span>}

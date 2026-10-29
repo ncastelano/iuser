@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Maximize, Minimize, Pause, PictureInPicture2, Play, RotateCcw, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import { useTheme } from '@/app/contexts/theme'
 import { openItem } from '@/modules/digital'
 
 const ORANGE = '#f97316'
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext }: Props) {
+    const { colors } = useTheme()
     const wrap = useRef<HTMLDivElement>(null)
     const video = useRef<HTMLVideoElement>(null)
     const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -135,15 +137,15 @@ export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext }:
 
     return (
         <div ref={wrap} onMouseMove={poke} onTouchStart={poke} onMouseLeave={() => { if (video.current && !video.current.paused) setShowControls(false) }}
-            className="relative w-full overflow-hidden bg-black select-none" style={{ aspectRatio: full ? undefined : '16 / 9', height: full ? '100%' : undefined, borderRadius: full ? 0 : 20, boxShadow: full ? 'none' : '0 20px 60px -20px rgba(249,115,22,.35)' }}>
+            className="relative w-full overflow-hidden select-none" style={{ background: colors.surface, border: `1px solid ${colors.border}`, aspectRatio: full ? undefined : '16 / 9', height: full ? '100%' : undefined, borderRadius: full ? 0 : 20, boxShadow: full ? 'none' : '0 20px 60px -20px rgba(249,115,22,.35)' }}>
             {error ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-white"><p className="text-sm font-bold">{error}</p></div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center"><p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{error}</p></div>
             ) : (
-                <video ref={video} src={src || undefined} playsInline preload="metadata" className="absolute inset-0 w-full h-full object-contain bg-black" onClick={toggle} onDoubleClick={fullscreen}
+                <video ref={video} src={src || undefined} playsInline preload="metadata" className="absolute inset-0 w-full h-full object-contain" onClick={toggle} onDoubleClick={fullscreen}
                     onLoadedMetadata={onLoaded} onTimeUpdate={onTime} onProgress={onTime} onPlay={() => { setPlaying(true); setEnded(false); poke() }} onPause={() => { setPlaying(false); setShowControls(true) }}
                     onEnded={finished} onVolumeChange={(e) => { setMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }} />
             )}
-            {!src && !error && <div className="absolute inset-0 flex items-center justify-center"><div className="w-10 h-10 rounded-full border-4 border-white/20 animate-spin" style={{ borderTopColor: ORANGE }} /></div>}
+            {!src && !error && <div className="absolute inset-0 flex items-center justify-center"><div className="w-10 h-10 rounded-full border-4 animate-spin" style={{ borderColor: `${colors.border}`, borderTopColor: ORANGE }} /></div>}
 
             {/* botão grande no centro quando está parado */}
             {src && !playing && !ended && (
@@ -154,22 +156,22 @@ export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext }:
 
             {/* fim da aula */}
             {ended && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 sm:gap-3 text-center text-white p-3 sm:p-6" style={{ background: 'rgba(8,8,12,.82)', backdropFilter: 'blur(6px)' }}>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 sm:gap-3 text-center p-3 sm:p-6" style={{ background: `${colors.background}ee`, color: colors.textPrimary, backdropFilter: 'blur(6px)' }}>
                     <CheckCircle2 size={36} style={{ color: '#22c55e' }} />
                     <p className="text-base sm:text-lg font-black">Aula concluída!</p>
                     {onNext ? (
                         <>
-                            <p className="text-sm text-white/70">Próxima: <b className="text-white">{nextTitle}</b> {countdown !== null && <>em <b style={{ color: ORANGE }}>{countdown}s</b></>}</p>
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>Próxima: <b style={{ color: colors.textPrimary }}>{nextTitle}</b> {countdown !== null && <>em <b style={{ color: ORANGE }}>{countdown}s</b></>}</p>
                             <div className="flex gap-2">
-                                <button type="button" onClick={replay} className="h-10 px-4 rounded-full text-sm font-black inline-flex items-center gap-2" style={{ background: 'rgba(255,255,255,.14)' }}><RotateCcw size={15} /> Rever</button>
-                                {countdown !== null && <button type="button" onClick={() => setCountdown(null)} className="h-10 px-4 rounded-full text-sm font-black" style={{ background: 'rgba(255,255,255,.14)' }}>Cancelar</button>}
+                                <button type="button" onClick={replay} className="h-10 px-4 rounded-full text-sm font-black inline-flex items-center gap-2" style={{ background: `${colors.border}55` }}><RotateCcw size={15} /> Rever</button>
+                                {countdown !== null && <button type="button" onClick={() => setCountdown(null)} className="h-10 px-4 rounded-full text-sm font-black" style={{ background: `${colors.border}55` }}>Cancelar</button>}
                                 <button type="button" onClick={() => onNext()} className="h-10 px-5 rounded-full text-sm font-black inline-flex items-center gap-2" style={{ background: ORANGE }}>Próxima agora <SkipForward size={15} /></button>
                             </div>
                         </>
                     ) : (
                         <>
-                            <p className="text-sm text-white/70">Você chegou ao fim do conteúdo. Parabéns! 🎉</p>
-                            <button type="button" onClick={replay} className="h-10 px-4 rounded-full text-sm font-black inline-flex items-center gap-2" style={{ background: 'rgba(255,255,255,.14)' }}><RotateCcw size={15} /> Rever esta aula</button>
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>Você chegou ao fim do conteúdo. Parabéns! 🎉</p>
+                            <button type="button" onClick={replay} className="h-10 px-4 rounded-full text-sm font-black inline-flex items-center gap-2" style={{ background: `${colors.border}55` }}><RotateCcw size={15} /> Rever esta aula</button>
                         </>
                     )}
                 </div>
