@@ -795,7 +795,7 @@ export default function ModeShell({ children }: {
                 orderCounts={orderCounts}
                 unread={topUnread}
                 cartExpanded={cartStrip}
-                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={32} />, kind: view.icon, label: idle.label, onOpen: openHub }}
+                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={48} />, kind: view.icon, label: idle.label, onOpen: openHub }}
                 onCart={() => go(cartStrip || !(topCart === 0 && ordersActive > 0) ? '/carrinho' : '/carrinho?aba=pedidos')}
                 onChat={() => go(userId ? chatPath : '/login')}
                 onHome={() => (shellPath === '/' ? window.scrollTo({ top: 0, behavior: 'smooth' }) : go('/'))}

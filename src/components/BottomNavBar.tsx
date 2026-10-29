@@ -1,7 +1,8 @@
 // src/components/BottomNavBar.tsx
 //
-// A barra de navegação flutuante de baixo, numa linha só: [Carrinho, Conversas] · LUPA no centro (procurar e explorar: leva à home) · [Radar, Social, Modo].
-//  - O botão do MODO mostra a foto do modo ativo (perfil, loja ou motorista) com um selinho do tipo; tocar abre o menu de modos (hub).
+// A barra de navegação flutuante de baixo, numa linha só: [Carrinho, Conversas] · MODO (a foto do modo ativo) no centro · [Radar, Social, Lupa].
+//  - O botão do MODO, no centro, mostra a foto do modo ativo (perfil, loja ou motorista) com um selinho do tipo; tocar abre o menu de modos (hub).
+//  - A LUPA (procurar e explorar: leva à home) é um botão comum, igual aos outros, no fim da direita.
 //  - O CARRINHO não ganha mais uma faixa em cima: nas páginas de compra, com itens, o próprio botão do carrinho CRESCE na linha (mostra o total ao lado do
 //    ícone) e volta a ser só o ícone quando não há o que mostrar. Os selos de STATUS dos pedidos (verde/amarelo/roxo) ficam SEMPRE embaixo dele, dentro da barra.
 // Só apresentação: quem usa (a casca da 3.0) passa as contagens, a foto e o que cada toque faz. Constantes de medida exportadas para quem reserva espaço embaixo.
@@ -56,13 +57,15 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
 /** O modo ativo: a foto do modo (perfil, loja ou motorista) e, no canto, o selinho do tipo */
 export interface ModeButtonProps { avatar: ReactNode; kind: 'user' | 'store' | 'car'; label: string; onOpen: () => void }
 
-function ModeButton({ mode, colors }: { mode: ModeButtonProps; colors: any }) {
+function ModeButton({ mode, colors, active }: { mode: ModeButtonProps; colors: any; active?: boolean }) {
     const Glyph = mode.kind === 'store' ? Store : mode.kind === 'car' ? Car : User
     return (
-        <button onClick={mode.onOpen} aria-label={`${mode.label}: trocar de modo`} aria-haspopup="dialog" className="relative flex-1 min-w-0 h-full flex items-center justify-center transition active:scale-90">
-            <span className="relative flex items-center justify-center w-10 h-10">
-                <span className="rounded-full flex items-center justify-center" style={{ boxShadow: `0 0 0 2px ${colors.border}` }}>{mode.avatar}</span>
-                <span aria-hidden className="absolute -bottom-0.5 -right-0.5 w-[17px] h-[17px] rounded-full flex items-center justify-center" style={{ background: colors.textPrimary, color: colors.background, boxShadow: `0 0 0 2px ${colors.background}` }}>
+        <button onClick={mode.onOpen} aria-label={`${mode.label}: trocar de modo`} aria-haspopup="dialog"
+            className="absolute left-1/2 rounded-full transition active:scale-90"
+            style={{ width: 56, height: 56, bottom: 20, transform: 'translateX(-50%)', background: colors.background, padding: 3, boxShadow: `0 8px 20px rgba(0,0,0,0.2), 0 0 0 2px ${active ? '#f97316' : colors.border}` }}>
+            <span className="relative block w-full h-full rounded-full overflow-visible flex items-center justify-center">
+                {mode.avatar}
+                <span aria-hidden className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center" style={{ background: colors.textPrimary, color: colors.background, boxShadow: `0 0 0 2px ${colors.background}` }}>
                     <Glyph size={10} strokeWidth={2.6} />
                 </span>
             </span>
@@ -113,19 +116,13 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
                             <BarButton colors={colors} active={active === 'people'} label="Social" onClick={onPeople}>
                                 <Users size={21} />
                             </BarButton>
-                            {mode && <ModeButton mode={mode} colors={colors} />}
+                            <BarButton colors={colors} active={active === 'home'} label="Procurar e explorar" onClick={onHome}>
+                                <Search size={21} />
+                            </BarButton>
                         </div>
 
-                        {/* LUPA no centro: procurar e explorar (leva à home, que reúne tudo); já nela, volta ao topo. Ancorada pelo fundo da barra */}
-                        <button
-                            onClick={onHome}
-                            aria-label="Procurar e explorar"
-                            aria-current={active === 'home' ? 'page' : undefined}
-                            className="absolute left-1/2 rounded-full flex items-center justify-center text-white transition active:scale-90"
-                            style={{ width: 54, height: 54, bottom: 21, transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: `0 0 0 4px ${colors.background}, 0 8px 20px rgba(249,115,22,0.38)` }}
-                        >
-                            <Search size={25} strokeWidth={2.6} />
-                        </button>
+                        {/* MODO no centro: a foto do modo ativo; abre o hub. Ancorado pelo fundo da barra */}
+                        {mode && <ModeButton mode={mode} colors={colors} />}
                     </div>
                 </div>
             </div>
