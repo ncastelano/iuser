@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { Star, X, Car, ArrowRight } from 'lucide-react'
@@ -15,6 +16,9 @@ interface PendingRideReview {
 
 export function FinishedRideTrigger() {
     const { userId, loading: profileLoading } = useProfile()
+    // No painel do administrador o aviso "Avalie agora" não aparece: ele cobria a tela inteira e engolia os cliques de quem está decidindo coisas
+    const pathname = usePathname()
+    const quiet = !!pathname?.startsWith('/administrador')
     const [pending, setPending] = useState<PendingRideReview[]>([])
     const [reviewTarget, setReviewTarget] = useState<PendingRideReview | null>(null)
     const [showPrompt, setShowPrompt] = useState(false)
@@ -98,7 +102,7 @@ export function FinishedRideTrigger() {
     return (
         <>
             <AnimatePresence>
-                {showPrompt && pending.length > 0 && (
+                {showPrompt && !quiet && pending.length > 0 && (
                     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}

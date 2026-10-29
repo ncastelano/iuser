@@ -22,6 +22,9 @@ export default function DeliveryDisputesSection({ cardStyle, colors }: { cardSty
     const [dues, setDues] = useState<DueRow[]>([])
     const [notes, setNotes] = useState<Record<string, string>>({})
     const [busy, setBusy] = useState<string | null>(null)
+    // a decisão só vale depois de CONFIRMAR (evita toque sem querer) e o resultado fica na tela
+    const [pick, setPick] = useState<{ id: string; outcome: DisputeOutcome } | null>(null)
+    const [done, setDone] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         try { const r = await callAdminApi<{ disputes: Dispute[]; dues: DueRow[] }>('/api/admin/delivery-disputes', { action: 'list' }); setDisputes(r.disputes); setDues(r.dues) }
@@ -31,7 +34,7 @@ export default function DeliveryDisputesSection({ cardStyle, colors }: { cardSty
 
     const act = async (key: string, payload: Record<string, unknown>, ok: string) => {
         setBusy(key)
-        try { await callAdminApi('/api/admin/delivery-disputes', payload); toast.success(ok); await load() } catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(null) }
+        try { await callAdminApi('/api/admin/delivery-disputes', payload); toast.success(ok); setPick(null); setDone(ok); await load() } catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(null) }
     }
 
     if (loading) return <div className="p-8 flex justify-center"><Spinner size={22} /></div>
@@ -44,6 +47,13 @@ export default function DeliveryDisputesSection({ cardStyle, colors }: { cardSty
                 <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Disputas de entrega</h2>
                 <p className="text-xs" style={{ color: colors.textSecondary }}>O cliente diz que não recebeu, mesmo com a prova. Decida olhando as evidências. O iUser não movimenta o dinheiro: a decisão cria a dívida do entregador com a loja e o reembolso que a loja deve ao cliente.</p>
             </div>
+
+            {done && (
+                <div className="rounded-2xl p-3 flex items-center justify-between gap-2" style={{ background: '#22c55e18', border: '1.5px solid #22c55e' }}>
+                    <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>✓ {done}</p>
+                    <button onClick={() => setDone(null)} className="text-[11px] font-bold underline" style={{ color: colors.textSecondary }}>Ok</button>
+                </div>
+            )}
 
             <div style={cardStyle} className="p-4 flex flex-col gap-3">
                 <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>Para decidir ({open.length})</h3>
@@ -60,11 +70,22 @@ export default function DeliveryDisputesSection({ cardStyle, colors }: { cardSty
                             {d.storeReply && <p className="text-[12px]" style={{ color: colors.textPrimary }}><b>Loja:</b> {d.storeReply}</p>}
                             {d.driverReply && <p className="text-[12px]" style={{ color: colors.textPrimary }}><b>Entregador:</b> {d.driverReply}</p>}
                             <input value={notes[d.id] || ''} onChange={(e) => setNotes((n) => ({ ...n, [d.id]: e.target.value }))} placeholder="Motivo da decisão (as partes veem)" maxLength={500} className="h-10 px-3 rounded-full text-[13px] outline-none" style={{ background: colors.surface, color: colors.textPrimary }} />
-                            <div className="grid grid-cols-2 gap-1.5">
-                                {OUTCOMES.map((o) => (
-                                    <button key={o.code} title={o.hint} onClick={() => act(`${d.id}-${o.code}`, { action: 'decide', id: d.id, outcome: o.code, note: notes[d.id] || '' }, 'Decisão registrada. As partes foram avisadas.')} disabled={busy?.startsWith(d.id)} className="h-10 rounded-full text-[12px] font-black active:scale-95 disabled:opacity-50" style={o.code === 'rejected' ? { background: colors.surface, color: colors.textPrimary, border: `1.5px solid ${colors.border}` } : { background: '#f97316', color: '#fff' }}>{o.label}</button>
-                                ))}
-                            </div>
+                            {pick?.id === d.id ? (
+                                <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: colors.surface, border: `1.5px solid #f97316` }}>
+                                    <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>Confirmar: {OUTCOMES.find((o) => o.code === pick.outcome)?.label}</p>
+                                    <p className="text-[12px]" style={{ color: colors.textSecondary }}>{OUTCOMES.find((o) => o.code === pick.outcome)?.hint} O cliente, a loja e o entregador serão avisados. Não dá para desfazer.</p>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        <button onClick={() => setPick(null)} className="h-10 rounded-full text-[12px] font-black active:scale-95" style={{ background: soft, color: colors.textPrimary }}>Voltar</button>
+                                        <button onClick={() => act(`${d.id}-${pick.outcome}`, { action: 'decide', id: d.id, outcome: pick.outcome, note: notes[d.id] || '' }, `Decisão registrada: ${OUTCOMES.find((o) => o.code === pick.outcome)?.label}. As partes foram avisadas.`)} disabled={busy?.startsWith(d.id)} className="h-10 rounded-full text-[12px] font-black text-white active:scale-95 disabled:opacity-50" style={{ background: '#f97316' }}>{busy?.startsWith(d.id) ? 'Enviando…' : 'Confirmar decisão'}</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {OUTCOMES.map((o) => (
+                                        <button key={o.code} title={o.hint} onClick={() => setPick({ id: d.id, outcome: o.code })} className="h-10 rounded-full text-[12px] font-black active:scale-95" style={o.code === 'rejected' ? { background: colors.surface, color: colors.textPrimary, border: `1.5px solid ${colors.border}` } : { background: '#f97316', color: '#fff' }}>{o.label}</button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )
                 })}
@@ -90,9 +111,10 @@ export default function DeliveryDisputesSection({ cardStyle, colors }: { cardSty
                 <div style={cardStyle} className="p-4 flex flex-col gap-2">
                     <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>Decididas nos últimos 14 dias ({decided.length})</h3>
                     {decided.map((d) => (
-                        <p key={d.id} className="text-[12px]" style={{ color: colors.textSecondary }}>
-                            <b style={{ color: colors.textPrimary }}>{d.outcome ? OUTCOME_LABEL[d.outcome] : ''}</b> · {d.customer} × {d.store}{d.driver ? ` × ${d.driver}` : ''} · {REFUND_LABEL[d.refundStatus] || ''}{d.refundContested ? ' (cliente contesta o reembolso)' : ''}
-                        </p>
+                        <div key={d.id} className="rounded-2xl p-2.5" style={{ background: soft }}>
+                            <p className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{d.outcome ? OUTCOME_LABEL[d.outcome] : ''} <span className="font-normal" style={{ color: colors.textSecondary }}>· {d.decidedAt ? fmt(d.decidedAt) : ''}</span></p>
+                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>{d.customer} × {d.store}{d.driver ? ` × ${d.driver}` : ''} · {REFUND_LABEL[d.refundStatus] || ''}{d.refundContested ? ' (cliente contesta o reembolso)' : ''}{d.decisionNote ? ` · “${d.decisionNote}”` : ''}</p>
+                        </div>
                     ))}
                 </div>
             )}
