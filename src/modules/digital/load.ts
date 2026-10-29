@@ -1,6 +1,6 @@
 // src/modules/digital/load.ts — fala com o banco/servidor: vitrine (sumário), biblioteca do comprador, abrir um item e o editor do vendedor.
 import { supabase } from '@/lib/supabase/client'
-import { kindFromFile, storagePathFor, validateItem, type CurriculumItem, type DigitalKind } from './domain'
+import { kindFromFile, storagePathFor, validateItem, productKindOf, summaryFromCounts, type CurriculumItem, type DigitalKind, type DigitalProductKind } from './domain'
 
 export interface LibraryItem { product_id: string; product_name: string; product_slug: string; store_slug: string | null; store_name: string | null; image_url: string | null; purchased_at: string; items_count: number }
 export interface OwnItem { id: string; product_id: string; module_title: string | null; title: string; kind: DigitalKind; storage_path: string | null; external_url: string | null; mime_type: string | null; size_bytes: number | null; duration_seconds: number | null; position: number; is_preview: boolean }
@@ -104,4 +104,25 @@ export async function swapItems(a: OwnItem, b: OwnItem): Promise<void> {
     const r1 = await supabase.from('digital_contents').update({ position: b.position }).eq('id', a.id)
     const r2 = await supabase.from('digital_contents').update({ position: a.position }).eq('id', b.id)
     if (r1.error || r2.error) throw new Error((r1.error || r2.error)!.message)
+}
+
+// ------------------------------------------------------------------ vitrine pública (home 2.0/3.0 e /digitais)
+export interface ShowcaseItem {
+    id: string; name: string; slug: string; description: string | null; imageUrl: string | null; price: number
+    storeId: string; storeSlug: string; storeName: string; storeLogo: string | null; viewCount: number
+    kind: DigitalProductKind; summary: string; videos: number; seconds: number; freeItems: number
+}
+
+const publicImage = (bucket: string, path: string | null) => (path ? (path.startsWith('http') ? path : supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl) : null)
+
+export async function loadDigitalShowcase(limit = 24, search?: string): Promise<ShowcaseItem[]> {
+    const { data, error } = await supabase.rpc('get_digital_showcase', { p_limit: limit, p_search: search?.trim() || null })
+    if (error) throw new Error(error.message)
+    return ((data || []) as any[]).map((r) => ({
+        id: r.id, name: r.name, slug: r.slug, description: r.description, imageUrl: publicImage('product-images', r.image_url), price: Number(r.price || 0),
+        storeId: r.store_id, storeSlug: r.store_slug, storeName: r.store_name, storeLogo: publicImage('store-logos', r.store_logo), viewCount: r.view_count || 0,
+        kind: productKindOf({ name: r.name, videos: r.videos, audios: r.audios, docs: r.docs, links: r.links }),
+        summary: summaryFromCounts({ videos: r.videos, audios: r.audios, docs: r.docs, links: r.links, seconds: Number(r.seconds || 0) }),
+        videos: r.videos, seconds: Number(r.seconds || 0), freeItems: r.free_items || 0,
+    }))
 }

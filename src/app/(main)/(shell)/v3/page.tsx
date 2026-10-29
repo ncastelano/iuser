@@ -34,6 +34,7 @@ import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ListingRowCard from '@/components/ListingRowCard'
 import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
 import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
+import DigitalStrip from '@/components/v3/DigitalStrip'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '@/components/social/SocialProfileCard'
@@ -925,6 +926,9 @@ export default function ModeloInicialPage() {
                             )}
                         </section>
 
+
+                        {/* Cursos e produtos digitais (vídeo-aula, curso, playlist, e-book): abrem na hora depois que a loja confirma o pagamento */}
+                        <DigitalStrip />
 
                         <section className="mt-8">
                             <SectionHeader type="pedido" title="Quem está procurando serviço" subtitle="Ganhe dinheiro fazendo serviços" onSeeAll={() => go('/procurar-servico')} colors={colors} />

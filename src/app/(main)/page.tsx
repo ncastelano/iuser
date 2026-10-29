@@ -9,6 +9,7 @@ import { User, Store, Home, MapPin, LayoutDashboard, X, Car } from 'lucide-react
 import CategoriasSection from './inicio/sections/CanIhelp'
 import RadarSection from './inicio/sections/RadarSection'
 import RentalShowcase from './inicio/sections/RentalShowcase'
+import DigitalShowcase from './inicio/sections/DigitalShowcase'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import AcceptARider from './inicio/sections/AcceptARider'
 import MyServiceRequests from './inicio/sections/MyServiceRequests'
@@ -59,6 +60,7 @@ const DEFAULT_SECTIONS = [
     'storeList',
     'canalMotorista',
     'productShowcase',
+    'digitalShowcase',
     'publicationShowcase',
     'rentalShowcase',
     'communities',
@@ -236,6 +238,11 @@ function HomePageContent() {
                     if (!filtered.includes('communities')) {
                         const at = filtered.indexOf('publicationShowcase')
                         filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'communities', ...filtered.slice(at + 1)] : filtered
+                    }
+                    // Cursos e produtos digitais: entram logo abaixo dos produtos em destaque
+                    if (!filtered.includes('digitalShowcase')) {
+                        const at = filtered.indexOf('productShowcase')
+                        filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'digitalShowcase', ...filtered.slice(at + 1)] : filtered
                     }
                     // Imóveis para alugar: entra logo abaixo das publicações em destaque (antes das comunidades)
                     if (!filtered.includes('rentalShowcase')) {
@@ -579,6 +586,8 @@ function HomePageContent() {
                 return <ProductShowcase />
             case 'publicationShowcase':
                 return <FeaturedPublications maxItems={6} />
+            case 'digitalShowcase':
+                return <DigitalShowcase />
             case 'rentalShowcase':
                 return <RentalShowcase />
             case 'communities':

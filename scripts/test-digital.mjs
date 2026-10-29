@@ -1,7 +1,7 @@
 // Testes das regras puras dos produtos digitais (src/modules/digital/domain.ts). Rodar: npm run test:digital
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES } from '../src/modules/digital/domain.ts'
+import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES, productKindOf, summaryFromCounts, SHOWCASE_FILTERS, PRODUCT_KIND_LABEL } from '../src/modules/digital/domain.ts'
 
 const it = (o) => ({ id: 'x', module_title: null, title: 't', kind: 'video', duration_seconds: null, size_bytes: null, position: 0, is_preview: false, unlocked: false, ...o })
 
@@ -55,4 +55,24 @@ test('caminho no bucket: pasta da pessoa, nome limpo', () => {
     const p = storagePathFor('u1', 'p1', 'Módulo 1 — Introdução (final).MP4', 123)
     assert.ok(p.startsWith('u1/p1/123-'))
     assert.match(p, /^[A-Za-z0-9/._-]+$/)
+})
+
+test('tipo do produto na vitrine', () => {
+    const c = (name, videos, docs = 0, audios = 0, links = 0) => ({ name, videos, docs, audios, links })
+    assert.equal(productKindOf(c('Curso Pizzaiolo', 8, 1)), 'curso')
+    assert.equal(productKindOf(c('Aula Única: Massa', 1)), 'aula')
+    assert.equal(productKindOf(c('Playlist: Doces', 5)), 'playlist')
+    assert.equal(productKindOf(c('Playlist: com um vídeo só', 1)), 'aula')
+    assert.equal(productKindOf(c('E-book: Molhos', 0, 1)), 'ebook')
+    assert.equal(productKindOf(c('Planilha de custos', 0, 1)), 'ebook')
+    assert.equal(productKindOf(c('Pacote de modelos', 0, 4)), 'arquivo')
+    assert.equal(productKindOf(c('Podcast', 0, 0, 6)), 'curso')
+})
+test('resumo a partir das contagens e filtros da vitrine', () => {
+    assert.equal(summaryFromCounts({ videos: 0, audios: 0, docs: 0, links: 0, seconds: 0 }), 'Conteúdo em preparação')
+    assert.equal(summaryFromCounts({ videos: 8, audios: 0, docs: 1, links: 0, seconds: 86 }), '8 aulas em vídeo · 1 arquivo · 1:26')
+    assert.equal(summaryFromCounts({ videos: 1, audios: 0, docs: 0, links: 0, seconds: 14 }), '1 aula em vídeo · 0:14')
+    assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'arquivos'])
+    assert.ok(SHOWCASE_FILTERS.find((f) => f.id === 'arquivos').kinds.includes('ebook'))
+    assert.equal(PRODUCT_KIND_LABEL.aula, 'Aula única')
 })

@@ -79,19 +79,44 @@ export function curriculumStats(items: CurriculumItem[]) {
     return { total: items.length, videos, audios, docs, links, seconds, previews: items.filter((i) => i.is_preview).length, modules: groupByModule(items).filter((g) => g.title).length }
 }
 
-/** "12 aulas em vídeo · 3 arquivos · 2h 05min" — o que o produto entrega, numa linha */
-export function curriculumSummary(items: CurriculumItem[]): string {
-    const s = curriculumStats(items)
-    if (!s.total) return 'Conteúdo em preparação'
+export interface ContentCounts { videos: number; audios: number; docs: number; links: number; seconds: number }
+
+/** "12 aulas em vídeo · 3 arquivos · 2h 05min" — o que o produto entrega, numa linha (a partir das contagens) */
+export function summaryFromCounts(c: ContentCounts): string {
+    if (c.videos + c.audios + c.docs + c.links === 0) return 'Conteúdo em preparação'
     const parts: string[] = []
     const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
-    if (s.videos) parts.push(plural(s.videos, 'aula em vídeo', 'aulas em vídeo'))
-    if (s.audios) parts.push(plural(s.audios, 'áudio', 'áudios'))
-    if (s.docs) parts.push(plural(s.docs, 'arquivo', 'arquivos'))
-    if (s.links) parts.push(plural(s.links, 'link', 'links'))
-    const d = formatDuration(s.seconds)
+    if (c.videos) parts.push(plural(c.videos, 'aula em vídeo', 'aulas em vídeo'))
+    if (c.audios) parts.push(plural(c.audios, 'áudio', 'áudios'))
+    if (c.docs) parts.push(plural(c.docs, 'arquivo', 'arquivos'))
+    if (c.links) parts.push(plural(c.links, 'link', 'links'))
+    const d = formatDuration(c.seconds)
     if (d) parts.push(d)
     return parts.join(' · ')
+}
+
+export function curriculumSummary(items: CurriculumItem[]): string {
+    const s = curriculumStats(items)
+    return summaryFromCounts({ videos: s.videos, audios: s.audios, docs: s.docs, links: s.links, seconds: s.seconds })
+}
+
+export type DigitalProductKind = 'curso' | 'aula' | 'playlist' | 'ebook' | 'arquivo'
+export const PRODUCT_KIND_LABEL: Record<DigitalProductKind, string> = { curso: 'Curso', aula: 'Aula única', playlist: 'Playlist', ebook: 'E-book', arquivo: 'Arquivo' }
+/** Filtros da vitrine (/digitais): chave → rótulo e quais tipos entram */
+export const SHOWCASE_FILTERS: { id: string; label: string; kinds: DigitalProductKind[] | null }[] = [
+    { id: 'todos', label: 'Todos', kinds: null },
+    { id: 'cursos', label: 'Cursos', kinds: ['curso'] },
+    { id: 'aulas', label: 'Aulas únicas', kinds: ['aula'] },
+    { id: 'playlists', label: 'Playlists', kinds: ['playlist'] },
+    { id: 'arquivos', label: 'E-books e arquivos', kinds: ['ebook', 'arquivo'] },
+]
+
+/** Que "cara" o produto digital tem na vitrine, pelo que ele entrega (e pelo nome, para playlist e e-book) */
+export function productKindOf(p: { name: string } & Pick<ContentCounts, 'videos' | 'audios' | 'docs' | 'links'>): DigitalProductKind {
+    const media = p.videos + p.audios
+    if (media === 0) return p.docs > 0 && /^e-?book/i.test(p.name.trim()) ? 'ebook' : p.docs > 0 ? (p.docs === 1 ? 'ebook' : 'arquivo') : 'arquivo'
+    if (media > 1 && /^playlist/i.test(p.name.trim())) return 'playlist'
+    return media === 1 ? 'aula' : 'curso'
 }
 
 /** O carrinho da loja só tem produto digital? Então não há entrega nem retirada: o acesso abre quando a loja confirma o pagamento */
