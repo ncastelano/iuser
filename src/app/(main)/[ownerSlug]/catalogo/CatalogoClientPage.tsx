@@ -98,7 +98,7 @@ export default function CatalogoClientPage() {
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
     const [searchOpen, setSearchOpen] = useState(false)
     const [kindChoice, setKindChoice] = useState<'physical' | 'digital' | 'service' | null>(null)
-    // "Você está aqui": a categoria da seção que está na tela enquanto a pessoa rola a lista (só 2.0, onde o topo é fixo)
+    // "Você está aqui": a categoria da seção que está na tela enquanto a pessoa rola a lista (2.0 e 3.0: o topo é fixo nas duas)
     const [spyCat, setSpyCat] = useState<string | null>(null)
     const headerRef = useRef<HTMLDivElement>(null)
     const [searchExpanded, setSearchExpanded] = useState(false)
@@ -1062,7 +1062,7 @@ export default function CatalogoClientPage() {
 
     // Acompanha a rolagem: a última seção cujo topo já passou da linha logo abaixo do cabeçalho fixo é "onde a pessoa está"
     useEffect(() => {
-        if (insideShell || selectedCategory !== 'Todos' || searchQuery.trim()) { setSpyCat(null); return }
+        if (selectedCategory !== 'Todos' || searchQuery.trim()) { setSpyCat(null); return }
         let raf = 0
         const update = () => {
             raf = 0
@@ -1083,7 +1083,7 @@ export default function CatalogoClientPage() {
             window.removeEventListener('scroll', onScroll)
             window.removeEventListener('resize', onScroll)
         }
-    }, [insideShell, selectedCategory, searchQuery, groupedFilteredProducts])
+    }, [selectedCategory, searchQuery, groupedFilteredProducts])
     // Mantém o chip de "onde estou" à vista na fileira (rola só a fileira, não a página)
     useEffect(() => {
         if (!spyCat) return
@@ -1227,14 +1227,25 @@ export default function CatalogoClientPage() {
 
                 {/* ===== 3.0: o topo é só o título da loja e as categorias (nada flutuante). Voltar, loja e busca ficam na peça de baixo, fundidos à sacola. ===== */}
                 {insideShell ? (
-                    <div className="px-4 pt-3 pb-1">
+                    <div
+                        ref={headerRef}
+                        className="sticky z-20 px-4 pt-2.5 pb-2.5"
+                        style={{
+                            top: 'var(--shell-top, 0px)',
+                            // a sombra sólida cobre a faixa acima do topo fixo (entre a borda da tela e a barra do app), para a lista não aparecer passando ali
+                            boxShadow: `0 -24px 0 0 ${colors.background}`,
+                            background: `linear-gradient(180deg, ${accent}1f, ${accent}08 70%, transparent), ${colors.background}`,
+                            borderBottom: `2px solid ${accent}55`,
+                            transition: 'background 0.3s, border-color 0.3s',
+                        }}
+                    >
                         {/* logo ao lado do nome (o anel mostra se está aberta); toque leva à página da loja */}
                         <button onClick={() => router.push(`/${ownerSlug}`)} className="flex items-center gap-3 min-w-0 text-left max-w-full">
-                            <span className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT, boxShadow: `0 0 0 2.5px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}>
+                            <span className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT, boxShadow: `0 0 0 2px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}>
                                 {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
                             </span>
                             <span className="min-w-0">
-                                <span className="block text-xl font-black leading-tight tracking-tight truncate" style={{ color: colors.textPrimary }}>{storeInfo.name}</span>
+                                <span className="block text-base font-black leading-tight tracking-tight truncate" style={{ color: colors.textPrimary }}>{storeInfo.name}</span>
                                 <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>
                                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isStoreOpen ? '#16a34a' : '#ef4444' }} />
                                     <span className="truncate">
@@ -1245,7 +1256,7 @@ export default function CatalogoClientPage() {
                                 </span>
                             </span>
                         </button>
-                        {renderAmbientes('mt-3')}
+                        {renderAmbientes('mt-2.5')}
                         {renderCategoryChips('mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5')}
                     </div>
                 ) : (
