@@ -14,7 +14,7 @@ import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
-import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, ChevronsUpDown, Trash2 } from 'lucide-react'
+import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, ChevronsUpDown, Trash2, GraduationCap, CalendarClock } from 'lucide-react'
 import { isDigitalCart } from '@/modules/digital'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHours } from '@/lib/storeHours'
@@ -96,6 +96,8 @@ export default function CatalogoClientPage() {
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
     const [showProductModal, setShowProductModal] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
+    // Tipo do item (produto físico, digital ou serviço): camada acima das categorias, só aparece quando a loja vende mais de um tipo
+    const [selectedKind, setSelectedKind] = useState<'all' | 'physical' | 'digital' | 'service'>('all')
     const [searchExpanded, setSearchExpanded] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -989,9 +991,16 @@ export default function CatalogoClientPage() {
         return { isOpen, statusText: isOpen ? 'Aberto' : 'Fechado', nextOpening: nextAvailable }
     }, [storeConfig, nextAvailable])
 
+    // ========== TIPO (Produtos · Digitais · Serviços) ==========
+    const kindOf = (t: string | null | undefined): 'physical' | 'digital' | 'service' => (t === 'digital' || t === 'service' ? t : 'physical')
+    const baseProducts = useMemo(
+        () => (selectedKind === 'all' ? products : products.filter(p => kindOf(p.type) === selectedKind)),
+        [products, selectedKind]
+    )
+
     // ========== FILTRO DE PRODUTOS ==========
     const filteredProducts = useMemo(() => {
-        let result = products
+        let result = baseProducts
 
         if (selectedCategory !== 'Todos') {
             result = result.filter(p => p.category === selectedCategory)
@@ -1007,7 +1016,7 @@ export default function CatalogoClientPage() {
         }
 
         return result
-    }, [products, searchQuery, selectedCategory])
+    }, [baseProducts, searchQuery, selectedCategory])
 
     // ========== AGRUPAR POR CATEGORIA (o tipo vira título da seção, não etiqueta do card) ==========
     // "Promoções" vem sempre primeiro (na lista e nos chips)
@@ -1029,16 +1038,48 @@ export default function CatalogoClientPage() {
     // ========== CATEGORIAS ==========
     const categories = useMemo(() => {
         const cats = new Map<string, number>()
-        products.forEach(p => {
+        baseProducts.forEach(p => {
             if (p.category) {
                 cats.set(p.category, (cats.get(p.category) || 0) + 1)
             }
         })
         return [
-            { name: 'Todos', count: products.length },
+            { name: 'Todos', count: baseProducts.length },
             ...Array.from(cats.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => Number(isPromoCategory(b.name)) - Number(isPromoCategory(a.name)) || b.count - a.count)
         ]
-    }, [products])
+    }, [baseProducts])
+
+    // Faixa de tipos: ícone e cor próprios para não confundir produto, curso digital e serviço
+    const KIND_META = {
+        physical: { label: 'Produtos', color: '#f97316', Icon: Package },
+        digital: { label: 'Digitais', color: '#8b5cf6', Icon: GraduationCap },
+        service: { label: 'Serviços', color: '#14b8a6', Icon: CalendarClock },
+    } as const
+    const kindList = (['physical', 'digital', 'service'] as const)
+        .map(k => ({ k, count: products.filter(p => kindOf(p.type) === k).length }))
+        .filter(x => x.count > 0)
+    const chooseKind = (k: 'all' | 'physical' | 'digital' | 'service') => { setSelectedKind(k); setSelectedCategory('Todos') }
+    const renderKindTabs = (className: string) => kindList.length > 1 ? (
+        <div className={className} role="tablist" aria-label="Tipo de item">
+            {[{ k: 'all' as const, label: 'Tudo', color: '#64748b', Icon: null as null | typeof Package, count: products.length }, ...kindList.map(x => ({ k: x.k, label: KIND_META[x.k].label, color: KIND_META[x.k].color, Icon: KIND_META[x.k].Icon as null | typeof Package, count: x.count }))].map(t => {
+                const on = selectedKind === t.k
+                return (
+                    <button
+                        key={t.k}
+                        role="tab"
+                        aria-selected={on}
+                        onClick={() => chooseKind(t.k)}
+                        className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-black whitespace-nowrap flex-shrink-0 transition active:scale-95"
+                        style={on ? { background: t.color, color: '#fff', border: `1.5px solid ${t.color}` } : { background: `${t.color}14`, color: t.color, border: `1.5px solid ${t.color}55` }}
+                    >
+                        {t.Icon && <t.Icon size={14} />}
+                        {t.label}
+                        <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={on ? { background: 'rgba(255,255,255,0.28)', color: '#fff' } : { background: `${t.color}22`, color: t.color }}>{t.count}</span>
+                    </button>
+                )
+            })}
+        </div>
+    ) : null
 
     // ========== VOLTAR ==========
     const handleGoBack = () => {
@@ -1124,6 +1165,7 @@ export default function CatalogoClientPage() {
                                 </span>
                             </span>
                         </button>
+                        {renderKindTabs('mt-3 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5')}
                         {categories.length > 1 && (
                             <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5">
                                 {categories.map((cat) => {
@@ -1220,6 +1262,7 @@ export default function CatalogoClientPage() {
                             </h1>
                         </div>
 
+                        {renderKindTabs('flex gap-1.5 mt-2 overflow-x-auto scrollbar-hide pb-1 pt-1 px-1')}
                         {categories.length > 1 && (
                             <div
                                 className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide px-1"
