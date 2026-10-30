@@ -2509,7 +2509,7 @@ export default function CatalogoClientPage() {
                                         </div>
                                     )}
 
-                                    <div className="mt-3 sticky bottom-0 -mx-5 -mb-5 px-5 py-3 flex flex-col sm:flex-row gap-2" style={{ background: cardBackground }}>
+                                    <div className="mt-3 sticky -bottom-5 -mx-5 -mb-5 px-5 py-3 flex flex-col sm:flex-row gap-2" style={{ background: cardBackground }}>
                                         {isStoreOpen ? (
                                             <>
                                                 {cartItems.some((item: any) => item.product.id === selectedProduct.id) ? (
