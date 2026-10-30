@@ -2382,7 +2382,7 @@ export default function CatalogoClientPage() {
                             <div className="flex flex-col gap-3">
                                 {/* O que é o produto vem primeiro: a foto é só uma miniatura ao lado do nome e do preço */}
                                 <div className="flex items-start gap-3">
-                                    <div className="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
+                                    <div className="w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
                                         {selectedProduct.image_url || storeInfo?.logo_url ? (
                                             <img
                                                 src={selectedProduct.image_url || storeInfo?.logo_url || ''}
@@ -2424,7 +2424,24 @@ export default function CatalogoClientPage() {
                                         </div>
                                     )}
 
-                                    <div className="grid grid-cols-2 gap-2 mt-3">
+                                    {selectedProduct.stock !== null && selectedProduct.stock !== undefined && selectedProduct.stock <= 0 && (
+                                        <p className="mt-2 text-xs font-bold" style={{ color: '#ef4444' }}>Esgotado</p>
+                                    )}
+
+                                    {selectedProduct.type === 'digital' && (
+                                        <div className="mt-3">
+                                            <DigitalCurriculum productId={selectedProduct.id} />
+                                        </div>
+                                    )}
+
+                                    {/* Dados técnicos ficam recolhidos: o foco é o que o produto é, o preço, a foto e a descrição */}
+                                    <details className="group mt-3 rounded-lg" style={{ border: `1px solid ${colors.border}` }}>
+                                        <summary className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer list-none text-xs font-bold select-none" style={{ color: textColor }}>
+                                            Ver mais sobre este produto
+                                            <ChevronDown size={16} className="transition-transform group-open:rotate-180" style={{ color: '#f97316' }} />
+                                        </summary>
+                                        <div className="px-3 pb-3">
+                                            <div className="grid grid-cols-2 gap-2">
                                         {selectedProduct.type && (
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                                                 <div className="flex items-center gap-1.5">
@@ -2475,12 +2492,8 @@ export default function CatalogoClientPage() {
                                             </div>
                                         )}
                                     </div>
-
-                                    {selectedProduct.type === 'digital' && (
-                                        <div className="mt-3">
-                                            <DigitalCurriculum productId={selectedProduct.id} />
                                         </div>
-                                    )}
+                                    </details>
 
                                     {!isStoreOpen && (
                                         <div className="mt-2 p-2 rounded-lg text-center" style={{ background: 'rgba(239, 68, 68, 0.08)', border: `1px dashed #ef4444` }}>
