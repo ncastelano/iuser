@@ -923,7 +923,7 @@ export function Store({
                         {/* Descrição */}
                         {selectedProduct.description && (
                             <div className="mt-3 p-3 rounded-xl" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
-                                <p className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
+                                <p className="text-sm leading-relaxed font-bold" style={{ color: colors.textPrimary }}>
                                     {selectedProduct.description}
                                 </p>
                             </div>
@@ -934,13 +934,13 @@ export function Store({
                             {selectedProduct.category && (
                                 <div className="flex justify-between">
                                     <span>Categoria</span>
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>{selectedProduct.category}</span>
+                                    <span className="font-normal" style={{ color: colors.textPrimary }}>{selectedProduct.category}</span>
                                 </div>
                             )}
                             {selectedProduct.type && (
                                 <div className="flex justify-between">
                                     <span>Tipo</span>
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                    <span className="font-normal" style={{ color: colors.textPrimary }}>
                                         {selectedProduct.type === 'physical' ? 'Produto' :
                                             selectedProduct.type === 'service' ? 'Serviço' : 'Digital'}
                                     </span>
@@ -949,7 +949,7 @@ export function Store({
                             {selectedProduct.stock_quantity !== undefined && selectedProduct.stock_quantity !== null && (
                                 <div className="flex justify-between">
                                     <span>Estoque</span>
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                    <span className="font-normal" style={{ color: colors.textPrimary }}>
                                         {selectedProduct.stock_quantity > 0 ? `${selectedProduct.stock_quantity} unidades` : 'Indisponível'}
                                     </span>
                                 </div>

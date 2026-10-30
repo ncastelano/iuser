@@ -2418,7 +2418,7 @@ export default function CatalogoClientPage() {
                                 <div className="flex-1 flex flex-col">
                                     <div className="p-3 rounded-lg" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
                                         {selectedProduct.description && (
-                                            <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: textColor }}>
+                                            <p className="text-sm leading-relaxed whitespace-pre-line font-bold" style={{ color: textColor }}>
                                                 {selectedProduct.description}
                                             </p>
                                         )}
@@ -2434,9 +2434,9 @@ export default function CatalogoClientPage() {
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                                                 <div className="flex items-center gap-1.5">
                                                     <Package size={13} style={{ color: '#f97316' }} />
-                                                    <span className="text-[10px] font-bold" style={{ color: textColor }}>Tipo</span>
+                                                    <span className="text-[10px] font-normal" style={{ color: textColor }}>Tipo</span>
                                                 </div>
-                                                <p className="text-xs font-semibold mt-0.5" style={{ color: textColor }}>
+                                                <p className="text-xs font-normal mt-0.5" style={{ color: textColor }}>
                                                     {selectedProduct.type === 'physical' ? 'Produto' :
                                                         selectedProduct.type === 'service' ? 'Serviço' : 'Digital'}
                                                 </p>
@@ -2446,9 +2446,9 @@ export default function CatalogoClientPage() {
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                                                 <div className="flex items-center gap-1.5">
                                                     <Tag size={13} style={{ color: '#f97316' }} />
-                                                    <span className="text-[10px] font-bold" style={{ color: textColor }}>Estoque</span>
+                                                    <span className="text-[10px] font-normal" style={{ color: textColor }}>Estoque</span>
                                                 </div>
-                                                <p className="text-xs font-semibold mt-0.5" style={{ color: selectedProduct.stock > 0 ? '#22c55e' : '#ef4444' }}>
+                                                <p className="text-xs font-normal mt-0.5" style={{ color: selectedProduct.stock > 0 ? '#22c55e' : '#ef4444' }}>
                                                     {selectedProduct.stock > 0 ? `${selectedProduct.stock} un.` : 'Esgotado'}
                                                 </p>
                                             </div>
@@ -2457,9 +2457,9 @@ export default function CatalogoClientPage() {
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                                                 <div className="flex items-center gap-1.5">
                                                     <Clock size={13} style={{ color: '#f97316' }} />
-                                                    <span className="text-[10px] font-bold" style={{ color: textColor }}>Modalidade</span>
+                                                    <span className="text-[10px] font-normal" style={{ color: textColor }}>Modalidade</span>
                                                 </div>
-                                                <p className="text-xs font-semibold mt-0.5" style={{ color: textColor }}>
+                                                <p className="text-xs font-normal mt-0.5" style={{ color: textColor }}>
                                                     {selectedProduct.price_type === 'fixed' ? 'Fixo' :
                                                         selectedProduct.price_type === 'hourly' ? 'Por hora' : 'Negociável'}
                                                 </p>
@@ -2469,9 +2469,9 @@ export default function CatalogoClientPage() {
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                                                 <div className="flex items-center gap-1.5">
                                                     <Calendar size={13} style={{ color: '#f97316' }} />
-                                                    <span className="text-[10px] font-bold" style={{ color: textColor }}>Adicionado</span>
+                                                    <span className="text-[10px] font-normal" style={{ color: textColor }}>Adicionado</span>
                                                 </div>
-                                                <p className="text-xs font-semibold mt-0.5" style={{ color: textColor }}>
+                                                <p className="text-xs font-normal mt-0.5" style={{ color: textColor }}>
                                                     {new Date(selectedProduct.created_at).toLocaleDateString('pt-BR', {
                                                         day: '2-digit',
                                                         month: 'short'
