@@ -2416,31 +2416,19 @@ export default function CatalogoClientPage() {
                                 </div>
 
                                 <div className="flex-1 flex flex-col">
-                                    {selectedProduct.description && (
-                                        <div className="p-3 rounded-lg" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
+                                    <div className="p-3 rounded-lg" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
+                                        {selectedProduct.description && (
                                             <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: textColor }}>
                                                 {selectedProduct.description}
                                             </p>
-                                        </div>
-                                    )}
-
-                                    {selectedProduct.stock !== null && selectedProduct.stock !== undefined && selectedProduct.stock <= 0 && (
-                                        <p className="mt-2 text-xs font-bold" style={{ color: '#ef4444' }}>Esgotado</p>
-                                    )}
-
-                                    {selectedProduct.type === 'digital' && (
-                                        <div className="mt-3">
-                                            <DigitalCurriculum productId={selectedProduct.id} />
-                                        </div>
-                                    )}
-
-                                    {/* Dados técnicos ficam recolhidos: o foco é o que o produto é, o preço, a foto e a descrição */}
-                                    <details className="group mt-3 rounded-lg" style={{ border: `1px solid ${colors.border}` }}>
-                                        <summary className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer list-none text-xs font-bold select-none" style={{ color: textColor }}>
+                                        )}
+                                        {/* Dados técnicos ficam recolhidos dentro da descrição (o foco é o que o produto é, o preço, a foto e o que se diz dele) */}
+                                    <details className="group mt-2">
+                                        <summary className="inline-flex items-center gap-1 cursor-pointer list-none text-xs font-normal select-none" style={{ color: colors.textSecondary }}>
                                             Ver mais sobre este produto
                                             <ChevronDown size={16} className="transition-transform group-open:rotate-180" style={{ color: '#f97316' }} />
                                         </summary>
-                                        <div className="px-3 pb-3">
+                                        <div className="pt-2">
                                             <div className="grid grid-cols-2 gap-2">
                                         {selectedProduct.type && (
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
@@ -2494,6 +2482,18 @@ export default function CatalogoClientPage() {
                                     </div>
                                         </div>
                                     </details>
+                                    </div>
+
+                                    {selectedProduct.stock !== null && selectedProduct.stock !== undefined && selectedProduct.stock <= 0 && (
+                                        <p className="mt-2 text-xs font-bold" style={{ color: '#ef4444' }}>Esgotado</p>
+                                    )}
+
+                                    {selectedProduct.type === 'digital' && (
+                                        <div className="mt-3">
+                                            <DigitalCurriculum productId={selectedProduct.id} />
+                                        </div>
+                                    )}
+
 
                                     {!isStoreOpen && (
                                         <div className="mt-2 p-2 rounded-lg text-center" style={{ background: 'rgba(239, 68, 68, 0.08)', border: `1px dashed #ef4444` }}>
