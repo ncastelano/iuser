@@ -14,7 +14,7 @@ import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
-import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, ChevronsUpDown, Trash2 } from 'lucide-react'
 import { isDigitalCart } from '@/modules/digital'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHours } from '@/lib/storeHours'
@@ -2500,51 +2500,52 @@ export default function CatalogoClientPage() {
                                         {isStoreOpen ? (
                                             <>
                                                 {cartItems.some((item: any) => item.product.id === selectedProduct.id) ? (
-                                                    <div className="flex items-center gap-2 w-full">
-                                                        <button
-                                                            onClick={() => {
-                                                                const qty = getProductQuantity(selectedProduct.id)
-                                                                if (qty <= 1) {
-                                                                    removeAllOfProduct(selectedProduct.id)
-                                                                } else {
-                                                                    decreaseQuantity(selectedProduct.id)
-                                                                }
-                                                            }}
-                                                            className="flex-1 py-2 rounded-full font-bold text-xs transition hover:scale-105 active:scale-95"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff',
-                                                                boxShadow: `0 4px 14px #f9731660`,
-                                                            }}
-                                                        >
-                                                            Remover
-                                                        </button>
-                                                        <span className="text-base font-bold min-w-[32px] text-center" style={{ color: '#f97316' }}>
-                                                            {getProductQuantity(selectedProduct.id)}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => handleAddWithComment(selectedProduct)}
-                                                            className="flex-1 py-2 rounded-full font-bold text-xs transition hover:scale-105 active:scale-95"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff',
-                                                                boxShadow: `0 4px 14px #f9731660`,
-                                                            }}
-                                                        >
-                                                            Adicionar
-                                                        </button>
+                                                    /* Já está no carrinho: seletor de quantidade (− 1 +). Com 1 unidade o "−" vira a lixeira e tira o produto */
+                                                    <div className="flex items-center justify-between gap-3 w-full">
+                                                        <div className="min-w-0">
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: colors.textSecondary }}>No carrinho</p>
+                                                            <p className="text-sm font-black" style={{ color: textColor }}>
+                                                                {getProductQuantity(selectedProduct.id)} {getProductQuantity(selectedProduct.id) === 1 ? 'unidade' : 'unidades'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 rounded-full p-1" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const qty = getProductQuantity(selectedProduct.id)
+                                                                    if (qty <= 1) removeAllOfProduct(selectedProduct.id)
+                                                                    else decreaseQuantity(selectedProduct.id)
+                                                                }}
+                                                                aria-label={getProductQuantity(selectedProduct.id) <= 1 ? 'Tirar do carrinho' : 'Diminuir quantidade'}
+                                                                className="w-10 h-10 rounded-full flex items-center justify-center transition active:scale-90"
+                                                                style={getProductQuantity(selectedProduct.id) <= 1 ? { background: '#ef444418', color: '#ef4444' } : { background: colors.surface, color: textColor, border: `1px solid ${colors.border}` }}
+                                                            >
+                                                                {getProductQuantity(selectedProduct.id) <= 1 ? <Trash2 size={17} /> : <Minus size={18} />}
+                                                            </button>
+                                                            <span className="min-w-[40px] text-center text-lg font-black" style={{ color: textColor }} aria-live="polite">
+                                                                {getProductQuantity(selectedProduct.id)}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => handleAddWithComment(selectedProduct)}
+                                                                aria-label="Aumentar quantidade"
+                                                                className="w-10 h-10 rounded-full flex items-center justify-center transition active:scale-90"
+                                                                style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
+                                                            >
+                                                                <Plus size={18} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     <button
                                                         onClick={() => handleAddWithComment(selectedProduct)}
-                                                        className="w-full py-2 rounded-full font-bold text-xs transition hover:scale-105 active:scale-95"
+                                                        className="w-full h-12 rounded-full font-black text-sm flex items-center justify-center gap-2 transition hover:scale-[1.02] active:scale-95"
                                                         style={{
                                                             background: GRADIENT,
                                                             color: '#ffffff',
                                                             boxShadow: `0 4px 14px #f9731660`,
                                                         }}
                                                     >
-                                                        Adicionar ao carrinho
+                                                        <Plus size={18} />
+                                                        Adicionar ao carrinho · {formatPrice(selectedProduct.price || 0)}
                                                     </button>
                                                 )}
                                             </>
