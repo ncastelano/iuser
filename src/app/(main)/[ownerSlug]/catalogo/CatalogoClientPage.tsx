@@ -96,8 +96,7 @@ export default function CatalogoClientPage() {
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
     const [showProductModal, setShowProductModal] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
-    // Tipo do item (produto físico, digital ou serviço): camada acima das categorias, só aparece quando a loja vende mais de um tipo
-    const [selectedKind, setSelectedKind] = useState<'all' | 'physical' | 'digital' | 'service'>('all')
+    const [searchOpen, setSearchOpen] = useState(false)
     const [searchExpanded, setSearchExpanded] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -991,16 +990,9 @@ export default function CatalogoClientPage() {
         return { isOpen, statusText: isOpen ? 'Aberto' : 'Fechado', nextOpening: nextAvailable }
     }, [storeConfig, nextAvailable])
 
-    // ========== TIPO (Produtos · Digitais · Serviços) ==========
-    const kindOf = (t: string | null | undefined): 'physical' | 'digital' | 'service' => (t === 'digital' || t === 'service' ? t : 'physical')
-    const baseProducts = useMemo(
-        () => (selectedKind === 'all' ? products : products.filter(p => kindOf(p.type) === selectedKind)),
-        [products, selectedKind]
-    )
-
     // ========== FILTRO DE PRODUTOS ==========
     const filteredProducts = useMemo(() => {
-        let result = baseProducts
+        let result = products
 
         if (selectedCategory !== 'Todos') {
             result = result.filter(p => p.category === selectedCategory)
@@ -1016,7 +1008,7 @@ export default function CatalogoClientPage() {
         }
 
         return result
-    }, [baseProducts, searchQuery, selectedCategory])
+    }, [products, searchQuery, selectedCategory])
 
     // ========== AGRUPAR POR CATEGORIA (o tipo vira título da seção, não etiqueta do card) ==========
     // "Promoções" vem sempre primeiro (na lista e nos chips)
@@ -1038,43 +1030,51 @@ export default function CatalogoClientPage() {
     // ========== CATEGORIAS ==========
     const categories = useMemo(() => {
         const cats = new Map<string, number>()
-        baseProducts.forEach(p => {
+        products.forEach(p => {
             if (p.category) {
                 cats.set(p.category, (cats.get(p.category) || 0) + 1)
             }
         })
         return [
-            { name: 'Todos', count: baseProducts.length },
+            { name: 'Todos', count: products.length },
             ...Array.from(cats.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => Number(isPromoCategory(b.name)) - Number(isPromoCategory(a.name)) || b.count - a.count)
         ]
-    }, [baseProducts])
+    }, [products])
 
-    // Faixa de tipos: ícone e cor próprios para não confundir produto, curso digital e serviço
-    const KIND_META = {
-        physical: { label: 'Produtos', color: '#f97316', Icon: Package },
-        digital: { label: 'Digitais', color: '#8b5cf6', Icon: GraduationCap },
-        service: { label: 'Serviços', color: '#14b8a6', Icon: CalendarClock },
-    } as const
-    const kindList = (['physical', 'digital', 'service'] as const)
-        .map(k => ({ k, count: products.filter(p => kindOf(p.type) === k).length }))
-        .filter(x => x.count > 0)
-    const chooseKind = (k: 'all' | 'physical' | 'digital' | 'service') => { setSelectedKind(k); setSelectedCategory('Todos') }
-    const renderKindTabs = (className: string) => kindList.length > 1 ? (
-        <div className={className} role="tablist" aria-label="Tipo de item">
-            {[{ k: 'all' as const, label: 'Tudo', color: '#64748b', Icon: null as null | typeof Package, count: products.length }, ...kindList.map(x => ({ k: x.k, label: KIND_META[x.k].label, color: KIND_META[x.k].color, Icon: KIND_META[x.k].Icon as null | typeof Package, count: x.count }))].map(t => {
-                const on = selectedKind === t.k
+    // O tipo (digital / serviço) aparece como ÍCONE no chip da categoria, sem uma segunda fileira de filtros
+    const categoryKind = useMemo(() => {
+        const kinds: Record<string, Set<string>> = {}
+        products.forEach(p => {
+            if (!p.category) return
+            ;(kinds[p.category] ||= new Set()).add(p.type === 'digital' || p.type === 'service' ? p.type : 'physical')
+        })
+        const out: Record<string, 'digital' | 'service'> = {}
+        Object.entries(kinds).forEach(([c, set]) => {
+            const only = set.size === 1 ? Array.from(set)[0] : null
+            if (only === 'digital' || only === 'service') out[c] = only
+        })
+        return out
+    }, [products])
+    // UMA fileira só de chips: texto limpo, sem contagem; ativo = laranja cheio
+    const renderCategoryChips = (className: string) => categories.length > 1 ? (
+        <div className={className} role="tablist" aria-label="Categorias">
+            {categories.map((cat) => {
+                const on = selectedCategory === cat.name
+                const kind = categoryKind[cat.name]
+                const KindIcon = kind === 'digital' ? GraduationCap : kind === 'service' ? CalendarClock : null
                 return (
                     <button
-                        key={t.k}
+                        key={cat.name}
                         role="tab"
                         aria-selected={on}
-                        onClick={() => chooseKind(t.k)}
-                        className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-black whitespace-nowrap flex-shrink-0 transition active:scale-95"
-                        style={on ? { background: t.color, color: '#fff', border: `1.5px solid ${t.color}` } : { background: `${t.color}14`, color: t.color, border: `1.5px solid ${t.color}55` }}
+                        onClick={() => setSelectedCategory(cat.name)}
+                        className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-bold whitespace-nowrap flex-shrink-0 transition active:scale-95"
+                        style={on
+                            ? { background: '#f97316', color: '#fff', border: '1.5px solid #f97316' }
+                            : { background: 'transparent', color: colors.textPrimary, border: `1.5px solid ${colors.border}` }}
                     >
-                        {t.Icon && <t.Icon size={14} />}
-                        {t.label}
-                        <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={on ? { background: 'rgba(255,255,255,0.28)', color: '#fff' } : { background: `${t.color}22`, color: t.color }}>{t.count}</span>
+                        {KindIcon && <KindIcon size={14} style={{ color: on ? '#fff' : kind === 'digital' ? '#8b5cf6' : '#14b8a6' }} />}
+                        {cat.name}
                     </button>
                 )
             })}
@@ -1134,6 +1134,11 @@ export default function CatalogoClientPage() {
     // Cor padrão para os textos
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
+    const storeStatusText = storeInfo
+        ? (isStoreOpen
+            ? `Aberta agora${(() => { const h = getTodayHoursText(storeInfo.business_hours); return h ? ` · ${h === '00:00 - 00:00' ? '24 horas' : h}` : '' })()}`
+            : nextAvailable ? `Fechada · abre ${nextAvailable.day} às ${nextAvailable.open}` : 'Fechada agora')
+        : ''
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -1165,163 +1170,49 @@ export default function CatalogoClientPage() {
                                 </span>
                             </span>
                         </button>
-                        {renderKindTabs('mt-3 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5')}
-                        {categories.length > 1 && (
-                            <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5">
-                                {categories.map((cat) => {
-                                    const on = selectedCategory === cat.name
-                                    return (
-                                        <button
-                                            key={cat.name}
-                                            onClick={() => setSelectedCategory(cat.name)}
-                                            className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-black whitespace-nowrap flex-shrink-0 transition active:scale-95"
-                                            style={{ background: on ? '#f9731614' : colors.background, color: on ? '#ea580c' : colors.textPrimary, border: `1.5px solid ${on ? '#f97316' : colors.border}` }}
-                                        >
-                                            {cat.name}
-                                            <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={{ background: on ? '#f97316' : `${colors.border}66`, color: on ? '#fff' : colors.textSecondary }}>{cat.count}</span>
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        )}
+                        {renderCategoryChips('mt-3 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5')}
                     </div>
                 ) : (
-                <div
-                    style={{
-                        color: colors.textPrimary,
-                        padding: '8px 12px 14px 12px',
-                        position: 'sticky',
-                        top: insideShell ? 'var(--shell-top, 0px)' : 0,
-                        zIndex: 20,
-                        overflow: 'hidden',
-                        background: gradientBg,
-                        backdropFilter: 'blur(20px) saturate(180%)',
-                        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                        minHeight: 120,
-                    }}
-                    className="sm:px-6 sm:pt-5"
-                >
-                    <div
-                        style={{
-                            position: 'absolute',
-                            right: storeInfo.logo_url ? -15 : -5,
-                            top: storeInfo.logo_url ? -15 : -5,
-                            width: storeInfo.logo_url ? 130 : 90,
-                            height: storeInfo.logo_url ? 130 : 90,
-                            opacity: storeInfo.logo_url ? 0.45 : 0.35,
-                            transform: 'rotate(6deg)',
-                            maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.95) 15%, rgba(0,0,0,0) 75%)',
-                            WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.95) 15%, rgba(0,0,0,0) 75%)',
-                            pointerEvents: 'none',
-                            background: storeInfo.logo_url ? 'transparent' : colors.accent,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 1,
-                        }}
-                    >
-                        {storeInfo.logo_url ? (
-                            <img
-                                src={storeInfo.logo_url}
-                                alt=""
-                                style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: 'cover',
-                                    borderRadius: '50%',
-                                }}
-                            />
-                        ) : (
-                            <img
-                                src="/logotransparente.png"
-                                alt="headerimage"
-                                style={{ width: 45, height: 45, objectFit: 'contain' }}
-                            />
-                        )}
-                    </div>
-
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-3">
-                            {insideShell && (
-                                <button
-                                    onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push(`/${ownerSlug}`))}
-                                    aria-label="Voltar"
-                                    className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition active:scale-95"
-                                    style={{ background: `${colors.border}40`, color: colors.textPrimary }}
-                                >
-                                    <ArrowLeft size={19} />
-                                </button>
-                            )}
-                            {storeInfo.logo_url && (
-                                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2" style={{ borderColor: colors.accent }}>
-                                    <img src={storeInfo.logo_url} alt={storeInfo.name} className="w-full h-full object-cover" />
+                /* 2.0: cabeçalho de UMA linha (logo · nome e status · lupa) + uma fileira de chips. A busca abre pela lupa. */
+                <div className="sticky top-0 z-20" style={{ background: colors.background, borderBottom: `1px solid ${colors.border}40` }}>
+                    <div className="max-w-7xl mx-auto px-3 pt-2.5 pb-2">
+                        {searchOpen || searchQuery ? (
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 flex items-center gap-2 h-10 px-3.5 rounded-full" style={{ background: `${colors.border}30` }}>
+                                    <Search size={16} style={{ color: colors.textSecondary }} />
+                                    <input
+                                        ref={searchInputRef}
+                                        autoFocus
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder={`Buscar em ${storeInfo.name}`}
+                                        className="flex-1 min-w-0 bg-transparent outline-none text-sm"
+                                        style={{ color: colors.textPrimary }}
+                                    />
                                 </div>
-                            )}
-                            <h1 className="text-lg sm:text-2xl lg:text-3xl font-extrabold tracking-tight break-words" style={{ color: colors.textPrimary }}>
-                                {storeInfo.name}
-                            </h1>
-                        </div>
-
-                        {renderKindTabs('flex gap-1.5 mt-2 overflow-x-auto scrollbar-hide pb-1 pt-1 px-1')}
-                        {categories.length > 1 && (
-                            <div
-                                className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide px-1"
-                                style={{
-                                    overflowY: 'visible',
-                                    paddingLeft: '4px',
-                                    paddingRight: '4px',
-                                }}
-                            >
-                                {categories.map((cat) => {
-                                    const isActive = selectedCategory === cat.name
-                                    return (
-                                        <button
-                                            key={cat.name}
-                                            onClick={() => setSelectedCategory(cat.name)}
-                                            className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 hover:scale-105"
-                                            style={{
-                                                background: isActive
-                                                    ? GRADIENT
-                                                    : 'transparent',
-                                                color: textColor,
-                                                boxShadow: isActive ? `0 2px 12px #f9731650` : 'none',
-                                                border: isActive ? 'none' : `1px solid ${colors.border}44`,
-                                                ...(isActive ? {
-                                                    fontWeight: 'bold',
-                                                    transform: 'scale(1.05)',
-                                                } : {}),
-                                            }}
-                                        >
-                                            <div
-                                                className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
-                                                style={{
-                                                    background: isActive
-                                                        ? 'linear-gradient(135deg, #f97316, #dc2626)'
-                                                        : colors.surface,
-                                                    color: textColor,
-                                                    border: isActive ? 'none' : `1px solid ${colors.border}33`,
-                                                }}
-                                            >
-                                                {cat.count}
-                                            </div>
-                                            <span className="ml-1.5 sm:ml-2">{cat.name}</span>
-                                        </button>
-                                    )
-                                })}
+                                <button onClick={() => { setSearchQuery(''); setSearchOpen(false) }} className="h-10 px-3 rounded-full text-xs font-bold flex-shrink-0" style={{ color: colors.textSecondary }}>
+                                    Cancelar
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2.5">
+                                <button onClick={() => router.push(`/${ownerSlug}`)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left" aria-label={`Ir para a página de ${storeInfo.name}`}>
+                                    <span className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT, boxShadow: `0 0 0 2px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}>
+                                        {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
+                                    </span>
+                                    <span className="min-w-0">
+                                        <span className="block text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{storeInfo.name}</span>
+                                        <span className="block text-[11px] font-semibold truncate" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>{storeStatusText}</span>
+                                    </span>
+                                </button>
+                                <button onClick={() => { setSelectedCategory('Todos'); setSearchOpen(true) }} aria-label="Buscar produtos" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                    <Search size={18} />
+                                </button>
                             </div>
                         )}
-
-                        <div className="mt-2">
-                            <HeaderSearchInput
-                                placeholder="Buscar produtos..."
-                                value={searchQuery}
-                                onChange={setSearchQuery}
-                                inputRef={searchInputRef}
-                            />
-                        </div>
+                        {renderCategoryChips('mt-2 flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3 pb-0.5')}
                     </div>
                 </div>
-
                 )}
 
                 {/* Banner da loja */}
@@ -1382,25 +1273,12 @@ export default function CatalogoClientPage() {
                     ) : (
                         <div className="flex flex-col gap-6">
                             {Object.entries(groupedFilteredProducts).map(([category, categoryProducts], groupIndex, allGroups) => {
-                                const isCollapsed = !searchQuery.trim() && !!collapsedCats[category]
-                                const allCollapsed = allGroups.every(([c]) => collapsedCats[c])
+                                const isCollapsed = allGroups.length > 1 && !searchQuery.trim() && !!collapsedCats[category]
                                 const toggle = () => setCollapsedCats(prev => ({ ...prev, [category]: !prev[category] }))
                                 return (
                                 <div key={category} className="flex flex-col gap-3">
-                                    {groupIndex === 0 && allGroups.length > 1 && !searchQuery.trim() && (
-                                        <div className="flex items-center justify-between gap-2 px-1">
-                                            <span className="text-[11px] font-bold" style={{ color: textColor }}>{allGroups.length} categorias</span>
-                                            <button
-                                                onClick={() => setCollapsedCats(Object.fromEntries(allGroups.map(([c]) => [c, !allCollapsed])))}
-                                                className="h-8 px-3 rounded-full text-[11px] font-black flex items-center gap-1 transition active:scale-95"
-                                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
-                                            >
-                                                <ChevronsUpDown size={13} /> {allCollapsed ? 'Expandir todas' : 'Recolher todas'}
-                                            </button>
-                                        </div>
-                                    )}
                                     {/* 3.0: com uma categoria só, o título ("Geral") não diz nada */}
-                                    {!(insideShell && allGroups.length <= 1) && (
+                                    {allGroups.length > 1 && (
                                         <button type="button" onClick={toggle} aria-expanded={!isCollapsed} className="w-full flex items-center gap-2 px-1 text-left transition active:opacity-70">
                                             {insideShell && isPromoCategory(category) ? (
                                                 <span className="flex-1 min-w-0 flex items-center gap-2 text-xl font-black leading-none" style={{ color: '#dc2626' }}>
@@ -1560,7 +1438,7 @@ export default function CatalogoClientPage() {
                                                     {storeInfo?.name?.trim() ? storeInfo.name.trim().charAt(0).toUpperCase() : '?'}
                                                 </div>
                                             )}
-                                            {product.type && (
+                                            {product.type && product.type !== 'physical' && (
                                                 <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase backdrop-blur-md"
                                                     style={{ background: 'rgba(0,0,0,0.3)', color: '#ffffff' }}>
                                                     {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
