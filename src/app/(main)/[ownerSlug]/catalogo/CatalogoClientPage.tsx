@@ -1391,7 +1391,7 @@ export default function CatalogoClientPage() {
                                                 key={product.id}
                                                 onClick={(e) => handleProductClick(product, e)}
                                                 className="relative aspect-[4/5] rounded-3xl overflow-hidden cursor-pointer text-left transition active:scale-[0.99]"
-                                                style={{ background: GRADIENT, boxShadow: '0 8px 22px rgba(220,38,38,0.22)', outline: isSelected ? '2px solid #22c55e' : 'none', outlineOffset: -2, opacity: soldOut ? 0.6 : 1 }}
+                                                style={{ background: GRADIENT, boxShadow: '0 8px 22px rgba(220,38,38,0.22)', outline: isSelected ? '2px solid #f97316' : 'none', outlineOffset: -2, opacity: soldOut ? 0.6 : 1 }}
                                             >
                                                 {product.image_url || storeInfo?.logo_url
                                                     ? <img src={product.image_url || storeInfo?.logo_url || ''} alt="" className={`absolute inset-0 w-full h-full ${product.image_url ? 'object-cover' : 'object-contain p-10'}`} loading="lazy" />
@@ -1401,7 +1401,7 @@ export default function CatalogoClientPage() {
                                                     ? <span className="absolute left-2 top-2 text-[10px] font-black uppercase px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Esgotado</span>
                                                     : promo && <span className="absolute left-2 top-2 text-xs font-black px-2.5 py-1 rounded-full text-white flex items-center gap-1" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', boxShadow: '0 2px 8px rgba(239,68,68,0.5)' }}><Flame size={12} />-{promo.pct}%</span>}
                                                 {isSelected && quantity > 0 && (
-                                                    <span className="absolute right-2 top-2 min-w-[24px] h-6 px-1.5 rounded-full text-[11px] font-black text-white flex items-center justify-center" style={{ background: '#16a34a', boxShadow: '0 0 0 2px #fff' }}>{quantity}</span>
+                                                    <span className="absolute right-2 top-2 min-w-[24px] h-6 px-1.5 rounded-full text-[11px] font-black text-white flex items-center justify-center" style={{ background: '#f97316', boxShadow: '0 0 0 2px #fff' }}>{quantity}</span>
                                                 )}
                                                 <div className="absolute inset-x-0 bottom-0 p-3 flex flex-col gap-1.5">
                                                     <h3 className="text-[13px] font-black leading-snug text-white" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{product.name}</h3>
@@ -1420,7 +1420,7 @@ export default function CatalogoClientPage() {
                                             key={product.id}
                                             onClick={(e) => handleProductClick(product, e)}
                                             className="rounded-3xl overflow-hidden flex flex-col cursor-pointer text-left transition active:scale-[0.99]"
-                                            style={{ background: colors.surface, border: `1px solid ${isSelected ? '#22c55e' : colors.border}`, boxShadow: '0 6px 18px rgba(0,0,0,0.06)', opacity: soldOut ? 0.6 : 1 }}
+                                            style={{ background: colors.surface, border: `1px solid ${isSelected ? '#f97316' : colors.border}`, boxShadow: '0 6px 18px rgba(0,0,0,0.06)', opacity: soldOut ? 0.6 : 1 }}
                                         >
                                             <div className="relative aspect-[5/4] overflow-hidden" style={{ background: GRADIENT }}>
                                                 {product.image_url || storeInfo?.logo_url
@@ -1453,11 +1453,12 @@ export default function CatalogoClientPage() {
                                     <div
                                         key={product.id}
                                         onClick={(e) => handleProductClick(product, e)}
-                                        className={`group rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl cursor-pointer border-4 flex flex-row`}
+                                        className={`group rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl cursor-pointer border flex flex-row`}
                                         style={{
-                                            background: cardBackground,
+                                            // No carrinho: leve tom de laranja no fundo + selo com a quantidade na foto (o contorno verde saiu)
+                                            background: isSelected ? `linear-gradient(#f973161a, #f973161a), ${cardBackground}` : cardBackground,
                                             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                            borderColor: isSelected ? '#22c55e' : 'transparent',
+                                            borderColor: isSelected ? '#f9731666' : `${colors.border}55`,
                                         }}
                                     >
                                         <div className="w-32 sm:w-40 md:w-48 flex-shrink-0 relative bg-gray-100 overflow-hidden" style={{ minHeight: '140px', height: 'auto' }}>
@@ -1483,6 +1484,9 @@ export default function CatalogoClientPage() {
                                                 <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                                                     Esgotado
                                                 </div>
+                                            )}
+                                            {isSelected && quantity > 0 && !(product.stock !== null && product.stock <= 0) && (
+                                                <span className="absolute right-2 top-2 min-w-[26px] h-[26px] px-1.5 rounded-full text-xs font-black text-white flex items-center justify-center" style={{ background: '#f97316', boxShadow: '0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.25)' }} aria-label={`${quantity} no carrinho`}>{quantity}</span>
                                             )}
                                             {productIsDisabled && (
                                                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
@@ -1517,53 +1521,30 @@ export default function CatalogoClientPage() {
 
                                             <div className="mt-2 flex justify-end items-center">
                                                 {isSelected ? (
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-0.5 rounded-full p-1" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation()
-                                                                if (quantity <= 1) {
-                                                                    removeAllOfProduct(product.id)
-                                                                } else {
-                                                                    decreaseQuantity(product.id)
-                                                                }
+                                                                if (quantity <= 1) removeAllOfProduct(product.id)
+                                                                else decreaseQuantity(product.id)
                                                             }}
-                                                            className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff'
-                                                            }}
+                                                            aria-label={quantity <= 1 ? 'Tirar do carrinho' : 'Diminuir quantidade'}
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 product-action-button"
+                                                            style={quantity <= 1 ? { background: '#ef444418', color: '#ef4444' } : { background: colors.surface, color: textColor, border: `1px solid ${colors.border}` }}
                                                         >
-                                                            −
+                                                            {quantity <= 1 ? <Trash2 size={15} /> : <Minus size={16} />}
                                                         </button>
-                                                        <span className="text-xs font-bold min-w-[20px] text-center" style={{ color: '#f97316' }}>
-                                                            {quantity}
-                                                        </span>
+                                                        <span className="min-w-[30px] text-center text-sm font-black" style={{ color: textColor }} aria-live="polite">{quantity}</span>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation()
                                                                 handleAddWithComment(product)
                                                             }}
-                                                            className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff'
-                                                            }}
+                                                            aria-label="Aumentar quantidade"
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 product-action-button"
+                                                            style={{ background: GRADIENT, color: '#ffffff' }}
                                                         >
-                                                            +
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                removeAllOfProduct(product.id)
-                                                            }}
-                                                            className="w-7 h-7 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs product-action-button"
-                                                            style={{
-                                                                background: '#ef4444',
-                                                                color: '#ffffff'
-                                                            }}
-                                                            title="Remover todos"
-                                                        >
-                                                            <X className="w-3 h-3 text-white" />
+                                                            <Plus size={16} />
                                                         </button>
                                                     </div>
                                                 ) : (
