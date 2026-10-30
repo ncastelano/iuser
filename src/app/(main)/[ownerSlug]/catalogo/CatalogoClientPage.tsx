@@ -25,6 +25,7 @@ import CatalogoSkeleton from './CatalogoSkeleton'
 import { hexToRgb } from '@/lib/color'
 import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
+import DigitalCurriculum from '@/components/digital/DigitalCurriculum'
 import { captureReferral } from '@/lib/referralCapture'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 import { useInsideShell } from '@/components/InsideShell'
@@ -1668,10 +1669,10 @@ export default function CatalogoClientPage() {
                 <div style={insideShell
                     ? {
                         // UMA peça só (como a barra de baixo do app): sacola em cima e, embaixo, voltar + loja + busca
-                        position: 'fixed', bottom: 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 448, margin: '0 auto', zIndex: 998,
+                        position: 'fixed', bottom: 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 448, margin: '0 auto', zIndex: showProductModal ? 150 : 998,
                         background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 30, boxShadow: '0 12px 32px rgba(0,0,0,0.2)', overflow: 'hidden',
                     }
-                    : { position: 'fixed', bottom: 32, left: 16, zIndex: 998, maxWidth: 'calc(100vw - 32px)' }}>
+                    : { position: 'fixed', bottom: 32, left: 16, zIndex: showProductModal ? 150 : 998, maxWidth: 'calc(100vw - 32px)' }}>
                     {/* 3.0: a sacola só aparece com itens (compacta, como a faixa do carrinho da barra); sem itens, só a linha de baixo */}
                     {(!insideShell || bagItems.length > 0) && (
                     <CatalogBag
@@ -2361,7 +2362,7 @@ export default function CatalogoClientPage() {
                         onClick={() => setShowProductModal(false)}
                     >
                         <div
-                            className="w-full max-w-3xl rounded-2xl p-5 animate-fade-in max-h-[80vh] overflow-y-auto"
+                            className="w-full max-w-lg rounded-2xl p-5 animate-fade-in max-h-[88vh] overflow-y-auto"
                             style={{ background: cardBackground }}
                             onClick={(e) => e.stopPropagation()}
                         >
@@ -2378,30 +2379,28 @@ export default function CatalogoClientPage() {
                                 </button>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row gap-4">
-                                <div className="sm:w-2/5">
-                                    <div className="w-full aspect-square rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
+                            <div className="flex flex-col gap-3">
+                                {/* O que é o produto vem primeiro: a foto é só uma miniatura ao lado do nome e do preço */}
+                                <div className="flex items-start gap-3">
+                                    <div className="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
                                         {selectedProduct.image_url || storeInfo?.logo_url ? (
                                             <img
                                                 src={selectedProduct.image_url || storeInfo?.logo_url || ''}
                                                 alt={selectedProduct.name}
-                                                className={selectedProduct.image_url ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-8'}
+                                                className={selectedProduct.image_url ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-3'}
                                             />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-sm font-medium" style={{ color: textColor }}>
+                                            <div className="w-full h-full flex items-center justify-center text-[10px] font-medium" style={{ color: textColor }}>
                                                 Sem imagem
                                             </div>
                                         )}
                                     </div>
-                                </div>
-
-                                <div className="flex-1 flex flex-col">
-                                    <div>
-                                        <h4 className="text-lg font-black truncate" style={{ color: textColor }}>
+                                    <div className="min-w-0 flex-1">
+                                        <h4 className="text-lg font-black leading-tight" style={{ color: textColor }}>
                                             {selectedProduct.name}
                                         </h4>
                                         {selectedProduct.category && (
-                                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: '#f9731620', color: '#f97316' }}>
+                                            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: '#f9731620', color: '#f97316' }}>
                                                 {selectedProduct.category}
                                             </span>
                                         )}
@@ -2414,10 +2413,12 @@ export default function CatalogoClientPage() {
                                             )}
                                         </div>
                                     </div>
+                                </div>
 
+                                <div className="flex-1 flex flex-col">
                                     {selectedProduct.description && (
-                                        <div className="mt-2 p-2.5 rounded-lg flex-1" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
-                                            <p className="text-xs leading-relaxed line-clamp-3" style={{ color: textColor }}>
+                                        <div className="p-3 rounded-lg" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
+                                            <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: textColor }}>
                                                 {selectedProduct.description}
                                             </p>
                                         </div>
@@ -2475,6 +2476,12 @@ export default function CatalogoClientPage() {
                                         )}
                                     </div>
 
+                                    {selectedProduct.type === 'digital' && (
+                                        <div className="mt-3">
+                                            <DigitalCurriculum productId={selectedProduct.id} />
+                                        </div>
+                                    )}
+
                                     {!isStoreOpen && (
                                         <div className="mt-2 p-2 rounded-lg text-center" style={{ background: 'rgba(239, 68, 68, 0.08)', border: `1px dashed #ef4444` }}>
                                             <Info size={14} style={{ color: '#ef4444' }} className="inline mr-1.5" />
@@ -2489,7 +2496,7 @@ export default function CatalogoClientPage() {
                                         </div>
                                     )}
 
-                                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                                    <div className="mt-3 sticky bottom-0 -mx-5 -mb-5 px-5 py-3 flex flex-col sm:flex-row gap-2" style={{ background: cardBackground, borderTop: `1px solid ${colors.border}` }}>
                                         {isStoreOpen ? (
                                             <>
                                                 {cartItems.some((item: any) => item.product.id === selectedProduct.id) ? (

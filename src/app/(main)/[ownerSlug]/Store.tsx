@@ -894,30 +894,30 @@ export function Store({
                             </button>
                         </div>
 
-                        {/* Imagem */}
-                        <div className="w-full aspect-square rounded-xl overflow-hidden mb-4" style={{ background: colors.accentLight }}>
-                            {selectedProduct.image_url ? (
-                                <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-sm font-medium" style={{ color: colors.textSecondary }}>
-                                    Sem imagem
+                        {/* O que é o produto vem primeiro: a foto é só uma miniatura ao lado do nome e do preço */}
+                        <div className="flex items-start gap-3">
+                            <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
+                                {selectedProduct.image_url ? (
+                                    <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-medium" style={{ color: colors.textSecondary }}>
+                                        Sem imagem
+                                    </div>
+                                )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h4 className="text-xl font-black leading-tight" style={{ color: colors.textPrimary }}>
+                                    {selectedProduct.name}
+                                </h4>
+                                <div className="mt-1">
+                                    <span className="text-2xl font-extrabold" style={{ color: '#f97316' }}>
+                                        {selectedProduct.type === 'service' && !((selectedProduct.price || 0) > 0) ? 'Valor a combinar' : `R$ ${(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                                    </span>
+                                    {selectedProduct.price_type === 'hourly' && (selectedProduct.price || 0) > 0 && (
+                                        <span className="text-sm ml-1 opacity-75" style={{ color: colors.textSecondary }}>/h</span>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Nome */}
-                        <h4 className="text-xl font-black" style={{ color: colors.textPrimary }}>
-                            {selectedProduct.name}
-                        </h4>
-
-                        {/* Preço */}
-                        <div className="mt-2">
-                            <span className="text-2xl font-extrabold" style={{ color: '#f97316' }}>
-                                {selectedProduct.type === 'service' && !((selectedProduct.price || 0) > 0) ? 'Valor a combinar' : `R$ ${(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                            </span>
-                            {selectedProduct.price_type === 'hourly' && (selectedProduct.price || 0) > 0 && (
-                                <span className="text-sm ml-1 opacity-75" style={{ color: colors.textSecondary }}>/h</span>
-                            )}
+                            </div>
                         </div>
 
                         {/* Descrição */}
