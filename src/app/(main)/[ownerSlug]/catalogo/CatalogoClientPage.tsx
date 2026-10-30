@@ -1389,7 +1389,7 @@ export default function CatalogoClientPage() {
                                         </button>
                                     )}
                                     {!(isCollapsed && !(insideShell && allGroups.length <= 1)) && (
-                                    <div className={insideShell ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-4'}>
+                                    <div className={insideShell ? 'flex flex-col gap-2.5' : 'flex flex-col gap-4'}>
                                         {categoryProducts.map((product) => {
                                 const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                 const quantity = getProductQuantity(product.id)
@@ -1410,21 +1410,22 @@ export default function CatalogoClientPage() {
                                 if (insideShell) {
                                     const soldOut = product.stock !== null && product.stock <= 0
                                     const promo = parsePromo(product.description, product.price)
-                                    // Adicionar / −·+ : o mesmo nos dois desenhos do cartão (sobre a foto escura, os botões ficam translúcidos)
-                                    const controls = (dark: boolean) => soldOut ? null : isSelected && !productIsDisabled ? (
-                                        <span className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    // Adicionar (+) ou seletor de quantidade (lixeira/− · n · +), o mesmo desenho da 2.0
+                                    const controls = soldOut ? null : isSelected && !productIsDisabled ? (
+                                        <span className="flex items-center gap-0.5 rounded-full p-0.5 flex-shrink-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }} onClick={(e) => e.stopPropagation()}>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); if (quantity <= 1) removeAllOfProduct(product.id); else decreaseQuantity(product.id) }}
-                                                aria-label={quantity <= 1 ? 'Remover' : 'Diminuir'}
-                                                className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90"
-                                                style={{ background: dark ? 'rgba(255,255,255,0.25)' : `${colors.border}55`, color: dark ? '#fff' : quantity <= 1 ? '#ef4444' : colors.textPrimary }}
+                                                aria-label={quantity <= 1 ? 'Tirar do carrinho' : 'Diminuir quantidade'}
+                                                className="w-7 h-7 rounded-full flex items-center justify-center transition active:scale-90"
+                                                style={quantity <= 1 ? { background: '#ef444418', color: '#ef4444' } : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
                                             >
-                                                {quantity <= 1 ? <X size={14} /> : <Minus size={14} />}
+                                                {quantity <= 1 ? <Trash2 size={13} /> : <Minus size={14} />}
                                             </button>
+                                            <span className="min-w-[22px] text-center text-[13px] font-black" style={{ color: colors.textPrimary }}>{quantity}</span>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleAddWithComment(product) }}
-                                                aria-label="Adicionar mais um"
-                                                className="w-8 h-8 rounded-full flex items-center justify-center text-white transition active:scale-90"
+                                                aria-label="Aumentar quantidade"
+                                                className="w-7 h-7 rounded-full flex items-center justify-center text-white transition active:scale-90"
                                                 style={{ background: GRADIENT }}
                                             >
                                                 <Plus size={14} strokeWidth={3} />
@@ -1434,71 +1435,50 @@ export default function CatalogoClientPage() {
                                         <button
                                             onClick={handleProductInteraction}
                                             aria-label={productIsDisabled ? 'Ver detalhes' : `Adicionar ${product.name}`}
-                                            className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0 transition active:scale-90"
-                                            style={{ background: productIsDisabled ? (dark ? 'rgba(255,255,255,0.25)' : `${colors.border}`) : GRADIENT, color: productIsDisabled && !dark ? colors.textSecondary : '#fff' }}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-90"
+                                            style={{ background: productIsDisabled ? colors.border : GRADIENT, color: productIsDisabled ? colors.textSecondary : '#fff' }}
                                         >
-                                            {productIsDisabled ? <Info size={15} /> : <Plus size={16} strokeWidth={3} />}
+                                            {productIsDisabled ? <Info size={14} /> : <Plus size={15} strokeWidth={3} />}
                                         </button>
                                     )
-                                    // Oferta: a foto é o fundo do cartão e as letras ficam na frente (diferente dos outros, com a foto em cima e o texto embaixo)
-                                    if (promo || isPromoCategory(category)) {
-                                        return (
-                                            <div
-                                                key={product.id}
-                                                onClick={(e) => handleProductClick(product, e)}
-                                                className="relative aspect-[4/5] rounded-3xl overflow-hidden cursor-pointer text-left transition active:scale-[0.99]"
-                                                style={{ background: GRADIENT, boxShadow: '0 8px 22px rgba(220,38,38,0.22)', outline: isSelected ? '2px solid #f97316' : 'none', outlineOffset: -2, opacity: soldOut ? 0.6 : 1 }}
-                                            >
-                                                {product.image_url || storeInfo?.logo_url
-                                                    ? <img src={product.image_url || storeInfo?.logo_url || ''} alt="" className={`absolute inset-0 w-full h-full ${product.image_url ? 'object-cover' : 'object-contain p-10'}`} loading="lazy" />
-                                                    : <span className="absolute inset-0 flex items-center justify-center text-white/90 text-5xl font-black">{storeInfo?.name?.trim().charAt(0).toUpperCase() || '?'}</span>}
-                                                <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.5) 38%, rgba(0,0,0,0) 68%)' }} />
-                                                {soldOut
-                                                    ? <span className="absolute left-2 top-2 text-[10px] font-black uppercase px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Esgotado</span>
-                                                    : promo && <span className="absolute left-2 top-2 text-xs font-black px-2.5 py-1 rounded-full text-white flex items-center gap-1" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', boxShadow: '0 2px 8px rgba(239,68,68,0.5)' }}><Flame size={12} />-{promo.pct}%</span>}
-                                                {isSelected && quantity > 0 && (
-                                                    <span className="absolute right-2 top-2 min-w-[24px] h-6 px-1.5 rounded-full text-[11px] font-black text-white flex items-center justify-center" style={{ background: '#f97316', boxShadow: '0 0 0 2px #fff' }}>{quantity}</span>
-                                                )}
-                                                <div className="absolute inset-x-0 bottom-0 p-3 flex flex-col gap-1.5">
-                                                    <h3 className="text-[13px] font-black leading-snug text-white" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{product.name}</h3>
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-lg font-black text-white" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
-                                                            {formatPrice(product.price)}{isHourly && <span className="text-[10px] font-bold text-white/80"> /h</span>}
-                                                        </span>
-                                                        {controls(true)}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )
-                                    }
+                                    // Linha compacta (3.0): foto pequena + nome, uma linha de descrição, preço e controle. As ofertas usam a mesma linha, com o selo -% e o preço antigo riscado.
                                     return (
                                         <div
                                             key={product.id}
                                             onClick={(e) => handleProductClick(product, e)}
-                                            className="rounded-3xl overflow-hidden flex flex-col cursor-pointer text-left transition active:scale-[0.99]"
-                                            style={{ background: colors.surface, border: `1px solid ${isSelected ? '#f97316' : colors.border}`, boxShadow: '0 6px 18px rgba(0,0,0,0.06)', opacity: soldOut ? 0.6 : 1 }}
+                                            className="rounded-2xl flex items-center gap-3 p-2 cursor-pointer text-left transition active:scale-[0.99]"
+                                            style={{
+                                                background: isSelected ? `linear-gradient(#f973161a, #f973161a), ${colors.surface}` : colors.surface,
+                                                border: `1px solid ${isSelected ? '#f9731666' : colors.border}`,
+                                                opacity: soldOut ? 0.6 : 1,
+                                            }}
                                         >
-                                            <div className="relative aspect-[5/4] overflow-hidden" style={{ background: GRADIENT }}>
+                                            <div className="relative w-[72px] h-[72px] rounded-xl overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
                                                 {product.image_url || storeInfo?.logo_url
-                                                    ? <img src={product.image_url || storeInfo?.logo_url || ''} alt="" className={`w-full h-full ${product.image_url ? 'object-cover' : 'object-contain p-6'}`} loading="lazy" />
-                                                    : <span className="absolute inset-0 flex items-center justify-center text-white/90 text-4xl font-black">{storeInfo?.name?.trim().charAt(0).toUpperCase() || '?'}</span>}
-                                                {soldOut && <span className="absolute left-2 top-2 text-[10px] font-black uppercase px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Esgotado</span>}
-                                                {isSelected && quantity > 0 && (
-                                                    <span className="absolute right-2 top-2 min-w-[24px] h-6 px-1.5 rounded-full text-[11px] font-black text-white flex items-center justify-center" style={{ background: '#16a34a', boxShadow: '0 0 0 2px #fff' }}>{quantity}</span>
+                                                    ? <img src={product.image_url || storeInfo?.logo_url || ''} alt="" className={`w-full h-full ${product.image_url ? 'object-cover' : 'object-contain p-3'}`} loading="lazy" />
+                                                    : <span className="absolute inset-0 flex items-center justify-center text-white/90 text-2xl font-black">{storeInfo?.name?.trim().charAt(0).toUpperCase() || '?'}</span>}
+                                                {soldOut
+                                                    ? <span className="absolute inset-x-0 bottom-0 text-[9px] font-black uppercase text-center py-0.5 text-white" style={{ background: '#dc2626' }}>Esgotado</span>
+                                                    : promo && <span className="absolute left-1 top-1 text-[9px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}>-{promo.pct}%</span>}
+                                                {isSelected && quantity > 0 && !soldOut && (
+                                                    <span className="absolute right-1 top-1 min-w-[20px] h-5 px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: '#f97316', boxShadow: '0 0 0 1.5px #fff' }}>{quantity}</span>
                                                 )}
                                             </div>
-                                            <div className="p-2.5 flex flex-col gap-1 flex-1">
-                                                <h3 className="text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.75em' }}>{product.name}</h3>
-                                                {product.description && (
-                                                    <p className="text-[11px] leading-snug truncate" style={{ color: colors.textSecondary }}>{product.description}</p>
-                                                )}
-                                                <div className="mt-auto pt-1.5 flex items-center justify-between gap-2">
-                                                    <span className="flex flex-col leading-tight">
-                                                        <span className="text-sm font-black" style={{ color: '#f97316' }}>
+                                            <div className="flex-1 min-w-0 self-stretch flex flex-col justify-between gap-1">
+                                                <div className="min-w-0">
+                                                    <h3 className="text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{product.name}</h3>
+                                                    {(promo ? promo.rest : product.description) && (
+                                                        <p className="text-[11px] leading-snug truncate" style={{ color: colors.textSecondary }}>{promo ? promo.rest : product.description}</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="flex items-baseline gap-1.5 min-w-0">
+                                                        <span className="text-sm font-black whitespace-nowrap" style={{ color: '#f97316' }}>
                                                             {formatPrice(product.price)}{isHourly && <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}> /h</span>}
                                                         </span>
+                                                        {promo && <span className="text-[10px] line-through whitespace-nowrap" style={{ color: colors.textSecondary }}>{formatPrice(promo.old)}</span>}
                                                     </span>
-                                                    {controls(false)}
+                                                    {controls}
                                                 </div>
                                             </div>
                                         </div>
