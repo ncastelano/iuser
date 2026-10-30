@@ -98,6 +98,9 @@ export default function CatalogoClientPage() {
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
     const [searchOpen, setSearchOpen] = useState(false)
     const [kindChoice, setKindChoice] = useState<'physical' | 'digital' | 'service' | null>(null)
+    // "Você está aqui": a categoria da seção que está na tela enquanto a pessoa rola a lista (só 2.0, onde o topo é fixo)
+    const [spyCat, setSpyCat] = useState<string | null>(null)
+    const headerRef = useRef<HTMLDivElement>(null)
     const [searchExpanded, setSearchExpanded] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -1057,6 +1060,39 @@ export default function CatalogoClientPage() {
         ]
     }, [baseProducts])
 
+    // Acompanha a rolagem: a última seção cujo topo já passou da linha logo abaixo do cabeçalho fixo é "onde a pessoa está"
+    useEffect(() => {
+        if (insideShell || selectedCategory !== 'Todos' || searchQuery.trim()) { setSpyCat(null); return }
+        let raf = 0
+        const update = () => {
+            raf = 0
+            const line = (headerRef.current?.getBoundingClientRect().bottom ?? 0) + 24
+            let cur: string | null = null
+            for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-cat-section]'))) {
+                if (el.getBoundingClientRect().top <= line) cur = el.dataset.catSection || null
+                else break
+            }
+            setSpyCat(prev => (prev === cur ? prev : cur))
+        }
+        const onScroll = () => { if (!raf) raf = requestAnimationFrame(update) }
+        update()
+        window.addEventListener('scroll', onScroll, { passive: true })
+        window.addEventListener('resize', onScroll)
+        return () => {
+            if (raf) cancelAnimationFrame(raf)
+            window.removeEventListener('scroll', onScroll)
+            window.removeEventListener('resize', onScroll)
+        }
+    }, [insideShell, selectedCategory, searchQuery, groupedFilteredProducts])
+    // Mantém o chip de "onde estou" à vista na fileira (rola só a fileira, não a página)
+    useEffect(() => {
+        if (!spyCat) return
+        const btn = Array.from(document.querySelectorAll<HTMLElement>('[data-chip]')).find(b => b.dataset.chip === spyCat)
+        const row = btn?.parentElement
+        if (!btn || !row) return
+        row.scrollTo({ left: btn.offsetLeft - (row.clientWidth - btn.clientWidth) / 2, behavior: 'smooth' })
+    }, [spyCat])
+
     // Cada ambiente tem cor, ícone e uma frase de contexto próprios
     const KIND_META = {
         physical: { label: 'Produtos', color: '#f97316', Icon: Package, hint: 'Escolha os itens e monte o seu pedido' },
@@ -1069,16 +1105,22 @@ export default function CatalogoClientPage() {
         <div className={className} role="tablist" aria-label="Categorias">
             {categories.map((cat) => {
                 const on = selectedCategory === cat.name
+                // vendo a lista toda, o chip da seção que está na tela ganha borda de destaque ("você está aqui")
+                const here = !on && spyCat === cat.name
                 return (
                     <button
                         key={cat.name}
                         role="tab"
+                        data-chip={cat.name}
                         aria-selected={on}
+                        aria-current={here ? 'location' : undefined}
                         onClick={() => setSelectedCategory(cat.name)}
                         className="flex items-center h-9 px-3.5 rounded-full text-xs font-bold whitespace-nowrap flex-shrink-0 transition active:scale-95"
                         style={on
                             ? { background: accent, color: '#fff', border: `1.5px solid ${accent}` }
-                            : { background: 'transparent', color: colors.textPrimary, border: `1.5px solid ${colors.border}` }}
+                            : here
+                                ? { background: `${accent}14`, color: colors.textPrimary, border: `2px solid ${accent}`, fontWeight: 800 }
+                                : { background: 'transparent', color: colors.textPrimary, border: `1.5px solid ${colors.border}` }}
                     >
                         {cat.name}
                     </button>
@@ -1208,7 +1250,7 @@ export default function CatalogoClientPage() {
                     </div>
                 ) : (
                 /* 2.0: cabeçalho de UMA linha (logo · nome e status · lupa) + uma fileira de chips. A busca abre pela lupa. */
-                <div className="sticky top-0 z-20" style={{ background: `linear-gradient(180deg, ${accent}1f, ${accent}08 70%, transparent), ${colors.background}`, borderBottom: `2px solid ${accent}55`, transition: 'background 0.3s, border-color 0.3s' }}>
+                <div ref={headerRef} className="sticky top-0 z-20" style={{ background: `linear-gradient(180deg, ${accent}1f, ${accent}08 70%, transparent), ${colors.background}`, borderBottom: `2px solid ${accent}55`, transition: 'background 0.3s, border-color 0.3s' }}>
                     <div className="max-w-7xl mx-auto px-3 pt-2.5 pb-2">
                         {searchOpen || searchQuery ? (
                             <div className="flex items-center gap-2">
@@ -1230,6 +1272,9 @@ export default function CatalogoClientPage() {
                             </div>
                         ) : (
                             <div className="flex items-center gap-2.5">
+                                <button onClick={handleGoBack} aria-label="Voltar para a loja" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                    <ArrowLeft size={18} />
+                                </button>
                                 <button onClick={() => router.push(`/${ownerSlug}`)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left" aria-label={`Ir para a página de ${storeInfo.name}`}>
                                     <span className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT, boxShadow: `0 0 0 2px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}>
                                         {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
@@ -1311,7 +1356,7 @@ export default function CatalogoClientPage() {
                                 const isCollapsed = allGroups.length > 1 && !searchQuery.trim() && !!collapsedCats[category]
                                 const toggle = () => setCollapsedCats(prev => ({ ...prev, [category]: !prev[category] }))
                                 return (
-                                <div key={category} className="flex flex-col gap-3">
+                                <div key={category} data-cat-section={category} className="flex flex-col gap-3">
                                     {/* 3.0: com uma categoria só, o título ("Geral") não diz nada */}
                                     {allGroups.length > 1 && (
                                         <button type="button" onClick={toggle} aria-expanded={!isCollapsed} className="w-full flex items-center gap-2 px-1 text-left transition active:opacity-70">
