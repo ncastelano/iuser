@@ -1099,8 +1099,10 @@ export default function CatalogoClientPage() {
                             role="tab"
                             aria-selected={on}
                             onClick={() => { setKindChoice(k); setSelectedCategory('Todos') }}
-                            className="flex-1 min-w-0 h-11 rounded-2xl flex items-center justify-center gap-1.5 text-[13px] font-black transition active:scale-95"
-                            style={on ? { background: m.color, color: '#fff', boxShadow: `0 6px 16px ${m.color}55` } : { background: `${m.color}14`, color: m.color, border: `1.5px solid ${m.color}33` }}
+                            className="flex-1 min-w-0 h-10 rounded-full flex items-center justify-center gap-1.5 text-xs font-bold transition active:scale-95"
+                            style={on
+                                ? { background: m.color, color: '#fff', border: `1.5px solid ${m.color}` }
+                                : { background: 'transparent', color: colors.textPrimary, border: `1.5px solid ${colors.border}` }}
                         >
                             <m.Icon size={16} />
                             <span className="truncate">{m.label}</span>
@@ -1108,7 +1110,7 @@ export default function CatalogoClientPage() {
                     )
                 })}
             </div>
-            <p className="mt-1.5 px-1 text-[11px] font-semibold leading-snug" style={{ color: accent }}>{KIND_META[activeKind].hint}</p>
+            <p className="mt-1.5 px-1 text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{KIND_META[activeKind].hint}</p>
         </div>
     ) : null
 
