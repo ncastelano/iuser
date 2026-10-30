@@ -9,7 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, describeTripFare, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
 import { kindForRideType } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { watchPosition } from '@/lib/nativeGeolocation'
@@ -97,6 +97,11 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const [gpsStatus, setGpsStatus] = useState<'idle' | 'asking' | 'granted' | 'denied' | 'unavailable'>('idle')
     const gpsWatchRef = useRef<{ clear: () => void } | null>(null)
     const gpsFixRef = useRef(false)
+    // Sem GPS liberado vale o local salvo em "Definir local": o deslocamento até a partida entra na conta mesmo assim
+    const [savedPos, setSavedPos] = useState<[number, number] | null>(null)
+    const [livePos, setLivePos] = useState<[number, number] | null>(null)
+    const fallbackPos = livePos ?? savedPos
+    const pos = gps ?? fallbackPos
     const [pickupById, setPickupById] = useState<Record<string, { km: number; min: number }>>({})
     const lastRouteRef = useRef<{ coords: [number, number]; key: string } | null>(null)
 
@@ -176,6 +181,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 return
             }
             await loadPlatformTariffs(supabase)
+            if (userId) {
+                const { data: me } = await supabase.from('my_profile').select('store_lat, store_lng').eq('id', userId).maybeSingle()
+                if (active) setSavedPos(me?.store_lat != null && me?.store_lng != null ? [Number(me.store_lng), Number(me.store_lat)] : null)
+            }
             // Visitante (sem login) também vê as corridas abertas: assim ele sabe que
             // tem corrida pra pegar. Sem conta não tem driver_pricing nem candidatura
             // própria, então vale a tarifa iUser e nada é filtrado por "já me candidatei".
@@ -186,10 +195,12 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 // cadastrada ainda): quem não tem driver_pricing vê o valor pela tarifa iUser.
                 const { data } = await supabase
                     .from('driver_pricing')
-                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
+                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, driver_mode_active, live_lat, live_lng')
                     .eq('driver_id', userId)
                     .maybeSingle()
                 pricingRow = data
+                // Mesma regra da lista de corridas: com o Modo motorista ligado vale a última posição ao vivo; senão, o local salvo
+                if (data?.driver_mode_active && data.live_lat != null && data.live_lng != null && active) setLivePos([Number(data.live_lng), Number(data.live_lat)])
 
                 const { data: myApplicationRows } = await supabase
                     .from('ride_applications')
@@ -392,18 +403,18 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
     // Km de estrada do motorista até a partida de cada corrida (recalcula se ele andou +300 m)
     useEffect(() => {
-        if (!gps || openRides.length === 0) return
+        if (!pos || openRides.length === 0) return
         const key = openRides.map((r) => r.ride.id).join(',')
         const last = lastRouteRef.current
-        if (last && last.key === key && haversineKm(last.coords, gps) < 0.3) return
-        lastRouteRef.current = { coords: gps, key }
+        if (last && last.key === key && haversineKm(last.coords, pos) < 0.3) return
+        lastRouteRef.current = { coords: pos, key }
         openRides.forEach(({ ride, origin }) => {
             if (!origin) return
-            fetchRoute(gps, origin).then((route) => {
+            fetchRoute(pos, origin).then((route) => {
                 setPickupById((prev) => ({ ...prev, [ride.id]: { km: route.distanceKm, min: route.durationMin } }))
             })
         })
-    }, [gps, openRides])
+    }, [pos, openRides])
 
     const buttonStyle = {
         display: 'flex',
@@ -589,7 +600,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 )}
 
                 {/* Por que pedimos a localização: a Tarifa iUser soma o deslocamento até a partida */}
-                {needsLocation && gpsStatus !== 'granted' && (
+                {needsLocation && gpsStatus !== 'granted' && !fallbackPos && (
                     <div className="rounded-2xl p-3 flex items-start gap-3 mb-3" style={{ background: '#f9731612', border: '1px solid #f9731640' }}>
                         <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
                             {gpsStatus === 'asking' || gpsStatus === 'idle' ? <Spinner size={16} color="#fff" /> : <LocateFixed size={16} />}
@@ -614,7 +625,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     <div className="flex flex-col gap-3">
                         {openRides.map(({ ride, requester, suggestedPrice, usesPlatformTariff }) => {
                             const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
-                            const route = gpsStatus === 'granted' ? pickupById[ride.id] : undefined
+                            const route = pos ? pickupById[ride.id] : undefined
                             const pickup = usesPlatformTariff ? route : undefined
                             const pickupKm = pickup?.km
                             const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km) : 0
@@ -639,7 +650,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                         <div className="flex flex-col gap-2">
                                             <div className="flex items-end justify-between gap-3 rounded-xl px-3 py-2" style={{ background: '#22c55e14', border: '1px solid #22c55e40' }}>
                                                 <div>
-                                                    <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>Você pode ganhar</span>
+                                                    <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>{usesPlatformTariff && pickupKm == null ? 'Você ganha a partir de' : 'Você pode ganhar'}</span>
                                                     <span className="block text-xl font-black leading-tight" style={{ color: '#16a34a' }}>{brl(total)}</span>
                                                     {hourly && (
                                                         <span className="block text-[10px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>
@@ -650,13 +661,16 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                                 {usesPlatformTariff && (
                                                     <span className="text-[10px] leading-tight text-right font-semibold" style={{ color: pickupKm != null ? '#16a34a' : '#d97706' }}>
                                                         {pickupKm != null
-                                                            ? `inclui ${brl(pickupAmount)} · ${pickupKm.toFixed(1).replace('.', ',')} km até a partida`
+                                                            ? `inclui ${brl(pickupAmount)} · ${pickupKm.toFixed(1).replace('.', ',')} km até a partida${gps ? '' : ' (pela sua última posição salva)'}`
                                                             : gpsStatus === 'asking' || gpsStatus === 'idle'
                                                                 ? 'Localizando... falta somar a distância até a partida'
                                                                 : 'falta somar a distância até a partida'}
                                                     </span>
                                                 )}
                                             </div>
+                                            {usesPlatformTariff && pickupKm == null && ride.distance_km != null && (
+                                                <p className="text-[10px] leading-snug -mt-1" style={{ color: colors.textSecondary }}>{describeTripFare(ride.distance_km, platformShape)}</p>
+                                            )}
                                             <button
                                                 onClick={() => goToRide(ride.id)}
                                                 className="w-full py-3 rounded-full text-sm font-black flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"

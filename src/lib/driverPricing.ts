@@ -1,5 +1,6 @@
 // src/lib/driverPricing.ts
 
+import { tripFareText } from './tariffSummary'
 import { RIDE_GAP_MIN, ridesInOneHour } from './rideCycle'
 import type { VehicleKind } from './rideVehicle'
 
@@ -180,6 +181,11 @@ export function explainSuggestedPrice(distanceKm: number, pricing: DriverPricing
     const extraKm = Math.max(0, distanceKm - pricing.baseDistanceKm)
     const kmPart = extraKm * pricing.pricePerKmAfterBase
     return { base: pricing.baseFee, extraKm, kmPart, total: pricing.baseFee + kmPart }
+}
+
+// Frase que mostra COMO o valor da corrida (só partida → chegada) sai da tarifa (texto em lib/tariffSummary.ts, testado lá).
+export function describeTripFare(distanceKm: number, pricing: DriverPricing): string {
+    return tripFareText(distanceKm, { baseDistanceKm: pricing.baseDistanceKm, baseFee: pricing.baseFee, pricePerKm: pricing.pricePerKmAfterBase })
 }
 
 // Deslocamento do motorista até o ponto de partida, somado à Tarifa iUser: km × valor/km.

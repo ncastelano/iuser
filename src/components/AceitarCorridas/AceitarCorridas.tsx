@@ -26,7 +26,7 @@ import { DRIVER_RESERVED_TEXT, brl, remainingLabel } from '@/modules/delivery-se
 import DriverReceiptConfirm from '@/components/DeliveryPayment/DriverReceiptConfirm'
 import DriverPayoutPix from '@/components/DeliveryPayment/DriverPayoutPix'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computePickupFee, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computePickupFee, describeTripFare, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
@@ -1433,7 +1433,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {hasDriver && <DriverDebtBanner userId={contextUserId} />}
 
                     {/* Por que pedimos a localização: a Tarifa iUser soma a distância até a partida */}
-                    {activeTab === 'servicos' && gpsStatus !== 'granted' && (v3 ? (
+                    {activeTab === 'servicos' && gpsStatus !== 'granted' && !driverCoords && (v3 ? (
                         <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: surf }}>
                             <div className="flex items-center gap-3">
                                 <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f973161f', color: '#f97316' }}>
@@ -1529,14 +1529,14 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 const info = routeInfoById[ride.id]
                                 // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km do veículo)
                                 const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
-                                const pickupKm = gpsStatus === 'granted'
-                                    ? (info?.toPickupKm ?? (driverCoords && ride.origin_lat != null && ride.origin_lng != null
-                                        ? haversineKm(driverCoords, [ride.origin_lng, ride.origin_lat])
-                                        : null))
-                                    : null
+                                // Sem GPS liberado, `driverCoords` já vale a última posição ao vivo ou o local salvo ("Definir local"):
+                                // a conta do deslocamento usa essa posição em vez de ficar só no valor mínimo.
+                                const pickupKm = info?.toPickupKm ?? (driverCoords && ride.origin_lat != null && ride.origin_lng != null
+                                    ? haversineKm(driverCoords, [ride.origin_lng, ride.origin_lat])
+                                    : null)
                                 const pickupAmount = pickupKm != null ? computePickupFee(platformShape, pickupKm) : 0
                                 const pickup = pickupKm != null
-                                    ? { state: 'ready' as const, km: pickupKm, amount: pickupAmount }
+                                    ? { state: 'ready' as const, km: pickupKm, amount: pickupAmount, from: (gpsStatus === 'granted' ? 'gps' : 'saved') as 'gps' | 'saved' }
                                     : { state: (gpsStatus === 'asking' ? 'waiting' : 'missing') as 'waiting' | 'missing' }
                                 return (
                                     <div
@@ -1556,6 +1556,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             storeName={ride.storeName}
                                             platformPrice={ride.platformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
                                             pickup={pickup}
+                                            tripFareNote={ride.hasDistance && ride.distance_km != null ? describeTripFare(ride.distance_km, platformShape) : undefined}
                                             customPrice={ride.customPrice}
                                             applying={applyingId === ride.id}
                                             onApply={(price) => applyToRide(ride, price)}
