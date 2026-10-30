@@ -97,6 +97,7 @@ export default function CatalogoClientPage() {
     const [showProductModal, setShowProductModal] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
     const [searchOpen, setSearchOpen] = useState(false)
+    const [kindChoice, setKindChoice] = useState<'physical' | 'digital' | 'service' | null>(null)
     const [searchExpanded, setSearchExpanded] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -990,9 +991,24 @@ export default function CatalogoClientPage() {
         return { isOpen, statusText: isOpen ? 'Aberto' : 'Fechado', nextOpening: nextAvailable }
     }, [storeConfig, nextAvailable])
 
+    // ========== AMBIENTES (Produtos · Digitais · Serviços) ==========
+    // Cada tipo é um ambiente separado, com cor e clima próprios; a loja que vende um tipo só não mostra seletor.
+    const kindOf = (t: string | null | undefined): 'physical' | 'digital' | 'service' => (t === 'digital' || t === 'service' ? t : 'physical')
+    const kindList = (['physical', 'digital', 'service'] as const)
+        .map(k => ({ k, count: products.filter(p => kindOf(p.type) === k).length }))
+        .filter(x => x.count > 0)
+    const activeKind: 'physical' | 'digital' | 'service' | null =
+        kindList.length > 1 ? (kindList.some(x => x.k === kindChoice) ? kindChoice : kindList[0].k) : null
+    const searching = searchQuery.trim().length > 0
+    const baseProducts = useMemo(
+        () => (activeKind && !searching ? products.filter(p => kindOf(p.type) === activeKind) : products),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [products, activeKind, searching]
+    )
+
     // ========== FILTRO DE PRODUTOS ==========
     const filteredProducts = useMemo(() => {
-        let result = products
+        let result = baseProducts
 
         if (selectedCategory !== 'Todos') {
             result = result.filter(p => p.category === selectedCategory)
@@ -1008,7 +1024,7 @@ export default function CatalogoClientPage() {
         }
 
         return result
-    }, [products, searchQuery, selectedCategory])
+    }, [baseProducts, searchQuery, selectedCategory])
 
     // ========== AGRUPAR POR CATEGORIA (o tipo vira título da seção, não etiqueta do card) ==========
     // "Promoções" vem sempre primeiro (na lista e nos chips)
@@ -1030,54 +1046,69 @@ export default function CatalogoClientPage() {
     // ========== CATEGORIAS ==========
     const categories = useMemo(() => {
         const cats = new Map<string, number>()
-        products.forEach(p => {
+        baseProducts.forEach(p => {
             if (p.category) {
                 cats.set(p.category, (cats.get(p.category) || 0) + 1)
             }
         })
         return [
-            { name: 'Todos', count: products.length },
+            { name: 'Todos', count: baseProducts.length },
             ...Array.from(cats.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => Number(isPromoCategory(b.name)) - Number(isPromoCategory(a.name)) || b.count - a.count)
         ]
-    }, [products])
+    }, [baseProducts])
 
-    // O tipo (digital / serviço) aparece como ÍCONE no chip da categoria, sem uma segunda fileira de filtros
-    const categoryKind = useMemo(() => {
-        const kinds: Record<string, Set<string>> = {}
-        products.forEach(p => {
-            if (!p.category) return
-            ;(kinds[p.category] ||= new Set()).add(p.type === 'digital' || p.type === 'service' ? p.type : 'physical')
-        })
-        const out: Record<string, 'digital' | 'service'> = {}
-        Object.entries(kinds).forEach(([c, set]) => {
-            const only = set.size === 1 ? Array.from(set)[0] : null
-            if (only === 'digital' || only === 'service') out[c] = only
-        })
-        return out
-    }, [products])
-    // UMA fileira só de chips: texto limpo, sem contagem; ativo = laranja cheio
-    const renderCategoryChips = (className: string) => categories.length > 1 ? (
+    // Cada ambiente tem cor, ícone e uma frase de contexto próprios
+    const KIND_META = {
+        physical: { label: 'Produtos', color: '#f97316', Icon: Package, hint: 'Escolha os itens e monte o seu pedido' },
+        digital: { label: 'Digitais', color: '#8b5cf6', Icon: GraduationCap, hint: 'Cursos e arquivos: o acesso é liberado depois que a loja confirma o pagamento' },
+        service: { label: 'Serviços', color: '#14b8a6', Icon: CalendarClock, hint: 'Veja o que a loja oferece e reserve o seu horário' },
+    } as const
+    const accent = activeKind ? KIND_META[activeKind].color : '#f97316'
+    // Uma fileira de chips das categorias DO ambiente: texto limpo, sem contagem; ativo = cor do ambiente
+    const renderCategoryChips = (className: string) => categories.length > 1 && !searching ? (
         <div className={className} role="tablist" aria-label="Categorias">
             {categories.map((cat) => {
                 const on = selectedCategory === cat.name
-                const kind = categoryKind[cat.name]
-                const KindIcon = kind === 'digital' ? GraduationCap : kind === 'service' ? CalendarClock : null
                 return (
                     <button
                         key={cat.name}
                         role="tab"
                         aria-selected={on}
                         onClick={() => setSelectedCategory(cat.name)}
-                        className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-bold whitespace-nowrap flex-shrink-0 transition active:scale-95"
+                        className="flex items-center h-9 px-3.5 rounded-full text-xs font-bold whitespace-nowrap flex-shrink-0 transition active:scale-95"
                         style={on
-                            ? { background: '#f97316', color: '#fff', border: '1.5px solid #f97316' }
+                            ? { background: accent, color: '#fff', border: `1.5px solid ${accent}` }
                             : { background: 'transparent', color: colors.textPrimary, border: `1.5px solid ${colors.border}` }}
                     >
-                        {KindIcon && <KindIcon size={14} style={{ color: on ? '#fff' : kind === 'digital' ? '#8b5cf6' : '#14b8a6' }} />}
                         {cat.name}
                     </button>
                 )
             })}
+        </div>
+    ) : null
+    // Os ambientes: três abas largas, cada uma com a sua cor; a frase embaixo muda com o ambiente
+    const renderAmbientes = (className: string) => activeKind && !searching ? (
+        <div className={className}>
+            <div className="flex gap-1.5" role="tablist" aria-label="Ambiente do catálogo">
+                {kindList.map(({ k }) => {
+                    const m = KIND_META[k]
+                    const on = activeKind === k
+                    return (
+                        <button
+                            key={k}
+                            role="tab"
+                            aria-selected={on}
+                            onClick={() => { setKindChoice(k); setSelectedCategory('Todos') }}
+                            className="flex-1 min-w-0 h-11 rounded-2xl flex items-center justify-center gap-1.5 text-[13px] font-black transition active:scale-95"
+                            style={on ? { background: m.color, color: '#fff', boxShadow: `0 6px 16px ${m.color}55` } : { background: `${m.color}14`, color: m.color, border: `1.5px solid ${m.color}33` }}
+                        >
+                            <m.Icon size={16} />
+                            <span className="truncate">{m.label}</span>
+                        </button>
+                    )
+                })}
+            </div>
+            <p className="mt-1.5 px-1 text-[11px] font-semibold leading-snug" style={{ color: accent }}>{KIND_META[activeKind].hint}</p>
         </div>
     ) : null
 
@@ -1170,11 +1201,12 @@ export default function CatalogoClientPage() {
                                 </span>
                             </span>
                         </button>
-                        {renderCategoryChips('mt-3 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5')}
+                        {renderAmbientes('mt-3')}
+                        {renderCategoryChips('mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5')}
                     </div>
                 ) : (
                 /* 2.0: cabeçalho de UMA linha (logo · nome e status · lupa) + uma fileira de chips. A busca abre pela lupa. */
-                <div className="sticky top-0 z-20" style={{ background: colors.background, borderBottom: `1px solid ${colors.border}40` }}>
+                <div className="sticky top-0 z-20" style={{ background: `linear-gradient(180deg, ${accent}1f, ${accent}08 70%, transparent), ${colors.background}`, borderBottom: `2px solid ${accent}55`, transition: 'background 0.3s, border-color 0.3s' }}>
                     <div className="max-w-7xl mx-auto px-3 pt-2.5 pb-2">
                         {searchOpen || searchQuery ? (
                             <div className="flex items-center gap-2">
@@ -1210,7 +1242,8 @@ export default function CatalogoClientPage() {
                                 </button>
                             </div>
                         )}
-                        {renderCategoryChips('mt-2 flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3 pb-0.5')}
+                        {renderAmbientes('mt-2.5')}
+                        {renderCategoryChips('mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3 pb-0.5')}
                     </div>
                 </div>
                 )}
@@ -1292,9 +1325,9 @@ export default function CatalogoClientPage() {
                                                     <span className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${colors.border}, transparent)` }} />
                                                 </span>
                                             ) : (
-                                                <span className="flex-1 min-w-0 text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>{category}</span>
+                                                <span className="flex-1 min-w-0 text-[11px] font-black uppercase tracking-wider" style={{ color: accent }}>{category}</span>
                                             )}
-                                            <ChevronDown size={insideShell ? 20 : 14} className="flex-shrink-0 transition-transform" style={{ color: insideShell && isPromoCategory(category) ? '#dc2626' : '#f97316', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
+                                            <ChevronDown size={insideShell ? 20 : 14} className="flex-shrink-0 transition-transform" style={{ color: insideShell && isPromoCategory(category) ? '#dc2626' : accent, transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
                                         </button>
                                     )}
                                     {!(isCollapsed && !(insideShell && allGroups.length <= 1)) && (
