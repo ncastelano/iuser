@@ -2,7 +2,7 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { ShoppingCart, Minus, Plus, Trash2, MessageCircle, ChevronDown } from 'lucide-react'
+import { ShoppingCart, Minus, Plus, Trash2, MessageCircle, ChevronDown, ArrowRight } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import FallbackImage from '@/components/FallbackImage'
@@ -44,6 +44,8 @@ interface CatalogBagProps {
     hideCollapseControls?: boolean
     /** 3.0: sólida, da cor do fundo das páginas, ocupando a largura (no desenho da ilha e da barra) */
     v3?: boolean
+    /** Barra fixa embaixo da página (catálogo): sempre mostra itens, total e o botão Finalizar; a lista abre ACIMA da barra e o Finalizar não some. O quadro (fundo, borda) é do container de fora. */
+    dock?: boolean
 }
 
 // ===== Carrinho flutuante do catálogo: mostra os produtos adicionados =====
@@ -69,6 +71,7 @@ export default function CatalogBag({
     storeName = '',
     hideCollapseControls = false,
     v3 = false,
+    dock = false,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + cartItemLineTotal(item), 0)
@@ -115,6 +118,120 @@ export default function CatalogBag({
             return
         }
         onCheckout()
+    }
+
+    // ===== BARRA FIXA (catálogo): [ sacola · itens · total ]  [ Finalizar ], com a lista abrindo acima =====
+    if (dock) {
+        const sheetOpen = isExpanded || !!checkoutContent
+        const lineKey = (item: CartItemWithComment) => `${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`
+        return (
+            <div className="w-full">
+                {sheetOpen && (
+                    checkoutContent ? (
+                        <div className="p-3 max-h-[62vh] overflow-y-auto" style={{ borderBottom: `1px solid ${colors.border}` }}>
+                            {checkoutContent}
+                        </div>
+                    ) : (
+                        <div style={{ borderBottom: `1px solid ${colors.border}` }}>
+                            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                                <div>
+                                    <p className="text-[15px] font-black leading-tight" style={{ color: textColor }}>Sua sacola</p>
+                                    {storeName && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{storeName}</p>}
+                                </div>
+                                <button
+                                    onClick={onToggleExpanded}
+                                    aria-label="Recolher sacola"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90"
+                                    style={{ background: `${colors.border}40`, color: colors.textSecondary }}
+                                >
+                                    <ChevronDown size={18} />
+                                </button>
+                            </div>
+                            <div className="px-4 pb-1 max-h-[42vh] overflow-y-auto">
+                                {bagItems.map((item, i) => (
+                                    <div
+                                        key={lineKey(item)}
+                                        className="flex items-center gap-3 py-2.5"
+                                        style={{ borderTop: i === 0 ? 'none' : `1px solid ${colors.border}55` }}
+                                    >
+                                        <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100">{itemThumb(item)}</div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[13px] font-bold leading-tight truncate" style={{ color: textColor }}>{item.product.name}</p>
+                                            {item.addons && item.addons.length > 0 && (
+                                                <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>+ {item.addons.map(a => a.name).join(', ')}</p>
+                                            )}
+                                            {item.comment && (
+                                                <p className="flex items-center gap-1 text-[10px] italic truncate" style={{ color: colors.textSecondary }}>
+                                                    <MessageCircle size={10} className="flex-shrink-0" />{item.comment}
+                                                </p>
+                                            )}
+                                            <p className="text-xs font-black mt-0.5" style={{ color: '#f97316' }}>{formatPrice(cartItemLineTotal(item))}</p>
+                                        </div>
+                                        <div className="flex items-center gap-0.5 rounded-full p-0.5 flex-shrink-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                            <button
+                                                onClick={() => (item.quantity <= 1 ? onRemove(item.product.id, item.comment, item.addons) : onDecrease(item.product.id, item.comment, item.addons))}
+                                                aria-label={item.quantity <= 1 ? 'Tirar da sacola' : 'Diminuir quantidade'}
+                                                className="w-7 h-7 rounded-full flex items-center justify-center transition active:scale-90"
+                                                style={item.quantity <= 1 ? { background: '#ef444418', color: '#ef4444' } : { background: colors.surface, color: textColor, border: `1px solid ${colors.border}` }}
+                                            >
+                                                {item.quantity <= 1 ? <Trash2 size={13} /> : <Minus size={14} />}
+                                            </button>
+                                            <span className="min-w-[24px] text-center text-[13px] font-black" style={{ color: textColor }}>{item.quantity}</span>
+                                            <button
+                                                onClick={() => onIncrease(item.product, item.comment, item.addons)}
+                                                aria-label="Aumentar quantidade"
+                                                className="w-7 h-7 rounded-full flex items-center justify-center transition active:scale-90"
+                                                style={{ background: GRADIENT, color: '#ffffff' }}
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                )}
+
+                {/* A barra: sempre visível, com o Finalizar à mão (a lista abre acima dela) */}
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                    <button
+                        onClick={onToggleExpanded}
+                        aria-expanded={sheetOpen}
+                        aria-label={sheetOpen ? 'Recolher sacola' : 'Ver itens da sacola'}
+                        className="flex items-center gap-3 min-w-0 flex-1 text-left transition active:opacity-70"
+                    >
+                        <span className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 relative" style={{ background: GRADIENT, color: '#fff' }}>
+                            <ShoppingCart size={20} />
+                            <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full text-[11px] font-black flex items-center justify-center" style={{ background: colors.background, color: '#f97316', boxShadow: `0 0 0 1.5px #f97316` }}>{totalItems}</span>
+                        </span>
+                        <span className="min-w-0">
+                            <span className="block text-[11px] leading-tight" style={{ color: colors.textSecondary }}>
+                                {totalItems === 1 ? '1 item na sacola' : `${totalItems} itens na sacola`}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <span className="text-base font-black leading-tight" style={{ color: textColor }}>{formatPrice(totalValue)}</span>
+                                <ChevronDown size={15} className="transition-transform duration-300 flex-shrink-0" style={{ color: colors.textSecondary, transform: sheetOpen ? 'none' : 'rotate(180deg)' }} />
+                            </span>
+                        </span>
+                    </button>
+                    {checkoutContent || hideFooterAction ? null : !isStoreOpen ? (
+                        <span className="px-4 h-11 rounded-full text-xs font-bold flex items-center flex-shrink-0" style={{ background: '#ef444422', color: '#ef4444' }}>
+                            Loja fechada
+                        </span>
+                    ) : (
+                        <button
+                            onClick={handleCheckout}
+                            className="h-11 pl-5 pr-4 rounded-full text-sm font-black flex items-center gap-1.5 flex-shrink-0 transition active:scale-95"
+                            style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 6px 16px #f9731655' }}
+                        >
+                            Finalizar
+                            <ArrowRight size={16} />
+                        </button>
+                    )}
+                </div>
+            </div>
+        )
     }
 
     return (

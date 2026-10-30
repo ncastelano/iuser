@@ -1630,7 +1630,7 @@ export default function CatalogoClientPage() {
 
                 {/* ===== BOTÃO FLUTUANTE - INÍCIO (lado direito; some enquanto a sacola está aberta) ===== */}
                 {!insideShell && !isBagExpanded && !checkoutStep && (
-                    <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                    <div style={{ position: 'fixed', bottom: bagItems.length > 0 ? 'calc(104px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))' : 32, right: 24, zIndex: 997, transition: 'bottom 0.25s' }}>
                         <button
                             onClick={handleHome}
                             className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
@@ -1654,10 +1654,17 @@ export default function CatalogoClientPage() {
                         position: 'fixed', bottom: 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 448, margin: '0 auto', zIndex: showProductModal ? 150 : 998,
                         background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 30, boxShadow: '0 12px 32px rgba(0,0,0,0.2)', overflow: 'hidden',
                     }
-                    : { position: 'fixed', bottom: 32, left: 16, zIndex: showProductModal ? 150 : 998, maxWidth: 'calc(100vw - 32px)' }}>
+                    : bagItems.length > 0
+                        // 2.0: barra fixa embaixo (como o cabeçalho, mas na base): sacola, total e Finalizar sempre à mão
+                        ? {
+                            position: 'fixed', bottom: 'calc(12px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 720, margin: '0 auto', zIndex: showProductModal ? 150 : 998,
+                            background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 28, boxShadow: '0 12px 32px rgba(0,0,0,0.2)', overflow: 'hidden',
+                        }
+                        : { display: 'none' }}>
                     {/* 3.0: a sacola só aparece com itens (compacta, como a faixa do carrinho da barra); sem itens, só a linha de baixo */}
                     {(!insideShell || bagItems.length > 0) && (
                     <CatalogBag
+                        dock
                         v3={insideShell}
                         bare={insideShell}
                         bagItems={bagItems}
