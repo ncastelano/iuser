@@ -7,8 +7,8 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **19 migrations**: `20261130000000` até `20261130000018` (lista no Anexo A). |
-| **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entra sozinha quando a `staging` receber o push. |
+| **Faltam na produção** | **20 migrations**: `20261130000000` até `20261130000019` (lista no Anexo A). |
+| **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
 | **Cota do Supabase (API)** | **BLOQUEADA em staging E em produção** (verificado em 02/11/2026): toda chamada de dados devolve **HTTP 402** `exceed_cached_egress_quota` — "o dono do projeto precisa fazer upgrade do plano ou remover os limites de gasto". O app do preview abre, mas sem nenhum dado. Veja a seção 2b. |
@@ -84,7 +84,7 @@ npx next build
 npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src/versions   # só o ciclo conhecido
 ```
 - [ ] **`npx next build` passa.** (Não foi rodado nas últimas rodadas; só o `tsc`. O build de produção é mais exigente.)
-- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 19 migrations e o aviso da Fase 3.
+- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 20 migrations e o aviso da Fase 3.
 
 ### Fase 3 — O dia da publicação (nesta ordem, sem pausas longas entre os passos 3 e 4)
 1. **Horário calmo.** Confirme que **não há entrega de loja em andamento**. Motivo: veja "riscos" abaixo — por alguns minutos o banco novo e o código antigo convivem. Consulta só de leitura (Supabase → SQL Editor, projeto de produção; o resultado deve ser `0`):
@@ -129,7 +129,7 @@ A regra de ouro é "o banco só adiciona". Estas **mudam o comportamento de fun�
 - **Quando** publicar (a janela, por causa dos riscos acima).
 - Se vai configurar o **Manual do admin** em produção agora ou deixar para depois.
 
-## Anexo A — As 19 migrations que faltam na produção
+## Anexo A — As 20 migrations que faltam na produção
 
 Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rollbacks/`.
 
@@ -154,6 +154,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 16 | `digital_preview` | Prévia em vídeo dos digitais | `digital_preview_rollback.sql` |
 | 17 | `store_promotions` | Promoções (combos), foto do combo | `store_promotions_rollback.sql` |
 | 18 | `storage_bucket_limits` | Limite de tamanho (5–6 MB) e de tipo (JPG/PNG/WebP/GIF/AVIF) nos 12 buckets de foto ⚠ | `storage_bucket_limits_rollback.sql` |
+| 19 | `upload_catalog` | Catálogo de tipos de upload (`upload_kinds`, com provedor), registro de arquivos (`media_assets`) e Cloudflare/domínio em Financeiro | `upload_catalog_rollback.sql` |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 
@@ -161,3 +162,10 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 - **Pagamento dos digitais continua declarado** (Pix para a loja, ela libera o acesso). A taxa do iUser (R$ 0,50 no pós-pago) **ainda não é cobrada**; a cobrança automática (Asaas) é uma etapa futura.
 - **V2 do fluxo de entrega** (busca dinâmica, reserva, pagamento declaratório) segue **desligado**.
 - A `20261123` (3.0 para todos) **não faz parte** deste lote: já foi aplicada em 25/10.
+
+
+## Anexo C — DNS do `iuser.com.br` mudou de lugar (02/11/2026)
+- Os servidores de DNS **não são mais da Vercel**: são `meiling.ns.cloudflare.com` e `west.ns.cloudflare.com` (trocados na Hostinger, que é quem registra o domínio; vence em 30/08/2027).
+- **O site continua na Vercel.** Na Cloudflare ficam só os registros que apontam para ela: CNAME `@` → `11b345db6ba94409.vercel-dns-017.com`, CNAME `www` e `*` → `cname.vercel-dns-017.com` (todos **só DNS**, sem proxy) e os 3 CAA. Esses destinos eram os que a Vercel mostrava como "gerenciados por ela, podem mudar sem aviso": se a Vercel avisar que o domínio está mal configurado, atualize o CNAME na Cloudflare com o valor que ela indicar.
+- **Mexer em registro de DNS agora é na Cloudflare**, não na Vercel nem na Hostinger (a tela de DNS delas fica sem efeito).
+- Voltar atrás: na Hostinger (Domínios → iuser.com.br → DNS/Nameservers → Alterar), voltar a `ns1.vercel-dns.com` e `ns2.vercel-dns.com`.

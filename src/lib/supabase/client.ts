@@ -4,6 +4,7 @@ import { processLock } from '@supabase/supabase-js'
 import { trackEgressBytes, trackRealtimeMessage } from '@/lib/usageTelemetry'
 import { optimizeImageForUpload } from '@/lib/optimizeImage'
 import { checkPhotoUpload } from '@/lib/uploadLimits'
+import { registerMediaAsset } from '@/lib/mediaAssets'
 import { proxyImageUrl } from '@/lib/imageProxy'
 import { clearMaintenance, getMaintenance, reportMaintenance } from '@/lib/maintenance'
 
@@ -113,7 +114,10 @@ supabase.storage.from = ((bucket: string) => {
     }
     // cache de 1 ano só quando não é troca no mesmo caminho (upsert); senão fica o padrão
     if (!nextOptions?.cacheControl && !nextOptions?.upsert) nextOptions = { ...(nextOptions || {}), cacheControl: '31536000' }
-    return originalUpload(path, nextBody, nextOptions)
+    const result = await originalUpload(path, nextBody, nextOptions)
+    // Contabilidade (media_assets): anota o arquivo enviado SEM esperar e sem nunca atrapalhar o envio (falha é engolida; ver lib/mediaAssets.ts)
+    if (!result.error) void registerMediaAsset(supabase, bucket, result.data?.path || path)
+    return result
   }) as typeof api.upload
   // Links públicos saem pelo endereço de imagens do próprio site (cache da Vercel; ver imageProxy.ts). Cobre os ~175 pontos
   // que chamam getPublicUrl sem tocar em nenhum, inclusive o link que o app grava no banco ao enviar uma foto nova.
