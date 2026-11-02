@@ -59,6 +59,13 @@ Uso por bucket e por pessoa, maiores consumidores, edição dos limites do catá
 **Camada 6 — Limpeza e custo**
 Rotina que apaga órfãos e a foto antiga quando a pessoa troca a imagem; manter o proxy de imagens (`/img`, cache da Vercel) e miniaturas para listas.
 
+## 4b. Andamento
+
+- **Camada 1 — FEITA no banco local (02/11/2026), ainda não publicada.** Migration `20261130000018_storage_bucket_limits.sql` (rollback `storage_bucket_limits_rollback.sql`): os 12 buckets de foto passam a ter limite de **5 MB** (`community-photos` 6 MB) e só aceitam **JPEG, PNG, WebP, GIF e AVIF**. SVG, HEIC e qualquer outro tipo são recusados pelo próprio Storage. Testado contra a API local: 300 KB passa; 5,4 MB em `product-images` e 6,5 MB em `community-photos` voltam "exceeded the maximum allowed size"; SVG e HEIC voltam "mime type … is not supported"; `flash-media` e os outros dois buckets com regra própria não foram mexidos.
+- **Espelho no navegador:** `src/lib/uploadLimits.ts` (mesma tabela) é usado pelo ponto central de upload (`lib/supabase/client.ts`) para avisar em português antes de enviar e dar o tipo certo a arquivo sem tipo. `npm run test:upload-limits` falha se a tabela e a migration divergirem.
+- **Limite do plano Free:** o teto global do plano é 50 MB por arquivo, então o `digital-files` (500 MB) só vale de verdade em plano pago. Não mexido.
+- **Camadas 2 a 6:** a fazer (catálogo de tipos com `provider`, tabela `media_assets`, upload autorizado pelo servidor, cotas, painel, limpeza).
+
 ## 5. Música, vídeo, rede social e live: o Storage do Supabase não é o lugar
 
 Mesmo com controle perfeito, **o custo de tráfego é o problema**, não só o espaço. Conta simples: uma música de 4 MB tocada 1.000 vezes são 4 GB — quase toda a cota gratuita de um mês inteiro. Um vídeo curto de 15 MB multiplica isso.

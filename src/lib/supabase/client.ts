@@ -3,6 +3,7 @@ import { createBrowserClient } from '@supabase/ssr'
 import { processLock } from '@supabase/supabase-js'
 import { trackEgressBytes, trackRealtimeMessage } from '@/lib/usageTelemetry'
 import { optimizeImageForUpload } from '@/lib/optimizeImage'
+import { checkPhotoUpload } from '@/lib/uploadLimits'
 import { proxyImageUrl } from '@/lib/imageProxy'
 import { clearMaintenance, getMaintenance, reportMaintenance } from '@/lib/maintenance'
 
@@ -105,6 +106,10 @@ supabase.storage.from = ((bucket: string) => {
         nextBody = optimized
         nextOptions = { ...(options || {}), contentType: optimized.type }
       }
+      // Aviso claro ANTES de enviar (o Storage recusa o mesmo no servidor: migration 20261130000018). Arquivo sem tipo recebe o da extensão.
+      const check = checkPhotoUpload(bucket, { size: nextBody.size, type: nextBody.type, name: (body as File).name }, path)
+      if (!check.ok) return { data: null, error: Object.assign(new Error(check.message), { statusCode: check.reason === 'size' ? '413' : '415' }) } as any
+      if (!nextBody.type && !nextOptions?.contentType) nextOptions = { ...(nextOptions || {}), contentType: check.contentType }
     }
     // cache de 1 ano só quando não é troca no mesmo caminho (upsert); senão fica o padrão
     if (!nextOptions?.cacheControl && !nextOptions?.upsert) nextOptions = { ...(nextOptions || {}), cacheControl: '31536000' }
