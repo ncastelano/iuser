@@ -11,6 +11,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | **Banco de staging** | **Em dia: tem todas as 18** (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
+| **Cota do Supabase (API)** | **BLOQUEADA em staging E em produção** (verificado em 02/11/2026): toda chamada de dados devolve **HTTP 402** `exceed_cached_egress_quota` — "o dono do projeto precisa fazer upgrade do plano ou remover os limites de gasto". O app do preview abre, mas sem nenhum dado. Veja a seção 2b. |
 
 > A lista "Pendentes para produção" que existia no `CLAUDE.md` e no manual (PRD-3) estava desatualizada: citava migrations que a produção já recebeu. Foi corrigida junto com este roteiro.
 
@@ -32,6 +33,19 @@ Consequência: o staging não recebe a `...17` e o workflow de produção **tamb
 
 **Depois do conserto:** GitHub → Actions → **Banco de staging** → *Run workflow*. Deve ficar verde e aplicar só a `20261130000017`.
 
+## 2b. O bloqueio maior: a cota do Supabase (402) — staging e produção
+
+Em 02/11/2026, depois do login na Vercel, o preview do staging carrega a tela (faixa "AMBIENTE DE TESTE"), mas **todas** as chamadas ao banco falham com 402. Uma consulta de leitura ao projeto de produção (o do `.env.local`, que o `CLAUDE.md` identifica como produção) deu **o mesmo 402**. Ou seja:
+
+- **Publicar o código não resolve nada para os usuários enquanto a cota estiver estourada**: o app não consegue ler dados.
+- **Não dá para testar no staging** (Fase 1) enquanto isso durar.
+- As conexões **diretas ao banco** (os workflows de migration, que usam a senha do pooler) continuam funcionando; o bloqueio é só da **API** (REST/Auth/Storage).
+- Nota de correção: um teste anterior sem chave de API devolveu 401 e eu li isso como "liberado". Era só o portão da API, que vem **antes** da checagem de cota. O teste que vale é uma chamada com a chave pública, e ela dá 402.
+
+**Como sair (decisão sua, envolve dinheiro):** Supabase → Organization → Billing: (a) fazer upgrade do plano, ou (b) se já está no Pro, remover o *spend cap*; ou (c) esperar a renovação do ciclo (a cota é mensal), sabendo que o consumo volta a estourar se nada mudar. O *Cached Egress* alto vem de imagens e dados baixados pelos navegadores; o proxy de imagens `/img` (cache da Vercel) já reduz isso, mas não elimina. Acompanhe depois em Admin → Financeiro (telemetria própria de egress).
+
+**Enquanto não liberar:** a Fase 1 só pode ser feita no ambiente local (já feita, em transações desfeitas) e a publicação em produção fica **sem como ser conferida**. Recomendo **não publicar o código antes de a API voltar**.
+
 ## 3. Fases
 
 ### Fase 0 — Destravar o pipeline
@@ -41,7 +55,7 @@ Consequência: o staging não recebe a `...17` e o workflow de produção **tamb
 ### Fase 1 — Testar no staging (aqui pode escrever no banco)
 O que já passou: tudo foi testado no **banco local** (cenários de banco em transação desfeita + testes de regra). O que **nunca** rodou fora do local é o app de ponta a ponta contra o banco de staging. Faça nas contas de teste do staging (`docs/STAGING.md`):
 
-- [ ] **O app de teste abre?** O staging teve bloqueio de cota (erro 402). Abra o preview da branch `staging`; se ainda der 402, resolva isso antes (a cota do Supabase renova por ciclo) — sem staging utilizável não há como fazer o resto com segurança.
+- [ ] **O app de teste abre?** *(02/11: a tela abre, mas toda chamada de dados dá 402 — ver seção 2b. Este item só fecha quando a API voltar.)* Abra o preview da branch `staging` (endereço no painel da Vercel → Deployments; exige login na Vercel). Teste de verdade = a home mostra lojas e produtos, sem erro 402 no console.
 - [ ] **Entrega de loja, ponta a ponta:** pedido → loja aceita → motorista aceita → chega na loja → loja informa o código → motorista confirma retirada → "Estou no local" → cliente informa o código de entrega → concluída. (Cobre as migrations 03, 06, 11.)
 - [ ] **Dinheiro na porta e maquininha:** entrega com pagamento em dinheiro gera repasse; a loja confirma; motorista com pendência vencida não aceita nova entrega. Contestação de entrega pelo cliente e decisão no Admin → Disputas. (Migration 12.)
 - [ ] **Motoristas favoritos:** loja convida, motorista aceita, a entrega aparece só para ele durante a janela. (09)
