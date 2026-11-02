@@ -35,6 +35,7 @@ import ListingRowCard from '@/components/ListingRowCard'
 import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
 import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 import DigitalStrip from '@/components/v3/DigitalStrip'
+import PromoStrip from '@/components/v3/PromoStrip'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '@/components/social/SocialProfileCard'
@@ -765,6 +766,9 @@ export default function ModeloInicialPage() {
                                     )
                                 })}
                             </div>
+
+                        {/* Promoções das lojas: logo abaixo do bloco do Radar ("Ver ao redor") */}
+                        <PromoStrip className="mt-7" />
 
                         <div className="mt-7">
                             <SectionHeader type="servico" title="Serviços que você pode gostar" subtitle="Profissionais divulgando os melhores serviços" onSeeAll={() => go('/servicos-disponiveis')} colors={colors} />

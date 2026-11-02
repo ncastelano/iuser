@@ -10,6 +10,7 @@ import CategoriasSection from './inicio/sections/CanIhelp'
 import RadarSection from './inicio/sections/RadarSection'
 import RentalShowcase from './inicio/sections/RentalShowcase'
 import DigitalShowcase from './inicio/sections/DigitalShowcase'
+import PromoShowcase from './inicio/sections/PromoShowcase'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import AcceptARider from './inicio/sections/AcceptARider'
 import MyServiceRequests from './inicio/sections/MyServiceRequests'
@@ -56,6 +57,7 @@ const DEFAULT_SECTIONS = [
     'meusPedidos',
     'servicosOferecidos',
     'radar',
+    'promoShowcase',
     'servicosProcurados',
     'storeList',
     'canalMotorista',
@@ -248,6 +250,11 @@ function HomePageContent() {
                     if (!filtered.includes('rentalShowcase')) {
                         const at = filtered.indexOf('publicationShowcase')
                         filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'rentalShowcase', ...filtered.slice(at + 1)] : filtered
+                    }
+                    // Promoções das lojas: entram logo abaixo do Radar
+                    if (!filtered.includes('promoShowcase')) {
+                        const at = filtered.indexOf('radar')
+                        filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'promoShowcase', ...filtered.slice(at + 1)] : filtered
                     }
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
                     let final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
@@ -586,6 +593,8 @@ function HomePageContent() {
                 return <ProductShowcase />
             case 'publicationShowcase':
                 return <FeaturedPublications maxItems={6} />
+            case 'promoShowcase':
+                return <PromoShowcase />
             case 'digitalShowcase':
                 return <DigitalShowcase />
             case 'rentalShowcase':

@@ -47,6 +47,7 @@ import StoreDeliveryDues from './StoreDeliveryDues'
 import StoreFeedback from './StoreFeedback'
 import StoreDeliverySettings from './StoreDeliverySettings'
 import StoreFavoriteDrivers from './StoreFavoriteDrivers'
+import StorePromotions from './StorePromotions'
 import StorePaymentMethods from './StorePaymentMethods'
 import StoreWhatsAppBot from './StoreWhatsAppBot'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
@@ -917,6 +918,9 @@ export default function StoreDashboard({
             {/* ===== Produtos e Serviços da Loja ===== */}
             <StoreCatalog storeId={store.id} storeSlug={storeSlug} kind="product" />
             <StoreCatalog storeId={store.id} storeSlug={storeSlug} kind="service" />
+
+            {/* ===== Promoções: combos montados com os itens da loja, com o desconto calculado ===== */}
+            <StorePromotions storeId={store.id} />
 
 
             </>

@@ -26,6 +26,8 @@ import { hexToRgb } from '@/lib/color'
 import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
 import DigitalCurriculum from '@/components/digital/DigitalCurriculum'
+import PromoRail from './PromoRail'
+import { promoInfoOf, isPromoProduct } from '@/modules/promotions'
 import { captureReferral } from '@/lib/referralCapture'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 import { useInsideShell } from '@/components/InsideShell'
@@ -44,15 +46,9 @@ interface Product {
     slug?: string
     created_at?: string
     has_addons?: boolean
-}
-
-// Oferta: a loja escreve "De R$ 29,90 por R$ 21,90." no começo da descrição; o catálogo mostra o preço antigo riscado e o % OFF (o preço cobrado é sempre o do produto)
-function parsePromo(desc: string | null | undefined, price: number): { old: number; pct: number; rest: string } | null {
-    const m = (desc || '').match(/^\s*De\s+R\$\s*([\d.]+,\d{2})\s+por\s+R\$\s*[\d.]+,\d{2}\.?\s*/i)
-    if (!m || !desc) return null
-    const old = parseFloat(m[1].replace(/\./g, '').replace(',', '.'))
-    if (!(old > price) || !(price > 0)) return null
-    return { old, pct: Math.round((1 - price / old) * 100), rest: desc.slice(m[0].length) }
+    is_active?: boolean | null
+    is_combo?: boolean
+    compare_at_price?: number | null
 }
 
 interface StoreInfo {
@@ -249,6 +245,7 @@ export default function CatalogoClientPage() {
                     .select('*')
                     .eq('store_id', store.id)
                     .eq('listing_type', 'sale')
+                    .or('is_active.is.null,is_active.eq.true')
                     .order('created_at', { ascending: false })
 
                 if (productsError) {
@@ -1003,11 +1000,23 @@ export default function CatalogoClientPage() {
     const activeKind: 'physical' | 'digital' | 'service' | null =
         kindList.length > 1 ? (kindList.some(x => x.k === kindChoice) ? kindChoice : kindList[0].k) : null
     const searching = searchQuery.trim().length > 0
-    const baseProducts = useMemo(
-        () => (activeKind && !searching ? products.filter(p => kindOf(p.type) === activeKind) : products),
+    // Promoções = seção horizontal própria (produto com desconto ou da categoria Promoções): saem das categorias e voltam na busca
+    const promoProducts = useMemo(
+        () => products.filter(p => kindOf(p.type) === 'physical' && isPromoProduct(p))
+            .sort((a, b) => Number(!!b.is_combo) - Number(!!a.is_combo) || (promoInfoOf(b)?.pct ?? 0) - (promoInfoOf(a)?.pct ?? 0)),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [products, activeKind, searching]
+        [products]
     )
+    const catalogProducts = useMemo(() => {
+        const promoIds = new Set(promoProducts.map(p => p.id))
+        return products.filter(p => !promoIds.has(p.id))
+    }, [products, promoProducts])
+    const baseProducts = useMemo(
+        () => (searching ? products : activeKind ? catalogProducts.filter(p => kindOf(p.type) === activeKind) : catalogProducts),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [products, catalogProducts, activeKind, searching]
+    )
+    const showPromoRail = !searching && selectedCategory === 'Todos' && (activeKind === null || activeKind === 'physical') && promoProducts.length > 0
 
     // ========== FILTRO DE PRODUTOS ==========
     const filteredProducts = useMemo(() => {
@@ -1351,7 +1360,21 @@ export default function CatalogoClientPage() {
 
                 {/* Catálogo de produtos */}
                 <div className="max-w-7xl mx-auto px-1 py-1">
-                    {filteredProducts.length === 0 ? (
+                    {showPromoRail && (
+                        <div className="mb-6 pt-2">
+                            <PromoRail
+                                products={promoProducts}
+                                colors={colors}
+                                storeLogo={storeInfo?.logo_url ?? null}
+                                storeOpen={isStoreOpen}
+                                quantityOf={getProductQuantity}
+                                onOpen={(p) => handleProductClick(p)}
+                                onAdd={handleAddWithComment}
+                                formatPrice={formatPrice}
+                            />
+                        </div>
+                    )}
+                    {filteredProducts.length === 0 ? showPromoRail ? null : (
                         <div className="flex flex-col items-center justify-center py-20">
                             <div className="text-6xl mb-4">🛍️</div>
                             <h3 className="text-xl font-semibold" style={{ color: textColor }}>
@@ -1409,7 +1432,7 @@ export default function CatalogoClientPage() {
                                 // 3.0: cartão em grade (foto em cima, nome, preço e o botão de adicionar/quantidade), no desenho do /comprar
                                 if (insideShell) {
                                     const soldOut = product.stock !== null && product.stock <= 0
-                                    const promo = parsePromo(product.description, product.price)
+                                    const promo = promoInfoOf(product)
                                     // Adicionar (+) ou seletor de quantidade (lixeira/− · n · +), o mesmo desenho da 2.0
                                     const controls = soldOut ? null : isSelected && !productIsDisabled ? (
                                         <span className="flex items-center gap-0.5 rounded-full p-0.5 flex-shrink-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }} onClick={(e) => e.stopPropagation()}>
