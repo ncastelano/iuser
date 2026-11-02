@@ -6,6 +6,15 @@
 
 export const MB = 1024 * 1024
 
+/** Texto curto de um tamanho ("5 MB", "500 MB", "1,5 MB", "2 GB"). */
+export function formatBytes(bytes: number): string {
+    const trim = (n: number) => (Math.round(n * 10) / 10).toString().replace('.', ',')
+    if (bytes >= 1024 * MB) return `${trim(bytes / (1024 * MB))} GB`
+    if (bytes >= MB) return `${trim(bytes / MB)} MB`
+    if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
+    return `${bytes} B`
+}
+
 export const PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'] as const
 
 /** Buckets de foto com limite imposto no servidor (bytes). flash-media, delivery-proofs e digital-files têm regra própria e ficam de fora. */

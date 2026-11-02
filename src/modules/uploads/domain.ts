@@ -23,18 +23,8 @@ export type UploadKind = {
 
 const KIND_RE = /^[a-z][a-z0-9_]{1,40}$/
 const MIME_RE = /^[a-z]+\/[a-z0-9.+-]+$/
-const MB = 1024 * 1024
 
-/** Texto curto de um tamanho ("5 MB", "500 MB", "1,5 MB"). */
-export function formatBytes(bytes: number): string {
-    if (bytes >= 1024 * MB) return `${trim(bytes / (1024 * MB))} GB`
-    if (bytes >= MB) return `${trim(bytes / MB)} MB`
-    if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
-    return `${bytes} B`
-}
-function trim(n: number): string {
-    return (Math.round(n * 10) / 10).toString().replace('.', ',')
-}
+export { formatBytes } from '../../lib/uploadLimits.ts'
 
 /** Erros de um tipo de upload (lista vazia = válido). Vale para criar e para editar. */
 export function validateUploadKind(k: Partial<UploadKind>): string[] {

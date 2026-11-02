@@ -27,6 +27,7 @@
     "test:image-proxy": "node --test scripts/test-image-proxy.mjs",
     "test:upload-limits": "node --test scripts/test-upload-limits.mjs",
     "test:upload-catalog": "node --test scripts/test-upload-catalog.mjs",
+    "test:upload-authorization": "node --test scripts/test-upload-authorization.mjs",
     "test:social-links": "node --test scripts/test-social-links.mjs",
     "test:store-links": "node --test scripts/test-store-links.mjs",
     "test:store-model": "node --test scripts/test-store-model.mjs",

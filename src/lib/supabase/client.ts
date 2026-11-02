@@ -5,7 +5,9 @@ import { trackEgressBytes, trackRealtimeMessage } from '@/lib/usageTelemetry'
 import { optimizeImageForUpload } from '@/lib/optimizeImage'
 import { checkPhotoUpload } from '@/lib/uploadLimits'
 import { registerMediaAsset } from '@/lib/mediaAssets'
+import { authorizeUpload, uploadBodyInfo, uploadDeniedStatus } from '@/lib/uploadAuthorization'
 import { proxyImageUrl } from '@/lib/imageProxy'
+import { isLocalDevOnly } from '@/lib/devOnly'
 import { clearMaintenance, getMaintenance, reportMaintenance } from '@/lib/maintenance'
 
 // Fetch customizado só pra medir o tamanho de cada resposta que volta do
@@ -112,6 +114,12 @@ supabase.storage.from = ((bucket: string) => {
       if (!check.ok) return { data: null, error: Object.assign(new Error(check.message), { statusCode: check.reason === 'size' ? '413' : '415' }) } as any
       if (!nextBody.type && !nextOptions?.contentType) nextOptions = { ...(nextOptions || {}), contentType: check.contentType }
     }
+    // Autorização no BANCO (migration 20261130000020): login, bloqueios, tipo, tamanho, plano, ritmo e cotas por pessoa. Se o banco não responde, o envio segue direto e a política do Storage decide.
+    const info = uploadBodyInfo(nextBody, nextOptions)
+    if (info) {
+      const auth = await authorizeUpload(supabase, { bucket, path, bytes: info.bytes, mime: info.mime, upsert: !!nextOptions?.upsert })
+      if (auth.status === 'denied') return { data: null, error: Object.assign(new Error(auth.message), { statusCode: uploadDeniedStatus(auth.code), code: auth.code }) } as any
+    }
     // cache de 1 ano só quando não é troca no mesmo caminho (upsert); senão fica o padrão
     if (!nextOptions?.cacheControl && !nextOptions?.upsert) nextOptions = { ...(nextOptions || {}), cacheControl: '31536000' }
     const result = await originalUpload(path, nextBody, nextOptions)
@@ -128,3 +136,6 @@ supabase.storage.from = ((bucket: string) => {
   }) as typeof api.getPublicUrl
   return api
 }) as typeof supabase.storage.from
+
+// Gancho de verificação: só em desenvolvimento com o Supabase LOCAL (lib/devOnly.ts; em produção, staging e preview não existe). No console: `__supabase.storage.from('avatars').upload(...)`.
+if (typeof window !== 'undefined' && isLocalDevOnly()) (window as unknown as { __supabase?: typeof supabase }).__supabase = supabase
