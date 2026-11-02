@@ -5,6 +5,8 @@
 
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS is_combo boolean NOT NULL DEFAULT false;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS compare_at_price numeric(10,2);
+-- true = a loja ENVIOU a foto do combo (cartão com a foto de fundo); false = o cartão mostra as fotos dos itens juntas (colagem)
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS combo_image_uploaded boolean NOT NULL DEFAULT false;
 ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_compare_at_check;
 ALTER TABLE public.products ADD CONSTRAINT products_compare_at_check CHECK (compare_at_price IS NULL OR compare_at_price >= 0);
 
@@ -28,7 +30,13 @@ BEGIN
         IF TG_OP = 'INSERT' THEN
             NEW.is_combo := false;
             NEW.compare_at_price := NULL;
+            NEW.combo_image_uploaded := false;
         ELSE
+            -- o marcador "foto enviada" só a função liga/desliga; trocar a foto pela edição do produto vale como foto da loja
+            NEW.combo_image_uploaded := OLD.combo_image_uploaded;
+            IF OLD.is_combo AND NEW.image_url IS DISTINCT FROM OLD.image_url THEN
+                NEW.combo_image_uploaded := (NEW.image_url IS NOT NULL);
+            END IF;
             IF NEW.is_combo IS DISTINCT FROM OLD.is_combo THEN
                 RAISE EXCEPTION 'combo_flag_locked' USING ERRCODE = '42501', HINT = 'combo_flag_locked';
             END IF;
@@ -72,12 +80,15 @@ DROP TRIGGER IF EXISTS trg_deactivate_combo_on_item_removed ON public.product_bu
 CREATE TRIGGER trg_deactivate_combo_on_item_removed AFTER DELETE ON public.product_bundle_items FOR EACH ROW EXECUTE FUNCTION public.deactivate_combo_on_item_removed();
 
 -- Cria ou edita um combo da PRÓPRIA loja. Itens: [{product_id, quantity}] só de produtos físicos ativos da mesma loja. O valor é o que a loja quer receber pelo conjunto (até a soma dos itens).
-CREATE OR REPLACE FUNCTION public.save_store_combo(p_store_id uuid, p_combo_id uuid, p_name text, p_note text, p_price numeric, p_items jsonb)
+-- Foto: p_image = caminho da foto enviada ao bucket product-images (o cartão usa a foto de fundo); sem foto o cartão mostra as fotos dos itens juntas; p_clear_image = tira a foto enviada.
+DROP FUNCTION IF EXISTS public.save_store_combo(uuid, uuid, text, text, numeric, jsonb);
+CREATE OR REPLACE FUNCTION public.save_store_combo(p_store_id uuid, p_combo_id uuid, p_name text, p_note text, p_price numeric, p_items jsonb, p_image text DEFAULT NULL, p_clear_image boolean DEFAULT false)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
     v_owner uuid; v_id uuid := p_combo_id; v_name text := btrim(COALESCE(p_name, ''));
     v_total numeric := 0; v_units numeric := 0; v_img text; v_list text := ''; v_desc text; v_price numeric;
-    v_ids uuid[] := '{}'; v_qtys integer[] := '{}'; r record; it record; v_slug text;
+    v_ids uuid[] := '{}'; v_qtys integer[] := '{}'; r record; it record; v_slug text; v_image text := NULLIF(btrim(COALESCE(p_image, '')), '');
+    v_cur_uploaded boolean := false; v_cur_image text;
 BEGIN
     IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth_required' USING ERRCODE = '42501', HINT = 'auth_required'; END IF;
     SELECT owner_id INTO v_owner FROM public.stores WHERE id = p_store_id;
@@ -85,6 +96,10 @@ BEGIN
     IF char_length(v_name) < 3 OR char_length(v_name) > 80 THEN RAISE EXCEPTION 'combo_name_invalid' USING ERRCODE = '22023', HINT = 'combo_name_invalid'; END IF;
     IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) = 0 OR jsonb_array_length(p_items) > 30 THEN
         RAISE EXCEPTION 'combo_items_required' USING ERRCODE = '22023', HINT = 'combo_items_required';
+    END IF;
+    -- só um caminho simples do bucket (nada de link externo nem de pasta acima)
+    IF v_image IS NOT NULL AND (v_image !~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,200}$' OR v_image LIKE '%..%') THEN
+        RAISE EXCEPTION 'combo_image_invalid' USING ERRCODE = '22023', HINT = 'combo_image_invalid';
     END IF;
 
     FOR r IN
@@ -115,15 +130,21 @@ BEGIN
     IF v_id IS NULL THEN
         v_slug := regexp_replace(lower(translate(v_name, 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ', 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN')), '[^a-z0-9]+', '-', 'g');
         v_slug := trim(both '-' from v_slug) || '-' || substr(md5(random()::text), 1, 6);
-        INSERT INTO public.products (name, slug, description, price, type, is_active, image_url, store_id, owner_id, price_type, category, listing_type, has_addons, delivery_units, is_combo, compare_at_price)
-        VALUES (v_name, v_slug, v_desc, v_price, 'physical', true, v_img, p_store_id, v_owner, 'fixed', 'Promoções', 'sale', false, LEAST(GREATEST(v_units, 0.25), 50), true, v_total)
+        INSERT INTO public.products (name, slug, description, price, type, is_active, image_url, store_id, owner_id, price_type, category, listing_type, has_addons, delivery_units, is_combo, compare_at_price, combo_image_uploaded)
+        VALUES (v_name, v_slug, v_desc, v_price, 'physical', true, COALESCE(v_image, v_img), p_store_id, v_owner, 'fixed', 'Promoções', 'sale', false, LEAST(GREATEST(v_units, 0.25), 50), true, v_total, v_image IS NOT NULL)
         RETURNING id INTO v_id;
     ELSE
-        UPDATE public.products
-           SET name = v_name, description = v_desc, price = v_price, image_url = COALESCE(v_img, image_url),
-               delivery_units = LEAST(GREATEST(v_units, 0.25), 50), compare_at_price = v_total
-         WHERE id = v_id AND store_id = p_store_id AND is_combo;
+        SELECT combo_image_uploaded, image_url INTO v_cur_uploaded, v_cur_image FROM public.products WHERE id = v_id AND store_id = p_store_id AND is_combo;
         IF NOT FOUND THEN RAISE EXCEPTION 'combo_not_found' USING ERRCODE = '22023', HINT = 'combo_not_found'; END IF;
+        UPDATE public.products
+           SET name = v_name, description = v_desc, price = v_price, delivery_units = LEAST(GREATEST(v_units, 0.25), 50), compare_at_price = v_total,
+               -- foto nova enviada > tirar a foto enviada (volta às fotos dos itens) > manter a que já tinha (enviada ou a do 1º item)
+               image_url = CASE WHEN v_image IS NOT NULL THEN v_image
+                                WHEN COALESCE(p_clear_image, false) THEN v_img
+                                WHEN v_cur_uploaded THEN v_cur_image
+                                ELSE COALESCE(v_img, v_cur_image) END,
+               combo_image_uploaded = CASE WHEN v_image IS NOT NULL THEN true WHEN COALESCE(p_clear_image, false) THEN false ELSE v_cur_uploaded END
+         WHERE id = v_id;
         DELETE FROM public.product_bundle_items WHERE combo_id = v_id;
     END IF;
 
@@ -132,17 +153,21 @@ BEGIN
     PERFORM set_config('app.combo_saving', '', true);
     RETURN v_id;
 END $$;
-REVOKE ALL ON FUNCTION public.save_store_combo(uuid, uuid, text, text, numeric, jsonb) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.save_store_combo(uuid, uuid, text, text, numeric, jsonb) TO authenticated;
+REVOKE ALL ON FUNCTION public.save_store_combo(uuid, uuid, text, text, numeric, jsonb, text, boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.save_store_combo(uuid, uuid, text, text, numeric, jsonb, text, boolean) TO authenticated;
 
 -- Vitrine pública das promoções (home 2.0 e 3.0): produtos de lojas ativas com desconto (o "de" maior que o preço), no máximo 3 por loja, mais novos primeiro.
+-- Devolve também se a foto do combo foi enviada pela loja e os itens (nome, foto, quantidade) para o cartão mostrar as fotos dos itens juntas quando não há foto enviada.
+DROP FUNCTION IF EXISTS public.get_store_promotions(integer);
 CREATE OR REPLACE FUNCTION public.get_store_promotions(p_limit integer DEFAULT 12)
-RETURNS TABLE (id uuid, name text, slug text, description text, price numeric, compare_at_price numeric, discount_pct integer, image_url text, is_combo boolean,
+RETURNS TABLE (id uuid, name text, slug text, description text, price numeric, compare_at_price numeric, discount_pct integer, image_url text, is_combo boolean, combo_image_uploaded boolean, items jsonb,
                store_id uuid, store_slug text, store_name text, store_logo text, created_at timestamptz)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-    SELECT r.id, r.name, r.slug, r.description, r.price, r.compare_at_price, r.discount_pct, r.image_url, r.is_combo, r.store_id, r.store_slug, r.store_name, r.store_logo, r.created_at
+    SELECT r.id, r.name, r.slug, r.description, r.price, r.compare_at_price, r.discount_pct, r.image_url, r.is_combo, r.combo_image_uploaded, r.items, r.store_id, r.store_slug, r.store_name, r.store_logo, r.created_at
       FROM (SELECT p.id, p.name, p.slug, p.description, p.price, p.compare_at_price,
-                   round((1 - p.price / p.compare_at_price) * 100)::integer AS discount_pct, p.image_url, p.is_combo,
+                   round((1 - p.price / p.compare_at_price) * 100)::integer AS discount_pct, p.image_url, p.is_combo, p.combo_image_uploaded,
+                   (SELECT COALESCE(jsonb_agg(jsonb_build_object('name', i.name, 'image_url', i.image_url, 'quantity', b.quantity) ORDER BY i.price DESC, i.name), '[]'::jsonb)
+                      FROM public.product_bundle_items b JOIN public.products i ON i.id = b.item_id WHERE b.combo_id = p.id) AS items,
                    s.id AS store_id, s."storeSlug" AS store_slug, s.name AS store_name, s.logo_url AS store_logo, p.created_at,
                    row_number() OVER (PARTITION BY s.id ORDER BY p.created_at DESC) AS rn
               FROM public.products p

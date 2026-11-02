@@ -7,13 +7,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Flame, Minus, Pause, Pencil, Play, Plus, Search, Tag, Trash2, X } from 'lucide-react'
+import { Camera, Flame, Minus, Pause, Pencil, Play, Plus, Search, Tag, Trash2, X } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
 import FallbackImage from '@/components/FallbackImage'
+import ComboCollage from '@/components/promotions/ComboCollage'
 import {
     COMBO_ERROR_TEXT, DISCOUNT_SHORTCUTS, comboDiscount, comboTotal, deleteCombo, describeItems, listComboCandidates, listStoreCombos, priceForDiscountPct, saveCombo,
-    setComboActive, validateCombo, type CandidateItem, type StoreCombo,
+    setComboActive, validateCombo, uploadComboImage, comboImageUrl, type CandidateItem, type StoreCombo,
 } from '@/modules/promotions'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -86,8 +87,10 @@ export default function StorePromotions({ storeId }: { storeId: string }) {
                         const d = comboDiscount(total, c.price)
                         return (
                             <div key={c.id} className="flex items-center gap-3 p-2.5 rounded-2xl" style={{ border: `1px solid ${colors.border}`, opacity: c.is_active ? 1 : 0.6 }}>
-                                <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
-                                    <FallbackImage srcs={[c.image_url]} alt={c.name} name={c.name} className="w-full h-full object-cover" />
+                                <div className="relative w-14 h-14 rounded-xl overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
+                                    {c.combo_image_uploaded || c.items.length === 0
+                                        ? <FallbackImage srcs={[c.image_url]} alt={c.name} name={c.name} className="w-full h-full object-cover" />
+                                        : <ComboCollage items={c.items} chips={false} />}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[13px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>
@@ -136,6 +139,12 @@ function ComboDialog({ storeId, combo, onClose, onSaved }: { storeId: string; co
     const [search, setSearch] = useState('')
     const [saving, setSaving] = useState(false)
     const [mounted, setMounted] = useState(false)
+    // foto do combo: a que a loja já tinha enviada, uma nova (caminho no bucket) ou nenhuma (o cartão mostra as fotos dos itens juntas)
+    const [newImage, setNewImage] = useState<string | null>(null)
+    const [clearImage, setClearImage] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const hadUploaded = !!combo?.combo_image_uploaded
+    const photoUrl = newImage ? comboImageUrl(newImage) : hadUploaded && !clearImage ? combo?.image_url ?? null : null
 
     useEffect(() => { setMounted(true) }, [])
     useEffect(() => { listComboCandidates(storeId).then(setItems).catch(() => setItems([])) }, [storeId])
@@ -160,11 +169,27 @@ function ComboDialog({ storeId, combo, onClose, onSaved }: { storeId: string; co
 
     const setItemQty = (id: string, q: number) => setQty((prev) => ({ ...prev, [id]: Math.max(0, Math.min(20, q)) }))
 
+    // pré-visualização da colagem com o que está escolhido (do item que mais custa para o que menos custa)
+    const collageItems = useMemo(
+        () => lines
+            .map((l) => ({ name: byId.get(l.id)?.name ?? combo?.items.find((i) => i.item_id === l.id)?.name ?? '', image_url: byId.get(l.id)?.image_url ?? combo?.items.find((i) => i.item_id === l.id)?.image_url ?? null, quantity: l.quantity, price: l.price }))
+            .sort((a, b) => b.price - a.price),
+        [lines, byId, combo]
+    )
+
+    const pickPhoto = async (file: File | undefined) => {
+        if (!file) return
+        setUploading(true)
+        try { setNewImage(await uploadComboImage(file)); setClearImage(false) }
+        catch (e: any) { toast.error(e?.message || 'Não foi possível enviar a foto.') }
+        setUploading(false)
+    }
+
     const save = async () => {
         if (error || saving) return
         setSaving(true)
         try {
-            await saveCombo({ storeId, comboId: combo?.id ?? null, name: name.trim(), note: note.trim(), price, items: lines.map((l) => ({ product_id: l.id, quantity: l.quantity })) })
+            await saveCombo({ storeId, comboId: combo?.id ?? null, name: name.trim(), note: note.trim(), price, items: lines.map((l) => ({ product_id: l.id, quantity: l.quantity })), image: newImage, clearImage: clearImage && !newImage })
             toast.success(combo ? 'Promoção atualizada' : 'Promoção criada')
             onSaved()
         } catch (e: any) {
@@ -262,6 +287,34 @@ function ComboDialog({ storeId, combo, onClose, onSaved }: { storeId: string; co
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>Mesmo valor da soma: sem desconto.</p>
                             )
                         )}
+                    </div>
+
+                    {/* Foto do combo: com foto enviada o cartão mostra a sua foto; sem ela, as fotos dos itens juntas */}
+                    <div className="flex flex-col gap-2">
+                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Foto do combo <span className="font-normal" style={{ color: colors.textSecondary }}>(opcional)</span></span>
+                        <div className="flex items-center gap-3">
+                            <div className="relative w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0" style={{ background: GRADIENT, border: `1px solid ${colors.border}` }}>
+                                {photoUrl
+                                    ? <img src={photoUrl} alt="Foto do combo" className="absolute inset-0 w-full h-full object-cover" />
+                                    : collageItems.length > 0
+                                        ? <ComboCollage items={collageItems} chips={false} />
+                                        : <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-white/90 text-center px-1">Escolha os itens</span>}
+                            </div>
+                            <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                                <p className="text-[11px] leading-snug" style={{ color: colors.textSecondary }}>
+                                    {photoUrl ? 'O cartão da promoção mostra a sua foto.' : 'Sem foto, o cartão mostra as fotos dos itens juntas — todo mundo vê que é um combo.'}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    <label className="h-9 px-3.5 rounded-full text-xs font-black flex items-center gap-1.5 cursor-pointer transition active:scale-95" style={{ border: `1.5px solid ${colors.border}`, color: colors.textPrimary, opacity: uploading ? 0.6 : 1 }}>
+                                        <Camera size={14} /> {uploading ? 'Enviando…' : photoUrl ? 'Trocar foto' : 'Enviar foto'}
+                                        <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploading} onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = '' }} />
+                                    </label>
+                                    {photoUrl && (
+                                        <button onClick={() => { setNewImage(null); setClearImage(true) }} className="h-9 px-3.5 rounded-full text-xs font-bold transition active:scale-95" style={{ color: '#ef4444' }}>Tirar foto</button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <label className="flex flex-col gap-1">

@@ -34,11 +34,11 @@ console.log(`combos antigos com "de/por": ${patched}`)
 const old = await api('GET', `/rest/v1/products?select=id&is_combo=eq.true&slug=like.combo-seed-*`)
 for (const o of old) await api('DELETE', `/rest/v1/products?id=eq.${o.id}`)
 
-// loja → combos: cada combo é uma lista de [posição do item na lista de mais caros, quantidade] + % de desconto + nome
+// loja → combos: cada combo é uma lista de [item, quantidade] + % de desconto + nome; `uploaded: true` simula um combo COM foto enviada pela loja (cartão com a foto de fundo), os outros ficam SEM foto (colagem das fotos dos itens)
 const PLANS = {
     'pizzaria-forno-de-ouro': [
         { name: 'Combo Calabresa + Guaraná', pick: [['Pizza Calabresa', 1], ['Guaraná Antarctica 2 L', 1]], pct: 18 },
-        { name: 'Dupla de Pizzas + Refri', pick: [['Pizza Margherita', 1], ['Pizza Mussarela', 1], ['Guaraná Antarctica 2 L', 1]], pct: 22 },
+        { name: 'Dupla de Pizzas + Refri', pick: [['Pizza Margherita', 1], ['Pizza Mussarela', 1], ['Guaraná Antarctica 2 L', 1]], pct: 22, uploaded: true },
         { name: 'Festa das Latinhas', pick: [['Coca-Cola lata', 4], ['Anel de cebola', 1]], pct: 15 },
     ],
     '24h-farmacia-plantao': [{ name: 'Kit Cuidado do Dia', pick: [[null, 1], [null, 1], [null, 2]], pct: 20 }],
@@ -67,7 +67,7 @@ for (const [slug, plans] of Object.entries(PLANS)) {
         const [combo] = await api('POST', '/rest/v1/products', {
             name: plan.name, slug: `combo-seed-${slugify(plan.name)}-${crypto.randomBytes(2).toString('hex')}`, description: desc, price, type: 'physical', is_active: true,
             image_url: chosen.find((c) => c.it.image_url)?.it.image_url ?? null, store_id: store.id, owner_id: store.owner_id, price_type: 'fixed', category: 'Promoções', listing_type: 'sale',
-            has_addons: false, delivery_units: units, is_combo: true, compare_at_price: total,
+            has_addons: false, delivery_units: units, is_combo: true, compare_at_price: total, combo_image_uploaded: !!plan.uploaded,
         }, { Prefer: 'return=representation' })
         await api('POST', '/rest/v1/product_bundle_items', chosen.map((c) => ({ combo_id: combo.id, item_id: c.it.id, quantity: c.q })))
         n++; made++

@@ -55,6 +55,25 @@ BEGIN
     UPDATE products SET price = price + 10 WHERE id = v_a;
     IF (SELECT compare_at_price FROM products WHERE id = v_combo) <> v_total + 10 THEN RAISE EXCEPTION 'FALHA 6b: soma não acompanhou o preço do item'; END IF;
 
+    -- 6b) foto do combo: enviada pela loja = cartão com a foto de fundo; sem ela = fotos dos itens juntas
+    IF (SELECT combo_image_uploaded FROM products WHERE id = v_combo) THEN RAISE EXCEPTION 'FALHA 6b: sem foto enviada não pode estar marcado'; END IF;
+    PERFORM save_store_combo(v_store, v_combo, 'Combo de teste 2', NULL, round(v_total * 0.5, 2), jsonb_build_array(jsonb_build_object('product_id', v_a, 'quantity', 1), jsonb_build_object('product_id', v_b, 'quantity', 2)), 'combo-foto-teste.jpg', false);
+    IF NOT (SELECT combo_image_uploaded AND image_url = 'combo-foto-teste.jpg' FROM products WHERE id = v_combo) THEN RAISE EXCEPTION 'FALHA 6c: foto enviada não gravou'; END IF;
+    PERFORM save_store_combo(v_store, v_combo, 'Combo de teste 3', NULL, round(v_total * 0.5, 2), jsonb_build_array(jsonb_build_object('product_id', v_a, 'quantity', 1), jsonb_build_object('product_id', v_b, 'quantity', 2)));
+    IF NOT (SELECT combo_image_uploaded AND image_url = 'combo-foto-teste.jpg' FROM products WHERE id = v_combo) THEN RAISE EXCEPTION 'FALHA 6d: editar sem foto nova perdeu a foto enviada'; END IF;
+    BEGIN PERFORM save_store_combo(v_store, v_combo, 'Combo de teste 3', NULL, 10, jsonb_build_array(jsonb_build_object('product_id', v_a, 'quantity', 1)), 'http://x.com/a.jpg', false);
+        RAISE EXCEPTION 'FALHA 6e: aceitou link externo como foto';
+    EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS v_err = PG_EXCEPTION_HINT; IF v_err <> 'combo_image_invalid' THEN RAISE; END IF; END;
+    BEGIN PERFORM save_store_combo(v_store, v_combo, 'Combo de teste 3', NULL, 10, jsonb_build_array(jsonb_build_object('product_id', v_a, 'quantity', 1)), '../outro.jpg', false);
+        RAISE EXCEPTION 'FALHA 6f: aceitou caminho com ..';
+    EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS v_err = PG_EXCEPTION_HINT; IF v_err <> 'combo_image_invalid' THEN RAISE; END IF; END;
+    PERFORM save_store_combo(v_store, v_combo, 'Combo de teste 3', NULL, round(v_total * 0.5, 2), jsonb_build_array(jsonb_build_object('product_id', v_a, 'quantity', 1), jsonb_build_object('product_id', v_b, 'quantity', 2)), NULL, true);
+    IF (SELECT combo_image_uploaded FROM products WHERE id = v_combo) THEN RAISE EXCEPTION 'FALHA 6g: tirar a foto não desmarcou'; END IF;
+    UPDATE products SET image_url = 'foto-pela-edicao.jpg' WHERE id = v_combo;
+    IF NOT (SELECT combo_image_uploaded FROM products WHERE id = v_combo) THEN RAISE EXCEPTION 'FALHA 6h: trocar a foto pela edição do produto devia valer como foto da loja'; END IF;
+    UPDATE products SET combo_image_uploaded = false WHERE id = v_combo;
+    IF NOT (SELECT combo_image_uploaded FROM products WHERE id = v_combo) THEN RAISE EXCEPTION 'FALHA 6i: o app desmarcou a foto enviada direto'; END IF;
+
     -- 7) estranho não monta combo na loja dos outros
     PERFORM set_config('request.jwt.claim.sub', v_stranger::text, true);
     PERFORM set_config('request.jwt.claims', json_build_object('sub', v_stranger, 'role', 'authenticated')::text, true);
@@ -65,9 +84,10 @@ BEGIN
     -- 8) a vitrine pública lista o combo (visitante e logado) e o item removido tira o combo do ar
     RESET ROLE;
     IF NOT EXISTS (SELECT 1 FROM get_store_promotions(50) WHERE id = v_combo AND discount_pct > 0) THEN RAISE EXCEPTION 'FALHA 8: vitrine não lista o combo'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM get_store_promotions(50) WHERE id = v_combo AND combo_image_uploaded AND jsonb_array_length(items) = 2) THEN RAISE EXCEPTION 'FALHA 8b: vitrine sem a marca da foto e os itens'; END IF;
     DELETE FROM products WHERE id = v_b;
     IF (SELECT is_active FROM products WHERE id = v_combo) THEN RAISE EXCEPTION 'FALHA 9: combo continuou no ar sem um item'; END IF;
 
-    RAISE NOTICE 'OK: 9 cenários de promoções passaram';
+    RAISE NOTICE 'OK: cenários de promoções (inclui a foto do combo) passaram';
 END $$;
 ROLLBACK;

@@ -1,7 +1,7 @@
 // Testes das regras puras das promoções da loja (src/modules/promotions/domain.ts). Rodar: npm run test:promotions
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { comboTotal, comboDiscount, priceForDiscountPct, validateCombo, comboErrorFromHint, describeItems, promoInfoOf, isPromoProduct, COMBO_ERROR_TEXT } from '../src/modules/promotions/domain.ts'
+import { comboTotal, comboDiscount, priceForDiscountPct, validateCombo, comboErrorFromHint, describeItems, promoInfoOf, isPromoProduct, COMBO_ERROR_TEXT, collageLayout, usesCollage, checkComboImage } from '../src/modules/promotions/domain.ts'
 
 const L = (price, quantity) => ({ price, quantity })
 
@@ -61,4 +61,28 @@ test('vai para a seção de promoções: com desconto ou na categoria Promoçõe
     assert.equal(isPromoProduct({ price: 80, compare_at_price: 100 }), true)
     assert.equal(isPromoProduct({ price: 10, category: 'Promoções' }), true)
     assert.equal(isPromoProduct({ price: 10, category: 'Pizzas' }), false)
+})
+
+test('colagem: até 4 fotos e o resto vira "+N"', () => {
+    assert.deepEqual(collageLayout(0), { tiles: 1, extra: 0 })
+    assert.deepEqual(collageLayout(1), { tiles: 1, extra: 0 })
+    assert.deepEqual(collageLayout(2), { tiles: 2, extra: 0 })
+    assert.deepEqual(collageLayout(3), { tiles: 3, extra: 0 })
+    assert.deepEqual(collageLayout(4), { tiles: 4, extra: 0 })
+    assert.deepEqual(collageLayout(7), { tiles: 4, extra: 3 })
+})
+
+test('combo sem foto enviada usa a colagem; com foto enviada, o cartão com a foto de fundo', () => {
+    assert.equal(usesCollage({ is_combo: true, combo_image_uploaded: false }, 3), true)
+    assert.equal(usesCollage({ is_combo: true, combo_image_uploaded: true }, 3), false)
+    assert.equal(usesCollage({ is_combo: false }, 3), false, 'produto comum nunca vira colagem')
+    assert.equal(usesCollage({ is_combo: true }, 0), false, 'sem itens carregados não há o que juntar')
+})
+
+test('foto do combo: só JPG/PNG/WebP até 5 MB', () => {
+    assert.deepEqual(checkComboImage({ name: 'foto.JPG', size: 1000 }), { ext: 'jpg' })
+    assert.deepEqual(checkComboImage({ name: 'a.webp', size: 5 * 1024 * 1024 }), { ext: 'webp' })
+    assert.ok('error' in checkComboImage({ name: 'a.gif', size: 10 }))
+    assert.ok('error' in checkComboImage({ name: 'a.png', size: 5 * 1024 * 1024 + 1 }))
+    assert.ok('error' in checkComboImage({ name: 'semextensao', size: 10 }))
 })

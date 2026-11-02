@@ -27,7 +27,7 @@ import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
 import DigitalCurriculum from '@/components/digital/DigitalCurriculum'
 import PromoRail from './PromoRail'
-import { promoInfoOf, isPromoProduct } from '@/modules/promotions'
+import { promoInfoOf, isPromoProduct, fetchComboItems, type ComboItem } from '@/modules/promotions'
 import { captureReferral } from '@/lib/referralCapture'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 import { useInsideShell } from '@/components/InsideShell'
@@ -48,6 +48,7 @@ interface Product {
     has_addons?: boolean
     is_active?: boolean | null
     is_combo?: boolean
+    combo_image_uploaded?: boolean
     compare_at_price?: number | null
 }
 
@@ -1016,6 +1017,15 @@ export default function CatalogoClientPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [products, catalogProducts, activeKind, searching]
     )
+    // itens dos combos SEM foto enviada: o cartão mostra as fotos deles juntas
+    const [comboItems, setComboItems] = useState<Record<string, ComboItem[]>>({})
+    useEffect(() => {
+        const ids = products.filter(p => p.is_combo && !p.combo_image_uploaded).map(p => p.id)
+        if (ids.length === 0) { setComboItems({}); return }
+        let alive = true
+        fetchComboItems(ids).then(r => { if (alive) setComboItems(r) }).catch(() => { if (alive) setComboItems({}) })
+        return () => { alive = false }
+    }, [products])
     const showPromoRail = !searching && selectedCategory === 'Todos' && (activeKind === null || activeKind === 'physical') && promoProducts.length > 0
 
     // ========== FILTRO DE PRODUTOS ==========
@@ -1364,6 +1374,7 @@ export default function CatalogoClientPage() {
                         <div className="mb-6 pt-2">
                             <PromoRail
                                 products={promoProducts}
+                                comboItems={comboItems}
                                 colors={colors}
                                 storeLogo={storeInfo?.logo_url ?? null}
                                 storeOpen={isStoreOpen}

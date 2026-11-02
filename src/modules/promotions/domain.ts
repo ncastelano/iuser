@@ -59,6 +59,7 @@ export function comboErrorFromHint(hint: string | null | undefined): string {
         case 'combo_quantity_invalid': return COMBO_ERROR_TEXT.quantity
         case 'combo_price_invalid': return COMBO_ERROR_TEXT.price
         case 'combo_price_above_total': return COMBO_ERROR_TEXT.above_total
+        case 'combo_image_invalid': return 'A foto do combo não foi aceita. Envie a foto de novo.'
         case 'combo_item_invalid': return 'Um dos itens não está mais disponível na loja. Atualize a lista e escolha de novo.'
         case 'not_store_owner': return 'Só quem é dono da loja monta promoções.'
         default: return 'Não foi possível salvar o combo agora. Tente de novo.'
@@ -93,4 +94,32 @@ export function promoInfoOf(p: PromoProduct): PromoInfo | null {
 /** Vai para a seção de promoções (horizontal): tem desconto OU está na categoria "Promoções". */
 export function isPromoProduct(p: PromoProduct): boolean {
     return promoInfoOf(p) != null || /promo/i.test(p.category || '')
+}
+
+// ===== Cartão do combo: foto enviada pela loja × colagem das fotos dos itens =====
+export interface CollageItem { name: string; image_url: string | null; quantity: number }
+
+/** Quantas fotos entram na colagem (no máximo 4) e quantos itens ficam de fora ("+N" na última). */
+export function collageLayout(count: number): { tiles: 1 | 2 | 3 | 4; extra: number } {
+    const n = Math.max(0, Math.floor(count || 0))
+    if (n <= 1) return { tiles: 1, extra: 0 }
+    if (n === 2) return { tiles: 2, extra: 0 }
+    if (n === 3) return { tiles: 3, extra: 0 }
+    return { tiles: 4, extra: n - 4 }
+}
+
+/** O combo mostra a COLAGEM das fotos dos itens (e não uma foto de fundo) quando a loja NÃO enviou foto do combo. */
+export function usesCollage(p: { is_combo?: boolean | null; combo_image_uploaded?: boolean | null }, itemCount: number): boolean {
+    return !!p.is_combo && !p.combo_image_uploaded && itemCount > 0
+}
+
+export const COMBO_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+export const COMBO_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp'] as const
+
+/** Confere a foto escolhida (tipo e tamanho) e devolve a extensão, ou a frase do problema. */
+export function checkComboImage(file: { name: string; size: number }): { ext: string } | { error: string } {
+    const ext = (file.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (!(COMBO_IMAGE_EXTS as readonly string[]).includes(ext)) return { error: 'Envie uma foto JPG, PNG ou WebP.' }
+    if (file.size > COMBO_IMAGE_MAX_BYTES) return { error: 'A foto pode ter até 5 MB.' }
+    return { ext }
 }
