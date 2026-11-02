@@ -8,19 +8,19 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
 | **Faltam na produção** | **18 migrations**: `20261130000000` até `20261130000017` (lista no Anexo A). |
-| **Banco de staging** | Tem tudo até a `20261130000016` (workflow verde em 29/10). A `...17` (promoções) **falhou** em 02/11, duas vezes. |
+| **Banco de staging** | **Em dia: tem todas as 18** (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
 
 > A lista "Pendentes para produção" que existia no `CLAUDE.md` e no manual (PRD-3) estava desatualizada: citava migrations que a produção já recebeu. Foi corrigida junto com este roteiro.
 
-## 2. O que trava hoje (resolver ANTES de tudo)
+## 2. O que travava (RESOLVIDO em 02/11/2026)
 
 Os dois workflows de banco (staging e produção) instalam o Supabase CLI na versão **"latest"**. Uma versão nova do CLI passou a recusar o arquivo `supabase/config.toml` (erro: `[inbucket] in supabase/config.toml is no longer supported. Use [local_smtp] instead`) e o comando morre em ~1 segundo, **antes de aplicar qualquer migration**. Nas execuções de 29/10 essa mensagem não existia; nas de 02/11 existe.
 
 Consequência: o staging não recebe a `...17` e o workflow de produção **também falharia**, e ele recusa de qualquer jeito aplicar algo que o staging ainda não tem.
 
-**Conserto sugerido (pequeno, só nos 2 arquivos de workflow):** fixar a versão do CLI em vez de usar "latest", na versão que roda localmente e lê o `config.toml` atual (2.95.5):
+**Conserto aplicado (commit `cc8b0605`, só nos 2 arquivos de workflow):** fixou a versão do CLI em vez de usar "latest", na versão que roda localmente e lê o `config.toml` atual (2.95.5):
 
 ```yaml
 - uses: supabase/setup-cli@v1
@@ -35,8 +35,8 @@ Consequência: o staging não recebe a `...17` e o workflow de produção **tamb
 ## 3. Fases
 
 ### Fase 0 — Destravar o pipeline
-- [ ] Fixar a versão do CLI nos dois workflows (seção 2) e fazer push na `staging`.
-- [ ] Rodar **Banco de staging** à mão. Confirmar verde e que a `...17` entrou.
+- [x] Fixar a versão do CLI nos dois workflows (seção 2) e fazer push na `staging`. *(feito)*
+- [x] Rodar **Banco de staging** à mão. Verde, e a `...17` entrou. *(feito)*
 
 ### Fase 1 — Testar no staging (aqui pode escrever no banco)
 O que já passou: tudo foi testado no **banco local** (cenários de banco em transação desfeita + testes de regra). O que **nunca** rodou fora do local é o app de ponta a ponta contra o banco de staging. Faça nas contas de teste do staging (`docs/STAGING.md`):
@@ -105,7 +105,6 @@ A regra de ouro é "o banco só adiciona". Estas **mudam o comportamento de fun�
 | **Dados estragados** | Backups diários do Supabase e PITR (ver `docs/STAGING.md` seção 6). |
 
 ## 5b. Decisões que ficam com você
-- Rodar o **conserto do CLI** (seção 2) — mexe nos arquivos de workflow que também aplicam em produção.
 - **Quando** publicar (a janela, por causa dos riscos acima).
 - Se vai configurar o **Manual do admin** em produção agora ou deixar para depois.
 
