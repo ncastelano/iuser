@@ -42,7 +42,14 @@ Em 02/11/2026, depois do login na Vercel, o preview do staging carrega a tela (f
 - As conexões **diretas ao banco** (os workflows de migration, que usam a senha do pooler) continuam funcionando; o bloqueio é só da **API** (REST/Auth/Storage).
 - Nota de correção: um teste anterior sem chave de API devolveu 401 e eu li isso como "liberado". Era só o portão da API, que vem **antes** da checagem de cota. O teste que vale é uma chamada com a chave pública, e ela dá 402.
 
-**Como sair (decisão sua, envolve dinheiro):** Supabase → Organization → Billing: (a) fazer upgrade do plano, ou (b) se já está no Pro, remover o *spend cap*; ou (c) esperar a renovação do ciclo (a cota é mensal), sabendo que o consumo volta a estourar se nada mudar. O *Cached Egress* alto vem de imagens e dados baixados pelos navegadores; o proxy de imagens `/img` (cache da Vercel) já reduz isso, mas não elimina. Acompanhe depois em Admin → Financeiro (telemetria própria de egress).
+**O que o painel de uso do Supabase mostra (conferido em 02/11/2026):**
+- Plano **Free**, ciclo **13/10 a 13/11/2026**. O aviso no topo diz: "Services restricted — your projects are unable to serve requests as your organization has used up its quota". É bloqueio **da organização** (3 projetos), por isso staging e produção caem juntos.
+- **Cached Egress: 13,94 GB de 5 GB incluídos** (excedeu 8,94 GB). O Egress comum (sem cache) é só 0,58 GB, e o resto é minúsculo: banco 64 MB, storage 55 MB, 9 usuários ativos no mês, 236 mensagens de realtime.
+- **Quando foi o consumo** (gráfico diário): 13/10 ≈ 0,2 GB · 14/10 ≈ 0,1 · **15/10 ≈ 3,7 GB** · **16/10 ≈ 6 GB** · 17/10 ≈ 1,7 · 18/10 ≈ 0,9 · 19/10 ≈ 0,5 · 20 e 21/10 ≈ 0 (já bloqueado). Ou seja, **cerca de 80% do consumo foi em 15 e 16/10**, antes do acidente de 18/10 e do proxy de imagens (aplicado em produção em 19/10).
+- **Renovação: 13/11/2026.** Depois disso o ciclo zera e o bloqueio some sozinho.
+- O gráfico não mostra o que consumiu (API × imagens). Como o uso real é pequeno (9 usuários), tudo indica que foi um pico pontual daquela semana (testes e simuladores falando com o banco de produção) e não o uso normal. **Não dá para provar:** o projeto está bloqueado desde 21/10 e ninguém mediu o consumo depois do proxy de imagens.
+
+**Como sair (decisão sua, envolve dinheiro):** Supabase → Organization → Billing: (a) fazer upgrade do plano, ou (b) se já está no Pro, remover o *spend cap*; ou (c) esperar a renovação em **13/11** (faltam 11 dias; o site e o staging ficam sem dados até lá), sabendo que o consumo pode estourar de novo se o padrão de 15/16 de outubro se repetir. O *Cached Egress* alto vem de imagens e dados baixados pelos navegadores; o proxy de imagens `/img` (cache da Vercel) já reduz isso, mas não elimina. Acompanhe depois em Admin → Financeiro (telemetria própria de egress).
 
 **Enquanto não liberar:** a Fase 1 só pode ser feita no ambiente local (já feita, em transações desfeitas) e a publicação em produção fica **sem como ser conferida**. Recomendo **não publicar o código antes de a API voltar**.
 
