@@ -68,6 +68,23 @@ Mesmo com controle perfeito, **o custo de tráfego é o problema**, não só o e
 - **Música de terceiros tem direito autoral.** Subir música de outras pessoas exige termos de uso, denúncia, derrubada rápida e, dependendo do caso, licença (ECAD/gravadoras). Definir cedo se o iUser aceita só músicas do próprio autor ou licenciadas. *(Isto não é aconselhamento jurídico: vale consultar um advogado.)*
 - **Rede social com mídia** pede moderação mais forte do que a atual (denúncias e ocultação já existem para Flash, comentários e avaliações): conteúdo ilegal, menores, spam. Vale prever a verificação automática do provedor de mídia.
 
+## 5b. Decisão (02/11/2026): preparar a Cloudflare desde já, com provedor por tipo de upload
+
+Motivo: o custo do tráfego no Supabase cresce junto com o sucesso (ver as contas na conversa: 1 milhão de músicas/mês ≈ US$ 112–337 só de saída) e **mover depois é mais caro do que nascer certo**, porque os arquivos e os endereços já estão gravados nas tabelas. No R2 a saída é grátis. O Supabase continua com banco, login, realtime e permissões.
+
+**Desenho:**
+- Catálogo de uploads (Camada 2) ganha o campo **`provider`** (`supabase` | `r2` | `stream`) por tipo. Mudar o destino de um tipo vira configuração, não reescrita.
+- Tabela **`media_assets`** (dono, tipo, provedor, chave do arquivo, bytes, tipo MIME, estado) como registro de TUDO que entra: base das cotas, do painel e da limpeza de órfãos. As tabelas de conteúdo (flash, publicação…) passam a apontar para o `asset`, não para um caminho do Storage.
+- O servidor gera a **URL de envio assinada** (S3 presign) depois de conferir login, plano, cota e tamanho (Camada 3).
+- Atenção ao banco: hoje `flashes.media_url` só aceita **caminho na pasta da própria pessoa** (nunca link externo). Ao usar R2 isso precisa ser adaptado por migration (nova coluna de provedor/ativo), mantendo a regra de que a pessoa só referencia arquivo que ela mesma enviou.
+- **Arquivos que já existem ficam onde estão**; só os envios novos de um tipo trocado vão ao R2. A leitura aceita os dois provedores.
+
+**Primeiros tipos no R2 (novos envios):** vídeo do Flash e, quando existir, música. Live em serviço de transmissão (Stream ou similar). Fotos de produto e publicação continuam no Supabase com o proxy `/img`, até valer a pena trocar.
+
+**Pré-requisito de domínio:** o DNS de `iuser.com.br` está na **Vercel** (`ns1/ns2.vercel-dns.com`). Para o R2 servir mídia por domínio próprio com cache, o domínio precisa estar como "zona" na Cloudflare. Opções: (a) um **domínio separado só para mídia** (ex.: `iusermidia.com`) na Cloudflare — isolado, sem mexer no DNS de produção, **recomendada**; (b) mover o DNS inteiro do `iuser.com.br` para a Cloudflare e recriar os registros da Vercel — mexe no site em produção; (c) o endereço `r2.dev`, que é só para teste (limitado e sem cache). Confirmar na documentação da Cloudflare antes de contratar.
+
+**O que só você pode fazer:** criar a conta Cloudflare e cadastrar o pagamento, escolher/registrar o domínio de mídia e gerar a chave de API do R2 (que vai para as variáveis da Vercel, nunca para o repositório). Regra do projeto: registrar o serviço em Admin → Financeiro (`service_expenses`, por migration).
+
 ## 6. Decisões que preciso de você
 
 1. **O que vai ter:** música (só do próprio autor, ou de terceiros?), vídeo curto, live, áudio de voz, stories? Isso define o que entra no catálogo e o custo.
