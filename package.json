@@ -30,6 +30,7 @@
     "test:upload-authorization": "node --test scripts/test-upload-authorization.mjs",
     "test:upload-admin": "node --test scripts/test-upload-admin.mjs",
     "test:upload-cleanup": "node --test scripts/test-upload-cleanup.mjs",
+    "test:upload-r2": "node --test scripts/test-upload-r2.mjs",
     "test:social-links": "node --test scripts/test-social-links.mjs",
     "test:store-links": "node --test scripts/test-store-links.mjs",
     "test:store-model": "node --test scripts/test-store-model.mjs",

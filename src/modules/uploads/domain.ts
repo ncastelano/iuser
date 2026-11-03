@@ -4,8 +4,8 @@
 export const UPLOAD_PROVIDERS = ['supabase', 'r2', 'stream'] as const
 export type UploadProvider = (typeof UPLOAD_PROVIDERS)[number]
 
-/** Provedores com envio JÁ implementado no app. r2 (Cloudflare R2) e stream (Cloudflare Stream) existem no catálogo, mas só podem ser escolhidos quando entrarem aqui. */
-export const READY_PROVIDERS: readonly UploadProvider[] = ['supabase']
+/** Provedores com envio JÁ implementado no app: supabase (Storage) e r2 (Cloudflare R2, via /api/uploads/r2/*; migration 20261130000023). stream (Cloudflare Stream) existe no catálogo, mas só pode ser escolhido quando entrar aqui. */
+export const READY_PROVIDERS: readonly UploadProvider[] = ['supabase', 'r2']
 
 export function isProviderReady(provider: string): boolean {
     return (READY_PROVIDERS as readonly string[]).includes(provider)

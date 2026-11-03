@@ -26,11 +26,11 @@ test('o catálogo da migration cobre os 15 buckets, e os tamanhos das fotos bate
     for (const b of ['flash-media', 'delivery-proofs', 'digital-files']) assert.ok(rows.some((r) => r.bucket === b), b)
 })
 
-test('provedores: só supabase está pronto; r2 e stream existem no catálogo mas não podem ser escolhidos ainda', () => {
+test('provedores: supabase e r2 estão prontos; stream existe no catálogo mas não pode ser escolhido ainda', () => {
     assert.deepEqual([...UPLOAD_PROVIDERS], ['supabase', 'r2', 'stream'])
-    assert.deepEqual([...READY_PROVIDERS], ['supabase'])
+    assert.deepEqual([...READY_PROVIDERS], ['supabase', 'r2'])
     assert.equal(isProviderReady('supabase'), true)
-    assert.equal(isProviderReady('r2'), false)
+    assert.equal(isProviderReady('r2'), true)
     assert.equal(isProviderReady('stream'), false)
     // o CHECK do banco aceita exatamente os mesmos
     assert.match(sql, /provider\s+text NOT NULL DEFAULT 'supabase' CHECK \(provider IN \('supabase', 'r2', 'stream'\)\)/)
@@ -45,7 +45,7 @@ test('validação de um tipo: aceita o bom e recusa cada erro', () => {
     assert.ok(validateUploadKind({ ...GOOD, max_bytes: 0 }).length)
     assert.ok(validateUploadKind({ ...GOOD, max_bytes: Number.NaN }).length)
     assert.ok(validateUploadKind({ ...GOOD, provider: 'ftp' }).length)
-    assert.match(validateUploadKind({ ...GOOD, provider: 'r2' }).join(' '), /ainda não está pronto/)
+    assert.match(validateUploadKind({ ...GOOD, provider: 'stream' }).join(' '), /ainda não está pronto/)
     assert.ok(validateUploadKind({ ...GOOD, mime_types: [] }).length)
     assert.ok(validateUploadKind({ ...GOOD, mime_types: ['jpeg'] }).length)
     assert.match(validateUploadKind({ ...GOOD, mime_types: ['image/svg+xml'] }).join(' '), /SVG/)

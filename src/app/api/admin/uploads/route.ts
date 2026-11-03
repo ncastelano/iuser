@@ -3,7 +3,7 @@
 // Painel Admin → Uploads (Camada 5 do controle de uploads, docs/CONTROLE-DE-UPLOADS.md). Só o administrador geral. UMA rota com `action`:
 //   load (visão geral + maiores consumidores + recusas + bloqueios + histórico + alertas da cota do Supabase), top (maiores consumidores de um tipo),
 //   set_enforced (liga/desliga o "envio só com autorização"), block / unblock, update_kind (limites de um tipo),
-//   cleanup_run (rodar a limpeza de arquivos órfãos agora: simulação ou de verdade), cleanup_keep (manter / deixar de manter um arquivo), cleanup_settings (configuração da limpeza).
+//   r2_check (testa a conexão com o R2: grava, lê e apaga um arquivo de teste), cleanup_run (rodar a limpeza de arquivos órfãos agora: simulação ou de verdade), cleanup_keep (manter / deixar de manter um arquivo), cleanup_settings (configuração da limpeza).
 // Toda leitura agregada e toda escrita são funções do banco só do serviço (admin_upload_*), que gravam admin_config_audit; aqui só se valida a entrada (a MESMA validação da tela,
 // no módulo uploads) e se identifica o admin: o id do admin NUNCA vem do corpo da requisição.
 import { NextResponse } from 'next/server'
@@ -11,6 +11,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
 import { validatePatch, validateBlock, validateCleanupPatch, type KindLimits } from '@/modules/uploads'
 import { runUploadCleanup, type CleanupClient } from '@/lib/uploadCleanup'
+import { readR2Config, r2ConfigProblems, r2Head, r2Put, r2Delete, r2PresignGet } from '@/lib/r2'
+import { randomUUID } from 'node:crypto'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const KIND = /^[a-z][a-z0-9_]{1,40}$/
@@ -80,6 +82,7 @@ export async function POST(req: Request) {
             audit: audit.map((a) => { const t = target(a); return { ...a, changed_by_label: a.changed_by ? who.get(a.changed_by) || 'Administrador' : 'Sistema', target_profile: t.profile ? who.get(t.profile) || 'Pessoa' : null, target_kind: t.kind } }),
             meters,
             cleanup: cleanup.error ? null : cleanup.data,
+            r2: (() => { const c = readR2Config(); return { configured: !!c, bucket: c?.bucket ?? null, publicBase: c?.publicBase ?? null, problems: c ? [] : r2ConfigProblems() } })(),
         }, { headers: NO_STORE })
     }
 
@@ -127,6 +130,33 @@ export async function POST(req: Request) {
         const { data, error } = await supabaseAdmin.rpc('admin_upload_update_kind', { p_kind: kind, p_patch: v.patch, p_admin: admin.id })
         if (error) return dbError(error)
         return NextResponse.json({ success: true, changed: true, kind: data })
+    }
+
+    if (action === 'r2_check') {
+        // Teste de conexão com o R2 USANDO AS CHAVES DO SERVIDOR (elas nunca saem daqui): grava um arquivo de teste, confere o tamanho, lê por link assinado, apaga e confere que sumiu.
+        const cfg = readR2Config()
+        if (!cfg) return NextResponse.json({ ok: false, steps: [], problems: r2ConfigProblems() }, { headers: NO_STORE })
+        const key = `_healthcheck/${randomUUID()}.txt`
+        const payload = Buffer.from(`iuser r2 check ${new Date().toISOString()}`)
+        const steps: { step: string; ok: boolean; detail: string; ms: number }[] = []
+        const run = async (step: string, fn: () => Promise<string>) => {
+            const t0 = Date.now()
+            try { const detail = await fn(); steps.push({ step, ok: true, detail, ms: Date.now() - t0 }); return true }
+            catch (e) { steps.push({ step, ok: false, detail: (e as Error).message || 'falhou', ms: Date.now() - t0 }); return false }
+        }
+        let wrote = false
+        try {
+            wrote = await run('Gravar um arquivo de teste', async () => { await r2Put(cfg, key, payload, 'text/plain'); return `${payload.length} bytes enviados` })
+            if (wrote) {
+                await run('Conferir o tamanho guardado', async () => { const h = await r2Head(cfg, key); if (!h.exists) throw new Error('o arquivo não apareceu'); if (h.size !== payload.length) throw new Error(`tamanho ${h.size} em vez de ${payload.length}`); return `${h.size} bytes` })
+                await run('Ler por link assinado', async () => { const r = await fetch(r2PresignGet(cfg, key, { expiresSec: 60 })); if (!r.ok) throw new Error(`R2 GET ${r.status}`); const t = Buffer.from(await r.arrayBuffer()); if (!t.equals(payload)) throw new Error('o conteúdo lido é diferente'); return 'conteúdo igual ao enviado' })
+            }
+        } finally {
+            if (wrote) {
+                await run('Apagar o arquivo de teste', async () => { await r2Delete(cfg, key); const h = await r2Head(cfg, key); if (h.exists) throw new Error('o arquivo continua lá'); return 'apagado' })
+            }
+        }
+        return NextResponse.json({ ok: steps.length > 0 && steps.every((s) => s.ok), steps, bucket: cfg.bucket, publicBase: cfg.publicBase }, { headers: NO_STORE })
     }
 
     if (action === 'cleanup_run') {

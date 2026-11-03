@@ -146,7 +146,9 @@ test('migration: cada tipo do catálogo ganhou ritmo e cotas, e as cotas são co
 })
 
 test('decisão de arquitetura: não existe rota /api/uploads/sign (a autorização é no banco e o arquivo é enviado pela própria pessoa)', () => {
-    assert.ok(!fs.existsSync(path.join(root, 'src/app/api/uploads')), 'sem rota de assinatura: o dono do arquivo ficaria nulo')
+    // o Supabase continua sem rota de assinatura (o dono do arquivo ficaria nulo). O R2 TEM a sua, em /api/uploads/r2/*: lá o dono não existe no armazenamento e fica no registro (media_assets).
+    const entries = fs.existsSync(path.join(root, 'src/app/api/uploads')) ? fs.readdirSync(path.join(root, 'src/app/api/uploads')) : []
+    assert.deepEqual(entries.filter((e) => e !== 'r2'), [], 'sem rota de assinatura para o Supabase: o dono do arquivo ficaria nulo')
     assert.match(read('docs/CONTROLE-DE-UPLOADS.md'), /não há rota `\/api\/uploads\/sign`/i)
 })
 

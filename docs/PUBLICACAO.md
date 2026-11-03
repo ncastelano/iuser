@@ -7,7 +7,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **23 migrations**: `20261130000000` até `20261130000022` (lista no Anexo A). |
+| **Faltam na produção** | **24 migrations**: `20261130000000` até `20261130000023` (lista no Anexo A). |
 | **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
@@ -84,7 +84,7 @@ npx next build
 npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src/versions   # só o ciclo conhecido
 ```
 - [ ] **`npx next build` passa.** (Não foi rodado nas últimas rodadas; só o `tsc`. O build de produção é mais exigente.)
-- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 23 migrations e o aviso da Fase 3.
+- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 24 migrations e o aviso da Fase 3.
 
 ### Fase 3 — O dia da publicação (nesta ordem, sem pausas longas entre os passos 3 e 4)
 1. **Horário calmo.** Confirme que **não há entrega de loja em andamento**. Motivo: veja "riscos" abaixo — por alguns minutos o banco novo e o código antigo convivem. Consulta só de leitura (Supabase → SQL Editor, projeto de produção; o resultado deve ser `0`):
@@ -129,7 +129,7 @@ A regra de ouro é "o banco só adiciona". Estas **mudam o comportamento de fun�
 - **Quando** publicar (a janela, por causa dos riscos acima).
 - Se vai configurar o **Manual do admin** em produção agora ou deixar para depois.
 
-## Anexo A — As 23 migrations que faltam na produção
+## Anexo A — As 24 migrations que faltam na produção
 
 Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rollbacks/`.
 
@@ -158,6 +158,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 20 | `upload_authorization` | Autorização de envio, ritmo e cotas por pessoa, bloqueios e interruptor "envio só com autorização" (nasce DESLIGADO) ⚠ | `upload_authorization_rollback.sql` |
 | 21 | `upload_admin` | Painel Admin → Uploads: registro de recusas, leituras agregadas e `authorize_upload` como embrulho do núcleo | `upload_admin_rollback.sql` |
 | 22 | `upload_cleanup` | Limpeza de arquivos sem uso (nasce DESLIGADA, só simula), conferência diária de arquivos que sumiram (`pg_cron`) e o cartão do painel | `upload_cleanup_rollback.sql` |
+| 23 | `upload_r2` | Envio pelo Cloudflare R2 (vídeo e música): a autorização aceita o provedor r2, tipo `media_r2` (nasce DESLIGADO) e `register_r2_asset` | `upload_r2_rollback.sql` |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 
@@ -186,3 +187,13 @@ A migration `20261130000022` nasce com a exclusão **DESLIGADA**: a rotina só p
 1. **Variável na Vercel:** crie `CRON_SECRET` (qualquer texto aleatório de 16+ caracteres) em Settings → Environment Variables (Production). Sem ela a rotina agendada responde 503 e não faz nada (de propósito: falha fechada). O `vercel.json` já agenda a chamada diária (06:20 UTC).
 2. Deixe rodar uns dias **desligada**. Em Admin → Uploads → "Limpeza de arquivos sem uso" confira a lista de candidatos: o que estiver ali e não deveria apagar, toque em **Manter**.
 3. Só então toque em **Ligar a exclusão** (pede confirmação). Voltar atrás é "Voltar a só simular" (vale na hora). Se aparecer arquivo demais de uma vez, a rotina para sozinha (disjuntor) e mostra o motivo nas últimas rodadas.
+
+## Anexo F — R2 (vídeo e música): o que já está feito e o que falta
+**Já feito (03/11/2026):** R2 ativado; bucket privado `iuser-media`; token da conta restrito a esse bucket (Object Read & Write); variáveis `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` na Vercel (Production); CORS do bucket para `https://www.iuser.com.br` e `https://iuser.com.br`.
+**Depois de publicar (migration `...23` antes do código):**
+1. Admin → Uploads → cartão **Cloudflare R2** → **Testar o R2**. Deve mostrar 4 passos verdes (gravar, conferir o tamanho, ler, apagar). Erro 403 = chave errada ou sem permissão neste bucket.
+2. Só com o teste verde, ligue o tipo **Vídeo e música (R2)** (Editar limites → Tipo ligado) e ajuste os limites.
+3. Opcional: ligar um domínio de mídia ao bucket (Cloudflare → R2 → Settings → Custom Domains → `midia.iuser.com.br`) e criar `R2_PUBLIC_BASE=https://midia.iuser.com.br` na Vercel. Sem isso os arquivos só abrem por link assinado.
+4. Configure um alerta de gasto na Cloudflare (Billing → Budget alert).
+5. Se for testar em staging/preview, acrescente o endereço dele no CORS do bucket.
+Nenhuma tela do app usa o R2 ainda: ligar o tipo não muda nada para as pessoas até o primeiro uso (ex.: vídeo do Flash) ser ligado no código.

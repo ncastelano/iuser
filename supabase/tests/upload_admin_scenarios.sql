@@ -89,7 +89,7 @@ BEGIN
     RAISE NOTICE 'OK 3: falha ao anotar não muda a resposta da autorização';
 END $$;
 
--- 4) visão geral: 15 tipos, totais conferem com os dados, atividade das 24 h por tipo
+-- 4) visão geral: todos os tipos do catálogo (15 do Supabase + o do R2), totais conferem com os dados, atividade das 24 h por tipo
 DO $$
 DECLARE a uuid; o jsonb; k jsonb; v_files bigint; v_bytes bigint;
 BEGIN
@@ -106,7 +106,7 @@ BEGIN
     IF (o->'totals'->>'files')::bigint <> v_files OR (o->'totals'->>'bytes')::bigint <> v_bytes THEN RAISE EXCEPTION 'totais: % x % arquivos / % bytes', o->'totals', v_files, v_bytes; END IF;
     IF (o->'totals'->>'unknown_owner_files')::bigint < 1 THEN RAISE EXCEPTION 'arquivos de dono desconhecido deveriam ser contados'; END IF;
     IF (o->'totals'->>'grants_24h')::int <> 1 OR (o->'totals'->>'denials_24h')::int <> 1 THEN RAISE EXCEPTION 'autorizações e recusas das 24 h: %', o->'totals'; END IF;
-    IF jsonb_array_length(o->'kinds') <> 15 THEN RAISE EXCEPTION 'deveria listar os 15 tipos (%)', jsonb_array_length(o->'kinds'); END IF;
+    IF jsonb_array_length(o->'kinds') <> (SELECT count(*) FROM public.upload_kinds) THEN RAISE EXCEPTION 'deveria listar todos os tipos do catálogo (%)', jsonb_array_length(o->'kinds'); END IF;
     SELECT x INTO k FROM jsonb_array_elements(o->'kinds') x WHERE x->>'kind' = 'avatar';
     IF (k->>'files')::bigint <> (SELECT count(*) FROM public.media_assets WHERE kind = 'avatar' AND state = 'ready')
        OR (k->>'bytes')::bigint <> (SELECT sum(bytes) FROM public.media_assets WHERE kind = 'avatar' AND state = 'ready')
@@ -118,7 +118,7 @@ BEGIN
     IF (SELECT x->>'kind' FROM jsonb_array_elements(o->'kinds') x LIMIT 1) <> (SELECT kind FROM public.media_assets WHERE state = 'ready' GROUP BY kind ORDER BY sum(bytes) DESC, kind LIMIT 1) THEN
         RAISE EXCEPTION 'os tipos deveriam vir do que mais ocupa para o que menos ocupa';
     END IF;
-    RAISE NOTICE 'OK 4: visão geral (15 tipos, totais batem, apagado não conta, dono desconhecido contado, atividade das 24 h, interruptor, ordem por uso)';
+    RAISE NOTICE 'OK 4: visão geral (todos os tipos, totais batem, apagado não conta, dono desconhecido contado, atividade das 24 h, interruptor, ordem por uso)';
 END $$;
 
 -- 5) maiores consumidores: ordem por bytes, só dono conhecido, filtro por tipo, atividade das 24 h, bloqueado, limite
