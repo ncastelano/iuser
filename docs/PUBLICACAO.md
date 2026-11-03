@@ -7,8 +7,8 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **22 migrations**: `20261130000000` até `20261130000021` (lista no Anexo A). |
-| **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entra quando a `staging` receber o push. |
+| **Faltam na produção** | **23 migrations**: `20261130000000` até `20261130000022` (lista no Anexo A). |
+| **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
 | **Cota do Supabase (API)** | **BLOQUEADA em staging E em produção** (verificado em 02/11/2026): toda chamada de dados devolve **HTTP 402** `exceed_cached_egress_quota` — "o dono do projeto precisa fazer upgrade do plano ou remover os limites de gasto". O app do preview abre, mas sem nenhum dado. Veja a seção 2b. |
@@ -84,7 +84,7 @@ npx next build
 npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src/versions   # só o ciclo conhecido
 ```
 - [ ] **`npx next build` passa.** (Não foi rodado nas últimas rodadas; só o `tsc`. O build de produção é mais exigente.)
-- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 22 migrations e o aviso da Fase 3.
+- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 23 migrations e o aviso da Fase 3.
 
 ### Fase 3 — O dia da publicação (nesta ordem, sem pausas longas entre os passos 3 e 4)
 1. **Horário calmo.** Confirme que **não há entrega de loja em andamento**. Motivo: veja "riscos" abaixo — por alguns minutos o banco novo e o código antigo convivem. Consulta só de leitura (Supabase → SQL Editor, projeto de produção; o resultado deve ser `0`):
@@ -129,7 +129,7 @@ A regra de ouro é "o banco só adiciona". Estas **mudam o comportamento de fun�
 - **Quando** publicar (a janela, por causa dos riscos acima).
 - Se vai configurar o **Manual do admin** em produção agora ou deixar para depois.
 
-## Anexo A — As 22 migrations que faltam na produção
+## Anexo A — As 23 migrations que faltam na produção
 
 Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rollbacks/`.
 
@@ -157,6 +157,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 19 | `upload_catalog` | Catálogo de tipos de upload (`upload_kinds`, com provedor), registro de arquivos (`media_assets`) e Cloudflare/domínio em Financeiro | `upload_catalog_rollback.sql` |
 | 20 | `upload_authorization` | Autorização de envio, ritmo e cotas por pessoa, bloqueios e interruptor "envio só com autorização" (nasce DESLIGADO) ⚠ | `upload_authorization_rollback.sql` |
 | 21 | `upload_admin` | Painel Admin → Uploads: registro de recusas, leituras agregadas e `authorize_upload` como embrulho do núcleo | `upload_admin_rollback.sql` |
+| 22 | `upload_cleanup` | Limpeza de arquivos sem uso (nasce DESLIGADA, só simula), conferência diária de arquivos que sumiram (`pg_cron`) e o cartão do painel | `upload_cleanup_rollback.sql` |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 
@@ -179,3 +180,9 @@ A migration `20261130000020` troca as 5 políticas de envio do Storage, mas o in
 3. Só então ligue, com a chave de serviço, no SQL do Supabase: `select public.admin_upload_set_enforced(true, null);`
 4. Voltar atrás é um comando: `select public.admin_upload_set_enforced(false, null);` (vale na hora, sem publicar nada).
 **Ligar antes do passo 1 derruba os envios de quem ainda estiver com o código antigo** (ele não pede autorização). Sem a migration aplicada, o código novo funciona igual (falha-aberta).
+
+## Anexo E — Limpeza de arquivos sem uso: o que o dono precisa fazer (só depois da migration `...22` e do código no ar)
+A migration `20261130000022` nasce com a exclusão **DESLIGADA**: a rotina só procura e marca (quarentena de 7 dias). Nada é apagado até alguém ligar no painel.
+1. **Variável na Vercel:** crie `CRON_SECRET` (qualquer texto aleatório de 16+ caracteres) em Settings → Environment Variables (Production). Sem ela a rotina agendada responde 503 e não faz nada (de propósito: falha fechada). O `vercel.json` já agenda a chamada diária (06:20 UTC).
+2. Deixe rodar uns dias **desligada**. Em Admin → Uploads → "Limpeza de arquivos sem uso" confira a lista de candidatos: o que estiver ali e não deveria apagar, toque em **Manter**.
+3. Só então toque em **Ligar a exclusão** (pede confirmação). Voltar atrás é "Voltar a só simular" (vale na hora). Se aparecer arquivo demais de uma vez, a rotina para sozinha (disjuntor) e mostra o motivo nas últimas rodadas.

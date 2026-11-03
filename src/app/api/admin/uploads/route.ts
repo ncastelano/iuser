@@ -2,13 +2,15 @@
 //
 // Painel Admin → Uploads (Camada 5 do controle de uploads, docs/CONTROLE-DE-UPLOADS.md). Só o administrador geral. UMA rota com `action`:
 //   load (visão geral + maiores consumidores + recusas + bloqueios + histórico + alertas da cota do Supabase), top (maiores consumidores de um tipo),
-//   set_enforced (liga/desliga o "envio só com autorização"), block / unblock, update_kind (limites de um tipo).
+//   set_enforced (liga/desliga o "envio só com autorização"), block / unblock, update_kind (limites de um tipo),
+//   cleanup_run (rodar a limpeza de arquivos órfãos agora: simulação ou de verdade), cleanup_keep (manter / deixar de manter um arquivo), cleanup_settings (configuração da limpeza).
 // Toda leitura agregada e toda escrita são funções do banco só do serviço (admin_upload_*), que gravam admin_config_audit; aqui só se valida a entrada (a MESMA validação da tela,
 // no módulo uploads) e se identifica o admin: o id do admin NUNCA vem do corpo da requisição.
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
-import { validatePatch, validateBlock, type KindLimits } from '@/modules/uploads'
+import { validatePatch, validateBlock, validateCleanupPatch, type KindLimits } from '@/modules/uploads'
+import { runUploadCleanup, type CleanupClient } from '@/lib/uploadCleanup'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const KIND = /^[a-z][a-z0-9_]{1,40}$/
@@ -34,15 +36,16 @@ export async function POST(req: Request) {
 
     if (action === 'load') {
         const since = new Date(); since.setDate(since.getDate() - 30)
-        const [overview, top, denials, blocksRes, auditRes, stats, metrics, telemetry] = await Promise.all([
+        const [overview, top, denials, blocksRes, auditRes, stats, metrics, telemetry, cleanup] = await Promise.all([
             supabaseAdmin.rpc('admin_upload_overview'),
             supabaseAdmin.rpc('admin_upload_top_owners', { p_kind: null, p_limit: 15 }),
             supabaseAdmin.rpc('admin_upload_denials', { p_hours: 24, p_limit: 20 }),
             supabaseAdmin.from('upload_blocks').select('id, profile_id, kind, reason, blocked_until, created_at, created_by').is('lifted_at', null).order('created_at', { ascending: false }).limit(100),
-            supabaseAdmin.from('admin_config_audit').select('id, scope, setting, old_value, new_value, changed_by, changed_at').in('scope', ['upload_settings', 'upload_kinds', 'upload_blocks']).order('changed_at', { ascending: false }).limit(30),
+            supabaseAdmin.from('admin_config_audit').select('id, scope, setting, old_value, new_value, changed_by, changed_at').in('scope', ['upload_settings', 'upload_kinds', 'upload_blocks', 'upload_cleanup']).order('changed_at', { ascending: false }).limit(30),
             supabaseAdmin.rpc('get_database_stats'),
             supabaseAdmin.from('supabase_usage_metrics').select('metric_name, included_value'),
             supabaseAdmin.from('usage_telemetry_daily').select('egress_bytes').gte('day', since.toISOString().slice(0, 10)),
+            supabaseAdmin.rpc('admin_upload_cleanup_overview'),
         ])
         if (overview.error) return dbError(overview.error)
 
@@ -76,6 +79,7 @@ export async function POST(req: Request) {
             blocks: blocks.map((b) => ({ ...b, profile_label: b.profile_id ? who.get(b.profile_id) || 'Pessoa' : null, created_by_label: b.created_by ? who.get(b.created_by) || 'Administrador' : 'Sistema' })),
             audit: audit.map((a) => { const t = target(a); return { ...a, changed_by_label: a.changed_by ? who.get(a.changed_by) || 'Administrador' : 'Sistema', target_profile: t.profile ? who.get(t.profile) || 'Pessoa' : null, target_kind: t.kind } }),
             meters,
+            cleanup: cleanup.error ? null : cleanup.data,
         }, { headers: NO_STORE })
     }
 
@@ -123,6 +127,35 @@ export async function POST(req: Request) {
         const { data, error } = await supabaseAdmin.rpc('admin_upload_update_kind', { p_kind: kind, p_patch: v.patch, p_admin: admin.id })
         if (error) return dbError(error)
         return NextResponse.json({ success: true, changed: true, kind: data })
+    }
+
+    if (action === 'cleanup_run') {
+        // simulação (dry = true) só procura e marca; "de verdade" só apaga se a chave "Apagar de verdade" estiver ligada (conferida no banco, não aqui)
+        if (typeof body.dry !== 'boolean') return NextResponse.json({ error: 'Informe se é simulação' }, { status: 400 })
+        try {
+            const r = await runUploadCleanup(supabaseAdmin as unknown as CleanupClient, { source: 'admin', dryRun: body.dry })
+            return NextResponse.json({ success: true, result: r })
+        } catch (e) {
+            console.error('[admin/uploads] cleanup_run', e)
+            return NextResponse.json({ error: 'Não foi possível rodar a limpeza. Tente de novo.' }, { status: 500 })
+        }
+    }
+
+    if (action === 'cleanup_keep') {
+        const id = String(body.id || '')
+        if (!UUID.test(id) || typeof body.keep !== 'boolean') return NextResponse.json({ error: 'Arquivo inválido' }, { status: 400 })
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_cleanup_keep', { p_asset: id, p_keep: body.keep, p_admin: admin.id })
+        if (error) return dbError(error)
+        return NextResponse.json({ success: true, found: data === true })
+    }
+
+    if (action === 'cleanup_settings') {
+        const v = validateCleanupPatch(body.patch)
+        if (!v.ok) return NextResponse.json({ error: 'Valores inválidos', fields: v.errors }, { status: 400 })
+        if (Object.keys(v.patch).length === 0) return NextResponse.json({ success: true, changed: false })
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_cleanup_settings', { p_patch: v.patch, p_admin: admin.id })
+        if (error) return dbError(error)
+        return NextResponse.json({ success: true, changed: true, settings: data })
     }
 
     return NextResponse.json({ error: 'Ação desconhecida' }, { status: 400 })

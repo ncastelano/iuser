@@ -12,8 +12,11 @@ import { Spinner } from '@/components/Spinner'
 import type { ThemeColors } from '@/app/contexts/theme'
 import {
     ABUSE_CODES, BLOCK_DURATIONS, FIELD_LABEL, LIMIT_FIELDS, denialLabel, formToPatch, formatBytes, kindToForm, limitText, meterPct, meterTone,
+    CLEANUP_LABEL, candidateStatus, cleanupFormToPatch, cleanupToForm, fileLabel, runSummary,
+    type CleanupErrors, type CleanupField, type CleanupForm, type CleanupSettings, type RunRow,
     type KindForm, type KindLimits, type LimitErrors, type LimitField, type Meter,
 } from '@/modules/uploads'
+import type { CleanupResult } from '@/lib/uploadCleanup'
 
 interface KindRow extends KindLimits {
     kind: string; label: string; bucket: string; provider: string; owner_folder: boolean
@@ -24,7 +27,13 @@ interface Owner { profile_id: string; name: string | null; slug: string | null; 
 interface Denial { profile_id: string; name: string | null; slug: string | null; kind: string | null; code: string; hits: number; last_at: string; blocked: boolean }
 interface BlockRow { id: string; profile_id: string | null; profile_label: string | null; kind: string | null; reason: string | null; blocked_until: string | null; created_at: string; created_by_label: string }
 interface AuditRow { id: string; scope: string; setting: string; old_value: unknown; new_value: unknown; changed_at: string; changed_by_label: string; target_profile?: string | null; target_kind?: string | null }
-interface Loaded { overview: { enforced: boolean; totals: Totals; kinds: KindRow[] }; top: Owner[]; denials: Denial[]; blocks: BlockRow[]; audit: AuditRow[]; meters: Meter[] }
+interface Candidate { id: string; kind: string; kind_label: string; bucket: string; key: string; bytes: number; created_at: string; orphan_since: string | null; keep: boolean; due: boolean; days_left: number | null }
+interface CleanupOverview {
+    settings: CleanupSettings; eligible_kinds: string[]; protected_kinds: string[]
+    counts: { orphans: number; orphan_bytes: number; due: number; kept: number; deleted_total: number; freed_bytes: number }
+    runs: RunRow[]; candidates: Candidate[]
+}
+interface Loaded { overview: { enforced: boolean; totals: Totals; kinds: KindRow[] }; top: Owner[]; denials: Denial[]; blocks: BlockRow[]; audit: AuditRow[]; meters: Meter[]; cleanup: CleanupOverview | null }
 
 const ORANGE = '#f97316'
 const who = (p: { name: string | null; slug: string | null }) => (p.slug ? `@${p.slug}` : p.name || 'Pessoa')
@@ -33,6 +42,12 @@ const plural = (n: number, one: string, many: string) => `${n.toLocaleString('pt
 
 function auditText(a: AuditRow, kinds: KindRow[]): string {
     const kindLabel = (id: string) => kinds.find((k) => k.kind === id)?.label || id
+    if (a.scope === 'upload_cleanup') return `Limpeza — ${a.new_value === true ? 'arquivo marcado para ficar para sempre' : 'arquivo volta a poder ser limpo'}: ${fileLabel(a.setting)}`
+    if (a.scope === 'upload_settings' && a.setting.startsWith('cleanup_')) {
+        const f = a.setting === 'cleanup_enabled' ? 'enabled' : a.setting.replace('cleanup_', '')
+        if (f === 'enabled') return `Limpeza de arquivos sem uso — apagar de verdade: ${a.new_value === true ? 'LIGADO' : 'DESLIGADO'}`
+        return `Limpeza — ${CLEANUP_LABEL[f as CleanupField] || a.setting}: ${String(a.old_value)} → ${String(a.new_value)}`
+    }
     if (a.scope === 'upload_settings') return `Envio só com autorização: ${a.new_value === true ? 'LIGADO' : 'DESLIGADO'}`
     if (a.scope === 'upload_blocks') {
         const nv = a.new_value as { block?: string; hours?: number | null; reason?: string } | null
@@ -57,6 +72,9 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
     const [block, setBlock] = useState<{ profile_id: string; label: string; kind: string; hours: string; reason: string } | null>(null)
     const [liftId, setLiftId] = useState<string | null>(null)
     const [auditAll, setAuditAll] = useState(false)
+    const [cleanForm, setCleanForm] = useState<{ form: CleanupForm; errors: CleanupErrors } | null>(null)
+    const [cleanConfirm, setCleanConfirm] = useState<'switch' | 'run' | null>(null)
+    const [cleanResult, setCleanResult] = useState<CleanupResult | null>(null)
 
     const load = useCallback(async () => {
         try { const r = await callAdminApi<Loaded>('/api/admin/uploads', { action: 'load' }); setData(r); setTop(r.top); setTopKind(null) }
@@ -68,6 +86,16 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
         setBusy(true)
         try { await callAdminApi('/api/admin/uploads', body); toast.success(ok); after?.(); await load() }
         catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(false) }
+    }
+    const runCleanup = async (dry: boolean) => {
+        setBusy(true)
+        try {
+            const r = await callAdminApi<{ result: CleanupResult }>('/api/admin/uploads', { action: 'cleanup_run', dry })
+            setCleanResult(r.result); setCleanConfirm(null)
+            if (!r.result.ok) toast.error('A rodada terminou com problemas. Veja o resumo.')
+            else toast.success(r.result.dryRun ? 'Simulação feita. Nada foi apagado.' : `Limpeza feita: ${r.result.deleted} apagados.`)
+            await load()
+        } catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(false) }
     }
     const showTop = async (kind: string | null) => {
         setTopKind(kind)
@@ -225,6 +253,128 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
                     )
                 })}
             </div>
+
+            {/* ===== limpeza de arquivos sem uso (Camada 6) ===== */}
+            {data.cleanup && (() => {
+                const c = data.cleanup
+                const on = c.settings.enabled
+                const saveForm = () => {
+                    if (!cleanForm) return
+                    const r = cleanupFormToPatch(cleanForm.form, c.settings)
+                    if (!r.ok) { setCleanForm({ ...cleanForm, errors: r.errors }); return }
+                    if (Object.keys(r.patch).length === 0) { toast.info('Nada mudou.'); setCleanForm(null); return }
+                    run({ action: 'cleanup_settings', patch: r.patch }, 'Configuração salva.', () => setCleanForm(null))
+                }
+                const cfield = (f: Exclude<CleanupField, 'enabled'>, hint: string, suffix: string) => cleanForm && (
+                    <label key={f} className="flex flex-col gap-1">
+                        <span className="text-[11px] font-black" style={{ color: colors.textPrimary }}>{CLEANUP_LABEL[f]}</span>
+                        <div className="flex items-center gap-2">
+                            <input value={cleanForm.form[f]} onChange={(e) => setCleanForm({ ...cleanForm, form: { ...cleanForm.form, [f]: e.target.value } })} inputMode="numeric" placeholder={hint}
+                                className="flex-1 h-10 rounded-2xl px-3 text-[13px] outline-none" style={{ background: colors.surface, border: `1.5px solid ${cleanForm.errors[f] ? '#ef4444' : colors.border}`, color: colors.textPrimary }} />
+                            <span className="text-[11px] w-16" style={{ color: colors.textSecondary }}>{suffix}</span>
+                        </div>
+                        {cleanForm.errors[f] && <span className="text-[11px] font-bold" style={{ color: '#ef4444' }}>{cleanForm.errors[f]}</span>}
+                    </label>
+                )
+                return (
+                    <div style={cardStyle} className="flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>Limpeza de arquivos sem uso</h3>
+                                <p className="text-[12px]" style={{ color: colors.textSecondary }}>Fotos e vídeos que ficaram no armazenamento mas não aparecem mais em nada do iUser (envio abandonado, item apagado). Rodam todo dia de madrugada.</p>
+                            </div>
+                            {chip(on ? 'APAGA DE VERDADE' : 'SÓ SIMULA', on ? '#ef4444' : '#22c55e')}
+                        </div>
+                        <p className="text-[12px]" style={{ color: colors.textSecondary }}>
+                            {on ? `Arquivo sem uso há mais de ${c.settings.min_age_days} dias é marcado; marcado há ${c.settings.quarantine_days} dias e ainda sem uso é apagado de vez (até ${c.settings.max_per_run} por rodada).`
+                                : `Desligada: a rotina só procura e marca (quarentena de ${c.settings.quarantine_days} dias). Nada é apagado até você ligar.`}
+                            {' '}Se aparecer arquivo demais de uma vez, a rotina para sozinha (disjuntor).
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                            {chip(`${plural(c.counts.orphans, 'sem uso', 'sem uso')} · ${formatBytes(c.counts.orphan_bytes)}`, c.counts.orphans > 0 ? '#f59e0b' : undefined)}
+                            {chip(`${plural(c.counts.due, 'pronto', 'prontos')} para apagar`, c.counts.due > 0 ? '#ef4444' : undefined)}
+                            {chip(`${plural(c.counts.kept, 'mantido', 'mantidos')}`)}
+                            {chip(`já apagados: ${plural(c.counts.deleted_total, 'arquivo', 'arquivos')} · ${formatBytes(c.counts.freed_bytes)}`)}
+                        </div>
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                            Entram na limpeza: {c.eligible_kinds.join(', ')}. <b>Nunca entram</b>: {c.protected_kinds.join(', ')} (prova de entrega e conteúdo que alguém comprou).
+                        </p>
+
+                        {cleanResult && (
+                            <div className="rounded-2xl p-3 flex flex-col gap-1" style={{ background: soft, border: `1.5px solid ${cleanResult.ok ? '#22c55e' : '#ef4444'}` }}>
+                                <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>{cleanResult.dryRun ? 'Simulação' : 'Limpeza'} {cleanResult.ok ? 'concluída' : 'com problemas'}</p>
+                                <p className="text-[12px]" style={{ color: colors.textPrimary }}>
+                                    Olhou {cleanResult.scanned} · marcou {cleanResult.marked} · desmarcou {cleanResult.cleared} ·{' '}
+                                    {cleanResult.dryRun ? <>{cleanResult.due} já poderiam ser apagados ({formatBytes(cleanResult.wouldFreeBytes)})</> : <b>apagou {cleanResult.deleted} ({formatBytes(cleanResult.bytesFreed)})</b>}
+                                </p>
+                                {cleanResult.notes.map((n, i) => <p key={i} className="text-[11px] font-bold" style={{ color: '#ef4444' }}>{n}</p>)}
+                                {cleanResult.files.length > 0 && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{cleanResult.dryRun ? 'Seriam apagados' : 'Apagados'}: {cleanResult.files.slice(0, 5).map((f) => fileLabel(f.key)).join(', ')}{cleanResult.files.length > 5 ? '…' : ''}</p>}
+                            </div>
+                        )}
+
+                        {cleanConfirm === 'switch' && (
+                            <div className="rounded-2xl p-2.5 flex flex-col gap-2" style={{ background: colors.surface, border: `1.5px solid ${ORANGE}` }}>
+                                <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>{on ? 'Voltar a só simular?' : 'Ligar a exclusão de verdade?'}</p>
+                                <p className="text-[12px]" style={{ color: colors.textSecondary }}>
+                                    {on ? 'A rotina continua procurando e marcando, mas para de apagar. Vale na hora.'
+                                        : `Apagar é definitivo: o arquivo some do armazenamento e não volta. Só será apagado o que está marcado há ${c.settings.quarantine_days} dias ou mais, sem uso, e que você não marcou como “manter”. Confira a lista de candidatos abaixo antes de ligar (hoje: ${plural(c.counts.due, 'pronto', 'prontos')}).`}
+                                </p>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    <button onClick={() => setCleanConfirm(null)} className={pill} style={{ background: soft, color: colors.textPrimary }}>Cancelar</button>
+                                    <button disabled={busy} onClick={() => run({ action: 'cleanup_settings', patch: { enabled: !on } }, on ? 'Voltou a só simular.' : 'Exclusão de verdade ligada.', () => setCleanConfirm(null))} className={`${pill} text-white`} style={{ background: on ? ORANGE : '#ef4444' }}>{on ? 'Só simular' : 'Ligar'}</button>
+                                </div>
+                            </div>
+                        )}
+                        {cleanConfirm === 'run' && (
+                            <div className="rounded-2xl p-2.5 flex flex-col gap-2" style={{ background: colors.surface, border: '1.5px solid #ef4444' }}>
+                                <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>Apagar agora?</p>
+                                <p className="text-[12px]" style={{ color: colors.textSecondary }}>Apaga de vez os arquivos prontos (hoje: {plural(c.counts.due, 'arquivo', 'arquivos')}, até {c.settings.max_per_run} por rodada). Não dá para desfazer.</p>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    <button onClick={() => setCleanConfirm(null)} className={pill} style={{ background: soft, color: colors.textPrimary }}>Cancelar</button>
+                                    <button disabled={busy} onClick={() => runCleanup(false)} className={`${pill} text-white`} style={{ background: '#ef4444' }}>Apagar agora</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {cleanForm ? (
+                            <div className="rounded-2xl p-2.5 flex flex-col gap-2.5" style={{ background: colors.surface, border: `1.5px solid ${ORANGE}` }}>
+                                {cfield('min_age_days', '3', 'dias')}{cfield('quarantine_days', '7', 'dias')}{cfield('max_per_run', '200', 'arquivos')}
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    <button onClick={() => setCleanForm(null)} className={pill} style={{ background: soft, color: colors.textPrimary }}>Cancelar</button>
+                                    <button disabled={busy} onClick={saveForm} className={`${pill} text-white`} style={{ background: ORANGE }}>Salvar</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-1.5">
+                                <button disabled={busy} onClick={() => runCleanup(true)} className={pill} style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}>Simular agora</button>
+                                <button disabled={busy || !on || c.counts.due === 0} onClick={() => setCleanConfirm('run')} className={pill} style={{ background: colors.surface, color: '#ef4444', border: '1px solid #ef444455' }}>Apagar agora</button>
+                                <button onClick={() => setCleanForm({ form: cleanupToForm(c.settings), errors: {} })} className={pill} style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}>Prazos e limites</button>
+                                <button onClick={() => setCleanConfirm('switch')} className={`${pill} ${on ? '' : 'text-white'}`} style={{ background: on ? soft : '#ef4444', color: on ? colors.textPrimary : '#fff' }}>{on ? 'Voltar a só simular' : 'Ligar a exclusão'}</button>
+                            </div>
+                        )}
+
+                        <h4 className="text-[12px] font-black mt-1" style={{ color: colors.textPrimary }}>Candidatos</h4>
+                        {c.candidates.length === 0 && <p className="text-[12px]" style={{ color: colors.textSecondary }}>Nenhum arquivo sem uso encontrado até agora.</p>}
+                        {c.candidates.map((f) => (
+                            <div key={f.id} className="rounded-2xl p-3 flex items-center justify-between gap-2" style={{ background: soft }}>
+                                <div className="min-w-0">
+                                    <p className="text-[12px] font-black truncate" style={{ color: colors.textPrimary }}>{fileLabel(f.key)}</p>
+                                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>{f.kind_label} · {formatBytes(f.bytes)} · <b style={{ color: f.keep ? '#22c55e' : f.due ? '#ef4444' : '#f59e0b' }}>{candidateStatus(f)}</b></p>
+                                </div>
+                                <button disabled={busy} onClick={() => run({ action: 'cleanup_keep', id: f.id, keep: !f.keep }, f.keep ? 'Volta a poder ser limpo.' : 'Marcado para manter.')} className="h-9 px-3 rounded-full text-[11px] font-black active:scale-95 shrink-0" style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}>{f.keep ? 'Deixar de manter' : 'Manter'}</button>
+                            </div>
+                        ))}
+
+                        <h4 className="text-[12px] font-black mt-1" style={{ color: colors.textPrimary }}>Últimas rodadas</h4>
+                        {c.runs.length === 0 && <p className="text-[12px]" style={{ color: colors.textSecondary }}>Nenhuma rodada ainda.</p>}
+                        {c.runs.map((r, i) => (
+                            <p key={i} className="text-[12px]" style={{ color: colors.textPrimary }}>
+                                <span style={{ color: colors.textSecondary }}>{fmt(r.started_at)} · {r.source === 'cron' ? 'automática' : 'manual'} · </span>{runSummary(r, formatBytes)}
+                            </p>
+                        ))}
+                    </div>
+                )
+            })()}
 
             {/* ===== maiores consumidores ===== */}
             <div style={cardStyle} className="flex flex-col gap-2.5">
