@@ -14,6 +14,9 @@ import { runUploadCleanup, type CleanupClient } from '@/lib/uploadCleanup'
 import { readR2Config, r2ConfigProblems, r2Head, r2Put, r2Delete, r2PresignGet } from '@/lib/r2'
 import { randomUUID } from 'node:crypto'
 
+// a limpeza e o teste do R2 fazem várias chamadas em sequência; o padrão da Vercel (10 s no Hobby) é curto demais. 60 s é o teto de qualquer plano.
+export const maxDuration = 60
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const KIND = /^[a-z][a-z0-9_]{1,40}$/
 const GB = 1024 * 1024 * 1024

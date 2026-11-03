@@ -7,7 +7,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **25 migrations**: `20261130000000` até `20261130000024` (lista no Anexo A). |
+| **Faltam na produção** | **26 migrations**: `20261130000000` até `20261130000025` (lista no Anexo A). |
 | **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
@@ -84,7 +84,7 @@ npx next build
 npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src/versions   # só o ciclo conhecido
 ```
 - [ ] **`npx next build` passa.** (Não foi rodado nas últimas rodadas; só o `tsc`. O build de produção é mais exigente.)
-- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 25 migrations e o aviso da Fase 3.
+- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 26 migrations e o aviso da Fase 3.
 
 ### Fase 3 — O dia da publicação (nesta ordem, sem pausas longas entre os passos 3 e 4)
 1. **Horário calmo.** Confirme que **não há entrega de loja em andamento**. Motivo: veja "riscos" abaixo — por alguns minutos o banco novo e o código antigo convivem. Consulta só de leitura (Supabase → SQL Editor, projeto de produção; o resultado deve ser `0`):
@@ -129,7 +129,7 @@ A regra de ouro é "o banco só adiciona". Estas **mudam o comportamento de fun�
 - **Quando** publicar (a janela, por causa dos riscos acima).
 - Se vai configurar o **Manual do admin** em produção agora ou deixar para depois.
 
-## Anexo A — As 25 migrations que faltam na produção
+## Anexo A — As 26 migrations que faltam na produção
 
 Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rollbacks/`.
 
@@ -160,6 +160,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 22 | `upload_cleanup` | Limpeza de arquivos sem uso (nasce DESLIGADA, só simula), conferência diária de arquivos que sumiram (`pg_cron`) e o cartão do painel | `upload_cleanup_rollback.sql` |
 | 23 | `upload_r2` | Envio pelo Cloudflare R2 (vídeo e música): a autorização aceita o provedor r2, tipo `media_r2` (nasce DESLIGADO) e `register_r2_asset` | `upload_r2_rollback.sql` |
 | 24 | `flash_r2` | Flash com vídeo no R2: trava no banco (só vídeo registrado pela mesma pessoa) e liberação do arquivo ao apagar o flash | `flash_r2_rollback.sql` |
+| 25 | `appointment_deposit_anon_revoke` | Tira de `anon` o EXECUTE das 4 funções da entrada no agendamento (nada vazava; era defesa em profundidade que o teste de exposição cobrou) | `appointment_deposit_anon_revoke_rollback.sql` |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 

@@ -9,7 +9,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { runUploadCleanup, type CleanupClient } from '@/lib/uploadCleanup'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300
+// 60 s é o teto de qualquer plano da Vercel (um valor acima do plano derruba o DEPLOY). A rodada é pequena (até 200 arquivos); se a busca demorar mais, o banco segue trabalhando e a próxima rodada continua.
+export const maxDuration = 60
 
 function authorized(req: Request, secret: string): boolean {
     const given = Buffer.from(req.headers.get('authorization') || '')
