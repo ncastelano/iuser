@@ -194,7 +194,7 @@ A migration `20261130000022` nasce com a exclusão **DESLIGADA**: a rotina só p
 **Depois de publicar (migration `...23` antes do código):**
 1. Admin → Uploads → cartão **Cloudflare R2** → **Testar o R2**. Deve mostrar 4 passos verdes (gravar, conferir o tamanho, ler, apagar). Erro 403 = chave errada ou sem permissão neste bucket.
 2. Só com o teste verde, ligue o tipo **Vídeo e música (R2)** (Editar limites → Tipo ligado) e ajuste os limites.
-3. Opcional: ligar um domínio de mídia ao bucket (Cloudflare → R2 → Settings → Custom Domains → `midia.iuser.com.br`) e criar `R2_PUBLIC_BASE=https://midia.iuser.com.br` na Vercel. Sem isso os arquivos só abrem por link assinado.
+3. **Domínio de mídia: JÁ LIGADO (03/11/2026)** em `https://midia.iuser.com.br` (Cloudflare → R2 → iuser-media → Custom Domains; TLS mínimo 1.2). Falta criar na Vercel (Production, tipo Config, não são segredos) `R2_PUBLIC_BASE` e `NEXT_PUBLIC_R2_PUBLIC_BASE`, as duas com `https://midia.iuser.com.br`, e publicar de novo. Atenção: o domínio torna TODO o conteúdo do bucket público; não guarde nada privado ou pago em `iuser-media`.
 4. Configure um alerta de gasto na Cloudflare (Billing → Budget alert).
 5. Se for testar em staging/preview, acrescente o endereço dele no CORS do bucket.
 O primeiro uso é o **vídeo do Flash** (migration `...24`): com o tipo ligado, o vídeo vai ao R2 e o limite sobe de 15 MB para 200 MB; desligado, tudo segue como hoje.
