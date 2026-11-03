@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed, Handshake, Award, Trophy, Truck, BarChart3, BookLock, Gavel, Flag } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed, Handshake, Award, Trophy, Truck, BarChart3, BookLock, Gavel, Flag, UploadCloud } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
 import ActivitySection from './ActivitySection'
 import FinanceSection from './FinanceSection'
@@ -22,9 +22,10 @@ import IuserStatusSection from './IuserStatusSection'
 import ManualSection from './ManualSection'
 import DeliveryDisputesSection from './DeliveryDisputesSection'
 import ModerationSection from './ModerationSection'
+import UploadsSection from './UploadsSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'interface' | 'atividade' | 'financeiro' | 'status' | 'manual' | 'disputas' | 'denuncias'
+type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'interface' | 'atividade' | 'financeiro' | 'status' | 'manual' | 'disputas' | 'denuncias' | 'uploads'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
@@ -45,6 +46,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'saques', label: 'Saques', icon: Send },
     { id: 'disputas', label: 'Disputas', icon: Gavel },
     { id: 'denuncias', label: 'Denúncias', icon: Flag },
+    { id: 'uploads', label: 'Uploads', icon: UploadCloud },
     { id: 'manual', label: 'Manual', icon: BookLock },
 ]
 
@@ -126,6 +128,7 @@ export default function AdminDashboard() {
             {section === 'graduacao' && <GraduationSection cardStyle={cardStyle} colors={colors} />}
             {section === 'status' && <IuserStatusSection cardStyle={cardStyle} colors={colors} />}
             {section === 'denuncias' && <ModerationSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'uploads' && <UploadsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'disputas' && <DeliveryDisputesSection cardStyle={cardStyle} colors={colors} />}
             {section === 'manual' && <ManualSection cardStyle={cardStyle} colors={colors} />}
             {section === 'pontuacao' && <PointsSection cardStyle={cardStyle} colors={colors} />}

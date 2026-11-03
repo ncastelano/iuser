@@ -43,6 +43,7 @@ async function login(slug) {
 const removeObject = (bucket, path) => fetch(`${API}/storage/v1/object/${bucket}/${path}`, { method: 'DELETE', headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` } })
 
 const made = []   // [bucket, path] enviados, para apagar no final
+const startedAt = new Date().toISOString()   // tudo que este teste cria (recusas, auditoria) é apagado no final: não pode sobrar nada no painel Admin → Uploads
 let A, B
 try {
     console.log('preparo')
@@ -154,6 +155,8 @@ try {
         for (const [b, p] of made) await removeObject(b, p)
         psql(`delete from media_assets where key like '%e2e-%'`)
         psql(`delete from upload_grants where key like '%e2e-%'`)
-        console.log('  interruptor desligado, limites originais, bloqueios levantados, arquivos de teste apagados')
+        psql(`delete from upload_denials where created_at >= '${startedAt}'`)
+        psql(`delete from admin_config_audit where scope in ('upload_settings','upload_kinds','upload_blocks') and changed_at >= '${startedAt}'`)
+        console.log('  interruptor desligado, limites originais, bloqueios levantados, arquivos, recusas e auditoria de teste apagados')
     } catch (e2) { console.error('  ATENÇÃO: não consegui restaurar tudo:', e2.message) }
 }
