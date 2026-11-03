@@ -3,10 +3,12 @@
 // FLASH (3.0): o feed de PESSOAS no estilo reels/tiktok, com cara de twitter/instagram/facebook juntos. Cada item ocupa a tela toda (rolagem que "encaixa"):
 // flash com foto ou vídeo (a mídia é o fundo), flash só de texto (fundo em cor, letra grande, como um tweet/story) e as PUBLICAÇÕES das pessoas.
 // À direita: curtir, comentar, compartilhar (e apagar, se for seu); embaixo: quem postou (com Seguir) e o texto. Abas "Para você" e "Seguindo",
-// botão de postar e aviso de "novos flashes" ao vivo. Regras e acesso ao banco: `modules/flash` (quem pode o quê é do banco).
+// botão de postar e aviso de "novos flashes" ao vivo.
+// PILHA DE CARDS: o flash seguinte sobe de baixo para cima POR CIMA do atual, que recua, encolhe, escurece e deixa uma bordinha à mostra no topo (como a pilha de "Sugestões" do Mercado Pago).
+// Os cards vivem num palco fixo e são posicionados pela rolagem (StackedFeed); a rolagem que encaixa fica em espaçadores invisíveis. Regras e acesso ao banco: `modules/flash` (quem pode o quê é do banco).
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { r2Availability } from '@/lib/r2Upload'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -34,19 +36,15 @@ function Avatar({ item, size = 40 }: { item: Pick<FlashItem, 'authorAvatar' | 'a
     )
 }
 
-/** Vídeo que toca (mudo, em laço) só enquanto está na tela; um toque pausa/continua */
-function FlashVideo({ src }: { src: string }) {
+/** Vídeo que toca (mudo, em laço) só enquanto é o card da FRENTE da pilha (`active`); um toque pausa/continua */
+function FlashVideo({ src, active }: { src: string; active: boolean }) {
     const ref = useRef<HTMLVideoElement>(null)
     const [paused, setPaused] = useState(false)
     useEffect(() => {
         const v = ref.current
         if (!v) return
-        const io = new IntersectionObserver(([e]) => {
-            if (e.isIntersecting && e.intersectionRatio > 0.6) { v.play().catch(() => {}); setPaused(false) } else v.pause()
-        }, { threshold: [0, 0.6, 1] })
-        io.observe(v)
-        return () => io.disconnect()
-    }, [])
+        if (active) { v.play().catch(() => {}); setPaused(false) } else v.pause()
+    }, [active])
     return (
         <>
             <video ref={ref} src={src} muted loop playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover"
@@ -56,8 +54,8 @@ function FlashVideo({ src }: { src: string }) {
     )
 }
 
-function FlashCard({ item, me, onLike, onFollow, onComments, onShare, onDelete }: {
-    item: FlashItem; me: string | null
+function FlashCard({ item, me, active, onLike, onFollow, onComments, onShare, onDelete }: {
+    item: FlashItem; me: string | null; active: boolean
     onLike: (i: FlashItem) => void; onFollow: (i: FlashItem) => void; onComments: (i: FlashItem) => void; onShare: (i: FlashItem) => void; onDelete: (i: FlashItem) => void
 }) {
     const router = useRouter()
@@ -72,8 +70,8 @@ function FlashCard({ item, me, onLike, onFollow, onComments, onShare, onDelete }
     const openPublication = () => item.link && router.push(`/${item.authorSlug}/${item.link}`)
 
     return (
-        <article data-flash-id={item.id} className="snap-start relative flex-shrink-0 w-full overflow-hidden" style={{ height: '100%', borderRadius: 28, background: `linear-gradient(160deg, ${c1}, ${c2})` }}>
-            {src && item.mediaType === 'video' && <FlashVideo src={src} />}
+        <article data-flash-id={item.id} className="relative w-full h-full overflow-hidden" style={{ borderRadius: 28, background: `linear-gradient(160deg, ${c1}, ${c2})` }}>
+            {src && item.mediaType === 'video' && <FlashVideo src={src} active={active} />}
             {src && item.mediaType !== 'video' && <img src={src} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
 
             {/* Só texto: letra grande no meio, como um tweet/story */}
@@ -85,6 +83,9 @@ function FlashCard({ item, me, onLike, onFollow, onComments, onShare, onDelete }
                     </p>
                 </div>
             )}
+
+            {/* Escurece o card quando ele recua na pilha (--dim vem do palco) */}
+            <div className="absolute inset-0 bg-black pointer-events-none z-20" style={{ opacity: 'var(--dim, 0)' }} />
 
             {/* Degradê para as letras ficarem legíveis sobre foto/vídeo */}
             <div className="absolute inset-x-0 bottom-0 h-[55%] pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.78), rgba(0,0,0,0))' }} />
@@ -253,6 +254,109 @@ function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => vo
     )
 }
 
+/** A pilha: palco fixo + espaçadores que dão a rolagem. Cada card é posicionado pela rolagem: o de baixo sobe e cobre o da frente, que recua. */
+const PEEK_TOP = 24          // faixa em cima onde aparecem as bordas dos cards de trás (14 px do 1º de trás + 6 px do 2º)
+const PEEK_BOTTOM = 6
+const STACK_DEPTH = 3        // quantos cards de trás ainda aparecem na pilha
+
+function StackedFeed({ items, me, scrollerRef, onNearEnd, onLike, onFollow, onComments, onShare, onDelete }: {
+    items: FlashItem[]; me: string | null; scrollerRef: React.RefObject<HTMLDivElement>; onNearEnd: () => void
+    onLike: (i: FlashItem) => void; onFollow: (i: FlashItem) => void; onComments: (i: FlashItem) => void; onShare: (i: FlashItem) => void; onDelete: (i: FlashItem) => void
+}) {
+    const n = items.length
+    const [H, setH] = useState(0)
+    const [view, setView] = useState({ base: 0, active: 0 })
+    const cardEls = useRef(new Map<number, HTMLDivElement>())
+    const Hr = useRef(0)
+    const raf = useRef(0)
+    const reduce = useRef(false)
+    const nRef = useRef(n); nRef.current = n
+    const nearEnd = useRef(onNearEnd); nearEnd.current = onNearEnd
+
+    const apply = useCallback(() => {
+        const scrollEl = scrollerRef.current, h = Hr.current
+        if (!scrollEl || !h) return
+        const pos = scrollEl.scrollTop / h
+        cardEls.current.forEach((el, i) => {
+            const d = pos - i      // < 0: ainda subindo | 0..1: sendo coberto pelo próximo | > 1: mais fundo na pilha
+            let ty = 0, scale = 1, dim = 0, visible = true
+            if (d <= -1) { ty = h; visible = false }
+            else if (d < 0) ty = -d * h
+            else {
+                const dd = Math.min(d, STACK_DEPTH)
+                if (!reduce.current) { ty = dd <= 1 ? -14 * dd : -14 - 6 * (dd - 1); scale = 1 - 0.05 * dd }
+                dim = Math.min(0.55, 0.22 * dd)
+                if (d > STACK_DEPTH + 0.05) visible = false
+            }
+            el.style.transform = `translate3d(0, ${ty}px, 0) scale(${scale})`
+            el.style.setProperty('--dim', String(dim))
+            el.style.visibility = visible ? 'visible' : 'hidden'
+        })
+    }, [scrollerRef])
+
+    // altura do palco = altura da área do feed (acompanha girar o aparelho e a barra de baixo); mantém o card que estava na frente
+    useLayoutEffect(() => {
+        const el = scrollerRef.current
+        if (!el) return
+        reduce.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        const measure = () => {
+            const h = el.clientHeight
+            if (!h || h === Hr.current) return
+            const idx = Hr.current ? Math.round(el.scrollTop / Hr.current) : 0
+            Hr.current = h; setH(h); el.scrollTop = idx * h
+        }
+        measure()
+        const ro = new ResizeObserver(measure)
+        ro.observe(el)
+        return () => ro.disconnect()
+    }, [scrollerRef])
+
+    const onScroll = useCallback(() => {
+        if (raf.current) return
+        raf.current = requestAnimationFrame(() => {
+            raf.current = 0
+            apply()
+            const el = scrollerRef.current, h = Hr.current
+            if (!el || !h) return
+            const pos = el.scrollTop / h
+            const base = Math.floor(pos + 1e-6), active = Math.round(pos)
+            setView((v) => (v.base === base && v.active === active ? v : { base, active }))
+            if (active >= nRef.current - 3) nearEnd.current()
+        })
+    }, [apply, scrollerRef])
+    useEffect(() => () => { if (raf.current) cancelAnimationFrame(raf.current) }, [])
+
+    // sempre que o que está montado muda, posiciona os cards na hora (antes de pintar)
+    useLayoutEffect(() => { apply() })
+
+    const lo = Math.max(0, view.base - STACK_DEPTH), hi = Math.min(n - 1, view.base + 2)
+    return (
+        <div ref={scrollerRef} onScroll={onScroll} className="h-full overflow-y-auto snap-y snap-mandatory" style={{ scrollbarWidth: 'none', overscrollBehavior: 'contain' }}>
+            {H > 0 && (
+                <div className="relative" style={{ height: n * H }}>
+                    {/* espaçadores: só dão o tamanho da rolagem e os pontos onde ela encaixa */}
+                    {items.map((it, i) => <div key={`s-${it.kind}-${it.id}`} aria-hidden className="absolute left-0 right-0 snap-start snap-always pointer-events-none" style={{ top: i * H, height: H }} />)}
+                    <div className="sticky top-0 overflow-hidden" style={{ height: H, zIndex: 1 }}>
+                        {items.slice(lo, hi + 1).map((it, k) => {
+                            const i = lo + k
+                            return (
+                                <div key={`${it.kind}-${it.id}`} ref={(el) => { if (el) cardEls.current.set(i, el); else cardEls.current.delete(i) }}
+                                    onClick={(e) => {   // tocar na bordinha de um card de trás volta até ele
+                                        const el = scrollerRef.current
+                                        if (el && Hr.current && el.scrollTop / Hr.current - i > 0.5) { e.stopPropagation(); el.scrollTo({ top: i * Hr.current, behavior: 'smooth' }) }
+                                    }}
+                                    className="absolute" style={{ left: 8, right: 8, top: PEEK_TOP, height: H - PEEK_TOP - PEEK_BOTTOM, transformOrigin: 'top center', willChange: 'transform', borderRadius: 28, zIndex: i, boxShadow: '0 -10px 28px rgba(0,0,0,0.30)' }}>
+                                    <FlashCard item={it} me={me} active={i === view.active} onLike={onLike} onFollow={onFollow} onComments={onComments} onShare={onShare} onDelete={onDelete} />
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
 export default function FlashScreen() {
     const { colors } = useTheme()
     const router = useRouter()
@@ -265,7 +369,6 @@ export default function FlashScreen() {
     const [commentsOf, setCommentsOf] = useState<FlashItem | null>(null)
     const [composing, setComposing] = useState(false)
     const scroller = useRef<HTMLDivElement>(null)
-    const sentinel = useRef<HTMLDivElement>(null)
     const busy = useRef(false)
     const loginFirst = () => { toast.info('Entre na sua conta para isso.'); router.push('/login?redirect=/flash') }
 
@@ -283,7 +386,7 @@ export default function FlashScreen() {
         const sp = new URLSearchParams(window.location.search)
         const de = sp.get('de')
         if (sp.get('novo') === '1' && userId) setComposing(true)
-        if (de) requestAnimationFrame(() => scroller.current?.querySelector(`[data-flash-id="${de}"]`)?.scrollIntoView())
+        if (de) requestAnimationFrame(() => { const el = scroller.current; const idx = items.findIndex((i) => i.id === de); if (el && idx >= 0) el.scrollTo({ top: idx * el.clientHeight }) })
     }, [loading, userId])
 
     const loadMore = useCallback(async () => {
@@ -291,13 +394,6 @@ export default function FlashScreen() {
         busy.current = true
         try { const rows = await fetchFeed(mode, items[items.length - 1].createdAt); setItems((cur) => [...cur, ...rows.filter((r) => !cur.some((c) => c.id === r.id && c.kind === r.kind))]); if (rows.length < PAGE_SIZE) setDone(true) } catch { setDone(true) } finally { busy.current = false }
     }, [mode, done, items])
-    useEffect(() => {
-        const el = sentinel.current
-        if (!el) return
-        const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) loadMore() }, { root: scroller.current, rootMargin: '400px' })
-        io.observe(el)
-        return () => io.disconnect()
-    }, [loadMore])
 
     // Novos flashes ao vivo: um aviso para voltar ao topo e recarregar
     useEffect(() => {
@@ -340,7 +436,7 @@ export default function FlashScreen() {
         <div className="fixed left-0 right-0 z-[1]" style={{ top: 'var(--shell-top, 74px)', bottom: 'var(--shell-bottom, 0px)' }}>
             <div className="relative h-full max-w-md mx-auto">
                 {/* Abas e botão de postar, por cima do feed */}
-                <div className="absolute top-2 left-0 right-0 z-20 flex items-center justify-center gap-1 pointer-events-none">
+                <div className="absolute left-0 right-0 z-20 flex items-center justify-center gap-1 pointer-events-none" style={{ top: PEEK_TOP + 8 }}>
                     <div className="pointer-events-auto flex items-center gap-1 p-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}>
                         {([['all', 'Para você'], ['following', 'Seguindo']] as const).map(([k, label]) => (
                             <button key={k} onClick={() => { if (k === 'following' && !userId) return loginFirst(); setMode(k) }} className="h-8 px-4 rounded-full text-[12px] font-black transition active:scale-95"
@@ -348,30 +444,30 @@ export default function FlashScreen() {
                         ))}
                     </div>
                 </div>
-                <button onClick={() => router.push('/social')} aria-label="Voltar para o Social" className="absolute top-2.5 left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white transition active:scale-95" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}><ArrowLeft size={18} /></button>
-                <button onClick={() => (userId ? setComposing(true) : loginFirst())} aria-label="Postar um flash" className="absolute top-2.5 right-3 z-20 h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black text-white transition active:scale-95" style={{ background: ORANGE, boxShadow: '0 4px 14px rgba(249,115,22,0.5)' }}><Plus size={15} strokeWidth={3} /> Flash</button>
+                <button onClick={() => router.push('/social')} aria-label="Voltar para o Social" className="absolute left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white transition active:scale-95" style={{ top: PEEK_TOP + 10, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}><ArrowLeft size={18} /></button>
+                <button onClick={() => (userId ? setComposing(true) : loginFirst())} aria-label="Postar um flash" className="absolute right-3 z-20 h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black text-white transition active:scale-95" style={{ top: PEEK_TOP + 10, background: ORANGE, boxShadow: '0 4px 14px rgba(249,115,22,0.5)' }}><Plus size={15} strokeWidth={3} /> Flash</button>
 
                 {fresh > 0 && (
-                    <button onClick={loadFirst} className="absolute top-14 left-1/2 -translate-x-1/2 z-20 h-8 px-4 rounded-full flex items-center gap-1.5 text-[12px] font-black text-white transition active:scale-95" style={{ background: '#111827', boxShadow: '0 4px 14px rgba(0,0,0,0.4)' }}>
+                    <button onClick={loadFirst} className="absolute left-1/2 -translate-x-1/2 z-20 h-8 px-4 rounded-full flex items-center gap-1.5 text-[12px] font-black text-white transition active:scale-95" style={{ top: PEEK_TOP + 52, background: '#111827', boxShadow: '0 4px 14px rgba(0,0,0,0.4)' }}>
                         <ArrowUp size={14} /> {fresh} {fresh === 1 ? 'novo flash' : 'novos flashes'}
                     </button>
                 )}
 
-                <div ref={scroller} className="h-full overflow-y-auto snap-y snap-mandatory flex flex-col gap-2 px-2 pb-1 pt-0" style={{ scrollbarWidth: 'none', overscrollBehavior: 'contain' }}>
-                    {loading && [0, 1].map((i) => <div key={i} className="snap-start flex-shrink-0 w-full animate-pulse" style={{ height: '100%', borderRadius: 28, background: `${colors.border}50` }} />)}
-                    {showEmpty && (
-                        <div className="snap-start flex-shrink-0 w-full flex flex-col items-center justify-center text-center px-8 gap-3" style={{ height: '100%', borderRadius: 28, background: colors.surface, border: `1px solid ${colors.border}` }}>
-                            <Zap size={34} style={{ color: ORANGE }} />
-                            <p className="text-base font-black" style={{ color: colors.textPrimary }}>{mode === 'following' ? 'Nada de quem você segue ainda' : 'Nenhum flash por aqui'}</p>
-                            <p className="text-sm" style={{ color: colors.textSecondary }}>{mode === 'following' ? 'Siga pessoas para ver os flashes e as publicações delas aqui.' : 'Seja a primeira pessoa a postar um flash.'}</p>
-                            {mode === 'following' && <button onClick={() => setMode('all')} className="h-10 px-5 rounded-full text-[13px] font-black text-white" style={{ background: ORANGE }}>Ver Para você</button>}
-                        </div>
-                    )}
-                    {items.map((it) => (
-                        <FlashCard key={`${it.kind}-${it.id}`} item={it} me={userId || null} onLike={like} onFollow={follow} onComments={openComments} onShare={share} onDelete={remove} />
-                    ))}
-                    <div ref={sentinel} className="flex-shrink-0 h-px" />
-                </div>
+                {(loading || showEmpty) ? (
+                    <div ref={scroller} className="h-full overflow-y-auto flex flex-col gap-2 px-2 pb-1 pt-0" style={{ scrollbarWidth: 'none', overscrollBehavior: 'contain' }}>
+                        {loading && [0, 1].map((i) => <div key={i} className="flex-shrink-0 w-full animate-pulse" style={{ height: '100%', borderRadius: 28, background: `${colors.border}50` }} />)}
+                        {showEmpty && (
+                            <div className="flex-shrink-0 w-full flex flex-col items-center justify-center text-center px-8 gap-3" style={{ height: '100%', borderRadius: 28, background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <Zap size={34} style={{ color: ORANGE }} />
+                                <p className="text-base font-black" style={{ color: colors.textPrimary }}>{mode === 'following' ? 'Nada de quem você segue ainda' : 'Nenhum flash por aqui'}</p>
+                                <p className="text-sm" style={{ color: colors.textSecondary }}>{mode === 'following' ? 'Siga pessoas para ver os flashes e as publicações delas aqui.' : 'Seja a primeira pessoa a postar um flash.'}</p>
+                                {mode === 'following' && <button onClick={() => setMode('all')} className="h-10 px-5 rounded-full text-[13px] font-black text-white" style={{ background: ORANGE }}>Ver Para você</button>}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <StackedFeed items={items} me={userId || null} scrollerRef={scroller} onNearEnd={loadMore} onLike={like} onFollow={follow} onComments={openComments} onShare={share} onDelete={remove} />
+                )}
             </div>
 
             {commentsOf && <CommentsSheet item={commentsOf} me={userId || null} onClose={() => setCommentsOf(null)} onCounted={(d) => { patch(commentsOf, (i) => ({ ...i, commentCount: Math.max(0, i.commentCount + d) })); setCommentsOf((c) => (c ? { ...c, commentCount: Math.max(0, c.commentCount + d) } : c)) }} />}
