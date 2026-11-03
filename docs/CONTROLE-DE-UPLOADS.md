@@ -97,6 +97,12 @@ Rotina que apaga órfãos e a foto antiga quando a pessoa troca a imagem; manter
   - **Reprodução:** com o domínio de mídia (`NEXT_PUBLIC_R2_PUBLIC_BASE`) o vídeo sai da CDN da Cloudflare; sem ele, pela rota que redireciona para um link assinado de 1 h (só de flash visível). **Apagar o flash apaga o vídeo no R2.**
   - **Não verificado:** envio real de um vídeo grande pelo celular até o R2 verdadeiro (as chaves ficam na Vercel) e a reprodução pelo domínio de mídia.
 
+- **Limpeza no R2 — FEITA no banco local (03/11/2026), ainda não publicada.** Migration `20261130000026_r2_cleanup.sql` (rollback `r2_cleanup_rollback.sql`, cenários `supabase/tests/r2_cleanup_scenarios.sql` (4), testes `npm run test:upload-cleanup` (22), ponta a ponta na seção 9 de `scripts/local/test-r2-flow.mjs`), `lib/r2Cleanup.ts`, `r2ListAll` em `lib/r2.ts`.
+  - **Dois casos:** vídeo registrado que nenhum flash usa (mesma quarentena de 7 dias, nova conferência, apagado pela API do R2 e **conferido** com HEAD antes de confirmar) e objeto **solto** no bucket (listado pelo servidor; só o nome exato `<uuid>/<uuid>.<mp4|webm|mov>`, mais velho que a idade mínima e desconhecido do banco).
+  - **Travas extras do R2:** disjuntor (mais de 20 candidatos e mais da metade soltos de uma vez aborta), nunca toca em áudio, `_healthcheck/` nem arquivo subido à mão, limite por rodada, e tudo só com a limpeza LIGADA no painel.
+  - **Por que só vídeo:** a busca de referências só conhece as extensões de foto e vídeo; um áudio em uso pareceria sem uso. Quando existir uso real de áudio, a busca aprende as extensões antes de o áudio entrar.
+  - **Não verificado:** a limpeza contra o R2 REAL (listagem de verdade, paginação acima de 1000 objetos). O teste de ponta a ponta usa um R2 de mentira que confere as assinaturas.
+
 ## 5. Música, vídeo, rede social e live: o Storage do Supabase não é o lugar
 
 Mesmo com controle perfeito, **o custo de tráfego é o problema**, não só o espaço. Conta simples: uma música de 4 MB tocada 1.000 vezes são 4 GB — quase toda a cota gratuita de um mês inteiro. Um vídeo curto de 15 MB multiplica isso.

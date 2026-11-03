@@ -340,7 +340,7 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
                                 <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>{cleanResult.dryRun ? 'Simulação' : 'Limpeza'} {cleanResult.ok ? 'concluída' : 'com problemas'}</p>
                                 <p className="text-[12px]" style={{ color: colors.textPrimary }}>
                                     Olhou {cleanResult.scanned} · marcou {cleanResult.marked} · desmarcou {cleanResult.cleared} ·{' '}
-                                    {cleanResult.dryRun ? <>{cleanResult.due} já poderiam ser apagados ({formatBytes(cleanResult.wouldFreeBytes)})</> : <b>apagou {cleanResult.deleted} ({formatBytes(cleanResult.bytesFreed)})</b>}
+                                    {cleanResult.dryRun ? <>{cleanResult.due} já poderiam ser apagados ({formatBytes(cleanResult.wouldFreeBytes)}{cleanResult.r2Strays > 0 ? `, ${cleanResult.r2Strays} solto${cleanResult.r2Strays === 1 ? '' : 's'} no R2` : ''})</> : <b>apagou {cleanResult.deleted} ({formatBytes(cleanResult.bytesFreed)})</b>}
                                 </p>
                                 {cleanResult.notes.map((n, i) => <p key={i} className="text-[11px] font-bold" style={{ color: '#ef4444' }}>{n}</p>)}
                                 {cleanResult.files.length > 0 && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{cleanResult.dryRun ? 'Seriam apagados' : 'Apagados'}: {cleanResult.files.slice(0, 5).map((f) => fileLabel(f.key)).join(', ')}{cleanResult.files.length > 5 ? '…' : ''}</p>}

@@ -26,11 +26,11 @@ DECLARE a uuid; r jsonb; k public.upload_kinds%ROWTYPE;
 BEGIN
     SELECT _t.a INTO a FROM _t;
     SELECT * INTO k FROM public.upload_kinds WHERE kind = 'media_r2';
-    IF NOT FOUND OR k.provider <> 'r2' OR k.bucket <> 'iuser-media' OR NOT k.owner_folder OR k.cleanup_eligible THEN RAISE EXCEPTION 'tipo media_r2 errado: %', row_to_json(k); END IF;
+    IF NOT FOUND OR k.provider <> 'r2' OR k.bucket <> 'iuser-media' OR NOT k.owner_folder OR NOT k.cleanup_eligible THEN RAISE EXCEPTION 'tipo media_r2 errado: %', row_to_json(k); END IF;
     IF k.enabled THEN RAISE EXCEPTION 'media_r2 deveria nascer desligado'; END IF;
     r := pg_temp.authz(a, 'iuser-media', a || '/x.mp4', 1000, 'video/mp4');
     IF r->>'error' <> 'kind_disabled' THEN RAISE EXCEPTION 'desligado deveria recusar: %', r; END IF;
-    RAISE NOTICE 'OK 1: media_r2 existe (r2, privado, pasta própria, fora da limpeza), nasce desligado e o provedor r2 é reconhecido';
+    RAISE NOTICE 'OK 1: media_r2 existe (r2, privado, pasta própria, elegível à limpeza só para vídeo), nasce desligado e o provedor r2 é reconhecido';
 END $$;
 
 -- 2) ligado: as regras de sempre valem (tipo, tamanho, pasta, ritmo, bloqueio) e o caminho feliz grava a autorização
@@ -127,7 +127,7 @@ BEGIN
     RAISE NOTICE 'OK 6: a cota total por pessoa conta o que já foi registrado no R2';
 END $$;
 
--- 7) a conferência e a limpeza só cuidam do Supabase: arquivo do R2 nunca é "sumido" nem "sem uso"
+-- 7) a conferência diária (reconcile) só cuida do Supabase: arquivo do R2 nunca é dado como "sumido". A limpeza de sem-uso vale para VÍDEO do R2 (ver r2_cleanup_scenarios.sql)
 DO $$
 DECLARE a uuid; n int; st text; c boolean;
 BEGIN
@@ -136,9 +136,7 @@ BEGIN
     n := public.media_assets_reconcile();
     SELECT state INTO st FROM public.media_assets WHERE provider = 'r2' AND key = a || '/ok.mp4';
     IF st <> 'ready' THEN RAISE EXCEPTION 'reconcile não pode mexer no R2: %', st; END IF;
-    SELECT public._media_cleanup_candidate(m, k, s) INTO c FROM public.media_assets m, public.upload_kinds k, public.upload_settings s WHERE m.provider = 'r2' AND k.kind = m.kind AND s.id LIMIT 1;
-    IF c IS TRUE THEN RAISE EXCEPTION 'arquivo do R2 não pode ser candidato à limpeza'; END IF;
-    RAISE NOTICE 'OK 7: conferência diária e limpeza ignoram o R2';
+    RAISE NOTICE 'OK 7: a conferência diária ignora o R2';
 END $$;
 
 -- 8) permissões: o registro é só do serviço; o app logado e o visitante não chamam

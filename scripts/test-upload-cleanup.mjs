@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { validateCleanupPatch, cleanupFormToPatch, cleanupToForm, runSummary, candidateStatus, fileLabel, CLEANUP_DB_FIELD } from '../src/modules/uploads/cleanup.ts'
-import { runUploadCleanup, isSafeToRemove } from '../src/lib/uploadCleanup.ts'
+import { runUploadCleanup, isSafeToRemove, isSafeR2Object } from '../src/lib/uploadCleanup.ts'
 
 const root = path.resolve(import.meta.dirname, '..')
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8')
@@ -52,7 +52,7 @@ test('nome seguro para apagar: bucket e caminho conferidos de novo antes de ir �
 })
 
 // cliente de mentira: registra o que a rotina pediu
-function fake({ enabled = true, max = 200, due = [], scan = { scanned: 10, marked: 1, cleared: 0 }, dueError = null, removeError = null, confirm = null, removeThrows = false } = {}) {
+function fake({ enabled = true, max = 200, due = [], scan = { scanned: 10, marked: 1, cleared: 0 }, dueError = null, removeError = null, confirm = null, removeThrows = false, known = [] } = {}) {
     const calls = [], removed = []
     const client = {
         async rpc(fn, args) {
@@ -60,6 +60,7 @@ function fake({ enabled = true, max = 200, due = [], scan = { scanned: 10, marke
             switch (fn) {
                 case 'admin_upload_cleanup_settings': return { data: { enabled, max_per_run: max, min_age_days: 3, quarantine_days: 7 }, error: null }
                 case 'media_assets_reconcile': return { data: 0, error: null }
+                case 'r2_known_keys': return { data: args.p_keys.filter((k) => known.includes(k)), error: null }
                 case 'upload_cleanup_scan': return { data: scan, error: null }
                 case 'upload_cleanup_due': return dueError ? { data: null, error: dueError } : { data: due, error: null }
                 case 'upload_cleanup_confirm': return { data: confirm ? [confirm(args)] : [{ deleted: args.p_ids.length, bytes: 100 * args.p_ids.length }], error: null }
@@ -130,7 +131,7 @@ test('disjuntor do banco: a rodada para, nada é apagado e o erro aparece em por
 test('erro do Storage: não vira "apagado"; o banco só confirma o que sumiu (e a rotina diz o que sobrou)', async () => {
     const f = fake({ enabled: true, due: files(3), removeError: { message: 'timeout' }, confirm: () => ({ deleted: 0, bytes: 0 }) })
     const r = await runUploadCleanup(f.client, { source: 'cron' })
-    assert.equal(r.deleted, 0); assert.equal(r.ok, false); assert.equal(r.errors, 1); assert.ok(r.notes.some((n) => /continuam no Storage/.test(n)))
+    assert.equal(r.deleted, 0); assert.equal(r.ok, false); assert.equal(r.errors, 1); assert.ok(r.notes.some((n) => /continuam no armazenamento/.test(n)))
     const g = fake({ enabled: true, due: files(2), removeThrows: true, confirm: () => ({ deleted: 0, bytes: 0 }) })
     const r2 = await runUploadCleanup(g.client, { source: 'cron' })
     assert.equal(r2.deleted, 0); assert.equal(r2.ok, false); assert.ok(r2.notes.some((n) => /rede caiu/.test(n)))
@@ -169,4 +170,97 @@ test('migration: só serviço, nunca DELETE direto no Storage, nasce desligada e
     const eligible = sql.match(/WHERE kind IN \(([^)]*)\)/)[1]
     for (const k of ['delivery_proof', 'digital_file', 'ride_object_photo']) assert.ok(!eligible.includes(k), `${k} nunca entra na limpeza`)
     assert.ok(fs.existsSync(path.join(root, 'supabase/rollbacks/upload_cleanup_rollback.sql')))
+})
+
+// ---------- R2: vídeos sem uso e objetos soltos ----------
+const U = (n) => `${String(n).padStart(8, '0')}-1111-4111-8111-111111111111`
+const rk = (n, ext = 'mp4') => `${U(1)}/${U(n)}.${ext}`
+const DAY = 86_400_000
+function fakeR2({ objects = [], removeFails = [], stillThere = [], listThrows = false } = {}) {
+    const removed = [], gone = new Set()
+    return {
+        removed,
+        ops: {
+            list: async () => { if (listThrows) throw new Error('R2 LIST 500'); return objects },
+            remove: async (k) => { if (removeFails.includes(k)) throw new Error('R2 DELETE 500'); removed.push(k); gone.add(k) },
+            exists: async (k) => !gone.has(k) || stillThere.includes(k),
+        },
+    }
+}
+const r2Due = (n, extra = {}) => ({ id: `r2id${n}`, bucket: 'iuser-media', key: rk(n), bytes: 5000, provider: 'r2', ...extra })
+
+test('R2: só o nome que o servidor dá pode ser tocado (nunca áudio, healthcheck ou arquivo subido à mão)', () => {
+    assert.ok(isSafeR2Object(rk(2))); assert.ok(isSafeR2Object(rk(3, 'webm'))); assert.ok(isSafeR2Object(rk(4, 'mov')))
+    for (const bad of [rk(5, 'mp3'), rk(6, 'jpg'), '_healthcheck/abc.txt', 'foto.png', `${U(1)}/${U(2)}.mp4/x`, `${U(1)}/../${U(2)}.mp4`, 'x/y.mp4', `${U(1)}/${U(2)}.MP4`, null, 5]) assert.equal(isSafeR2Object(bad), false, String(bad))
+})
+
+test('R2 (registrado): apaga pela API do R2, CONFERE que sumiu e só então confirma ao banco; o Supabase segue como antes', async () => {
+    const f = fake({ enabled: true, due: [r2Due(2), r2Due(3), ...files(1)] })
+    const r2 = fakeR2()
+    const r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.deepEqual(r2.removed, [rk(2), rk(3)]); assert.deepEqual(f.removed, [['avatars', ['f0.jpg']]])
+    assert.equal(r.deleted, 3); assert.equal(r.ok, true)
+    assert.deepEqual(f.calls.filter((c) => c[0] === 'upload_cleanup_confirm').map((c) => c[1].p_ids), [['idavatars0'], ['r2id2', 'r2id3']])
+})
+
+test('R2 (registrado): falha, objeto que continua lá ou R2 não configurado NUNCA viram "apagado"', async () => {
+    let f = fake({ enabled: true, due: [r2Due(2), r2Due(3)] }), r2 = fakeR2({ removeFails: [rk(2)] })
+    let r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.deepEqual(f.calls.filter((c) => c[0] === 'upload_cleanup_confirm').map((c) => c[1].p_ids), [['r2id3']], 'só o que realmente sumiu é confirmado'); assert.equal(r.ok, false)
+    f = fake({ enabled: true, due: [r2Due(2)] }); r2 = fakeR2({ stillThere: [rk(2)] })
+    r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.ok(!f.names().includes('upload_cleanup_confirm'), 'continua no R2 depois de apagar: não confirma'); assert.ok(r.notes.some((n) => /continua no R2/.test(n)))
+    f = fake({ enabled: true, due: [r2Due(2)] })
+    r = await runUploadCleanup(f.client, { source: 'cron', r2: null })
+    assert.ok(!f.names().includes('upload_cleanup_confirm')); assert.ok(r.notes.some((n) => /R2 não configurado/.test(n))); assert.equal(r.deleted, 0)
+    f = fake({ enabled: true, due: [r2Due(2, { key: rk(2, 'mp3') }), r2Due(3, { key: 'solto/arquivo.mp4' })] }); r2 = fakeR2()
+    r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.equal(r2.removed.length, 0, 'nome fora do padrão do servidor nunca vai à API'); assert.equal(r.ok, false)
+})
+
+test('R2 (soltos): só o nome padrão, mais velho que a idade mínima e que o banco não conhece', async () => {
+    const old = new Date(Date.now() - 10 * DAY), fresh = new Date(Date.now() - 1 * DAY)
+    const objects = [
+        { key: rk(10), size: 1000, lastModified: old },            // solto e velho: SERÁ apagado
+        { key: rk(11), size: 1000, lastModified: fresh },          // novo demais (pode estar subindo ainda)
+        { key: rk(12), size: 1000, lastModified: old },            // o banco conhece
+        { key: rk(13, 'mp3'), size: 1000, lastModified: old },     // áudio: nunca
+        { key: 'foto-subida-a-mao.png', size: 1000, lastModified: old },
+        { key: '_healthcheck/abc.txt', size: 10, lastModified: old },
+    ]
+    let f = fake({ enabled: true, known: [rk(12)] }), r2 = fakeR2({ objects })
+    let r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.deepEqual(r2.removed, [rk(10)]); assert.equal(r.r2Strays, 1); assert.equal(r.deleted, 1); assert.equal(r.bytesFreed, 1000); assert.equal(r.ok, true)
+    assert.ok(!f.names().includes('upload_cleanup_confirm'), 'solto não tem registro para confirmar')
+    f = fake({ enabled: true, known: [rk(12)] }); r2 = fakeR2({ objects })
+    r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops, dryRun: true })
+    assert.equal(r2.removed.length, 0, 'simulação não apaga'); assert.equal(r.r2Strays, 1); assert.equal(r.due, 1); assert.equal(r.wouldFreeBytes, 1000); assert.ok(r.files.some((x) => x.key === rk(10)))
+    f = fake({ enabled: false, known: [] }); r2 = fakeR2({ objects })
+    r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.equal(r2.removed.length, 0, 'limpeza desligada: só conta'); assert.equal(r.dryRun, true)
+})
+
+test('R2 (soltos): disjuntor, falha ao listar e limite por rodada', async () => {
+    const old = new Date(Date.now() - 10 * DAY)
+    const many = Array.from({ length: 30 }, (_, i) => ({ key: rk(100 + i), size: 10, lastModified: old }))
+    let f = fake({ enabled: true, known: [] }), r2 = fakeR2({ objects: many })
+    let r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.equal(r2.removed.length, 0, '30 de 30 soltos de uma vez parece defeito: nada é apagado'); assert.ok(r.notes.some((n) => /Disjuntor do R2/.test(n))); assert.equal(r.ok, false)
+    f = fake({ enabled: true, known: many.slice(0, 20).map((o) => o.key) }); r2 = fakeR2({ objects: many })
+    r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.equal(r.r2Strays, 10); assert.equal(r2.removed.length, 10, '10 de 30 soltos (33%): passa')
+    f = fake({ enabled: true, max: 3, known: [] }); r2 = fakeR2({ objects: many.slice(0, 5) })
+    r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.equal(r2.removed.length, 3, 'respeita o limite por rodada')
+    f = fake({ enabled: true, due: files(1) }); r2 = fakeR2({ listThrows: true })
+    r = await runUploadCleanup(f.client, { source: 'cron', r2: r2.ops })
+    assert.equal(r.ok, false); assert.equal(r.deleted, 1, 'a parte do Supabase continua mesmo se o R2 não listar'); assert.ok(r.notes.some((n) => /Objetos soltos do R2/.test(n)))
+})
+
+test('R2: as rotas passam o R2 para a limpeza e a migration só mexe com vídeo', () => {
+    const cron = read('src/app/api/internal/uploads-cleanup/route.ts'), adm = read('src/app/api/admin/uploads/route.ts')
+    for (const route of [cron, adm]) assert.match(route, /r2: \(\(\) => \{ const c = readR2Config\(\); return c \? r2CleanupOps\(c\) : null \}\)\(\)/)
+    const sql = read('supabase/migrations/20261130000026_r2_cleanup.sql')
+    assert.match(sql, /m\.provider = 'supabase' OR split_part\(m\.key, '\/', -1\) ~\* '\\\.\(mp4\|webm\|mov\)\$'/, 'R2 só vídeo'); assert.match(sql, /REVOKE ALL ON FUNCTION public\.r2_known_keys\(text\[\]\) FROM PUBLIC, anon, authenticated/)
+    assert.ok(fs.existsSync(path.join(root, 'supabase/rollbacks/r2_cleanup_rollback.sql')))
 })

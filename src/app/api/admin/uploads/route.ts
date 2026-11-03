@@ -12,6 +12,7 @@ import { requireSuperAdmin } from '@/lib/adminAuth'
 import { validatePatch, validateBlock, validateCleanupPatch, type KindLimits } from '@/modules/uploads'
 import { runUploadCleanup, type CleanupClient } from '@/lib/uploadCleanup'
 import { readR2Config, r2ConfigProblems, r2Head, r2Put, r2Delete, r2PresignGet } from '@/lib/r2'
+import { r2CleanupOps } from '@/lib/r2Cleanup'
 import { randomUUID } from 'node:crypto'
 
 // a limpeza e o teste do R2 fazem várias chamadas em sequência; o padrão da Vercel (10 s no Hobby) é curto demais. 60 s é o teto de qualquer plano.
@@ -166,7 +167,7 @@ export async function POST(req: Request) {
         // simulação (dry = true) só procura e marca; "de verdade" só apaga se a chave "Apagar de verdade" estiver ligada (conferida no banco, não aqui)
         if (typeof body.dry !== 'boolean') return NextResponse.json({ error: 'Informe se é simulação' }, { status: 400 })
         try {
-            const r = await runUploadCleanup(supabaseAdmin as unknown as CleanupClient, { source: 'admin', dryRun: body.dry })
+            const r = await runUploadCleanup(supabaseAdmin as unknown as CleanupClient, { source: 'admin', dryRun: body.dry, r2: (() => { const c = readR2Config(); return c ? r2CleanupOps(c) : null })() })
             return NextResponse.json({ success: true, result: r })
         } catch (e) {
             console.error('[admin/uploads] cleanup_run', e)

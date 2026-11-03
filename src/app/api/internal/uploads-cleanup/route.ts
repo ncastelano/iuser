@@ -7,6 +7,8 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { runUploadCleanup, type CleanupClient } from '@/lib/uploadCleanup'
+import { readR2Config } from '@/lib/r2'
+import { r2CleanupOps } from '@/lib/r2Cleanup'
 
 export const dynamic = 'force-dynamic'
 // 60 s é o teto de qualquer plano da Vercel (um valor acima do plano derruba o DEPLOY). A rodada é pequena (até 200 arquivos); se a busca demorar mais, o banco segue trabalhando e a próxima rodada continua.
@@ -23,7 +25,7 @@ export async function GET(req: Request) {
     if (secret.length < 16) return NextResponse.json({ error: 'Rotina não configurada' }, { status: 503 })
     if (!authorized(req, secret)) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     try {
-        const r = await runUploadCleanup(supabaseAdmin as unknown as CleanupClient, { source: 'cron' })
+        const r = await runUploadCleanup(supabaseAdmin as unknown as CleanupClient, { source: 'cron', r2: (() => { const c = readR2Config(); return c ? r2CleanupOps(c) : null })() })
         return NextResponse.json(r, { headers: { 'Cache-Control': 'no-store' } })
     } catch (e) {
         console.error('[uploads-cleanup]', e)

@@ -109,13 +109,13 @@ export function presignUrl(p: SignBase & { expires: number; headers?: Record<str
 }
 
 /** Cabeçalhos assinados (Authorization) para o SERVIDOR chamar o R2 (HEAD, DELETE...). */
-export function signHeaders(p: SignBase & { headers?: Record<string, string>; payloadHash?: string }): Record<string, string> {
+export function signHeaders(p: SignBase & { headers?: Record<string, string>; payloadHash?: string; query?: Record<string, string> }): Record<string, string> {
     const region = p.region ?? REGION, service = p.service ?? SERVICE
     const { amzDate, dateStamp } = amzDates(p.now ?? new Date())
     const payloadHash = p.payloadHash ?? EMPTY_SHA256
     const headers: Record<string, string> = { ...(p.headers || {}), host: p.host, 'x-amz-content-sha256': payloadHash, 'x-amz-date': amzDate }
     const scope = `${dateStamp}/${region}/${service}/aws4_request`
-    const c = canonical(p.method, p.path, {}, headers, payloadHash)
+    const c = canonical(p.method, p.path, p.query || {}, headers, payloadHash)
     const toSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(c.request)].join('\n')
     const signature = createHmac('sha256', signingKey(p.secretAccessKey, dateStamp, region, service)).update(toSign).digest('hex')
     const out: Record<string, string> = { ...headers, Authorization: `AWS4-HMAC-SHA256 Credential=${p.accessKeyId}/${scope},SignedHeaders=${c.signedHeaders},Signature=${signature}` }
@@ -176,4 +176,29 @@ export async function r2Delete(cfg: R2Config, key: string, f: Fetch = fetch): Pr
     const path = objectPath(cfg, key)
     const res = await f(`${cfg.origin}${encodePath(path)}`, { method: 'DELETE', headers: signHeaders({ host: cfg.host, path, method: 'DELETE', accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey }) })
     if (!res.ok && res.status !== 404) throw new Error(`R2 DELETE ${res.status}`)
+}
+
+export type R2Object = { key: string; size: number; lastModified: Date }
+
+/** Lista os objetos do bucket (ListObjectsV2), no máximo `max` (padrão 5000), em páginas de 1000. Só para a limpeza: quem usa decide o que fazer; aqui só se lê. */
+export async function r2ListAll(cfg: R2Config, max = 5000, f: Fetch = fetch): Promise<{ objects: R2Object[]; truncated: boolean }> {
+    const objects: R2Object[] = []
+    let token: string | null = null
+    for (;;) {
+        const query: Record<string, string> = { 'list-type': '2', 'max-keys': String(Math.min(1000, max - objects.length)) }
+        if (token) query['continuation-token'] = token
+        const path = `/${cfg.bucket}`
+        const qs = Object.keys(query).sort().map((k) => `${enc(k)}=${enc(query[k])}`).join('&')
+        const res = await f(`${cfg.origin}${encodePath(path)}?${qs}`, { method: 'GET', headers: signHeaders({ host: cfg.host, path, method: 'GET', accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, query }) })
+        if (!res.ok) throw new Error(`R2 LIST ${res.status}`)
+        const xml = await res.text()
+        for (const m of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+            const key = m[1].match(/<Key>([^<]*)<\/Key>/)?.[1], size = m[1].match(/<Size>(\d+)<\/Size>/)?.[1], lm = m[1].match(/<LastModified>([^<]*)<\/LastModified>/)?.[1]
+            if (key && size && lm && !Number.isNaN(Date.parse(lm))) objects.push({ key: key.replace(/&amp;/g, '&'), size: Number(size), lastModified: new Date(lm) })
+        }
+        const truncated = /<IsTruncated>true<\/IsTruncated>/.test(xml)
+        token = xml.match(/<NextContinuationToken>([^<]*)<\/NextContinuationToken>/)?.[1] ?? null
+        if (!truncated || !token) return { objects, truncated: false }
+        if (objects.length >= max) return { objects, truncated: true }
+    }
 }

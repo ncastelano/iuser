@@ -40,6 +40,7 @@ const server = http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c); const body = Buffer.concat(chunks)
     const reply = (code, headers = {}) => { res.writeHead(code, headers); res.end() }
     const objKey = decodeURIComponent(url.pathname.replace(/^\//, ''))
+    if (url.pathname === '/__plant') { store.set(`iuser-media/${url.searchParams.get('key')}`, { body: Buffer.alloc(Number(url.searchParams.get('size') || 100)), type: 'video/mp4', lm: new Date(Date.now() - Number(url.searchParams.get('days') || 0) * 86_400_000) }); return reply(204) }
     if (url.pathname === '/__deny') { deny = url.searchParams.get('on') === '1'; return reply(204) }
     if (deny && !url.pathname.startsWith('/__')) return reply(403)
     if (url.pathname === '/__lenient') { lenient = url.searchParams.get('on') === '1'; return reply(204) }
@@ -49,7 +50,16 @@ const server = http.createServer(async (req, res) => {
             const now = new Date(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}T${date.slice(9, 11)}:${date.slice(11, 13)}:${date.slice(13, 15)}Z`)
             const want = signHeaders({ host, path: '/' + objKey, method: 'PUT', accessKeyId: FAKE.ak, secretAccessKey: FAKE.sk, now, payloadHash: String(req.headers['x-amz-content-sha256']), headers: { 'content-type': String(req.headers['content-type']) } })
             if (want.Authorization !== req.headers.authorization || crypto.createHash('sha256').update(body).digest('hex') !== req.headers['x-amz-content-sha256']) { log.push('PUT (servidor) assinatura NÃO confere'); return reply(403) }
-            store.set(objKey, { body, type: String(req.headers['content-type'] || '') }); return reply(200)
+            store.set(objKey, { body, type: String(req.headers['content-type'] || ''), lm: new Date() }); return reply(200)
+        }
+        if (req.method === 'GET' && url.searchParams.get('list-type') === '2') {   // listagem do bucket (ListObjectsV2), assinada nos cabeçalhos como a do servidor
+            const date = req.headers['x-amz-date']
+            const now = new Date(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}T${date.slice(9, 11)}:${date.slice(11, 13)}:${date.slice(13, 15)}Z`)
+            const query = Object.fromEntries(url.searchParams.entries())
+            const want = signHeaders({ host, path: '/' + objKey, method: 'GET', accessKeyId: FAKE.ak, secretAccessKey: FAKE.sk, now, query })
+            if (want.Authorization !== req.headers.authorization) { log.push('LIST assinatura NÃO confere'); return reply(403) }
+            const items = [...store.entries()].filter(([k]) => k.startsWith(objKey + '/')).map(([k, o]) => `<Contents><Key>${k.slice(objKey.length + 1)}</Key><LastModified>${(o.lm || new Date()).toISOString()}</LastModified><Size>${o.body.length}</Size></Contents>`).join('')
+            res.writeHead(200, { 'content-type': 'application/xml' }); return res.end(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>${objKey}</Name><IsTruncated>false</IsTruncated>${items}</ListBucketResult>`)
         }
         if (req.method === 'GET') {   // leitura por link assinado
             const q = url.searchParams, date = q.get('X-Amz-Date')
@@ -68,7 +78,7 @@ const server = http.createServer(async (req, res) => {
             const expect = presignUrl({ host, scheme: 'http', path: '/' + objKey, method: 'PUT', accessKeyId: FAKE.ak, secretAccessKey: FAKE.sk, expires: Number(q.get('X-Amz-Expires')), now, headers: hdr })
             if (!lenient && new URL(expect).searchParams.get('X-Amz-Signature') !== q.get('X-Amz-Signature')) { log.push(`PUT assinatura NÃO confere (${objKey})`); return reply(403) }
             if (!signed.includes('content-length') || !signed.includes('content-type')) return reply(403)
-            store.set(objKey, { body, type: String(req.headers['content-type'] || '') }); log.push(`PUT ok ${objKey} ${body.length}B`); return reply(200)
+            store.set(objKey, { body, type: String(req.headers['content-type'] || ''), lm: new Date() }); log.push(`PUT ok ${objKey} ${body.length}B`); return reply(200)
         }
         if (req.method === 'HEAD' || req.method === 'DELETE') {
             const date = req.headers['x-amz-date']
@@ -105,6 +115,7 @@ const api = async (who, route, body) => {
 const put = (url, headers, body) => fetch(url, { method: 'PUT', headers, body })
 const video = (n) => Buffer.concat([Buffer.from([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]), crypto.randomBytes(n - 8)])
 
+const startedAt = new Date(Date.now() - 5000).toISOString()   // tudo que o teste cria (rodadas de limpeza) é apagado no final
 let A, B, saved
 try {
     console.log('preparo')
@@ -273,12 +284,54 @@ try {
     ok((await api(A, '/api/uploads/r2/remove', { key: key8 })).json.removed === false, 'apagar de novo não faz nada')
     ok((await fetch(`${APP}/api/media/r2?key=${encodeURIComponent(key8)}`, { redirect: 'manual' })).status === 404, 'e o vídeo já não abre')
 
+    console.log('9) Limpeza no R2: vídeo sem uso e objeto solto')
+    const cleanSaved = psql(`select row_to_json(s) from (select cleanup_enabled, cleanup_min_age_days, cleanup_quarantine_days, cleanup_max_per_run from upload_settings where id) s`)
+    const bioSaved = psql(`select coalesce(bio,'') from profiles where id='${A.id}'`)
+    psql(`update upload_settings set cleanup_enabled=true, cleanup_min_age_days=1, cleanup_quarantine_days=1, cleanup_max_per_run=1000 where id`)
+    const adminPost = (body) => fetch(APP + '/api/admin/uploads', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adm}` }, body: JSON.stringify(body) }).then(async (x) => ({ status: x.status, json: await x.json() }))
+    const mkAsset = async (n) => {   // envia pelo caminho oficial (assinar, enviar, confirmar) e envelhece o registro
+        const f = video(3000), sg = await api(A, '/api/uploads/r2/sign', { kind: 'media_r2', mime: 'video/mp4', bytes: f.length })
+        await put(sg.json.url, sg.json.headers, f); const cm = await api(A, '/api/uploads/r2/complete', { key: sg.json.key })
+        if (cm.status !== 200) throw new Error('não registrou o vídeo ' + n)
+        psql(`update media_assets set created_at = now() - interval '10 days', orphan_since = now() - interval '3 days' where key='${sg.json.key}'`)
+        return sg.json.key
+    }
+    const keyFree = await mkAsset('livre'), keyUsed = await mkAsset('em uso')
+    const fl = await flashApi(A.token, 'POST', 'flashes', { author_id: A.id, content: 'r2e2e limpeza', media_url: keyUsed, media_type: 'video' })
+    ok(fl.status === 201, 'um vídeo registrado entra num flash (esse NÃO pode ser apagado)')
+    const U2 = (n) => `${A.id}/${String(n).padStart(8, '0')}-2222-4222-8222-222222222222`
+    const plant = (key, days, size = 800) => fetch(`http://127.0.0.1:${FAKE.port}/__plant?key=${encodeURIComponent(key)}&days=${days}&size=${size}`)
+    const strayOld = `${U2(1)}.mp4`.replace(`${A.id}/`, `${A.id}/`), strayNew = `${U2(2)}.mp4`, strayAudio = `${U2(3)}.mp3`, strayCited = `${U2(4)}.mp4`
+    for (const [k, d] of [[strayOld, 10], [strayNew, 0], [strayAudio, 10], [strayCited, 10], ['foto-subida-a-mao.png', 10], ['_healthcheck/antigo.txt', 10]]) await plant(k, d)
+    psql(`update profiles set bio = 'meu vídeo ${strayCited}' where id='${A.id}'`)
+
+    let run = await adminPost({ action: 'cleanup_run', dry: true })
+    ok(run.status === 200 && run.json.result.ok === true && run.json.result.dryRun === true, 'a simulação roda sem erro e sem apagar')
+    ok(run.json.result.r2Strays === 1, `simulação: 1 objeto solto apagável (${run.json.result.r2Strays})`)
+    ok(run.json.result.due === 2 && run.json.result.deleted === 0, 'simulação: 2 prontos (o vídeo livre e o solto) e nada apagado')
+    ok(store.has(`iuser-media/${keyFree}`) && store.has(`iuser-media/${strayOld}`), 'a simulação não apagou nada do R2')
+
+    run = await adminPost({ action: 'cleanup_run', dry: false })
+    const res = run.json.result
+    ok(res.ok === true && res.dryRun === false && res.deleted === 2, `apagou 2 (o vídeo livre e o solto): ${res.deleted}`)
+    ok(!store.has(`iuser-media/${keyFree}`) && !store.has(`iuser-media/${strayOld}`), 'os dois sumiram do R2')
+    ok(psql(`select state||'/'||deleted_reason from media_assets where key='${keyFree}'`) === 'deleted/orphan', 'o registro do vídeo livre ficou deleted/orphan')
+    ok(store.has(`iuser-media/${keyUsed}`) && psql(`select state||'/'||(orphan_since is null) from media_assets where key='${keyUsed}'`) === 'ready/true', 'o vídeo de um flash ficou, e a marca de "sem uso" saiu')
+    ok([strayNew, strayAudio, strayCited, 'foto-subida-a-mao.png', '_healthcheck/antigo.txt'].every((k) => store.has(`iuser-media/${k}`)), 'ficaram: o novo, o áudio, o citado, o subido à mão e o healthcheck')
+    ok(JSON.stringify(res).includes(FAKE.sk) === false, 'o resultado não traz chave nenhuma')
+    ok(Number(psql(`select count(*) from upload_cleanup_runs where source='admin' and dry_run=false and deleted=2`)) >= 1, 'a rodada ficou registrada')
+    run = await adminPost({ action: 'cleanup_run', dry: false })
+    ok(run.json.result.deleted === 0 && run.json.result.r2Strays === 0, 'repetir não apaga mais nada')
+
+    { const cs = JSON.parse(cleanSaved); psql(`update upload_settings set cleanup_enabled=${cs.cleanup_enabled}, cleanup_min_age_days=${cs.cleanup_min_age_days}, cleanup_quarantine_days=${cs.cleanup_quarantine_days}, cleanup_max_per_run=${cs.cleanup_max_per_run} where id`) }
+    psql(`update profiles set bio = ${bioSaved === '' ? 'NULL' : `'${bioSaved.replace(/'/g, "''")}'`} where id='${A.id}'`)
+
     console.log(`\nTUDO CERTO: ${passed} verificações\n(registro do R2 de mentira: ${log.length} chamadas, ${log.filter((l) => /NÃO confere/.test(l)).length} com assinatura errada — esperado: só as de teste da seção 3)`)
 } finally {
     console.log('\nlimpando…')
     try {
         server.close()
-        psql(`delete from flashes where content like 'r2e2e%'; delete from upload_blocks where reason='teste do R2'; delete from upload_denials where kind='media_r2'; delete from upload_grants where kind='media_r2'; delete from media_assets where provider='r2'`)
+        psql(`delete from upload_cleanup_runs where started_at >= '${startedAt}'; delete from flashes where content like 'r2e2e%'; delete from upload_blocks where reason='teste do R2'; delete from upload_denials where kind='media_r2'; delete from upload_grants where kind='media_r2'; delete from media_assets where provider='r2'`)
         psql(`delete from admin_config_audit where scope='upload_blocks' and changed_at > now() - interval '30 minutes'`)
         if (saved) { const s = JSON.parse(saved); psql(`update upload_kinds set enabled=${s.enabled}, per_hour_files=${s.per_hour_files ?? 'NULL'}, per_day_bytes=${s.per_day_bytes ?? 'NULL'}, per_user_bytes=${s.per_user_bytes ?? 'NULL'}, max_bytes=${s.max_bytes} where kind='media_r2'`) }
         console.log('  banco restaurado (apague .local-supabase/dev.env e reinicie o app para desligar o R2 de mentira)')
