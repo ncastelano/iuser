@@ -70,3 +70,32 @@ export async function uploadToR2(file: Blob, kind: string, opts: R2UploadOptions
         return failure('network', 'Não foi possível confirmar o envio. Verifique a internet e tente de novo.')
     }
 }
+
+export type R2Availability = { available: false } | { available: true; maxBytes: number; mimeTypes: string[] | null }
+const availCache = new Map<string, { at: number; value: Promise<R2Availability> }>()
+
+/** O envio pelo R2 está pronto (configurado E tipo ligado)? Guarda a resposta por 30 s (e reaproveita a consulta em andamento). Qualquer falha = não disponível: o app usa o caminho do Supabase. */
+export function r2Availability(kind: string, deps: Pick<R2UploadDeps, 'fetch'> = {}, now = Date.now()): Promise<R2Availability> {
+    const hit = availCache.get(kind)
+    if (hit && now - hit.at < 30_000) return hit.value
+    const value = (async (): Promise<R2Availability> => {
+        try {
+            const res = await (deps.fetch ?? fetch)(`/api/uploads/r2/sign?kind=${encodeURIComponent(kind)}`)
+            const j = (await res.json()) as { available?: boolean; maxBytes?: number; mimeTypes?: string[] | null }
+            if (res.ok && j.available === true && typeof j.maxBytes === 'number' && j.maxBytes > 0) return { available: true, maxBytes: j.maxBytes, mimeTypes: j.mimeTypes ?? null }
+        } catch { /* sem rede ou erro: não disponível */ }
+        return { available: false }
+    })()
+    availCache.set(kind, { at: now, value })
+    return value
+}
+export const resetR2AvailabilityCache = () => availCache.clear()
+
+/** Apaga do R2 um arquivo seu que nenhum flash usa mais. Nunca lança: é limpeza, não pode atrapalhar a ação da pessoa. */
+export async function removeFromR2(key: string, deps: Pick<R2UploadDeps, 'fetch'> = {}): Promise<boolean> {
+    try {
+        const res = await (deps.fetch ?? fetch)('/api/uploads/r2/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) })
+        const j = (await res.json()) as { ok?: boolean; removed?: boolean }
+        return res.ok && j.ok === true && j.removed === true
+    } catch { return false }
+}

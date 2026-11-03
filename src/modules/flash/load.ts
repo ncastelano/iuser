@@ -1,7 +1,8 @@
 // src/modules/flash/load.ts — o Flash falando com o banco (feed, postar, curtir, comentar, seguir). As regras de quem pode o quê moram no banco (RLS).
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { FlashItem, FlashMode, mediaKindOf, mediaPath, rowToItem, validateComment, validateFlash } from './domain'
+import { FlashItem, FlashMode, FLASH_MAX_BYTES, isR2Key, mediaKindOf, mediaPath, r2FallbackAllowed, rowToItem, validateComment, validateFlash } from './domain'
+import { r2Availability, removeFromR2, uploadToR2 } from '@/lib/r2Upload'
 
 export const PAGE_SIZE = 12
 
@@ -16,30 +17,48 @@ export function mediaSrc(item: Pick<FlashItem, 'kind' | 'mediaUrl' | 'mediaType'
     const m = item.mediaUrl
     if (!m) return null
     if (/^https?:\/\//.test(m)) return m
+    if (item.kind === 'flash' && item.mediaType === 'video' && isR2Key(m)) {
+        const base = (process.env.NEXT_PUBLIC_R2_PUBLIC_BASE || '').replace(/\/+$/, '')
+        return base ? `${base}/${m}` : `/api/media/r2?key=${encodeURIComponent(m)}`   // sem o domínio de mídia, o servidor abre o vídeo por link assinado
+    }
     if (item.kind === 'flash' && item.mediaType === 'video') return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/flash-media/${m}`
     return supabase.storage.from(item.kind === 'flash' ? 'flash-media' : 'product-images').getPublicUrl(m).data.publicUrl
 }
 
 export const authorAvatarUrl = (path: string | null): string | null => getAvatarUrl(supabase, path) ?? null
 
-export async function postFlash(userId: string, content: string, file: File | null): Promise<void> {
-    const problem = validateFlash({ content, file })
+export async function postFlash(userId: string, content: string, file: File | null, opts: { onProgress?: (percent: number) => void } = {}): Promise<void> {
+    // vídeo: se o R2 está pronto, o limite é o dele; senão, os 15 MB do Supabase
+    const isVideo = !!file && mediaKindOf(file.type) === 'video'
+    const r2 = isVideo ? await r2Availability('media_r2') : ({ available: false } as const)
+    const problem = validateFlash({ content, file, videoMaxBytes: r2.available ? r2.maxBytes : undefined })
     if (problem) throw new Error(problem)
     let media_url: string | null = null
     let media_type: 'image' | 'video' | null = null
     if (file) {
         media_type = mediaKindOf(file.type)
-        media_url = mediaPath(userId, file.type)
-        const up = await supabase.storage.from('flash-media').upload(media_url, file, { contentType: file.type, cacheControl: '31536000' })
-        if (up.error) throw new Error('Não foi possível enviar o arquivo.')
+        if (isVideo && r2.available) {
+            const up = await uploadToR2(file, 'media_r2', { onProgress: opts.onProgress })
+            if (up.ok) media_url = up.key
+            else if (!r2FallbackAllowed(up.code) || file.size > FLASH_MAX_BYTES) throw new Error(up.message)   // regra recusou (ou o arquivo não cabe no Supabase): mostra o motivo
+        }
+        if (!media_url) {
+            media_url = mediaPath(userId, file.type)
+            const up = await supabase.storage.from('flash-media').upload(media_url, file, { contentType: file.type, cacheControl: '31536000' })
+            if (up.error) throw new Error('Não foi possível enviar o arquivo.')
+        }
     }
     const { error } = await supabase.from('flashes').insert({ author_id: userId, content: content.trim(), media_url, media_type })
-    if (error) throw new Error(error.message || 'Não foi possível postar.')
+    if (error) {
+        if (isR2Key(media_url)) void removeFromR2(media_url!)   // o flash não entrou: não deixa o vídeo sobrando no R2
+        throw new Error(error.message || 'Não foi possível postar.')
+    }
 }
 
-export async function deleteFlash(id: string): Promise<void> {
+export async function deleteFlash(id: string, mediaUrl?: string | null): Promise<void> {
     const { error } = await supabase.from('flashes').delete().eq('id', id)
     if (error) throw error
+    if (isR2Key(mediaUrl)) void removeFromR2(mediaUrl!)   // libera o espaço no R2 (limpeza: nunca atrapalha apagar o flash)
 }
 
 /** Curtir/descurtir (flash: flash_likes; publicação: likes). O contador sobe/desce pelo gatilho do banco. */

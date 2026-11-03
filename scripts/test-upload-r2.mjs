@@ -152,3 +152,55 @@ test('migration: o tipo nasce desligado, só o serviço registra e há rollback'
     assert.ok(!/(CREATE|DROP|ALTER) POLICY/i.test(sql), 'não mexe nas políticas do Storage')
     assert.ok(fs.existsSync(path.join(root, 'supabase/rollbacks/upload_r2_rollback.sql')))
 })
+
+// ---------- Flash com vídeo no R2 ----------
+import { isR2Key, r2FallbackAllowed, validateFlash, FLASH_MAX_BYTES, mediaPath } from '../src/modules/flash/domain.ts'
+import { r2Availability, removeFromR2, resetR2AvailabilityCache } from '../src/lib/r2Upload.ts'
+
+const UID = '11111111-2222-4333-8444-555555555555', FID = '6f1c0f2e-3b1a-4c55-9a60-0d5d1f7a2b11'
+
+test('flash: a chave do R2 é reconhecida pelo formato do nome; o caminho do Supabase nunca é', () => {
+    assert.ok(isR2Key(`${UID}/${FID}.mp4`)); assert.ok(isR2Key(`${UID}/${FID}.webm`)); assert.ok(isR2Key(`${UID}/${FID}.mov`))
+    for (const bad of [null, undefined, '', `${UID}/${FID}.jpg`, `${UID}/${FID}.mp3`, `${UID}/1730000000000-abc123.mp4`, `${UID}/x/${FID}.mp4`, `nao-uuid/${FID}.mp4`, `${FID}.mp4`]) assert.equal(isR2Key(bad), false, String(bad))
+    for (const mime of ['video/mp4', 'video/webm', 'video/quicktime', 'image/jpeg']) assert.equal(isR2Key(mediaPath(UID, mime)), false, `mediaPath(${mime}) nunca parece R2`)
+})
+
+test('flash: só cai no Supabase quando o R2 não está pronto; recusa de regra NUNCA vira envio pelo Supabase', () => {
+    for (const ok of ['r2_unconfigured', 'kind_disabled', 'authorize_unavailable', 'storage_unavailable', 'upload_failed', 'network', 'server_error']) assert.equal(r2FallbackAllowed(ok), true, ok)
+    for (const no of ['blocked', 'account_blocked', 'rate_limited', 'daily_quota', 'storage_quota', 'too_large', 'type_not_allowed', 'plan_required', 'not_authenticated', 'rejected', 'aborted', 'empty_file']) assert.equal(r2FallbackAllowed(no), false, no)
+})
+
+test('flash: o limite do vídeo sobe só com o R2 ligado; foto continua em 15 MB', () => {
+    const MB = 1024 * 1024
+    const big = { type: 'video/mp4', size: 120 * MB }
+    assert.equal(validateFlash({ content: '', file: big }), 'O arquivo passa de 15 MB.')
+    assert.equal(validateFlash({ content: '', file: big, videoMaxBytes: 200 * MB }), null)
+    assert.equal(validateFlash({ content: '', file: { type: 'video/mp4', size: 201 * MB }, videoMaxBytes: 200 * MB }), 'O arquivo passa de 200 MB.')
+    assert.equal(validateFlash({ content: '', file: { type: 'image/jpeg', size: 20 * MB }, videoMaxBytes: 200 * MB }), 'O arquivo passa de 15 MB.', 'foto não ganha o limite do vídeo')
+    assert.equal(validateFlash({ content: '', file: { type: 'video/mp4', size: FLASH_MAX_BYTES }, videoMaxBytes: 5 * MB }), null, 'o limite nunca fica abaixo dos 15 MB')
+})
+
+test('cliente: disponibilidade do R2 vale 30 s, falha = não disponível; remover nunca lança', async () => {
+    resetR2AvailabilityCache()
+    let calls = 0
+    const f = (body, status = 200) => async () => { calls++; return new Response(JSON.stringify(body), { status }) }
+    assert.deepEqual(await r2Availability('media_r2', { fetch: f({ available: true, maxBytes: 209715200, mimeTypes: ['video/mp4'] }) }, 1000), { available: true, maxBytes: 209715200, mimeTypes: ['video/mp4'] })
+    assert.equal((await r2Availability('media_r2', { fetch: f({ available: false }) }, 20_000)).available, true, 'dentro de 30 s usa o que já sabe'); assert.equal(calls, 1)
+    assert.equal((await r2Availability('media_r2', { fetch: f({ available: false }) }, 40_000)).available, false, 'depois de 30 s pergunta de novo'); assert.equal(calls, 2)
+    resetR2AvailabilityCache()
+    assert.equal((await r2Availability('media_r2', { fetch: async () => { throw new Error('offline') } })).available, false)
+    resetR2AvailabilityCache()
+    assert.equal((await r2Availability('media_r2', { fetch: f({ available: true, maxBytes: 0 }) })).available, false, 'resposta sem limite válido = não disponível')
+    assert.equal(await removeFromR2('k', { fetch: f({ ok: true, removed: true }) }), true)
+    assert.equal(await removeFromR2('k', { fetch: f({ ok: true, removed: false }) }), false)
+    assert.equal(await removeFromR2('k', { fetch: async () => { throw new Error('offline') } }), false)
+})
+
+test('flash: as rotas e a tela usam o caminho certo', () => {
+    const load = read('src/modules/flash/load.ts'), screen = read('src/versions/v3/screens/FlashScreen.tsx'), media = read('src/app/api/media/r2/route.ts'), rm = read('src/app/api/uploads/r2/remove/route.ts')
+    assert.match(load, /uploadToR2\(file, 'media_r2'/); assert.match(load, /r2FallbackAllowed\(up\.code\) \|\| file\.size > FLASH_MAX_BYTES\) throw/, 'regra recusou: mostra o motivo, não cai no Supabase')
+    assert.match(load, /isR2Key\(mediaUrl\)\) void removeFromR2/, 'apagar o flash libera o vídeo no R2'); assert.match(screen, /deleteFlash\(item\.id, item\.mediaUrl\)/); assert.match(screen, /Enviando \$\{progress\}%/)
+    assert.ok(media.indexOf("from('flashes')") < media.indexOf('r2PresignGet('), 'só abre se existe um flash visível com esta chave'); assert.match(media, /createServerSupabase/); assert.ok(!/supabaseAdmin/.test(media), 'a leitura segue a visibilidade do banco (sem serviço)')
+    assert.match(rm, /key\.split\('\/'\)\[0\] !== user\.id/); assert.ok(rm.indexOf("from('flashes')") < rm.indexOf('r2Delete('), 'confere que ninguém usa antes de apagar')
+    const sql = read('supabase/migrations/20261130000024_flash_r2.sql'); assert.match(sql, /REVOKE ALL ON FUNCTION public\.release_r2_asset\(uuid, text\) FROM PUBLIC, anon, authenticated/); assert.ok(fs.existsSync(path.join(root, 'supabase/rollbacks/flash_r2_rollback.sql')))
+})

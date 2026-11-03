@@ -52,14 +52,27 @@ export function mediaKindOf(mime: string): 'image' | 'video' | null {
     return null
 }
 
-/** null = pode postar; senão, o motivo (em português) */
-export function validateFlash(input: { content: string; file?: { type: string; size: number } | null }): string | null {
+/** Vídeo pesado no Cloudflare R2: a chave é `<id da pessoa>/<uuid>.<mp4|webm|mov>` (o servidor escolhe o nome). O caminho do Supabase é `<id>/<ms>-<código>.<ext>`: nunca tem um uuid no nome. */
+export function isR2Key(path: string | null | undefined): boolean {
+    return !!path && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm|mov)$/.test(path)
+}
+
+/** Erros do R2 em que vale tentar o Supabase (o R2 não está pronto ou caiu). Recusas de regra (bloqueio, ritmo, cota, tamanho, tipo) NUNCA caem no Supabase: seria burlar a regra. */
+export function r2FallbackAllowed(code: string): boolean {
+    return ['r2_unconfigured', 'kind_disabled', 'wrong_provider', 'authorize_unavailable', 'server_error', 'storage_unavailable', 'upload_failed', 'network', 'complete_failed'].includes(code)
+}
+
+const mbText = (bytes: number) => `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`.replace('.', ',').replace(/,0 MB$/, ' MB')
+
+/** null = pode postar; senão, o motivo (em português). `videoMaxBytes` = o limite do vídeo quando o R2 está ligado (padrão: os 15 MB do Supabase). */
+export function validateFlash(input: { content: string; file?: { type: string; size: number } | null; videoMaxBytes?: number }): string | null {
     const text = (input.content || '').trim()
     if (!text && !input.file) return 'Escreva algo ou escolha uma foto ou vídeo.'
     if (text.length > FLASH_MAX_CHARS) return `O texto passa de ${FLASH_MAX_CHARS} caracteres.`
     if (input.file) {
         if (!mediaKindOf(input.file.type)) return 'Use uma foto (JPG, PNG, WebP, GIF) ou um vídeo (MP4, WebM, MOV).'
-        if (input.file.size > FLASH_MAX_BYTES) return 'O arquivo passa de 15 MB.'
+        const max = mediaKindOf(input.file.type) === 'video' && input.videoMaxBytes ? Math.max(input.videoMaxBytes, FLASH_MAX_BYTES) : FLASH_MAX_BYTES
+        if (input.file.size > max) return `O arquivo passa de ${mbText(max)}.`
     }
     return null
 }

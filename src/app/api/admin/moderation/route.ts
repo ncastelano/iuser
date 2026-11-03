@@ -4,6 +4,7 @@
 // e quem denunciou, mais o que está OCULTO agora. O admin decide: ocultar, manter (nunca mais oculta por denúncia) ou restaurar. Só o administrador geral.
 //   action 'list'    → { pending: [...], hidden: [...] }
 //   action 'decide'  → { type, id, action: 'hide' | 'clear' | 'restore', note }  (admin_moderate, só service role)
+import { readR2Config, isSafeR2Key, r2PresignGet } from '@/lib/r2'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
@@ -18,7 +19,9 @@ interface Preview { text: string; image: string | null; authorId: string | null;
 async function previews(keys: { type: T; id: string }[]): Promise<Map<string, Preview>> {
     const out = new Map<string, Preview>()
     const ids = (t: T) => keys.filter((k) => k.type === t).map((k) => k.id)
-    const media = (path: string | null) => (path ? supabaseAdmin.storage.from('flash-media').getPublicUrl(path).data.publicUrl : null)
+    const r2 = readR2Config()
+    // vídeo do R2 (bucket privado): link assinado de 1 hora; o resto vem do Storage do Supabase
+    const media = (path: string | null) => (path ? (r2 && isSafeR2Key(path) && /\.(mp4|webm|mov)$/.test(path) && /^[0-9a-f-]{36}\/[0-9a-f-]{36}\./.test(path) ? r2PresignGet(r2, path, { expiresSec: 3600 }) : supabaseAdmin.storage.from('flash-media').getPublicUrl(path).data.publicUrl) : null)
     const jobs: Promise<void>[] = []
     if (ids('flash').length) jobs.push((async () => { const { data } = await supabaseAdmin.from('flashes').select('id, author_id, content, media_url, media_type').in('id', ids('flash')); (data || []).forEach((r: any) => out.set(`flash:${r.id}`, { text: r.content || '', image: r.media_type === 'image' ? media(r.media_url) : null, authorId: r.author_id, extra: r.media_type === 'video' ? 'vídeo' : undefined })) })())
     if (ids('flash_comment').length) jobs.push((async () => { const { data } = await supabaseAdmin.from('flash_comments').select('id, author_id, content').in('id', ids('flash_comment')); (data || []).forEach((r: any) => out.set(`flash_comment:${r.id}`, { text: r.content || '', image: null, authorId: r.author_id })) })())

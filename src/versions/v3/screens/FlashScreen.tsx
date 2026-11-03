@@ -7,6 +7,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { r2Availability } from '@/lib/r2Upload'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast'
@@ -210,7 +211,10 @@ function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => vo
     const [file, setFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
     const [busy, setBusy] = useState(false)
-    const problem = validateFlash({ content: text, file })
+    const [progress, setProgress] = useState<number | null>(null)
+    const [videoMax, setVideoMax] = useState<number | undefined>(undefined)   // limite do vídeo quando o envio pesado (R2) está ligado
+    useEffect(() => { let on = true; r2Availability('media_r2').then((a) => { if (on && a.available) setVideoMax(a.maxBytes) }); return () => { on = false } }, [])
+    const problem = validateFlash({ content: text, file, videoMaxBytes: videoMax })
     const pick = (f: File | null) => {
         if (preview) URL.revokeObjectURL(preview)
         setFile(f); setPreview(f ? URL.createObjectURL(f) : null)
@@ -219,7 +223,7 @@ function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => vo
     const post = async () => {
         if (problem || busy) { if (problem) toast.error(problem); return }
         setBusy(true)
-        try { await postFlash(me, text, file); toast.success('Flash no ar!'); onPosted(); onClose() } catch (e: any) { toast.error(e.message || 'Não foi possível postar.') } finally { setBusy(false) }
+        try { await postFlash(me, text, file, { onProgress: setProgress }); toast.success('Flash no ar!'); onPosted(); onClose() } catch (e: any) { toast.error(e.message || 'Não foi possível postar.') } finally { setBusy(false); setProgress(null) }
     }
     return createPortal(
         <div className="fixed inset-0 z-[80] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
@@ -241,7 +245,7 @@ function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => vo
                         <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => { pick(e.target.files?.[0] || null); e.target.value = '' }} />
                     </label>
                     <span className="text-[11px] ml-auto" style={{ color: colors.textSecondary }}>{text.length}/{FLASH_MAX_CHARS}</span>
-                    <button onClick={post} disabled={busy || !!problem} className="h-11 px-6 rounded-full text-[14px] font-black text-white disabled:opacity-50 transition active:scale-95" style={{ background: ORANGE }}>{busy ? 'Postando…' : 'Postar'}</button>
+                    <button onClick={post} disabled={busy || !!problem} className="h-11 px-6 rounded-full text-[14px] font-black text-white disabled:opacity-50 transition active:scale-95" style={{ background: ORANGE }}>{busy ? (progress != null && progress < 100 ? `Enviando ${progress}%` : 'Postando…') : 'Postar'}</button>
                 </div>
             </div>
         </div>,
@@ -323,7 +327,7 @@ export default function FlashScreen() {
     }
     const remove = async (item: FlashItem) => {
         if (!confirm('Apagar este flash?')) return
-        try { await deleteFlash(item.id); setItems((cur) => cur.filter((i) => !(i.id === item.id && i.kind === item.kind))); toast.success('Flash apagado') } catch { toast.error('Não foi possível apagar.') }
+        try { await deleteFlash(item.id, item.mediaUrl); setItems((cur) => cur.filter((i) => !(i.id === item.id && i.kind === item.kind))); toast.success('Flash apagado') } catch { toast.error('Não foi possível apagar.') }
     }
     const openComments = (item: FlashItem) => {
         if (item.kind === 'publication') { router.push(`/${item.authorSlug}/${item.link}`); return }

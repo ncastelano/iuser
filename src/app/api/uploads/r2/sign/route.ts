@@ -19,6 +19,16 @@ const LINK_SECONDS = 900
 const STATUS: Record<string, number> = { not_authenticated: 401, rate_limited: 429, too_large: 413, daily_quota: 413, storage_quota: 413, type_not_allowed: 415 }
 const fail = (status: number, code: string, error: string, extra: Record<string, unknown> = {}) => NextResponse.json({ ok: false, code, error, ...extra }, { status, headers: NO_STORE })
 
+/** O app pergunta antes de oferecer o envio pesado: o R2 está configurado E o tipo está ligado? (resposta pública e sem segredo; se algo falhar, "não disponível" e o app usa o Supabase) */
+export async function GET(req: Request) {
+    const kind = new URL(req.url).searchParams.get('kind') || ''
+    const off = NextResponse.json({ available: false }, { headers: { 'Cache-Control': 'private, max-age=30' } })
+    if (!KIND.test(kind) || !readR2Config()) return off
+    const { data: k } = await supabaseAdmin.from('upload_kinds').select('enabled, max_bytes, mime_types, bucket').eq('kind', kind).eq('provider', 'r2').maybeSingle()
+    if (!k || !k.enabled || k.bucket !== readR2Config()!.bucket) return off
+    return NextResponse.json({ available: true, maxBytes: Number(k.max_bytes), mimeTypes: k.mime_types ?? null }, { headers: { 'Cache-Control': 'private, max-age=30' } })
+}
+
 export async function POST(req: Request) {
     const cfg = readR2Config()
     if (!cfg) return fail(503, 'r2_unconfigured', 'O envio de arquivos pesados ainda não está disponível.')

@@ -96,7 +96,7 @@ async function login(slug) {
     const val = 'base64-' + Buffer.from(JSON.stringify(session)).toString('base64url')
     const parts = val.match(/.{1,3180}/g)
     const cookie = parts.length === 1 ? `${name}=${val}` : parts.map((c, i) => `${name}.${i}=${c}`).join('; ')
-    return { id: p.id, cookie }
+    return { id: p.id, cookie, token: session.access_token }
 }
 const api = async (who, route, body) => {
     const r = await fetch(APP + route, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(who ? { cookie: who.cookie } : {}) }, body: JSON.stringify(body) })
@@ -229,12 +229,56 @@ try {
     ok(chk.json.ok === false && chk.json.steps[0].ok === false && /403/.test(chk.json.steps[0].detail), 'chave recusada pelo R2: o teste acusa "R2 PUT 403" no primeiro passo')
     await fetch(`http://127.0.0.1:${FAKE.port}/__deny?on=0`)
 
+    console.log('8) Flash com vídeo no R2: postar, abrir, apagar')
+    psql(`update upload_kinds set per_hour_files=50 where kind='media_r2'`)
+    const getAvail = async () => (await fetch(APP + '/api/uploads/r2/sign?kind=media_r2')).json()
+    let av = await getAvail()
+    ok(av.available === true && av.maxBytes === 209715200 && av.mimeTypes.includes('video/mp4'), 'o app pergunta e o R2 está disponível (200 MB, vídeo e áudio)')
+    psql(`update upload_kinds set enabled=false where kind='media_r2'`)
+    av = await getAvail()
+    ok(av.available === false, 'com o tipo desligado o app sabe que não está disponível (e usa o Supabase)')
+    psql(`update upload_kinds set enabled=true where kind='media_r2'`)
+    ok((await (await fetch(APP + '/api/uploads/r2/sign?kind=avatar')).json()).available === false, 'tipo que não é do R2: não disponível')
+
+    const flashApi = (token, method, route, body) => fetch(`${API}/rest/v1/${route}`, { method, headers: { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: body ? JSON.stringify(body) : undefined })
+    const vid = video(40_000)
+    const s8 = await api(A, '/api/uploads/r2/sign', { kind: 'media_r2', mime: 'video/mp4', bytes: vid.length })
+    await put(s8.json.url, s8.json.headers, vid)
+    const c8 = await api(A, '/api/uploads/r2/complete', { key: s8.json.key })
+    ok(c8.status === 200, 'vídeo enviado e registrado')
+    const key8 = s8.json.key
+    let fr = await flashApi(A.token, 'POST', 'flashes', { author_id: A.id, content: 'r2e2e video', media_url: `${A.id}/6f1c0f2e-3b1a-4c55-9a60-0d5d1f7a2b11.mp4`, media_type: 'video' })
+    ok(fr.status >= 400 && /r2_asset_required|não foi enviado por você/.test(await fr.text()), 'flash apontando para um vídeo que não foi enviado: recusado pelo banco')
+    fr = await flashApi(A.token, 'POST', 'flashes', { author_id: A.id, content: 'r2e2e video', media_url: key8, media_type: 'video' })
+    const flash = (await fr.json())[0]
+    ok(fr.status === 201 && flash.media_url === key8, 'flash com o vídeo registrado entra')
+    fr = await flashApi(A.token, 'POST', 'flashes', { author_id: A.id, content: 'r2e2e repetido', media_url: key8, media_type: 'video' })
+    ok(fr.status >= 400, 'o mesmo vídeo em outro flash: recusado')
+
+    const open = await fetch(`${APP}/api/media/r2?key=${encodeURIComponent(key8)}`, { redirect: 'manual' })
+    ok(open.status === 302 && open.headers.get('location').startsWith(`http://127.0.0.1:${FAKE.port}/iuser-media/${key8}?X-Amz-`), 'abrir o vídeo: redireciona para um link assinado do R2 (visitante, sem login)')
+    const played = await fetch(open.headers.get('location'))
+    ok(played.status === 200 && (await played.arrayBuffer()).byteLength === vid.length, 'o link assinado entrega o vídeo inteiro')
+    ok((await fetch(`${APP}/api/media/r2?key=${encodeURIComponent(A.id + '/ffffffff-3b1a-4c55-9a60-0d5d1f7a2bff.mp4')}`, { redirect: 'manual' })).status === 404, 'vídeo que nenhum flash usa: 404')
+    ok((await fetch(`${APP}/api/media/r2?key=${encodeURIComponent('../x.mp4')}`, { redirect: 'manual' })).status === 404, 'chave inválida: 404')
+
+    const inUse = await api(A, '/api/uploads/r2/remove', { key: key8 })
+    ok(inUse.status === 409 && inUse.json.code === 'in_use', 'apagar o vídeo enquanto um flash o usa: 409')
+    ok((await api(B, '/api/uploads/r2/remove', { key: key8 })).status === 400, 'outra pessoa não apaga o vídeo alheio')
+    await flashApi(A.token, 'DELETE', `flashes?id=eq.${flash.id}`)
+    const gone = await api(A, '/api/uploads/r2/remove', { key: key8 })
+    ok(gone.status === 200 && gone.json.removed === true, 'apagado o flash, o vídeo é removido')
+    ok(!store.has(`iuser-media/${key8}`), 'e sumiu do R2')
+    ok(psql(`select state||'/'||deleted_reason from media_assets where key='${key8}'`) === 'deleted/owner', 'registro marcado como apagado pelo dono')
+    ok((await api(A, '/api/uploads/r2/remove', { key: key8 })).json.removed === false, 'apagar de novo não faz nada')
+    ok((await fetch(`${APP}/api/media/r2?key=${encodeURIComponent(key8)}`, { redirect: 'manual' })).status === 404, 'e o vídeo já não abre')
+
     console.log(`\nTUDO CERTO: ${passed} verificações\n(registro do R2 de mentira: ${log.length} chamadas, ${log.filter((l) => /NÃO confere/.test(l)).length} com assinatura errada — esperado: só as de teste da seção 3)`)
 } finally {
     console.log('\nlimpando…')
     try {
         server.close()
-        psql(`delete from upload_blocks where reason='teste do R2'; delete from upload_denials where kind='media_r2'; delete from upload_grants where kind='media_r2'; delete from media_assets where provider='r2'`)
+        psql(`delete from flashes where content like 'r2e2e%'; delete from upload_blocks where reason='teste do R2'; delete from upload_denials where kind='media_r2'; delete from upload_grants where kind='media_r2'; delete from media_assets where provider='r2'`)
         psql(`delete from admin_config_audit where scope='upload_blocks' and changed_at > now() - interval '30 minutes'`)
         if (saved) { const s = JSON.parse(saved); psql(`update upload_kinds set enabled=${s.enabled}, per_hour_files=${s.per_hour_files ?? 'NULL'}, per_day_bytes=${s.per_day_bytes ?? 'NULL'}, per_user_bytes=${s.per_user_bytes ?? 'NULL'}, max_bytes=${s.max_bytes} where kind='media_r2'`) }
         console.log('  banco restaurado (apague .local-supabase/dev.env e reinicie o app para desligar o R2 de mentira)')
