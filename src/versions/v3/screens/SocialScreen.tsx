@@ -128,10 +128,11 @@ function FlashSection({ colors, onOpen, onNew, onAll, following = false }: { col
 }
 
 function PublicationsSection({ colors, onOpen, following = false }: { colors: any; onOpen: (f: FlashItem) => void; following?: boolean }) {
+    const router = useRouter()
     const pubs = useSection(() => loadPublications(10, following ? 'following' : 'all'), [following])
     if (pubs && pubs.length === 0) return null
     return (
-        <Section colors={colors} icon={Sparkles} title={following ? 'Publicações de quem você segue' : 'Publicações das pessoas'} subtitle={following ? 'O que seus contatos estão compartilhando' : 'O que estão compartilhando agora'} onAll={() => onOpen(pubs![0])} allLabel="Ver">
+        <Section colors={colors} icon={Sparkles} title={following ? 'Publicações de quem você segue' : 'Publicações das pessoas'} subtitle={following ? 'O que seus contatos estão compartilhando' : 'O que estão compartilhando agora'} onAll={() => router.push('/flash?aba=publicacoes')} allLabel="Ver todas">
             {pubs === null ? <SkelRow colors={colors} w={128} h={210} n={3} /> : (
                 <Row>
                     {pubs.map((f) => {

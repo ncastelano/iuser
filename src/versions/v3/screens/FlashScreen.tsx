@@ -26,6 +26,7 @@ import {
 } from '@/modules/flash'
 
 const ORANGE = '#f97316'
+type FeedTab = 'all' | 'following' | 'publications'
 
 function Avatar({ item, size = 40 }: { item: Pick<FlashItem, 'authorAvatar' | 'authorName'>; size?: number }) {
     const url = authorAvatarUrl(item.authorAvatar)
@@ -70,7 +71,8 @@ function FlashCard({ item, me, active, onLike, onFollow, onComments, onShare, on
     const openPublication = () => item.link && router.push(`/${item.authorSlug}/${item.link}`)
 
     return (
-        <article data-flash-id={item.id} className="relative w-full h-full overflow-hidden" style={{ borderRadius: 28, background: `linear-gradient(160deg, ${c1}, ${c2})` }}>
+        <article data-flash-id={item.id} className={`relative w-full h-full overflow-hidden ${item.kind === 'publication' ? 'cursor-pointer' : ''}`} style={{ borderRadius: 28, background: `linear-gradient(160deg, ${c1}, ${c2})` }}
+            onClick={item.kind === 'publication' ? (e) => { if (active && !(e.target as HTMLElement).closest('button,a,input,video')) openPublication() } : undefined}>   {/* publicação: tocar no card abre a página dela (só o da frente; botões e vídeo seguem com a função deles) */}
             {src && item.mediaType === 'video' && <FlashVideo src={src} active={active} />}
             {src && item.mediaType !== 'video' && <img src={src} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
 
@@ -78,7 +80,7 @@ function FlashCard({ item, me, active, onLike, onFollow, onComments, onShare, on
             {textOnly && (
                 <div className="absolute inset-0 flex items-center justify-center pl-8 pr-20 pb-24 pt-16">
                     {item.kind === 'publication' && item.title && item.title !== body && <p className="absolute top-20 left-8 right-20 text-xs font-black uppercase tracking-widest text-white/80">Publicação</p>}
-                    <p className="text-white font-black leading-tight text-center break-words" style={{ fontSize: fitFontSize(item.kind === 'publication' ? (item.title || body) : body), textShadow: '0 2px 14px rgba(0,0,0,0.25)' }} onClick={item.kind === 'publication' ? openPublication : undefined}>
+                    <p className="text-white font-black leading-tight text-center break-words" style={{ fontSize: fitFontSize(item.kind === 'publication' ? (item.title || body) : body), textShadow: '0 2px 14px rgba(0,0,0,0.25)' }}>
                         {item.kind === 'publication' ? (item.title || body) : body}
                     </p>
                 </div>
@@ -365,7 +367,12 @@ export default function FlashScreen() {
     const { colors } = useTheme()
     const router = useRouter()
     const { userId } = useProfile()
-    const [mode, setMode] = useState<FlashMode>('all')
+    // Abas: Para você (tudo), Seguindo e Publicações (só as publicações das pessoas; ?aba=publicacoes abre direto nela)
+    const [tab, setTab] = useState<FeedTab>('all')
+    const [ready, setReady] = useState(false)   // lê a URL depois de montar (ler antes diverge do HTML do servidor) e só então carrega o feed
+    useEffect(() => { if (new URLSearchParams(window.location.search).get('aba') === 'publicacoes') setTab('publications'); setReady(true) }, [])
+    const mode: FlashMode = tab === 'following' ? 'following' : 'all'
+    const kind = tab === 'publications' ? 'publication' : null
     const [items, setItems] = useState<FlashItem[]>([])
     const [loading, setLoading] = useState(true)
     const [done, setDone] = useState(false)
@@ -378,10 +385,10 @@ export default function FlashScreen() {
 
     const loadFirst = useCallback(async () => {
         setLoading(true); setDone(false); setFresh(0)
-        try { const rows = await fetchFeed(mode); setItems(rows); setDone(rows.length < PAGE_SIZE) } catch { setItems([]); setDone(true) } finally { setLoading(false) }
+        try { const rows = await fetchFeed(mode, null, kind); setItems(rows); setDone(rows.length < PAGE_SIZE) } catch { setItems([]); setDone(true) } finally { setLoading(false) }
         scroller.current?.scrollTo({ top: 0 })
-    }, [mode])
-    useEffect(() => { loadFirst() }, [loadFirst, userId])
+    }, [mode, kind])
+    useEffect(() => { if (ready) loadFirst() }, [ready, loadFirst, userId])
     // Vindo da página Social: ?de=<id> abre no flash tocado; ?novo=1 já abre o postar
     const jumped = useRef(false)
     useEffect(() => {
@@ -396,8 +403,8 @@ export default function FlashScreen() {
     const loadMore = useCallback(async () => {
         if (busy.current || done || items.length === 0) return
         busy.current = true
-        try { const rows = await fetchFeed(mode, items[items.length - 1].createdAt); setItems((cur) => [...cur, ...rows.filter((r) => !cur.some((c) => c.id === r.id && c.kind === r.kind))]); if (rows.length < PAGE_SIZE) setDone(true) } catch { setDone(true) } finally { busy.current = false }
-    }, [mode, done, items])
+        try { const rows = await fetchFeed(mode, items[items.length - 1].createdAt, kind); setItems((cur) => [...cur, ...rows.filter((r) => !cur.some((c) => c.id === r.id && c.kind === r.kind))]); if (rows.length < PAGE_SIZE) setDone(true) } catch { setDone(true) } finally { busy.current = false }
+    }, [mode, kind, done, items])
 
     // Novos flashes ao vivo: um aviso para voltar ao topo e recarregar
     useEffect(() => {
@@ -442,14 +449,14 @@ export default function FlashScreen() {
                 {/* Abas e botão de postar, por cima do feed */}
                 <div className="absolute left-0 right-0 z-20 flex items-center justify-center gap-1 pointer-events-none" style={{ top: PEEK_TOP + 8 }}>
                     <div className="pointer-events-auto flex items-center gap-1 p-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}>
-                        {([['all', 'Para você'], ['following', 'Seguindo']] as const).map(([k, label]) => (
-                            <button key={k} onClick={() => { if (k === 'following' && !userId) return loginFirst(); setMode(k) }} className="h-8 px-4 rounded-full text-[12px] font-black transition active:scale-95"
-                                style={mode === k ? { background: '#fff', color: '#111827' } : { color: '#fff' }}>{label}</button>
+                        {([['all', 'Para você'], ['following', 'Seguindo'], ['publications', 'Publicações']] as const).map(([k, label]) => (
+                            <button key={k} onClick={() => { if (k === 'following' && !userId) return loginFirst(); setTab(k) }} className="h-8 px-3 rounded-full text-[12px] font-black transition active:scale-95"
+                                style={tab === k ? { background: '#fff', color: '#111827' } : { color: '#fff' }}>{label}</button>
                         ))}
                     </div>
                 </div>
                 <button onClick={() => router.push('/social')} aria-label="Voltar para o Social" className="absolute left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white transition active:scale-95" style={{ top: PEEK_TOP + 10, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}><ArrowLeft size={18} /></button>
-                <button onClick={() => (userId ? setComposing(true) : loginFirst())} aria-label="Postar um flash" className="absolute right-3 z-20 h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black text-white transition active:scale-95" style={{ top: PEEK_TOP + 10, background: ORANGE, boxShadow: '0 4px 14px rgba(249,115,22,0.5)' }}><Plus size={15} strokeWidth={3} /> Flash</button>
+                <button onClick={() => (userId ? setComposing(true) : loginFirst())} aria-label="Postar um flash" className="absolute right-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white transition active:scale-95" style={{ top: PEEK_TOP + 10, background: ORANGE, boxShadow: '0 4px 14px rgba(249,115,22,0.5)' }}><Plus size={17} strokeWidth={3} /></button>
 
                 {fresh > 0 && (
                     <button onClick={loadFirst} className="absolute left-1/2 -translate-x-1/2 z-20 h-8 px-4 rounded-full flex items-center gap-1.5 text-[12px] font-black text-white transition active:scale-95" style={{ top: PEEK_TOP + 52, background: '#111827', boxShadow: '0 4px 14px rgba(0,0,0,0.4)' }}>
@@ -463,9 +470,9 @@ export default function FlashScreen() {
                         {showEmpty && (
                             <div className="flex-shrink-0 w-full flex flex-col items-center justify-center text-center px-8 gap-3" style={{ height: '100%', borderRadius: 28, background: colors.surface, border: `1px solid ${colors.border}` }}>
                                 <Zap size={34} style={{ color: ORANGE }} />
-                                <p className="text-base font-black" style={{ color: colors.textPrimary }}>{mode === 'following' ? 'Nada de quem você segue ainda' : 'Nenhum flash por aqui'}</p>
-                                <p className="text-sm" style={{ color: colors.textSecondary }}>{mode === 'following' ? 'Siga pessoas para ver os flashes e as publicações delas aqui.' : 'Seja a primeira pessoa a postar um flash.'}</p>
-                                {mode === 'following' && <button onClick={() => setMode('all')} className="h-10 px-5 rounded-full text-[13px] font-black text-white" style={{ background: ORANGE }}>Ver Para você</button>}
+                                <p className="text-base font-black" style={{ color: colors.textPrimary }}>{tab === 'following' ? 'Nada de quem você segue ainda' : tab === 'publications' ? 'Nenhuma publicação por aqui' : 'Nenhum flash por aqui'}</p>
+                                <p className="text-sm" style={{ color: colors.textSecondary }}>{tab === 'following' ? 'Siga pessoas para ver os flashes e as publicações delas aqui.' : tab === 'publications' ? 'As publicações das pessoas aparecem aqui, uma por card.' : 'Seja a primeira pessoa a postar um flash.'}</p>
+                                {tab !== 'all' && <button onClick={() => setTab('all')} className="h-10 px-5 rounded-full text-[13px] font-black text-white" style={{ background: ORANGE }}>Ver Para você</button>}
                             </div>
                         )}
                     </div>

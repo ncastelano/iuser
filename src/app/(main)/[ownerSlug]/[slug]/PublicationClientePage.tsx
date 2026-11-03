@@ -34,6 +34,7 @@ import { getWhatsAppLink } from '@/lib/whatsapp'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { trackProductView } from '@/lib/trackProductView'
 import { trackProfileVisit } from '@/lib/trackProfileVisit'
+import { flashGradient, setLiked, shortCount } from '@/modules/flash'
 
 // ===== TIPOS =====
 interface PublicationWithOwner {
@@ -47,6 +48,8 @@ interface PublicationWithOwner {
     store_id: string
     owner_id?: string | null
     show_whatsapp: boolean
+    // publicação de PESSOA (sem loja): quem publicou
+    author?: { id: string; name: string; profileSlug: string; avatar_url: string | null } | null
     store?: {
         id: string
         name: string
@@ -182,6 +185,10 @@ export function PublicationClientPage({
         image_url: string | null
     }[]>([])
 
+    // Curtidas da publicação (tabela `likes`; o contador sobe/desce por gatilho do banco)
+    const [likeCount, setLikeCount] = useState(0)
+    const [liked, setLiked_] = useState(false)
+
     const GRADIENT = v3 ? '#f97316' : 'linear-gradient(135deg, #f97316, #dc2626)'
 
     // ========== CARREGAR PUBLICAÇÃO ==========
@@ -258,8 +265,16 @@ export function PublicationClientPage({
                         : null
                 }
 
+                // Publicação de PESSOA (sem loja): busca quem publicou (só colunas públicas)
+                let authorData: PublicationWithOwner['author'] = null
+                if (!pubData?.store_id && pubData?.owner_id) {
+                    const { data: au } = await supabase.from('profiles').select('id, name, "profileSlug", avatar_url').eq('id', pubData.owner_id).maybeSingle()
+                    authorData = au ? { id: au.id, name: au.name, profileSlug: au.profileSlug, avatar_url: au.avatar_url } : null
+                }
+
                 const publicationWithOwner = {
                     ...pubData,
+                    author: authorData,
                     store: storeData
                 }
 
@@ -280,21 +295,47 @@ export function PublicationClientPage({
         fetchPublication()
     }, [slug])
 
-    // ===== OUTRAS PUBLICAÇÕES DA MESMA LOJA =====
+    // ===== CURTIDAS (total + se EU curti) =====
+    useEffect(() => {
+        const id = publication?.id
+        if (!id) return
+        let on = true
+        ;(async () => {
+            const { count } = await supabase.from('likes').select('profile_id', { count: 'exact', head: true }).eq('publication_id', id)
+            if (on) setLikeCount(count || 0)
+            if (currentUserId) {
+                const { data } = await supabase.from('likes').select('profile_id').eq('publication_id', id).eq('profile_id', currentUserId).maybeSingle()
+                if (on) setLiked_(!!data)
+            } else if (on) setLiked_(false)
+        })()
+        return () => { on = false }
+    }, [publication?.id, currentUserId])
+
+    const toggleLike = async () => {
+        if (!publication) return
+        if (!currentUserId) { toast.info('Entre na sua conta para curtir.'); router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`); return }
+        const next = !liked
+        setLiked_(next); setLikeCount((n) => Math.max(0, n + (next ? 1 : -1)))
+        try { await setLiked({ kind: 'publication', id: publication.id }, currentUserId, next) } catch { setLiked_(!next); setLikeCount((n) => Math.max(0, n + (next ? -1 : 1))); toast.error('Não foi possível curtir.') }
+    }
+
+    // ===== OUTRAS PUBLICAÇÕES DE QUEM PUBLICOU (loja ou pessoa) =====
     useEffect(() => {
         const storeId = publication?.store_id
+        const ownerId = publication?.owner_id
         const currentId = publication?.id
-        if (!storeId || !currentId) {
+        if ((!storeId && !ownerId) || !currentId) {
             setOtherPublications([])
             return
         }
 
         let isMounted = true
 
-        supabase
+        let q = supabase
             .from('products')
             .select('id, name, slug, image_url')
-            .eq('store_id', storeId)
+        q = storeId ? q.eq('store_id', storeId) : q.eq('owner_id', ownerId!).is('store_id', null)
+        q
             .eq('listing_type', 'publication')
             .neq('id', currentId)
             .order('created_at', { ascending: false })
@@ -304,7 +345,7 @@ export function PublicationClientPage({
             })
 
         return () => { isMounted = false }
-    }, [publication?.store_id, publication?.id])
+    }, [publication?.store_id, publication?.owner_id, publication?.id])
 
     // ========== CARREGAR COMENTÁRIOS ==========
     const loadPublicationComments = async (publicationId: string) => {
@@ -728,29 +769,19 @@ export function PublicationClientPage({
         })
     }
 
-    // ===== FUNÇÃO PARA IR PARA A LOJA =====
+    // ===== FUNÇÃO PARA IR PARA QUEM PUBLICOU (loja ou pessoa) =====
     const goToStore = () => {
-        if (!publication?.store?.storeSlug) return
-        router.push(`/${publication.store.storeSlug}`)
+        if (publication?.store?.storeSlug) router.push(`/${publication.store.storeSlug}`)
+        else if (publication?.author?.profileSlug) router.push(`/${publication.author.profileSlug}`)
+        else router.push(`/${ownerSlug}`)
     }
 
-    // ===== DETERMINA O NOME E IMAGEM PARA EXIBIR =====
-    // Sempre os dados da própria loja - uma publicação é sempre de uma loja,
-    // não de um perfil pessoal.
+    // ===== NOME E IMAGEM DE QUEM PUBLICOU =====
+    // Publicação de loja = nome e logo da loja; de pessoa (sem loja) = nome e foto do perfil.
     const getOwnerDisplay = () => {
-        if (!publication?.store) {
-            return {
-                name: 'Loja',
-                imageUrl: null,
-                type: 'unknown'
-            }
-        }
-
-        return {
-            name: publication.store.name,
-            imageUrl: publication.store.logo_url,
-            type: 'store'
-        }
+        if (publication?.store) return { name: publication.store.name, imageUrl: publication.store.logo_url, type: 'store' as const }
+        if (publication?.author) return { name: publication.author.name, imageUrl: getAvatarUrl(supabase, publication.author.avatar_url) || null, type: 'person' as const }
+        return { name: 'Publicação', imageUrl: null, type: 'unknown' as const }
     }
 
     const ownerDisplay = getOwnerDisplay()
@@ -851,7 +882,7 @@ export function PublicationClientPage({
                 <div className="md:grid md:grid-cols-2 md:gap-10 md:items-start">
                     {/* Imagem em destaque, tipo capa de publicação */}
                     <div
-                        className={`relative mx-4 md:mx-0 mt-4 md:mt-0 rounded-3xl overflow-hidden md:sticky md:top-6 ${imageUrl ? 'flex flex-col' : 'h-[26vh] min-h-[200px] max-h-[320px] md:h-auto md:aspect-square'}`}
+                        className={`relative mx-4 md:mx-0 mt-4 md:mt-0 rounded-[28px] overflow-hidden md:sticky md:top-6 ${imageUrl ? 'flex flex-col' : 'h-[26vh] min-h-[200px] max-h-[320px] md:h-auto md:aspect-square'}`}
                         style={imageUrl ? { background: `${colors.accentLight}25` } : undefined}
                     >
                         {imageUrl ? (
@@ -864,8 +895,9 @@ export function PublicationClientPage({
                                 className="block w-full h-auto max-h-[80vh] object-contain"
                             />
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center" style={{ background: `${colors.accentLight}25` }}>
-                                <Store size={72} style={{ color: colors.accent, opacity: 0.5 }} />
+                            // Sem foto: o próprio texto vira a capa (cor estável pela publicação, como o flash só de texto)
+                            <div className="w-full h-full flex items-center justify-center px-7 py-8 text-center" style={{ background: `linear-gradient(160deg, ${flashGradient(publication.id)[0]}, ${flashGradient(publication.id)[1]})` }}>
+                                <p className="text-white font-black leading-tight break-words" style={{ fontSize: (publication.name || '').length > 60 ? 22 : (publication.name || '').length > 28 ? 28 : 34, textShadow: '0 2px 14px rgba(0,0,0,0.25)' }}>{publication.name || 'Publicação'}</p>
                             </div>
                         )}
 
@@ -889,6 +921,8 @@ export function PublicationClientPage({
                                     >
                                         {finalOwnerImage ? (
                                             <img src={finalOwnerImage} alt={ownerDisplay.name} className="w-full h-full object-cover" />
+                                        ) : ownerDisplay.type === 'person' ? (
+                                            <User size={16} style={{ color: colors.accent }} />
                                         ) : (
                                             <Store size={16} style={{ color: colors.accent }} />
                                         )}
@@ -903,6 +937,16 @@ export function PublicationClientPage({
                                         </p>
                                     </div>
                                 </button>
+                            </div>
+
+                            {/* Ações no desenho do Flash: curtir, comentar, compartilhar, denunciar */}
+                            <div className="flex items-center gap-2">
+                                <button onClick={toggleLike} aria-label={liked ? 'Descurtir' : 'Curtir'} className="h-10 px-4 rounded-full flex items-center gap-1.5 text-[13px] font-black transition active:scale-95" style={{ background: liked ? '#ef444418' : `${colors.border}40`, color: liked ? '#ef4444' : colors.textPrimary }}>
+                                    <Heart size={18} fill={liked ? '#ef4444' : 'none'} color={liked ? '#ef4444' : 'currentColor'} /> {shortCount(likeCount)}
+                                </button>
+                                <button onClick={() => document.getElementById('comentarios-publicacao')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} aria-label="Comentários" className="h-10 px-4 rounded-full flex items-center gap-1.5 text-[13px] font-black transition active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                    <MessageCircle size={18} /> {shortCount(countAllComments(comments))}
+                                </button>
                                 <button
                                     onClick={async () => {
                                         if (await handleShareLink({
@@ -911,12 +955,15 @@ export function PublicationClientPage({
                                         })) void supabase.rpc('increment_product_share_count', { p_product: publication.id })
                                     }}
                                     aria-label="Compartilhar"
-                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
+                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
                                     style={{ background: `${colors.border}40`, color: colors.textPrimary }}
                                 >
                                     <Share2 size={18} />
                                 </button>
                                 <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}><ReportButton type="publication" id={publication.id} authorId={publication.owner_id} size={17} /></span>
+                                {publication.view_count !== null && publication.view_count !== undefined && publication.view_count > 0 && (
+                                    <span className="ml-auto flex items-center gap-1 text-xs font-medium" style={{ color: colors.textSecondary, opacity: 0.75 }}><Eye size={13} /> {publication.view_count}</span>
+                                )}
                             </div>
 
                             {/* Título (mobile - no header web já mostra) */}
@@ -924,15 +971,8 @@ export function PublicationClientPage({
                                 {publication.name || 'Sem título'}
                             </h1>
 
-                            {publication.view_count !== null && publication.view_count !== undefined && publication.view_count > 0 && (
-                                <span className="flex items-center gap-1 text-xs font-medium" style={{ color: colors.textSecondary, opacity: 0.7 }}>
-                                    <Eye size={13} />
-                                    {publication.view_count} visualizações
-                                </span>
-                            )}
-
                             {/* Descrição */}
-                            {publication.description && (
+                            {publication.description && publication.description.trim() !== (publication.name || '').trim() && (
                                 <div>
                                     <h2 className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: colors.textSecondary, opacity: 0.6 }}>
                                         Sobre a publicação
@@ -963,7 +1003,7 @@ export function PublicationClientPage({
                 </div>
 
                 {/* ===== SEÇÃO DE COMENTÁRIOS ===== */}
-                <div className={v3 ? 'mx-5 md:mx-0 mt-6' : 'mx-5 md:mx-0 mt-6 rounded-2xl border p-6'} style={v3 ? undefined : {
+                <div id="comentarios-publicacao" className={v3 ? 'mx-5 md:mx-0 mt-6 scroll-mt-20' : 'mx-5 md:mx-0 mt-6 rounded-2xl border p-6 scroll-mt-20'} style={v3 ? undefined : {
                     background: colors.surface,
                     borderColor: colors.border,
                 }}>
@@ -1100,54 +1140,36 @@ export function PublicationClientPage({
                         )}
                     </div>
 
-                {/* Outras publicações da loja */}
+                {/* Mais publicações de quem publicou: mini-cartões 9:16, o mesmo desenho do Flash */}
                 {otherPublications.length > 0 && (
-                    <div className="px-5 md:px-0 mt-3 md:mt-6">
-                        <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary, opacity: 0.6 }}>
-                            Outras publicações desta loja
+                    <div className="px-5 md:px-0 mt-6">
+                        <h2 className="text-sm font-black mb-2.5" style={{ color: colors.textPrimary }}>
+                            Mais de {ownerDisplay.name}
                         </h2>
-                        <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide">
+                        <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide snap-x">
                             {otherPublications.map((other) => {
                                 const otherImageUrl = other.image_url
                                     ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl
-                                    : finalOwnerImage
-
+                                    : null
+                                const [c1, c2] = flashGradient(other.id)
                                 return (
                                     <button
                                         key={other.id}
                                         onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
-                                        className={v3 ? 'text-left flex-shrink-0 w-36 transition active:scale-95' : 'text-left rounded-2xl overflow-hidden flex-shrink-0 w-36 md:w-44 transition-transform hover:scale-[1.02]'}
-                                        style={v3 ? undefined : {
-                                            background: colors.surface,
-                                            border: `1px solid ${colors.border}`,
-                                            boxShadow: colors.shadow,
-                                        }}
+                                        className="snap-start text-left flex-shrink-0 w-[128px] h-[210px] rounded-3xl overflow-hidden relative transition active:scale-95"
+                                        style={{ background: `linear-gradient(160deg, ${c1}, ${c2})` }}
                                     >
-                                        <div className={`w-full aspect-square ${v3 ? 'rounded-2xl overflow-hidden' : ''}`} style={{ background: `${colors.accentLight}20` }}>
-                                            {otherImageUrl ? (
-                                                <img
-                                                    src={otherImageUrl}
-                                                    alt={other.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    <Store size={24} style={{ color: colors.textSecondary }} />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className={v3 ? 'pt-1.5 px-0.5' : 'p-2.5'}>
-                                            <p className={`${v3 ? 'text-[13px] font-black' : 'text-xs font-bold'} truncate`} style={{ color: colors.textPrimary }}>
-                                                {other.name}
-                                            </p>
-                                        </div>
+                                        {otherImageUrl
+                                            ? <img src={otherImageUrl} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+                                            : <span className="absolute inset-0 flex items-center justify-center px-3 pb-10 text-white text-[14px] font-black leading-tight text-center line-clamp-6" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.25)' }}>{other.name}</span>}
+                                        <span className="absolute inset-x-0 bottom-0 h-24" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.78), transparent)' }} />
+                                        {otherImageUrl && <span className="absolute left-2.5 right-2.5 bottom-2.5 text-white text-[12px] font-black leading-snug line-clamp-3" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>{other.name}</span>}
                                     </button>
                                 )
                             })}
                         </div>
                     </div>
                 )}
-
 
                 </div>
 
