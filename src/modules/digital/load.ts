@@ -26,6 +26,37 @@ export async function openItem(itemId: string, download = false): Promise<Opened
     return j as OpenedItem
 }
 
+/** Produto GRÁTIS (preço 0): a pessoa logada o adiciona à biblioteca sem pedido nem "a loja libera" (o banco confere que é mesmo grátis e tem conteúdo) */
+export async function claimFree(productId: string): Promise<void> {
+    const { error } = await supabase.rpc('claim_free_digital', { p_product: productId })
+    if (error) throw new Error(error.message)
+}
+
+/** Eu já tenho acesso a este produto? (comprei, peguei de graça ou sou o dono). Visitante: não. */
+export async function fetchMyAccess(productId: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('my_digital_access', { p_product: productId })
+    if (error) return false
+    return data === true
+}
+
+/** Prévia de áudio (até 30 s) de uma música, aberta ao público — null se o artista não enviou */
+export async function fetchAudioPreview(productId: string): Promise<{ itemId: string; seconds: number | null } | null> {
+    const { data, error } = await supabase.rpc('get_digital_audio_preview', { p_product: productId })
+    if (error) return null
+    const r = ((data || []) as { item_id: string; duration_seconds: number | null }[])[0]
+    return r ? { itemId: r.item_id, seconds: r.duration_seconds } : null
+}
+
+/** Autoria: o dono já declarou que a obra é dele (ou licenciada)? */
+export async function hasRights(productId: string): Promise<boolean> {
+    const { data } = await supabase.rpc('has_digital_rights', { p_product: productId })
+    return data === true
+}
+export async function declareRights(productId: string): Promise<void> {
+    const { error } = await supabase.rpc('declare_digital_rights', { p_product: productId })
+    if (error) throw new Error(error.message)
+}
+
 /** Pedido só de produtos digitais: a loja confirmou o Pix, o acesso abre. */
 export async function releaseOrder(orderId: string): Promise<void> {
     const { error } = await supabase.rpc('release_digital_order', { p_order: orderId })
@@ -64,7 +95,7 @@ export async function addFileItem(args: { uid: string; productId: string; file: 
     if (err) throw new Error(err)
     // prévia curta da vitrine: vídeo de até 30 s (não faz parte do conteúdo vendido)
     const duration = await readDuration(args.file)
-    if (args.isTeaser) { const te = validateTeaser({ isVideo: kindFromFile(args.file.type, args.file.name) === 'video', durationSeconds: duration }); if (te) throw new Error(te) }
+    if (args.isTeaser) { const k = kindFromFile(args.file.type, args.file.name); const te = validateTeaser({ isVideo: k === 'video', isAudio: k === 'audio', durationSeconds: duration }); if (te) throw new Error(te) }
     const path = storagePathFor(args.uid, args.productId, args.file.name)
     const up = await supabase.storage.from('digital-files').upload(path, args.file, { contentType: args.file.type || 'application/octet-stream', upsert: false })
     if (up.error) throw new Error(up.error.message)

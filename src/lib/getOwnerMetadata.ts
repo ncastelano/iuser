@@ -307,7 +307,8 @@ export async function generateProductOrPublicationMetadata(
             }
 
             const isSale = product.listing_type === 'sale'
-            const formattedPrice = isSale && product.price != null ? ` - R$ ${Number(product.price).toFixed(2).replace('.', ',')}` : ''
+            // produto digital de preço 0 é GRÁTIS (a pessoa pega direto, sem pedido)
+            const formattedPrice = isSale && product.price != null ? (product.type === 'digital' && Number(product.price) <= 0 ? ' - Grátis' : ` - R$ ${Number(product.price).toFixed(2).replace('.', ',')}`) : ''
             const title = `${product.name}${formattedPrice} | ${ownerName}`
             const description = product.description || `Confira ${product.name} no iUser!`
 

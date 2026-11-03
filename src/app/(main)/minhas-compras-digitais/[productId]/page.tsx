@@ -12,9 +12,11 @@ import { supabase } from '@/lib/supabase/client'
 import { fetchCurriculum, formatDuration, formatSize, groupByModule, curriculumStats, type CurriculumItem } from '@/modules/digital'
 import DigitalViewer from '@/components/digital/DigitalViewer'
 import ProPlayer from '@/components/digital/ProPlayer'
+import MusicPlayer from '@/components/digital/MusicPlayer'
 import { kindIcon } from '@/components/digital/DigitalCurriculum'
 
-const isPlayable = (i: CurriculumItem) => i.kind === 'video'
+// vídeo e áudio tocam na sala (áudio no player de música); arquivos e links abrem à parte
+const isPlayable = (i: CurriculumItem) => i.kind === 'video' || i.kind === 'audio'
 
 export default function SalaDeAulaPage() {
     const router = useRouter()
@@ -26,6 +28,7 @@ export default function SalaDeAulaPage() {
     const [items, setItems] = useState<CurriculumItem[] | null>(null)
     const [name, setName] = useState('')
     const [cover, setCover] = useState<string | null>(null)
+    const [artist, setArtist] = useState<string | null>(null)   // nome da loja de quem publicou (o artista, na música)
     const [current, setCurrent] = useState<string | null>(null)
     const [done, setDone] = useState<Record<string, true>>({})
     const [closed, setClosed] = useState<Record<string, true>>({})
@@ -35,9 +38,10 @@ export default function SalaDeAulaPage() {
     useEffect(() => { try { setDone(JSON.parse(localStorage.getItem(key) || '{}')) } catch { /* sem armazenamento */ } }, [key])
     useEffect(() => {
         if (!userId || !productId) return
-        supabase.from('products').select('name, image_url').eq('id', productId).maybeSingle().then(({ data }) => {
+        supabase.from('products').select('name, image_url, store_id').eq('id', productId).maybeSingle().then(({ data }) => {
             setName(data?.name || '')
             setCover(data?.image_url ? supabase.storage.from('product-images').getPublicUrl(data.image_url).data.publicUrl : null)
+            if (data?.store_id) supabase.from('stores').select('name').eq('id', data.store_id).maybeSingle().then(({ data: st }) => setArtist(st?.name || null))
         })
         fetchCurriculum(productId).then((d) => {
             setItems(d)
@@ -54,6 +58,9 @@ export default function SalaDeAulaPage() {
     const prev = lessonIdx > 0 ? lessons[lessonIdx - 1] : null
     const next = lessonIdx >= 0 ? lessons[lessonIdx + 1] || null : null
     const fullAccess = !!items?.length && items.every((i) => i.unlocked)
+    // só áudio = música/álbum: textos e player de música
+    const music = !!items?.length && items.filter((i) => i.kind !== 'link').every((i) => i.kind === 'audio' || i.kind === 'document') && items.some((i) => i.kind === 'audio')
+    const unit = music ? 'Faixa' : 'Aula'
 
     if (loading || !userId || !items) {
         return <div className="min-h-dvh flex items-center justify-center" style={{ background: C.bg }}><Spinner size={32} color={C.orange} /></div>
@@ -70,7 +77,7 @@ export default function SalaDeAulaPage() {
                 <div className="flex items-center gap-3">
                     <button type="button" onClick={() => router.push('/minhas-compras-digitais')} aria-label="Voltar" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-90" style={{ background: C.surface2, border: `1px solid ${C.line}` }}><ArrowLeft size={18} /></button>
                     <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: C.orange }}>Sala de aula</p>
+                        <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: C.orange }}>{music ? 'Minha música' : 'Sala de aula'}</p>
                         <h1 className="text-base sm:text-lg font-black leading-tight truncate">{name || 'Conteúdo'}</h1>
                     </div>
                     <div className="hidden sm:flex flex-col items-end gap-1 w-44">
@@ -88,7 +95,11 @@ export default function SalaDeAulaPage() {
                 <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
                     {/* player + título + navegação */}
                     <div className="flex flex-col gap-4 min-w-0">
-                        {cur && isPlayable(cur) ? (
+                        {cur && cur.kind === 'audio' ? (
+                            <MusicPlayer key={cur.id} itemId={cur.id} title={cur.title} artist={artist} cover={cover}
+                                trackLabel={lessonIdx >= 0 ? `Faixa ${lessonIdx + 1} de ${lessons.length}` : undefined}
+                                onEnded={() => { mark(cur.id); if (next) go(next.id) }} onNext={next ? () => go(next.id) : null} onPrev={prev ? () => go(prev.id) : null} />
+                        ) : cur && isPlayable(cur) ? (
                             <ProPlayer key={cur.id} itemId={cur.id} title={cur.title} nextTitle={next?.title} onEnded={() => mark(cur.id)} onNext={next ? () => go(next.id) : null} />
                         ) : cur ? (
                             <DigitalViewer itemId={cur.id} title={cur.title} />
@@ -101,7 +112,7 @@ export default function SalaDeAulaPage() {
                                 <div>
                                     {cur.module_title && <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: C.muted }}>{cur.module_title}</p>}
                                     <h2 className="text-xl font-black leading-tight">{cur.title}</h2>
-                                    {lessonIdx >= 0 && <p className="text-[12px] mt-0.5" style={{ color: C.muted }}>Aula {lessonIdx + 1} de {lessons.length}{cur.duration_seconds ? ` · ${formatDuration(cur.duration_seconds)}` : ''}</p>}
+                                    {lessonIdx >= 0 && <p className="text-[12px] mt-0.5" style={{ color: C.muted }}>{unit} {lessonIdx + 1} de {lessons.length}{cur.duration_seconds ? ` · ${formatDuration(cur.duration_seconds)}` : ''}</p>}
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     {lessons.length > 1 && <button type="button" disabled={!prev} onClick={() => prev && go(prev.id)} className="h-11 px-4 rounded-full text-sm font-black inline-flex items-center gap-1.5 disabled:opacity-30 transition active:scale-95" style={{ background: C.surface2, border: `1px solid ${C.line}` }}><ChevronLeft size={16} /> Anterior</button>}
@@ -110,9 +121,9 @@ export default function SalaDeAulaPage() {
                                     ) : (
                                         <button type="button" onClick={() => mark(cur.id)} className="h-11 px-4 rounded-full text-sm font-black inline-flex items-center gap-1.5 transition active:scale-95" style={{ background: C.surface2, border: `1px solid ${C.line}` }}><CheckCircle2 size={16} /> Marcar como concluída</button>
                                     )}
-                                    {lessons.length > 1 && <button type="button" disabled={!next} onClick={() => { if (next) { mark(cur.id); go(next.id) } }} className="h-11 px-5 rounded-full text-sm font-black inline-flex items-center gap-1.5 disabled:opacity-30 transition active:scale-95" style={{ background: C.orange, color: '#fff' }}>Próxima aula <ChevronRight size={16} /></button>}
+                                    {lessons.length > 1 && <button type="button" disabled={!next} onClick={() => { if (next) { mark(cur.id); go(next.id) } }} className="h-11 px-5 rounded-full text-sm font-black inline-flex items-center gap-1.5 disabled:opacity-30 transition active:scale-95" style={{ background: C.orange, color: '#fff' }}>Próxima {unit.toLowerCase()} <ChevronRight size={16} /></button>}
                                 </div>
-                                <p className="text-[11px]" style={{ color: C.muted }}>Atalhos: espaço pausa · ← → pulam 5 s · J L pulam 10 s · F tela cheia · M som · &lt; &gt; velocidade</p>
+                                {!music && <p className="text-[11px]" style={{ color: C.muted }}>Atalhos: espaço pausa · ← → pulam 5 s · J L pulam 10 s · F tela cheia · M som · &lt; &gt; velocidade</p>}
                             </div>
                         )}
 
@@ -121,7 +132,7 @@ export default function SalaDeAulaPage() {
                                 <img src={cover} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
                                 <div className="min-w-0">
                                     <p className="text-sm font-black truncate">{name}</p>
-                                    <p className="text-[12px]" style={{ color: C.muted }}>{stats.videos} {stats.videos === 1 ? 'aula' : 'aulas'}{stats.modules ? ` · ${stats.modules} módulos` : ''}{stats.docs ? ` · ${stats.docs} ${stats.docs === 1 ? 'material' : 'materiais'}` : ''}{stats.seconds ? ` · ${formatDuration(stats.seconds)}` : ''}</p>
+                                    <p className="text-[12px]" style={{ color: C.muted }}>{music ? `${stats.audios} ${stats.audios === 1 ? 'faixa' : 'faixas'}` : `${stats.videos} ${stats.videos === 1 ? 'aula' : 'aulas'}`}{stats.modules ? ` · ${stats.modules} módulos` : ''}{stats.docs ? ` · ${stats.docs} ${stats.docs === 1 ? 'material' : 'materiais'}` : ''}{stats.seconds ? ` · ${formatDuration(stats.seconds)}` : ''}</p>
                                 </div>
                             </div>
                         )}
@@ -130,7 +141,7 @@ export default function SalaDeAulaPage() {
                     {/* lista de aulas */}
                     <aside className="rounded-2xl overflow-hidden lg:sticky lg:top-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
                         <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${C.line}` }}>
-                            <p className="text-sm font-black">Conteúdo do curso</p>
+                            <p className="text-sm font-black">{music ? 'Faixas' : 'Conteúdo do curso'}</p>
                             <span className="text-[11px] font-bold" style={{ color: C.muted }}>{lessons.filter((i) => done[i.id]).length}/{lessons.length}</span>
                         </div>
                         <div className="max-h-[70vh] overflow-y-auto">

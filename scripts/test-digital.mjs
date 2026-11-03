@@ -1,7 +1,7 @@
 // Testes das regras puras dos produtos digitais (src/modules/digital/domain.ts). Rodar: npm run test:digital
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES, productKindOf, summaryFromCounts, SHOWCASE_FILTERS, PRODUCT_KIND_LABEL, previewPlaySeconds, nextSpotlightId, validateTeaser, autoPreviewAllowed, PREVIEW_PLAY_SECONDS, SPOTLIGHT_MS, TEASER_MAX_SECONDS } from '../src/modules/digital/domain.ts'
+import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES, productKindOf, summaryFromCounts, SHOWCASE_FILTERS, PRODUCT_KIND_LABEL, previewPlaySeconds, nextSpotlightId, validateTeaser, autoPreviewAllowed, PREVIEW_PLAY_SECONDS, SPOTLIGHT_MS, TEASER_MAX_SECONDS, isMusicKind, isFreeProduct, freeCtaLabel } from '../src/modules/digital/domain.ts'
 
 const it = (o) => ({ id: 'x', module_title: null, title: 't', kind: 'video', duration_seconds: null, size_bytes: null, position: 0, is_preview: false, unlocked: false, ...o })
 
@@ -67,12 +67,17 @@ test('tipo do produto na vitrine', () => {
     assert.equal(productKindOf(c('Planilha de custos', 0, 1)), 'ebook')
     assert.equal(productKindOf(c('Pacote de modelos', 0, 4)), 'arquivo')
     assert.equal(productKindOf(c('Podcast', 0, 0, 6)), 'curso')
+    // música: só áudio — 1 faixa é música, 2 ou mais é álbum; podcast/curso de áudio seguem como curso
+    assert.equal(productKindOf(c('Noite de Verão', 0, 0, 1)), 'musica')
+    assert.equal(productKindOf(c('Noite de Verão (EP)', 0, 0, 4)), 'album')
+    assert.equal(productKindOf(c('Aula única de violão', 0, 0, 1)), 'aula')
+    assert.equal(productKindOf(c('Álbum com cifras', 0, 3, 5)), 'album')   // áudio + material ainda é álbum (sem vídeo)
 })
 test('resumo a partir das contagens e filtros da vitrine', () => {
     assert.equal(summaryFromCounts({ videos: 0, audios: 0, docs: 0, links: 0, seconds: 0 }), 'Conteúdo em preparação')
     assert.equal(summaryFromCounts({ videos: 8, audios: 0, docs: 1, links: 0, seconds: 86 }), '8 aulas em vídeo · 1 arquivo · 1:26')
     assert.equal(summaryFromCounts({ videos: 1, audios: 0, docs: 0, links: 0, seconds: 14 }), '1 aula em vídeo · 0:14')
-    assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'arquivos'])
+    assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'musicas', 'arquivos'])
     assert.ok(SHOWCASE_FILTERS.find((f) => f.id === 'arquivos').kinds.includes('ebook'))
     assert.equal(PRODUCT_KIND_LABEL.aula, 'Aula única')
 })
@@ -94,7 +99,10 @@ test('destaque: um cartão por vez, em volta', () => {
 })
 test('prévia curta: vídeo de 1 a 30 s', () => {
     assert.equal(TEASER_MAX_SECONDS, 30)
-    assert.match(validateTeaser({ isVideo: false, durationSeconds: 10 }), /vídeo/)
+    assert.match(validateTeaser({ isVideo: false, durationSeconds: 10 }), /vídeo ou um áudio/)
+    assert.equal(validateTeaser({ isVideo: false, isAudio: true, durationSeconds: 28 }), null)
+    assert.match(validateTeaser({ isVideo: false, isAudio: true, durationSeconds: 31 }), /30 segundos/)
+    assert.match(validateTeaser({ isVideo: false, isAudio: true, durationSeconds: null }), /áudio/)
     assert.match(validateTeaser({ isVideo: true, durationSeconds: null }), /duração/)
     assert.match(validateTeaser({ isVideo: true, durationSeconds: 31 }), /30 segundos/)
     assert.equal(validateTeaser({ isVideo: true, durationSeconds: 30 }), null)
@@ -103,4 +111,17 @@ test('movimento automático respeita menos movimento e economia de dados', () =>
     assert.equal(autoPreviewAllowed({ reducedMotion: false, saveData: false }), true)
     assert.equal(autoPreviewAllowed({ reducedMotion: true, saveData: false }), false)
     assert.equal(autoPreviewAllowed({ reducedMotion: false, saveData: true }), false)
+})
+
+test('música: faixas, grátis e botões', () => {
+    assert.equal(summaryFromCounts({ videos: 0, audios: 3, docs: 0, links: 0, seconds: 600 }), '3 faixas · 10:00')
+    assert.equal(summaryFromCounts({ videos: 0, audios: 1, docs: 0, links: 0, seconds: 200 }), '1 faixa · 3:20')
+    assert.equal(summaryFromCounts({ videos: 2, audios: 1, docs: 0, links: 0, seconds: 0 }), '2 aulas em vídeo · 1 áudio')
+    assert.ok(isMusicKind('musica') && isMusicKind('album') && !isMusicKind('curso'))
+    assert.ok(isFreeProduct(0) && isFreeProduct(null) && isFreeProduct('0') && !isFreeProduct(9.9))
+    assert.equal(freeCtaLabel('album'), 'Adicionar à minha biblioteca')
+    assert.equal(freeCtaLabel('ebook'), 'Pegar grátis')
+    assert.equal(PRODUCT_KIND_LABEL.musica, 'Música')
+    assert.equal(PRODUCT_KIND_LABEL.album, 'Álbum')
+    assert.ok(SHOWCASE_FILTERS.find((f) => f.id === 'musicas').kinds.includes('album'))
 })

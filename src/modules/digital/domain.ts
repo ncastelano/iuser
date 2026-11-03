@@ -87,7 +87,8 @@ export function summaryFromCounts(c: ContentCounts): string {
     const parts: string[] = []
     const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
     if (c.videos) parts.push(plural(c.videos, 'aula em vídeo', 'aulas em vídeo'))
-    if (c.audios) parts.push(plural(c.audios, 'áudio', 'áudios'))
+    // só áudio (música): faixas
+    if (c.audios) parts.push(c.videos === 0 && c.docs === 0 ? plural(c.audios, 'faixa', 'faixas') : plural(c.audios, 'áudio', 'áudios'))
     if (c.docs) parts.push(plural(c.docs, 'arquivo', 'arquivos'))
     if (c.links) parts.push(plural(c.links, 'link', 'links'))
     const d = formatDuration(c.seconds)
@@ -100,14 +101,15 @@ export function curriculumSummary(items: CurriculumItem[]): string {
     return summaryFromCounts({ videos: s.videos, audios: s.audios, docs: s.docs, links: s.links, seconds: s.seconds })
 }
 
-export type DigitalProductKind = 'curso' | 'aula' | 'playlist' | 'ebook' | 'arquivo'
-export const PRODUCT_KIND_LABEL: Record<DigitalProductKind, string> = { curso: 'Curso', aula: 'Aula única', playlist: 'Playlist', ebook: 'E-book', arquivo: 'Arquivo' }
+export type DigitalProductKind = 'curso' | 'aula' | 'playlist' | 'ebook' | 'arquivo' | 'musica' | 'album'
+export const PRODUCT_KIND_LABEL: Record<DigitalProductKind, string> = { curso: 'Curso', aula: 'Aula única', playlist: 'Playlist', ebook: 'E-book', arquivo: 'Arquivo', musica: 'Música', album: 'Álbum' }
 /** Filtros da vitrine (/digitais): chave → rótulo e quais tipos entram */
 export const SHOWCASE_FILTERS: { id: string; label: string; kinds: DigitalProductKind[] | null }[] = [
     { id: 'todos', label: 'Todos', kinds: null },
     { id: 'cursos', label: 'Cursos', kinds: ['curso'] },
     { id: 'aulas', label: 'Aulas únicas', kinds: ['aula'] },
     { id: 'playlists', label: 'Playlists', kinds: ['playlist'] },
+    { id: 'musicas', label: 'Músicas', kinds: ['musica', 'album'] },
     { id: 'arquivos', label: 'E-books e arquivos', kinds: ['ebook', 'arquivo'] },
 ]
 
@@ -116,6 +118,8 @@ export function productKindOf(p: { name: string } & Pick<ContentCounts, 'videos'
     const media = p.videos + p.audios
     if (media === 0) return p.docs > 0 && /^e-?book/i.test(p.name.trim()) ? 'ebook' : p.docs > 0 ? (p.docs === 1 ? 'ebook' : 'arquivo') : 'arquivo'
     if (media > 1 && /^playlist/i.test(p.name.trim())) return 'playlist'
+    // só áudio, e não é podcast/aula/curso de áudio pelo nome: é música (1 faixa) ou álbum (2 ou mais)
+    if (p.videos === 0 && p.audios > 0 && !/^(podcast|curso|aula|audiobook|audio-?livro)/i.test(p.name.trim())) return p.audios === 1 ? 'musica' : 'album'
     return media === 1 ? 'aula' : 'curso'
 }
 
@@ -152,10 +156,10 @@ export function nextSpotlightId(ids: string[], current: string | null): string |
     return ids[(i + 1) % ids.length]
 }
 
-/** A prévia curta precisa ser um vídeo de 1 a 30 s (o banco confere de novo) */
-export function validateTeaser(input: { isVideo: boolean; durationSeconds: number | null }): string | null {
-    if (!input.isVideo) return 'A prévia da vitrine precisa ser um vídeo.'
-    if (!input.durationSeconds || input.durationSeconds < 1) return 'Não deu para ler a duração do vídeo. Use um MP4.'
+/** A prévia curta precisa ser um vídeo (vitrine) ou um áudio (música) de 1 a 30 s (o banco confere de novo) */
+export function validateTeaser(input: { isVideo: boolean; isAudio?: boolean; durationSeconds: number | null }): string | null {
+    if (!input.isVideo && !input.isAudio) return 'A prévia precisa ser um vídeo ou um áudio.'
+    if (!input.durationSeconds || input.durationSeconds < 1) return `Não deu para ler a duração do ${input.isAudio ? 'áudio. Use um MP3' : 'vídeo. Use um MP4'}.`
     if (input.durationSeconds > TEASER_MAX_SECONDS) return `A prévia passa de ${TEASER_MAX_SECONDS} segundos. Use um trecho curto.`
     return null
 }
@@ -163,4 +167,16 @@ export function validateTeaser(input: { isVideo: boolean; durationSeconds: numbe
 /** Movimento automático só se a pessoa não pediu menos movimento nem economia de dados */
 export function autoPreviewAllowed(env: { reducedMotion: boolean; saveData: boolean }): boolean {
     return !env.reducedMotion && !env.saveData
+}
+
+// ------------------------------------------------------------------ música
+/** Produto de música: só tem áudio (1 faixa = música, 2 ou mais = álbum) */
+export const isMusicKind = (k: DigitalProductKind) => k === 'musica' || k === 'album'
+
+/** O produto é grátis? (preço 0: a pessoa pega direto, sem pedido) */
+export const isFreeProduct = (price: number | null | undefined) => !price || Number(price) <= 0
+
+/** Texto do botão de pegar o que é grátis, conforme o tipo */
+export function freeCtaLabel(kind: DigitalProductKind): string {
+    return isMusicKind(kind) ? 'Adicionar à minha biblioteca' : 'Pegar grátis'
 }

@@ -50,6 +50,8 @@ import { trackProductView } from '@/lib/trackProductView'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import ProductReviewsV3, { type ProductReviewV3 } from '@/components/v3/ProductReviewsV3'
 import DigitalCurriculum from '@/components/digital/DigitalCurriculum'
+import DigitalGet from '@/components/digital/DigitalGet'
+import type { CurriculumItem } from '@/modules/digital'
 import Link from 'next/link'
 import { useInsideShell } from '@/components/InsideShell'
 import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
@@ -148,6 +150,7 @@ export function ProductClientPage({
     const [product, setProduct] = useState<ProductWithStore | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [quantity, setQuantity] = useState(1)
+    const [digitalItems, setDigitalItems] = useState<CurriculumItem[] | null>(null)
     const [addingToCart, setAddingToCart] = useState(false)
     const [addedToCart, setAddedToCart] = useState(false)
     const [showAddModal, setShowAddModal] = useState(false)
@@ -508,7 +511,9 @@ export function ProductClientPage({
         })
         : ''
 
-    const formattedPrice = product.price !== null && product.price !== undefined
+    // Produto digital de preço 0 é GRÁTIS: não vai ao carrinho, a pessoa pega direto (DigitalGet)
+    const freeDigital = product.type === 'digital' && (!product.price || product.price <= 0)
+    const formattedPrice = freeDigital ? 'Grátis' : product.price !== null && product.price !== undefined
         ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)
         : 'Preço sob consulta'
 
@@ -520,7 +525,7 @@ export function ProductClientPage({
         ? productReviews.reduce((sum, r) => sum + r.rating, 0) / productReviews.length
         : 0
 
-    const cartControls = (
+    const cartControls = freeDigital ? null : (
         <>
             <div
                 className="flex items-center gap-1 rounded-full p-1 flex-shrink-0"
@@ -1325,7 +1330,8 @@ export function ProductClientPage({
                             {/* Produto digital: o que a pessoa recebe (sumário, com aulas grátis) e o atalho para quem já tem acesso */}
                             {product.type === 'digital' && (
                                 <>
-                                    <DigitalCurriculum productId={product.id} />
+                                    <DigitalGet productId={product.id} productName={product.name} price={product.price} items={digitalItems} />
+                                    <DigitalCurriculum productId={product.id} onLoaded={setDigitalItems} />
                                     <Link href="/carrinho?aba=digital" className="self-start inline-flex items-center gap-2 h-11 px-4 rounded-full text-sm font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
                                         <GraduationCap size={16} /> Já comprou? Abrir minhas compras digitais
                                     </Link>

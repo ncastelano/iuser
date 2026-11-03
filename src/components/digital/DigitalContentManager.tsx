@@ -7,7 +7,7 @@ import { ArrowDown, ArrowUp, Link2, Trash2, Upload } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from '@/lib/toast'
-import { addFileItem, addLinkItem, formatDuration, formatSize, groupByModule, listOwnItems, removeItem, setItemPreview, swapItems, curriculumSummary, type OwnItem, type CurriculumItem } from '@/modules/digital'
+import { addFileItem, addLinkItem, declareRights, hasRights, kindFromFile, formatDuration, formatSize, groupByModule, listOwnItems, removeItem, setItemPreview, swapItems, curriculumSummary, type OwnItem, type CurriculumItem } from '@/modules/digital'
 import { kindIcon } from './DigitalCurriculum'
 
 export default function DigitalContentManager({ productId }: { productId: string }) {
@@ -21,6 +21,10 @@ export default function DigitalContentManager({ productId }: { productId: string
     const [preview, setPreview] = useState(false)
     const [teaser, setTeaser] = useState(false)
     const fileRef = useRef<HTMLInputElement>(null)
+    // Autoria: para enviar ÁUDIO o dono declara, uma vez por produto, que a obra é dele (ou licenciada)
+    const [declared, setDeclared] = useState<boolean | null>(null)
+    const [rightsChecked, setRightsChecked] = useState(false)
+    useEffect(() => { hasRights(productId).then(setDeclared) }, [productId])
 
     const load = useCallback(async () => { try { setItems(await listOwnItems(productId)) } catch (e: any) { toast.error(e.message) } }, [productId])
     useEffect(() => { load() }, [load])
@@ -31,7 +35,10 @@ export default function DigitalContentManager({ productId }: { productId: string
     }
     const onFile = (f: File | undefined) => {
         if (!f || !userId) return
+        const isAudio = kindFromFile(f.type, f.name) === 'audio'
+        if (isAudio && !declared && !rightsChecked) { toast.error('Marque a declaração de autoria para enviar música.'); if (fileRef.current) fileRef.current.value = ''; return }
         run(async () => {
+            if (isAudio && !declared) { await declareRights(productId); setDeclared(true) }
             await addFileItem({ uid: userId, productId, file: f, title: title.trim() || (teaser ? 'Prévia da vitrine' : f.name.replace(/\.[^.]+$/, '')), moduleTitle: teaser ? undefined : moduleTitle, isPreview: preview, isTeaser: teaser })
             setTitle(''); setPreview(false); setTeaser(false)
         }, teaser ? 'Prévia da vitrine enviada ✓' : 'Arquivo enviado ✓')
@@ -45,7 +52,7 @@ export default function DigitalContentManager({ productId }: { productId: string
         <div className="flex flex-col gap-3">
             <div>
                 <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Conteúdo digital</p>
-                <p className="text-[11px]" style={{ color: colors.textSecondary }}>{curriculumSummary(asCurriculum)}. Quem comprar abre tudo aqui depois que você confirmar o pagamento; a aula marcada como grátis qualquer pessoa assiste.</p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>{curriculumSummary(asCurriculum)}. Quem comprar abre tudo aqui depois que você confirmar o pagamento; o item marcado como grátis qualquer pessoa assiste. <b>Preço R$ 0 = produto grátis</b>: a pessoa o adiciona à biblioteca e abre na hora, sem pedido.</p>
             </div>
 
             <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: `${colors.border}1f`, border: `1px solid ${colors.border}` }}>
@@ -57,8 +64,14 @@ export default function DigitalContentManager({ productId }: { productId: string
                 </label>
                 <label className="flex items-start gap-2 text-[12px] font-bold cursor-pointer" style={{ color: colors.textPrimary }}>
                     <input type="checkbox" className="w-4 h-4 mt-0.5 accent-orange-500" checked={teaser} onChange={(e) => setTeaser(e.target.checked)} />
-                    <span>É a <b>prévia da vitrine</b> (vídeo curto de até 30 s). Passa sozinho nos cartões da home e toca 15 s quando a pessoa passa o mouse ou segura o dedo. Não faz parte do que o cliente compra.</span>
+                    <span>É a <b>prévia</b> (vídeo ou áudio de até 30 s). <b>Vídeo:</b> passa sozinho nos cartões da home e toca 15 s quando a pessoa passa o mouse ou segura o dedo. <b>Música (áudio):</b> aparece como "Ouvir prévia" na página do produto, aberta a todos. Não faz parte do que o cliente compra.</span>
                 </label>
+                {declared === false && (
+                    <label className="flex items-start gap-2 text-[12px] font-bold cursor-pointer rounded-xl p-2" style={{ color: colors.textPrimary, background: '#f9731612', border: '1px solid #f9731640' }}>
+                        <input type="checkbox" className="w-4 h-4 mt-0.5 accent-orange-500" checked={rightsChecked} onChange={(e) => setRightsChecked(e.target.checked)} />
+                        <span><b>Declaração de autoria (para músicas).</b> Declaro que as músicas deste produto são de minha autoria — ou que tenho licença para vendê-las e distribuí-las no iUser — e que respondo por elas. Fica registrado.</span>
+                    </label>
+                )}
                 <div className="flex gap-2">
                     <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} className="flex-1 h-11 rounded-full text-sm font-black inline-flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: '#f97316', color: '#fff' }}>
                         <Upload size={16} /> {busy ? 'Enviando…' : 'Enviar arquivo'}
