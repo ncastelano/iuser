@@ -132,26 +132,30 @@ function PublicationsSection({ colors, onOpen, following = false }: { colors: an
     if (pubs && pubs.length === 0) return null
     return (
         <Section colors={colors} icon={Sparkles} title={following ? 'Publicações de quem você segue' : 'Publicações das pessoas'} subtitle={following ? 'O que seus contatos estão compartilhando' : 'O que estão compartilhando agora'} onAll={() => onOpen(pubs![0])} allLabel="Ver">
-            {pubs === null ? <SkelRow colors={colors} w={236} h={210} n={2} /> : (
+            {pubs === null ? <SkelRow colors={colors} w={128} h={210} n={3} /> : (
                 <Row>
                     {pubs.map((f) => {
                         const src = mediaSrc(f)
                         const [c1, c2] = flashGradient(f.id)
+                        const text = f.title || f.content
                         return (
-                            <button key={f.id} onClick={() => onOpen(f)} className="snap-start flex-shrink-0 w-[236px] rounded-3xl overflow-hidden text-left flex flex-col transition active:scale-[0.98]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                                <span className="relative block h-[104px] w-full" style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}>
-                                    {src ? <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" /> : <span className="absolute inset-0 flex items-center px-4 text-white text-[15px] font-black leading-tight line-clamp-3">{f.title || f.content}</span>}
-                                </span>
-                                <span className="p-3 flex flex-col gap-1.5">
-                                    <span className="text-[13px] font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{f.title || f.content}</span>
-                                    <span className="flex items-center gap-2">
-                                        <span className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-black flex-shrink-0" style={{ background: `${colors.border}70`, color: colors.textPrimary }}>
+                            <button key={f.id} onClick={() => onOpen(f)} className="snap-start flex-shrink-0 w-[128px] h-[210px] rounded-3xl overflow-hidden relative text-left transition active:scale-95" style={{ background: `linear-gradient(160deg, ${c1}, ${c2})` }}>
+                                {src && <img src={src} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
+                                {!src && <span className="absolute inset-0 flex items-center justify-center px-3 pb-12 text-white text-[14px] font-black leading-tight text-center line-clamp-6" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.25)' }}>{text}</span>}
+                                <span className="absolute inset-x-0 bottom-0 h-28" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }} />
+                                <span className="absolute left-2 right-2 bottom-2 flex flex-col gap-1.5 text-white">
+                                    {src && <span className="text-[11px] font-black leading-snug line-clamp-2" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>{text}</span>}
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-black flex-shrink-0" style={{ background: 'rgba(255,255,255,0.3)', boxShadow: '0 0 0 1.5px #fff' }}>
                                             {authorAvatarUrl(f.authorAvatar) ? <img src={authorAvatarUrl(f.authorAvatar)!} alt="" className="w-full h-full object-cover" /> : f.authorName.charAt(0).toUpperCase()}
                                         </span>
-                                        <span className="text-[11px] font-bold truncate min-w-0 flex-1" style={{ color: colors.textSecondary }}>{f.authorName}</span>
-                                        <span className="flex items-center gap-2 text-[10px] font-bold flex-shrink-0" style={{ color: colors.textSecondary }}>
-                                            <span className="flex items-center gap-0.5"><Heart size={10} /> {shortCount(f.likeCount)}</span>
-                                            <span className="flex items-center gap-0.5"><MessageCircle size={10} /> {shortCount(f.commentCount)}</span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-[11px] font-black truncate">{f.authorName}</span>
+                                            <span className="flex items-center gap-1.5 text-[9px] opacity-90">
+                                                <span className="flex items-center gap-0.5"><Heart size={9} fill="#fff" /> {shortCount(f.likeCount)}</span>
+                                                <span className="flex items-center gap-0.5"><MessageCircle size={9} /> {shortCount(f.commentCount)}</span>
+                                                <span>· {timeAgo(f.createdAt)}</span>
+                                            </span>
                                         </span>
                                     </span>
                                 </span>
