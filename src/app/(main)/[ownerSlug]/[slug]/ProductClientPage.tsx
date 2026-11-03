@@ -51,6 +51,7 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 import ProductReviewsV3, { type ProductReviewV3 } from '@/components/v3/ProductReviewsV3'
 import DigitalCurriculum from '@/components/digital/DigitalCurriculum'
 import DigitalGet from '@/components/digital/DigitalGet'
+import ReportButton from '@/components/moderation/ReportButton'
 import type { CurriculumItem } from '@/modules/digital'
 import Link from 'next/link'
 import { useInsideShell } from '@/components/InsideShell'
@@ -1330,11 +1331,13 @@ export function ProductClientPage({
                             {/* Produto digital: o que a pessoa recebe (sumário, com aulas grátis) e o atalho para quem já tem acesso */}
                             {product.type === 'digital' && (
                                 <>
-                                    <DigitalGet productId={product.id} productName={product.name} price={product.price} items={digitalItems} />
+                                    <DigitalGet productId={product.id} productName={product.name} price={product.price} items={digitalItems} storeId={product.store_id} storeName={product.store?.name} />
                                     <DigitalCurriculum productId={product.id} onLoaded={setDigitalItems} />
                                     <Link href="/carrinho?aba=digital" className="self-start inline-flex items-center gap-2 h-11 px-4 rounded-full text-sm font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
                                         <GraduationCap size={16} /> Já comprou? Abrir minhas compras digitais
                                     </Link>
+                                    {/* Denunciar: direito autoral, golpe, conteúdo impróprio... (3 pessoas diferentes tiram do ar até o iUser analisar) */}
+                                    <ReportButton type="digital_product" id={product.id} authorId={product.store?.owner_id} label="Denunciar este produto" size={15} />
                                 </>
                             )}
 

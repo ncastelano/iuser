@@ -13,8 +13,9 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from '@/lib/toast'
 import { claimFree, fetchAudioPreview, fetchMyAccess, freeCtaLabel, isFreeProduct, openItem, productKindOf, summaryFromCounts, type CurriculumItem } from '@/modules/digital'
 import { useRef } from 'react'
+import TipButton from '@/components/tips/TipButton'
 
-export default function DigitalGet({ productId, productName, price, items }: { productId: string; productName: string; price: number | null; items: CurriculumItem[] | null }) {
+export default function DigitalGet({ productId, productName, price, items, storeId, storeName }: { productId: string; productName: string; price: number | null; items: CurriculumItem[] | null; storeId?: string | null; storeName?: string | null }) {
     const { colors } = useTheme()
     const router = useRouter()
     const { userId } = useProfile()
@@ -46,10 +47,13 @@ export default function DigitalGet({ productId, productName, price, items }: { p
         if (a.paused) a.play().catch(() => {}); else a.pause()
     }
 
-    if (!free && !preview) return null
-    if (items && items.length === 0 && !preview) return null
+    const tip = storeId ? <TipButton storeId={storeId} storeName={storeName || 'o artista'} productId={productId} className="w-full" /> : null
+    if (!free && !preview && !tip) return null
+    if (items && items.length === 0 && !preview && !tip) return null
     const showPreview = !!preview && !has
     return (
+        <>
+        {(free || showPreview) && (
         <section className="rounded-3xl p-4 flex flex-col gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
             {free && (
                 <div className="flex flex-col gap-3">
@@ -78,5 +82,8 @@ export default function DigitalGet({ productId, productName, price, items }: { p
                 </div>
             )}
         </section>
+        )}
+        {tip}
+        </>
     )
 }

@@ -53,6 +53,7 @@
     "test:dues": "node --test scripts/test-dues.mjs",
     "test:moderation": "node --test scripts/test-moderation.mjs",
     "test:digital": "node --test scripts/test-digital.mjs",
+    "test:tips": "node --test scripts/test-tips.mjs",
     "test:promotions": "node --test scripts/test-promotions.mjs",
     "test:toast": "node --test scripts/test-toast.mjs",
     "test:handoff": "python3 scripts/local/test-handoff.py",

@@ -13,6 +13,8 @@ import { fetchCurriculum, formatDuration, formatSize, groupByModule, curriculumS
 import DigitalViewer from '@/components/digital/DigitalViewer'
 import ProPlayer from '@/components/digital/ProPlayer'
 import MusicPlayer from '@/components/digital/MusicPlayer'
+import ReportButton from '@/components/moderation/ReportButton'
+import TipButton from '@/components/tips/TipButton'
 import { kindIcon } from '@/components/digital/DigitalCurriculum'
 
 // vídeo e áudio tocam na sala (áudio no player de música); arquivos e links abrem à parte
@@ -28,6 +30,8 @@ export default function SalaDeAulaPage() {
     const [items, setItems] = useState<CurriculumItem[] | null>(null)
     const [name, setName] = useState('')
     const [cover, setCover] = useState<string | null>(null)
+    const [ownerId, setOwnerId] = useState<string | null>(null)
+    const [storeId, setStoreId] = useState<string | null>(null)
     const [artist, setArtist] = useState<string | null>(null)   // nome da loja de quem publicou (o artista, na música)
     const [current, setCurrent] = useState<string | null>(null)
     const [done, setDone] = useState<Record<string, true>>({})
@@ -38,8 +42,10 @@ export default function SalaDeAulaPage() {
     useEffect(() => { try { setDone(JSON.parse(localStorage.getItem(key) || '{}')) } catch { /* sem armazenamento */ } }, [key])
     useEffect(() => {
         if (!userId || !productId) return
-        supabase.from('products').select('name, image_url, store_id').eq('id', productId).maybeSingle().then(({ data }) => {
+        supabase.from('products').select('name, image_url, store_id, owner_id').eq('id', productId).maybeSingle().then(({ data }) => {
             setName(data?.name || '')
+            setOwnerId((data as any)?.owner_id || null)
+            setStoreId(data?.store_id || null)
             setCover(data?.image_url ? supabase.storage.from('product-images').getPublicUrl(data.image_url).data.publicUrl : null)
             if (data?.store_id) supabase.from('stores').select('name').eq('id', data.store_id).maybeSingle().then(({ data: st }) => setArtist(st?.name || null))
         })
@@ -126,6 +132,9 @@ export default function SalaDeAulaPage() {
                                 {!music && <p className="text-[11px]" style={{ color: C.muted }}>Atalhos: espaço pausa · ← → pulam 5 s · J L pulam 10 s · F tela cheia · M som · &lt; &gt; velocidade</p>}
                             </div>
                         )}
+
+                        {storeId && <TipButton storeId={storeId} storeName={artist || 'o artista'} productId={productId} className="w-full" />}
+                        <ReportButton type="digital_product" id={productId} authorId={ownerId} label="Denunciar este conteúdo" size={14} className="self-start" />
 
                         {cover && (
                             <div className="flex items-center gap-3 rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>

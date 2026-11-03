@@ -15,7 +15,8 @@ export async function GET(req: Request) {
     await supabase.auth.getSession()
     const { data, error } = await supabase.rpc('get_digital_item_access', { p_item: item })
     if (error) return NextResponse.json({ error: 'Não foi possível conferir o acesso' }, { status: 400 })
-    const a = data as { allowed: boolean; kind: string; title: string; storage_path: string | null; external_url: string | null; mime_type: string | null } | null
+    const a = data as { allowed: boolean; reason?: string; kind: string; title: string; storage_path: string | null; external_url: string | null; mime_type: string | null } | null
+    if (a?.reason === 'hidden') return NextResponse.json({ error: 'Este conteúdo foi retirado do ar pelo iUser.' }, { status: 403 })
     if (!a?.allowed) return NextResponse.json({ error: 'Você ainda não tem acesso a este conteúdo. Ele abre quando a loja confirma o seu pagamento.' }, { status: 403 })
     const headers = { 'Cache-Control': 'no-store' }
     if (a.external_url) return NextResponse.json({ url: a.external_url, kind: a.kind, title: a.title, mime_type: null, external: true }, { headers })

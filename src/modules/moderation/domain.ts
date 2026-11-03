@@ -1,8 +1,8 @@
 // src/modules/moderation/domain.ts — regras puras da MODERAÇÃO (denunciar e ocultar): tipos, motivos e textos. Sem React nem rede; testado em scripts/test-moderation.mjs (npm run test:moderation).
 // O que de fato oculta (3 denúncias de pessoas diferentes, conta com mais de 1 dia, limite de 20 por dia) e o que o admin decide moram no banco.
 
-export type ReportTarget = 'flash' | 'flash_comment' | 'publication' | 'comment' | 'product_review' | 'community_message'
-export type ReportReason = 'spam' | 'offensive' | 'sexual' | 'violence' | 'scam' | 'illegal' | 'other'
+export type ReportTarget = 'flash' | 'flash_comment' | 'publication' | 'comment' | 'product_review' | 'community_message' | 'digital_product'
+export type ReportReason = 'spam' | 'offensive' | 'sexual' | 'violence' | 'scam' | 'illegal' | 'copyright' | 'other'
 export type ReportResult = 'reported' | 'hidden' | 'already'
 export type ModerationAction = 'hide' | 'clear' | 'restore'
 
@@ -13,6 +13,7 @@ export const TARGETS: { code: ReportTarget; label: string }[] = [
     { code: 'comment', label: 'Comentário' },
     { code: 'product_review', label: 'Avaliação' },
     { code: 'community_message', label: 'Mensagem de comunidade' },
+    { code: 'digital_product', label: 'Produto digital' },
 ]
 export const TARGET_LABEL: Record<ReportTarget, string> = Object.fromEntries(TARGETS.map((t) => [t.code, t.label])) as Record<ReportTarget, string>
 
@@ -23,6 +24,7 @@ export const REASONS: { code: ReportReason; label: string; hint: string }[] = [
     { code: 'violence', label: 'Violência', hint: 'Ameaça ou violência' },
     { code: 'scam', label: 'Golpe ou fraude', hint: 'Tenta enganar ou tirar dinheiro' },
     { code: 'illegal', label: 'Ilegal', hint: 'Venda ou ação proibida' },
+    { code: 'copyright', label: 'Direito autoral', hint: 'Usa música, texto, programa ou obra de outra pessoa sem licença' },
     { code: 'other', label: 'Outro', hint: 'Outro motivo' },
 ]
 export const REASON_LABEL: Record<ReportReason, string> = Object.fromEntries(REASONS.map((r) => [r.code, r.label])) as Record<ReportReason, string>

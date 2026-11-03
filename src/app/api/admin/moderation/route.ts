@@ -1,6 +1,6 @@
 // app/api/admin/moderation/route.ts
 //
-// Admin → Denúncias: o conteúdo denunciado pelas pessoas (flash, comentário de flash, publicação, comentário, avaliação, mensagem de comunidade), agrupado por conteúdo, com o que foi dito
+// Admin → Denúncias: o conteúdo denunciado pelas pessoas (flash, comentário de flash, publicação, comentário, avaliação, mensagem de comunidade, produto digital), agrupado por conteúdo, com o que foi dito
 // e quem denunciou, mais o que está OCULTO agora. O admin decide: ocultar, manter (nunca mais oculta por denúncia) ou restaurar. Só o administrador geral.
 //   action 'list'    → { pending: [...], hidden: [...] }
 //   action 'decide'  → { type, id, action: 'hide' | 'clear' | 'restore', note }  (admin_moderate, só service role)
@@ -10,7 +10,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
 
 const UUID = /^[0-9a-f-]{36}$/i
-const TYPES = ['flash', 'flash_comment', 'publication', 'comment', 'product_review', 'community_message'] as const
+const TYPES = ['flash', 'flash_comment', 'publication', 'comment', 'product_review', 'community_message', 'digital_product'] as const
 type T = (typeof TYPES)[number]
 
 interface Preview { text: string; image: string | null; authorId: string | null; extra?: string }
@@ -29,6 +29,16 @@ async function previews(keys: { type: T; id: string }[]): Promise<Map<string, Pr
     if (ids('comment').length) jobs.push((async () => { const { data } = await supabaseAdmin.from('comments').select('id, profile_id, content').in('id', ids('comment')); (data || []).forEach((r: any) => out.set(`comment:${r.id}`, { text: r.content || '', image: null, authorId: r.profile_id })) })())
     if (ids('product_review').length) jobs.push((async () => { const { data } = await supabaseAdmin.from('product_reviews').select('id, profile_id, rating, comment').in('id', ids('product_review')); (data || []).forEach((r: any) => out.set(`product_review:${r.id}`, { text: r.comment || '(sem texto)', image: null, authorId: r.profile_id, extra: `${r.rating} estrela(s)` })) })())
     if (ids('community_message').length) jobs.push((async () => { const { data } = await supabaseAdmin.from('community_messages').select('id, profile_id, content').in('id', ids('community_message')); (data || []).forEach((r: any) => out.set(`community_message:${r.id}`, { text: r.content || '', image: null, authorId: r.profile_id })) })())
+    if (ids('digital_product').length) jobs.push((async () => {
+        const { data } = await supabaseAdmin.from('products').select('id, owner_id, name, description, image_url, price, is_active').in('id', ids('digital_product'))
+        const { data: cnt } = await supabaseAdmin.from('digital_contents').select('product_id, kind').in('product_id', ids('digital_product')).eq('is_teaser', false)
+        const kinds = new Map<string, Map<string, number>>()
+        for (const c of cnt || []) { const m = kinds.get(c.product_id as string) || new Map<string, number>(); m.set(c.kind as string, (m.get(c.kind as string) || 0) + 1); kinds.set(c.product_id as string, m) }
+        ;(data || []).forEach((r: any) => {
+            const k = kinds.get(r.id); const items = k ? [...k.entries()].map(([kind, n]) => `${n} ${kind === 'audio' ? 'áudio' : kind === 'video' ? 'vídeo' : kind === 'link' ? 'link' : 'arquivo'}${n > 1 ? 's' : ''}`).join(' · ') : 'sem conteúdo'
+            out.set(`digital_product:${r.id}`, { text: [r.name, r.description].filter(Boolean).join(' — '), image: r.image_url ? supabaseAdmin.storage.from('product-images').getPublicUrl(r.image_url).data.publicUrl : null, authorId: r.owner_id, extra: `${Number(r.price) > 0 ? `R$ ${Number(r.price).toFixed(2).replace('.', ',')}` : 'grátis'} · ${items}` })
+        })
+    })())
     await Promise.all(jobs)
     return out
 }
