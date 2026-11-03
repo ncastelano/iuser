@@ -9,7 +9,7 @@
 import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
-    Store as StoreIcon, Car, MessageCircle, User, LogIn, ChevronRight, ChevronDown, X, Search, RotateCcw, ShoppingBag,
+    Store as StoreIcon, Car, MessageCircle, User, LogIn, ChevronRight, ChevronDown, X, Search, RotateCcw, ShoppingBag, LayoutDashboard,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -83,7 +83,7 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
     const selected = active === mode
     return (
         <div
-            className={card ? 'rounded-3xl mt-4' : 'rounded-2xl'}
+            className={card ? 'rounded-3xl mt-2' : 'rounded-2xl'}
             style={card
                 ? { background: 'var(--hub-panel)', border: `1px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, boxShadow: selected ? 'inset 0 0 0 1px #f97316' : undefined }
                 : selected ? { background: 'var(--hub-soft)', boxShadow: 'inset 0 0 0 1.5px #f97316' } : undefined}
@@ -92,7 +92,7 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
                 <button
                     onClick={() => onSelect(mode)}
                     aria-pressed={selected}
-                    className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-2.5 rounded-2xl text-left transition hover:bg-[var(--hub-soft)] active:bg-[var(--hub-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                    className="flex-1 min-w-0 flex items-center gap-3 pl-2.5 pr-2 py-2 rounded-2xl text-left transition hover:bg-[var(--hub-soft)] active:bg-[var(--hub-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                 >
                     <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'var(--hub-soft)' }}>
                         {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : icon}
@@ -118,8 +118,8 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, acti
                     </button>
                 )}
             </div>
-            {actions && <div className="flex gap-2 px-3 pb-2.5 pt-0.5">{actions}</div>}
-            {extra && <div className="px-3 pb-2.5">{extra}</div>}
+            {actions && <div className="flex gap-2 px-2.5 pb-2 pt-0">{actions}</div>}
+            {extra && <div className="px-2.5 pb-2.5">{extra}</div>}
         </div>
     )
 }
@@ -129,7 +129,7 @@ function DrawerPill({ onClick, children, solid = false }: { onClick: () => void;
     return (
         <button
             onClick={onClick}
-            className="flex-1 py-2 rounded-full text-xs font-black transition hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+            className="flex-1 min-w-0 h-9 px-2 flex items-center justify-center gap-1.5 rounded-full text-xs font-black transition hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
             style={solid ? { background: '#f97316', color: '#fff' } : { background: 'var(--hub-soft)', color: 'var(--hub-fg)', border: '1px solid var(--hub-line)' }}
         >
             {children}
@@ -142,7 +142,7 @@ function DrawerCta({ icon, title, desc, onClick }: { icon: ReactNode; title: str
     return (
         <button
             onClick={onClick}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition hover:bg-[var(--hub-soft)] active:bg-[var(--hub-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+            className="w-full flex items-center gap-3 px-2.5 py-2 rounded-2xl text-left transition hover:bg-[var(--hub-soft)] active:bg-[var(--hub-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
             style={{ border: '1.5px dashed var(--hub-line)' }}
         >
             <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>{icon}</span>
@@ -170,33 +170,25 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
     recent: RecentClickItem[]
     onSelect: (mode: string) => void; onGo: (path: string) => void
 }) {
-    // Cada grupo é um painel separado, com o seu título
-    const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
-        <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
-            <DrawerLabel>{title}</DrawerLabel>
-            <div className="flex flex-col gap-1.5">{children}</div>
-        </section>
-    )
-
     return (
-        <div className="w-full flex flex-col px-3 pb-6">
-            <Panel title="Modo motorista">
-                {data.vehicles.length > 0 ? data.vehicles.map((v) => (
-                    <DrawerRow
-                        key={v.slug}
-                        mode={`motorista:${v.slug}`}
-                        active={active}
-                        onSelect={onSelect}
-                        icon={<Car size={20} color="#f97316" />}
-                        image={v.photo}
-                        title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
-                        desc={data.driverActive ? 'Motorista ativado' : 'Motorista desligado'}
-                        dot={data.driverActive ? '#4ade80' : '#fca5a5'}
-                    />
-                )) : (
-                    <DrawerCta icon={<Car size={20} color="#f97316" />} title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />
-                )}
-            </Panel>
+        <div className="w-full flex flex-col px-3 pb-3">
+            {/* Motorista: uma linha só por veículo (ou o convite para virar motorista), sem painel nem título em volta */}
+            {data.vehicles.length > 0 ? data.vehicles.map((v) => (
+                <DrawerRow
+                    key={v.slug}
+                    mode={`motorista:${v.slug}`}
+                    active={active}
+                    onSelect={onSelect}
+                    card
+                    icon={<Car size={20} color="#f97316" />}
+                    image={v.photo}
+                    title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
+                    desc={data.driverActive ? 'Modo motorista ativado' : 'Modo motorista desligado'}
+                    dot={data.driverActive ? '#4ade80' : '#fca5a5'}
+                />
+            )) : (
+                <div className="mt-2"><DrawerCta icon={<Car size={20} color="#f97316" />} title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} /></div>
+            )}
 
             {/* Só o cartão da loja (sem o título "Modo loja"): Ver loja + Painel e, embaixo, os pedidos */}
             <>
@@ -226,7 +218,7 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
                             extra={(
                                 <button
                                     onClick={() => onGo(`/painel-loja/${encodeURIComponent(st.slug)}`)}
-                                    className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                                    className="w-full h-9 px-3 rounded-full flex items-center gap-2.5 text-xs font-black transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                                     style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
                                 >
                                     <ShoppingBag size={16} className="flex-shrink-0" />
@@ -248,7 +240,7 @@ function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, 
                         />
                     )
                 }) : (
-                    <div className="mt-4"><DrawerCta icon={<StoreIcon size={20} color="#f97316" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} /></div>
+                    <div className="mt-2"><DrawerCta icon={<StoreIcon size={20} color="#f97316" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} /></div>
                 )}
             </>
 
@@ -266,7 +258,7 @@ function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (pa
             <button
                 type="button"
                 onClick={() => onGo('/')}
-                className="mt-4 w-full rounded-full px-4 py-3 flex items-center gap-3 font-black text-sm transition active:scale-[0.98]"
+                className="mt-2 w-full rounded-full px-4 h-11 flex items-center gap-3 font-black text-sm transition active:scale-[0.98]"
                 style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
             >
                 <Search size={20} className="flex-shrink-0" />
@@ -298,15 +290,15 @@ function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
             type="button"
             disabled={busy}
             onClick={async () => { setBusy(true); try { await onSwitch() } finally { /* a página recarrega */ } }}
-            className="mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition active:scale-[0.98] disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-            style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
+            className="mt-2 w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl text-left transition active:scale-[0.98] disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+            style={{ background: 'transparent', border: '1px dashed var(--hub-line)' }}
         >
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
-                <RotateCcw size={18} />
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
+                <RotateCcw size={16} />
             </span>
             <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black leading-tight">{busy ? 'Trocando…' : `Voltar para a versão ${versionLabel('v2').replace('iUser ', '')}`}</span>
-                <span className="block text-xs opacity-90">Só muda a interface: conta, dados e plano continuam iguais</span>
+                <span className="block text-[13px] font-black leading-tight">{busy ? 'Trocando…' : `Voltar para a versão ${versionLabel('v2').replace('iUser ', '')}`}</span>
+                <span className="block text-[11px] opacity-80 truncate">Só muda a interface: conta e dados iguais</span>
             </span>
         </button>
     )
@@ -315,7 +307,7 @@ function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
 // Menu de quem não tem conta: o "modo" é o de visitante (já selecionado), mais entrar/criar conta e o Explorar
 function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
     return (
-        <div className="w-full flex flex-col px-3 pb-6">
+        <div className="w-full flex flex-col px-3 pb-3">
             <section className="mt-1 rounded-3xl p-2 pb-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
                 <DrawerLabel>Modo visitante</DrawerLabel>
                 <div className="flex flex-col gap-1.5">
@@ -331,7 +323,7 @@ function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { rece
                 </div>
             </section>
 
-            <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
+            <section className="mt-2 rounded-3xl p-2 pb-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
                 <DrawerLabel>Minha conta</DrawerLabel>
                 <div className="flex flex-col gap-1.5">
                     <DrawerCta icon={<LogIn size={20} color="#f97316" />} title="Entrar" desc="Já tenho conta no iUser" onClick={() => onGo('/login')} />
@@ -387,34 +379,26 @@ function HubProfileTop({ slug, avatarUrl, userId, colors, popToken, unread, chat
 }) {
     return (
         <div className="flex-shrink-0">
-            <div className="flex items-center gap-2.5 pl-2 pr-2" style={{ height: ISLAND_H }}>
+            <div className="flex items-center gap-2.5 pl-3 pr-2.5 pt-2.5 pb-2">
                 <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px var(--hub-line)' }}>
-                    <ModeAvatar userId={userId} image={avatarUrl} noRing={true} modeIcon={<User size={20} color="#fff" />} popToken={popToken} colors={colors} />
+                    <ModeAvatar userId={userId} image={avatarUrl} noRing={true} modeIcon={<User size={20} color="#fff" />} popToken={popToken} colors={colors} size={42} />
                 </span>
                 <span className="flex-1 min-w-0">
                     <span className="block text-[11px] truncate opacity-80">Bem-vindo de volta</span>
-                    <span className="block text-[15px] font-black truncate leading-tight ">{slug ? `@${slug}` : 'Meu perfil'}</span>
+                    <span className="block text-[16px] font-black truncate leading-tight">{slug ? `@${slug}` : 'Meu perfil'}</span>
                 </span>
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
                     <X size={19} />
                 </button>
             </div>
-            <div className="px-3 pb-3 flex flex-col gap-2">
-                <div className="flex gap-2">
-                    {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
-                    <DrawerPill solid onClick={onPanel}>Painel</DrawerPill>
-                </div>
-                <button
-                    onClick={() => onGo(chatPath)}
-                    className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                    style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
-                >
-                    <MessageCircle size={16} className="flex-shrink-0" />
-                    <span className="flex-1 text-left truncate">{unread > 0 ? `${unread} ${unread === 1 ? 'mensagem não lida' : 'mensagens não lidas'}` : 'Conversas'}</span>
-                    {unread > 0
-                        ? <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center" style={{ background: '#16a34a' }}>{unread > 99 ? '99+' : unread}</span>
-                        : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
-                </button>
+            {/* Três botões numa linha só: perfil, painel e conversas (com o selo das não lidas) */}
+            <div className="px-3 pb-2 flex gap-2">
+                {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}><User size={14} className="flex-shrink-0" /><span className="truncate">Ver perfil</span></DrawerPill>}
+                <DrawerPill solid onClick={onPanel}><LayoutDashboard size={14} className="flex-shrink-0" /><span className="truncate">Painel</span></DrawerPill>
+                <DrawerPill onClick={() => onGo(chatPath)}>
+                    <span className="relative flex-shrink-0 flex"><MessageCircle size={14} />{unread > 0 && <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: '#16a34a', boxShadow: '0 0 0 1.5px var(--hub-panel, var(--hub-bg))' }}>{unread > 99 ? '99+' : unread}</span>}</span>
+                    <span className="truncate ml-1">{unread > 0 ? (unread === 1 ? '1 nova' : `${unread} novas`) : 'Conversas'}</span>
+                </DrawerPill>
             </div>
         </div>
     )
