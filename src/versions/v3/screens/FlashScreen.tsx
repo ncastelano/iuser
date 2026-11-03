@@ -258,6 +258,10 @@ function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => vo
 const PEEK_TOP = 24          // faixa em cima onde aparecem as bordas dos cards de trás (14 px do 1º de trás + 6 px do 2º)
 const PEEK_BOTTOM = 6
 const STACK_DEPTH = 3        // quantos cards de trás ainda aparecem na pilha
+// A SOMBRA tem de caber inteira na margem, senão o palco e a rolagem a recortam (ficava uma quina dura nos lados e no topo). Sombra: sobe 8 px, desfoca 14 e encolhe 6
+// (spread negativo), então passa só 8 px dos lados (a margem é 12) e 16 px do topo (a faixa é 24). Se mexer em um número, confira os outros.
+const STACK_SIDE = 12
+const STACK_SHADOW = '0 -8px 14px -6px rgba(0,0,0,0.42)'
 
 function StackedFeed({ items, me, scrollerRef, onNearEnd, onLike, onFollow, onComments, onShare, onDelete }: {
     items: FlashItem[]; me: string | null; scrollerRef: React.RefObject<HTMLDivElement>; onNearEnd: () => void
@@ -345,7 +349,7 @@ function StackedFeed({ items, me, scrollerRef, onNearEnd, onLike, onFollow, onCo
                                         const el = scrollerRef.current
                                         if (el && Hr.current && el.scrollTop / Hr.current - i > 0.5) { e.stopPropagation(); el.scrollTo({ top: i * Hr.current, behavior: 'smooth' }) }
                                     }}
-                                    className="absolute" style={{ left: 8, right: 8, top: PEEK_TOP, height: H - PEEK_TOP - PEEK_BOTTOM, transformOrigin: 'top center', willChange: 'transform', borderRadius: 28, zIndex: i, boxShadow: '0 -10px 28px rgba(0,0,0,0.30)' }}>
+                                    className="absolute" style={{ left: STACK_SIDE, right: STACK_SIDE, top: PEEK_TOP, height: H - PEEK_TOP - PEEK_BOTTOM, transformOrigin: 'top center', willChange: 'transform', borderRadius: 28, zIndex: i, boxShadow: STACK_SHADOW }}>
                                     <FlashCard item={it} me={me} active={i === view.active} onLike={onLike} onFollow={onFollow} onComments={onComments} onShare={onShare} onDelete={onDelete} />
                                 </div>
                             )

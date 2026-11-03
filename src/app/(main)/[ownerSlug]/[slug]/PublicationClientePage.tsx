@@ -126,15 +126,14 @@ export function PublicationClientPage({
     // Vindo de "Meus comentários" (?comentario=<id>&de=meus-comentarios): a câmera vai até o comentário e ele é destacado;
     // o "voltar" retorna ao painel (onde a pessoa estava)
     const [focusCommentId, setFocusCommentId] = useState<string | null>(null)
-    const [fromMyComments, setFromMyComments] = useState(false)
     const [highlightId, setHighlightId] = useState<string | null>(null)
     const focusedRef = useRef(false)
     useEffect(() => {
         const q = new URLSearchParams(window.location.search)
         setFocusCommentId(q.get('comentario'))
-        setFromMyComments(q.get('de') === 'meus-comentarios')
     }, [])
-    const goBack = () => { if (fromMyComments && window.history.length > 1) router.back(); else router.push(`/${ownerSlug}`) }
+    // Volta para a página de onde a pessoa veio (lista, Flash, Radar, comentários...); só quem abriu o link direto cai no perfil.
+    const goBack = () => { if (window.history.length > 1) router.back(); else router.push(`/${ownerSlug}`) }
 
     useEffect(() => {
         if (!focusCommentId || focusedRef.current || comments.length === 0) return
