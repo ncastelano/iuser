@@ -675,6 +675,64 @@ export default function ModeShell({ children }: {
     const stripShown = barShown && stripVisible({ active: activeKey, cartExpanded: cartStrip, cartCount: topCart, extras: barExtras.length })
 
     const idle = headerView
+    // O conteúdo do menu de modos (vive dentro da barra: BottomNavBar o faz crescer para cima)
+    const hubInner = (
+        <>
+        {/* Cabeçalho do menu. Logado: o cumprimento e o perfil mesclados num cartão só, no topo */}
+        {userId ? (
+            <HubProfileTop
+                slug={profileSlug}
+                avatarUrl={avatarUrl}
+                userId={userId}
+                colors={colors}
+                popToken={modeTick}
+                unread={topUnread}
+                chatPath={chatPath}
+                onPanel={() => selectMode('perfil')}
+                onGo={goAndClose}
+                onClose={() => setDrawerOpen(false)}
+            />
+        ) : (
+        <div className="flex items-center gap-2.5 pl-2 pr-2 flex-shrink-0" style={{ height: ISLAND_H }}>
+                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px var(--hub-line)' }}>
+                    <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
+                </span>
+                <span className="flex-1 min-w-0">
+                    <span className="block text-[11px] truncate opacity-80">{idle.line1}</span>
+                    <span className="block text-[15px] font-black truncate leading-tight">{idle.line2}</span>
+                </span>
+                <button onClick={() => setDrawerOpen(false)} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
+                    <X size={19} />
+                </button>
+            </div>
+        )}
+        <div className="overflow-y-auto overscroll-contain flex-1 min-h-0">
+            {!userId && (
+                <VisitorDrawerContent recent={recent} onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
+            )}
+            {userId && (
+                <MenuDrawerContent
+                    data={drawerData}
+                    active={activeMode}
+                    recent={recent}
+                    storeOrders={storeOrders}
+                    onSelect={selectMode}
+                    onGo={goAndClose}
+                    onSwitchVersion={onSwitchVersion}
+                />
+            )}
+        </div>
+        </>
+    )
+    const hubVars = {
+        ['--hub-bg' as string]: colors.background,
+        ['--hub-fg' as string]: colors.textPrimary,
+        ['--hub-soft' as string]: `${colors.border}40`,
+        ['--hub-panel' as string]: colors.surface,
+        ['--hub-line' as string]: colors.border,
+    } as React.CSSProperties
+
+
     return (
         <>
         <style>{`
@@ -712,7 +770,8 @@ export default function ModeShell({ children }: {
                 orderCounts={orderCounts}
                 unread={topUnread}
                 cartExpanded={cartStrip}
-                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: openHub }}
+                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: drawerOpen ? () => setDrawerOpen(false) : openHub }}
+                hub={{ open: drawerOpen, label: 'Menu do iUser', vars: hubVars, children: hubInner }}
                 onCart={() => go(cartStrip || !(topCart === 0 && ordersActive > 0) ? '/carrinho' : '/carrinho?aba=pedidos')}
                 message={islandMsg && msgStyle ? { id: islandMsg.id, text: islandMsg.text, description: islandMsg.description, icon: islandMsg.icon, glyph: msgStyle.glyph, color: msgStyle.color, action: islandMsg.action ? { label: islandMsg.action.label, onClick: islandMsg.action.onClick } : undefined } : null}
                 extras={barExtras}
@@ -726,80 +785,8 @@ export default function ModeShell({ children }: {
             />
         )}
 
-        {/* HUB: o menu de modos SOBE da barra de baixo (o botão do modo abre). Fundo escurecido; tocar fora fecha. */}
-        <div aria-hidden={!drawerOpen} className="fixed inset-0 z-[70]" style={{ pointerEvents: drawerOpen ? 'auto' : 'none', visibility: drawerOpen ? 'visible' : 'hidden', transition: `visibility 0s linear ${drawerOpen ? 0 : 480}ms` }}>
-            <button aria-label="Fechar menu" onClick={() => setDrawerOpen(false)} className="absolute inset-0 w-full h-full cursor-default" style={{ background: 'rgba(0,0,0,0.5)', opacity: drawerOpen ? 1 : 0, transition: 'opacity 350ms ease' }} />
-            <div className="absolute left-0 right-0" style={{ bottom: BAR_BOTTOM_VAR }}>
-                <div className="max-w-2xl mx-auto px-3">
-                    <div
-                        role="dialog"
-                        aria-label="Menu do iUser"
-                        style={{
-                            background: colors.background,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.textPrimary,
-                            ['--hub-bg' as string]: colors.background,
-                            ['--hub-fg' as string]: colors.textPrimary,
-                            ['--hub-soft' as string]: `${colors.border}40`,
-                            ['--hub-panel' as string]: colors.surface,
-                            ['--hub-line' as string]: colors.border,
-                            borderRadius: 28,
-                            maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-top) - 10px - var(--staging-banner-h, 0px) - env(safe-area-inset-bottom))',
-                            display: 'flex', flexDirection: 'column',
-                            boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
-                            clipPath: drawerOpen ? 'inset(0% 0% 0% 0% round 28px)' : 'inset(calc(100% - 58px) 0% 0% 0% round 28px)',
-                            opacity: drawerOpen ? 1 : 0,
-                            transition: 'clip-path 480ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease',
-                        }}
-                    >
-                        {/* Cabeçalho do menu. Logado: o cumprimento e o perfil mesclados num cartão só, no topo */}
-                        {userId ? (
-                            <HubProfileTop
-                                slug={profileSlug}
-                                avatarUrl={avatarUrl}
-                                userId={userId}
-                                colors={colors}
-                                popToken={modeTick}
-                                unread={topUnread}
-                                chatPath={chatPath}
-                                onPanel={() => selectMode('perfil')}
-                                onGo={goAndClose}
-                                onClose={() => setDrawerOpen(false)}
-                            />
-                        ) : (
-                        <div className="flex items-center gap-2.5 pl-2 pr-2 flex-shrink-0" style={{ height: ISLAND_H }}>
-                                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px var(--hub-line)' }}>
-                                    <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
-                                </span>
-                                <span className="flex-1 min-w-0">
-                                    <span className="block text-[11px] truncate opacity-80">{idle.line1}</span>
-                                    <span className="block text-[15px] font-black truncate leading-tight">{idle.line2}</span>
-                                </span>
-                                <button onClick={() => setDrawerOpen(false)} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
-                                    <X size={19} />
-                                </button>
-                            </div>
-                        )}
-                        <div className="overflow-y-auto overscroll-contain flex-1 min-h-0">
-                            {!userId && (
-                                <VisitorDrawerContent recent={recent} onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
-                            )}
-                            {userId && (
-                                <MenuDrawerContent
-                                    data={drawerData}
-                                    active={activeMode}
-                                    recent={recent}
-                                    storeOrders={storeOrders}
-                                    onSelect={selectMode}
-                                    onGo={goAndClose}
-                                    onSwitchVersion={onSwitchVersion}
-                                />
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {/* HUB: o menu de modos é a PRÓPRIA barra crescendo para cima (o conteúdo vive dentro dela, em BottomNavBar); aqui só fica o fundo escurecido, que fecha ao tocar */}
+        <button aria-label="Fechar menu" aria-hidden={!drawerOpen} tabIndex={drawerOpen ? 0 : -1} onClick={() => setDrawerOpen(false)} className="fixed inset-0 z-[70] w-full h-full cursor-default" style={{ background: 'rgba(0,0,0,0.5)', opacity: drawerOpen ? 1 : 0, pointerEvents: drawerOpen ? 'auto' : 'none', visibility: drawerOpen ? 'visible' : 'hidden', transition: `opacity 350ms ease, visibility 0s linear ${drawerOpen ? 0 : 350}ms` }} />
         </>
     )
 }

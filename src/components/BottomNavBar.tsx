@@ -10,7 +10,7 @@
 // Só apresentação: quem usa (a casca da 3.0) passa as contagens, a foto e o que cada toque faz. Constantes de medida exportadas para quem reserva espaço embaixo.
 'use client'
 
-import { ReactNode } from 'react'
+import { CSSProperties, ReactNode, useEffect, useState } from 'react'
 import { Car, ChevronRight, MessageCircle, Radar, Search, ShoppingCart, Store, User, Users } from 'lucide-react'
 import type { OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 
@@ -20,6 +20,9 @@ export const BAR_H = 58
 export const STRIP_H = 36
 // Espaço que a barra ocupa (sem a faixa)
 export const BAR_SPACE = 'calc(78px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
+
+/** O menu de modos (hub): vive DENTRO da barra e cresce para cima a partir dela — a barra vira o cartão, não aparece outro por cima. */
+export interface BarHub { open: boolean; label: string; /** variáveis de tema do conteúdo (--hub-*) */ vars: CSSProperties; children: ReactNode }
 
 export type BarKey = 'cart' | 'chat' | 'home' | 'radar' | 'people'
 
@@ -84,7 +87,7 @@ function ModeButton({ mode, colors }: { mode: ModeButtonProps; colors: any }) {
     )
 }
 
-export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, cartExpanded = false, mode, message = null, extras = [], customCard = null, onDismiss, onGo, onCart, onChat, onHome, onRadar, onPeople }: {
+export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, cartExpanded = false, mode, hub, message = null, extras = [], customCard = null, onDismiss, onGo, onCart, onChat, onHome, onRadar, onPeople }: {
     colors: any
     active: BarKey | null
     cartCount: number
@@ -95,6 +98,8 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     cartExpanded?: boolean
     /** O botão do modo ativo (foto + selinho); abre o menu de modos */
     mode?: ModeButtonProps
+    /** O menu de modos, que cresce para cima de dentro da barra */
+    hub?: BarHub
     /** O aviso do sistema da vez (a faixa vira o mensageiro) */
     message?: BarMessage | null
     extras?: BarExtra[]
@@ -109,14 +114,33 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     onPeople: () => void
 }) {
     const showCart = cartExpanded && cartCount > 0 && active !== 'cart'
-    const strip = !!message || stripVisible({ active, cartExpanded, cartCount, extras: extras.length })
+    const hubOpen = !!hub?.open
+    // com o menu aberto a faixa de cima fica recolhida (o menu ocupa o lugar dela); a barra sobe acima do escurecimento enquanto abre e fecha
+    const strip = !hubOpen && (!!message || stripVisible({ active, cartExpanded, cartCount, extras: extras.length }))
+    const [raised, setRaised] = useState(false)
+    useEffect(() => {
+        if (hubOpen) { setRaised(true); return }
+        const t = setTimeout(() => setRaised(false), 500)
+        return () => clearTimeout(t)
+    }, [hubOpen])
     const money = cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
     return (
-        <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 z-40 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM }}>
+        <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM, zIndex: raised || hubOpen ? 75 : 40 }}>
             {customCard && <div className="max-w-md w-full mx-auto px-3 pointer-events-auto">{customCard}</div>}
             <div className="max-w-md w-full mx-auto px-3">
                 {/* Uma peça só e sólida: a faixa de cima é só uma área da própria barra, sem divisória */}
-                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : `1px solid ${colors.border}`, boxShadow: '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease' }}>
+                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : `1px solid ${colors.border}`, boxShadow: hubOpen ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease, box-shadow 480ms ease' }}>
+                    {/* MENU DE MODOS: cresce para cima de dentro da própria barra (mesma peça, mesma cor, mesmas bordas) */}
+                    {hub && (
+                        <div role="dialog" aria-label={hub.label} aria-hidden={!hubOpen}
+                            style={{ display: 'grid', gridTemplateRows: hubOpen ? '1fr' : '0fr', transition: `grid-template-rows 480ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear ${hubOpen ? 0 : 480}ms`, visibility: hubOpen ? 'visible' : 'hidden', color: colors.textPrimary, ...hub.vars }}>
+                            <div style={{ minHeight: 0, overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100dvh - 150px - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--staging-banner-h, 0px))', opacity: hubOpen ? 1 : 0, transition: 'opacity 300ms ease' }}>
+                                    {hub.children}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <div aria-hidden={!strip} className="flex items-center gap-2 px-3.5 overflow-hidden" style={{ minHeight: strip ? STRIP_H : 0, height: strip ? undefined : 0, opacity: strip ? 1 : 0, background: message ? `${message.color}14` : `${colors.border}30`, transition: 'min-height 300ms ease, opacity 250ms ease, background 250ms ease' }}>
                         {message ? (
                             <div className="flex items-center gap-2.5 w-full py-1.5" role="status" aria-live="polite">
@@ -147,7 +171,7 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
                             </div>
                         )}
                     </div>
-                    <div className="flex items-center px-1.5" style={{ height: BAR_H }}>
+                    <div className="flex items-center px-1.5" style={{ height: BAR_H, borderTop: `1px solid ${hubOpen ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
                         <BarButton colors={colors} active={active === 'cart'} label="Carrinho" onClick={onCart} badge={active === 'cart' ? 0 : cartCount} orders={active === 'cart' ? undefined : orderCounts}>
                             <ShoppingCart size={21} />
                         </BarButton>
