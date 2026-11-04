@@ -155,6 +155,7 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
     const Icon = getServiceIcon(request.serviceType, request.customIcon)
     // Título = o que a pessoa escreveu; o tipo (jardineiro, veterinário...) vira uma etiqueta e pode ser trocado em Editar
     const title = getRequestTitle(request.description, request.serviceType, request.customService, 90)
+    const fullText = (request.description || '').trim()   // o texto inteiro vira o título (não se repete embaixo)
 
     const [editing, setEditing] = useState(false)
     const [description, setDescription] = useState(request.description)
@@ -247,7 +248,7 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                         <Icon size={22} />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <h3 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>{title}</h3>
+                        <h3 className={`${fullText.length <= 90 && !fullText.includes('\n') ? 'text-lg font-black leading-tight' : 'text-base font-bold leading-snug'} whitespace-pre-wrap break-words`} style={{ color: colors.textPrimary }}>{fullText || title}</h3>
                         <span className="inline-flex items-center gap-1 mt-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}15`, color: colors.accent }}>
                             <Icon size={11} /> {request.serviceLabel}
                         </span>
@@ -318,7 +319,7 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                                 </div>
                             </>
                         ) : (
-                            <p className="text-sm whitespace-pre-line" style={{ color: colors.textPrimary }}>{request.description || 'Sem descrição.'}</p>
+                            <>{!request.description?.trim() && <p className="text-sm" style={{ color: colors.textSecondary }}>Sem descrição.</p>}</>
                         )}
                     </>
                 )}

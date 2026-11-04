@@ -54,6 +54,7 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
     const Icon = getItemIcon(item)
     const label = getItemLabel(item)
     const title = getRequestTitle(item.description, item.service_type, item.custom_service)
+    const fullText = (item.description || '').trim()
     const photos = item.photo_urls || []
     const photo = photos[photoIdx] || null
     const who = item.requester?.profileSlug ? `@${item.requester.profileSlug}` : item.requester?.name || 'Alguém'
@@ -113,7 +114,8 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                 )}
 
                 <div className="p-4 flex flex-col gap-3">
-                    <h2 className="text-xl font-black leading-tight" style={{ color: colors.textPrimary }}>{title}</h2>
+                    {/* O texto do pedido INTEIRO, sem cortar: é o título e também a descrição (não se repete embaixo). Texto curto = título grande; longo = letra menor e quebra de linha. */}
+                    <h2 className={`${fullText.length <= 80 && !fullText.includes('\n') ? 'text-xl font-black leading-tight' : 'text-base font-bold leading-snug'} whitespace-pre-wrap break-words`} style={{ color: colors.textPrimary }}>{fullText || title}</h2>
 
                     {/* Quem pediu */}
                     <button
@@ -139,10 +141,6 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                         <span className="flex items-center gap-1"><MapPin size={13} />{place}</span>
                         <span className="flex items-center gap-1"><Eye size={13} />{views} {views === 1 ? 'visita' : 'visitas'}</span>
                     </div>
-
-                    {item.description && (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ color: colors.textPrimary }}>{item.description}</p>
-                    )}
 
                     <ServiceRequestShareButton item={item} size={44} label="Compartilhar" className="w-full" />
 
