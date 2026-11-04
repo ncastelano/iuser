@@ -15,7 +15,7 @@ import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
-import { belowMinimum, belowMinimumText, hourlyFloor, perHour as perHourOfMinutes, quickValues, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
+import { belowMinimum, belowMinimumText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -143,6 +143,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     // Ganho mínimo do motorista: piso por tempo, sugestão e alertas (só dele; nada disso vai para o passageiro)
     const floor = hourlyFloor(minutesTotal, minHourly)
     const myFare = customPrice != null ? suggestedFare(customPrice, floor) : null
+    // O piso do ganho mínimo SUBIU a tarifa só quando ele é maior que a tarifa por distância (comparando já arredondado, senão uma diferença de centavos acusa "no seu mínimo" sem o piso ter feito nada)
+    const floorRaised = floor != null && customPrice != null && floor > round2(customPrice)
     const iuserSuggestion = customPrice == null && floor != null && floor > platformPrice ? floor : null   // sugestão calculada, nunca salva como preferência
     const below = (price: number) => belowMinimum(perHour(price), minHourly)
     const blocked = (price: number) => protection === 'block' && below(price)
@@ -326,7 +328,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                 {row('Tarifa iUser', platformPrice, false, perHour(platformPrice))}
                                 {row('Oferta do passageiro', offer, true, perHour(offer), offerBelow)}
                                 {row(mineLabel, mine, false, perHour(mine), below(mine))}
-                                {floor != null && myFare != null && myFare > (customPrice ?? 0) && (
+                                {floorRaised && (
                                     <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>Sua tarifa foi ajustada ao seu ganho mínimo por hora.</p>
                                 )}
                             </div>
@@ -442,7 +444,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                 {myFare != null ? brl(myFare) : iuserSuggestion != null ? brl(iuserSuggestion) : 'não definida'}
                             </span>
                             {(myFare ?? iuserSuggestion) != null && perHour((myFare ?? iuserSuggestion) as number) != null && (
-                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: myFare != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>≈ R$ {perHour((myFare ?? iuserSuggestion) as number)}/h{myFare != null && customPrice != null && myFare > customPrice ? ' · no seu mínimo' : ''}</span>
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: myFare != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>≈ R$ {perHour((myFare ?? iuserSuggestion) as number)}/h{floorRaised ? ' · ajustada ao seu mínimo' : ''}</span>
                             )}
                             {onEditTariff && myFare != null && (
                                 <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: 'rgba(255,255,255,0.9)' }}>toque para editar</span>
