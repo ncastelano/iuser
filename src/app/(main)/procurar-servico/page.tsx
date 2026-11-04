@@ -14,6 +14,7 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from '@/lib/toast'
 import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
 import { useMyOrigin } from '@/hooks/useMyOrigin'
+import PhotoCollage from '@/components/PhotoCollage'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { formatDistance } from '@/lib/radarNearest'
 import { Spinner } from '@/components/Spinner'
@@ -438,18 +439,15 @@ function SerParceiroContent() {
                                                     {fullText || label}
                                                 </p>
                                                 {/* Miniatura da foto (pequena): tocar abre o card de detalhes, onde a foto amplia com zoom */}
-                                                {job.photo_urls[0] && (
+                                                {job.photo_urls.length > 0 && (
                                                     <button
                                                         type="button"
                                                         onClick={() => setViewJob(job)}
-                                                        aria-label={`Ver a foto do pedido${job.photo_urls.length > 1 ? ` (${job.photo_urls.length} fotos)` : ''}`}
-                                                        className="relative flex-shrink-0 w-16 h-16 rounded-2xl overflow-hidden active:scale-95 transition"
-                                                        style={{ border: `1px solid ${colors.border}` }}
+                                                        aria-label={`Ver ${job.photo_urls.length === 1 ? 'a foto' : `as ${job.photo_urls.length} fotos`} do pedido`}
+                                                        className="flex-shrink-0 active:scale-95 transition"
+                                                        style={{ border: `1px solid ${colors.border}`, borderRadius: 18 }}
                                                     >
-                                                        <img src={job.photo_urls[0]} alt="" className="w-full h-full object-cover" loading="lazy" />
-                                                        {job.photo_urls.length > 1 && (
-                                                            <span className="absolute bottom-1 right-1 text-[10px] font-black text-white px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0,0,0,0.6)' }}>+{job.photo_urls.length - 1}</span>
-                                                        )}
+                                                        <PhotoCollage photos={job.photo_urls} size={80} />
                                                     </button>
                                                 )}
                                             </div>

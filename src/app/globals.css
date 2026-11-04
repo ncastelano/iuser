@@ -313,6 +313,18 @@ svg,
     .iuser-skeleton-in { animation: none; }
 }
 
+/* ===== Colagem de fotos do pedido (components/PhotoCollage.tsx): cada pedaço entra com escala + fade ===== */
+@keyframes iuser-collage-in {
+    from { opacity: 0; transform: scale(0.82); }
+    to { opacity: 1; transform: none; }
+}
+.iuser-collage-tile {
+    animation: iuser-collage-in 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+    .iuser-collage-tile { animation: none; }
+}
+
 
 /* Tema "Preto e branco" (escuro-cinza; o atributo vem do ThemeColorSync): o LARANJA da interface (botões, degradês, contornos, brilhos e textos
    laranja) vira cinza; fotos, marcações dos mapas e o que tiver cor de significado (verde/vermelho de aberto/fechado, status) seguem coloridos.
