@@ -50,6 +50,7 @@
     "test:outdoor": "node --test scripts/test-outdoor.mjs",
     "test:search": "node --test scripts/test-search.mjs",
     "test:negotiation": "node --test scripts/test-negotiation.mjs",
+    "test:ride-quote": "node --test scripts/test-ride-quote.mjs",
     "test:deliveries": "node --test scripts/test-deliveries.mjs",
     "test:favorites": "node --test scripts/test-favorites.mjs",
     "test:live-push": "node --test scripts/test-live-push.mjs",

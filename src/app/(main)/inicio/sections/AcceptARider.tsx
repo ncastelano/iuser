@@ -9,8 +9,10 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, describeTripFare, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, describeTripFare, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { perHour as perHourOfMinutes } from '@/modules/negotiation/domain'
+import { rideQuote } from '@/lib/rideQuote'
+import { loadEarningGoal } from '@/modules/negotiation'
 import { kindForRideType, rideAcceptsAnyVehicle, ridesAcceptableForVehicleKind, type VehicleKind } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { watchPosition } from '@/lib/nativeGeolocation'
@@ -47,6 +49,12 @@ interface OpenRidePreview {
     ride: OfferRide
     requester: OfferRequester
     suggestedPrice: number
+    /** Tarifa iUser e tarifa própria do motorista para o veículo desta corrida, e as condições dela: entram na MESMA conta de /aceitar-corridas (lib/rideQuote) */
+    platformShape: DriverPricing
+    customShape: DriverPricing | null
+    useCustom: boolean
+    flags: RideConditionFlags
+    destination: [number, number] | null
     // Ponto de partida (pra medir a distância do motorista até ele) e se o valor
     // é a Tarifa iUser — só ela soma o deslocamento até o passageiro.
     origin: [number, number] | null
@@ -105,6 +113,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const fallbackPos = livePos ?? savedPos
     const pos = gps ?? fallbackPos
     const [pickupById, setPickupById] = useState<Record<string, { km: number; min: number }>>({})
+    // a corrida em si (partida → chegada) pela rota do mapa: o valor usa este km, igual a /aceitar-corridas
+    const [tripById, setTripById] = useState<Record<string, { km: number; min: number }>>({})
+    const [minHourly, setMinHourly] = useState<number | null>(null)
+    useEffect(() => { if (contextUserId) void loadEarningGoal(contextUserId).then((g) => setMinHourly(g.minHourly)).catch(() => {}) }, [contextUserId])
     const lastRouteRef = useRef<{ coords: [number, number]; key: string } | null>(null)
 
     const requestGps = useCallback(() => {
@@ -202,7 +214,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 // cadastrada ainda): quem não tem driver_pricing vê o valor pela tarifa iUser.
                 const { data } = await supabase
                     .from('driver_pricing')
-                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, driver_mode_active, live_lat, live_lng')
+                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, live_lat, live_lng')
                     .eq('driver_id', userId)
                     .maybeSingle()
                 pricingRow = data
@@ -221,7 +233,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             let openQuery = supabase
                 .from('ride_offers')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, passenger_offer, order_id, applicant_count, stop1_address, stop2_address')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, passenger_offer, order_id, applicant_count, stop1_address, stop2_address')
                 .eq('status', 'pending')
             const { data: rows } = await openQuery
                 .order('created_at', { ascending: false })
@@ -239,9 +251,11 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             if (!active) return
             const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
 
-            const pricingShape = getEffectivePricing(pricing)
             setOpenRides(
                 top.map((r) => {
+                    const rideKind = kindForRideType(r.vehicle_type)
+                    const pricingShape = getEffectivePricing(pricing, rideKind)
+                    const customShape = getCustomPricing(pricing as any, rideKind)
                     const p = profilesById.get(r.requester_id)
                     const conditionFlags: RideConditionFlags = {
                         origin_needs_access: r.origin_needs_access,
@@ -271,6 +285,11 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         },
                         // Frete de loja já vem com valor fechado; o resto sai da tarifa
                         suggestedPrice: r.offered_price != null ? Number(r.offered_price) : computedPrice,
+                        platformShape: PLATFORM_DEFAULT_PRICING_BY_VEHICLE[rideKind],
+                        customShape,
+                        useCustom: pricing.pricing_mode === 'custom',
+                        flags: conditionFlags,
+                        destination: r.destination_lat != null && r.destination_lng != null ? [r.destination_lng, r.destination_lat] as [number, number] : null,
                         origin: r.origin_lat != null && r.origin_lng != null ? [r.origin_lng, r.origin_lat] as [number, number] : null,
                         usesPlatformTariff: r.offered_price == null && pricing.pricing_mode === 'platform',
                     }
@@ -410,6 +429,15 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         setLocAskDismissed(wasLocationAskDismissed())
         if (needsLocation && gpsStatus === 'idle') void isGeoPermissionGranted().then((ok) => { if (ok) requestGps() })
     }, [needsLocation, gpsStatus, requestGps])
+
+    // A rota de cada corrida (partida → chegada), uma vez
+    useEffect(() => {
+        openRides.forEach(({ ride, origin, destination }) => {
+            if (!origin || !destination || tripById[ride.id]) return
+            fetchRoute(origin, destination).then((route) => setTripById((prev) => ({ ...prev, [ride.id]: { km: route.distanceKm, min: route.durationMin } }))).catch(() => {})
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openRides])
 
     // Km de estrada do motorista até a partida de cada corrida (recalcula se ele andou +300 m)
     useEffect(() => {
@@ -618,16 +646,29 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
                 {openRides.length > 0 && (
                     <div className="flex flex-col gap-3">
-                        {openRides.map(({ ride, requester, suggestedPrice, usesPlatformTariff }) => {
-                            const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
+                        {openRides.map(({ ride, requester, platformShape, customShape, useCustom, flags }) => {
+                            // O valor sai da MESMA conta de /aceitar-corridas (lib/rideQuote): rota do mapa, deslocamento, tarifa própria e piso por hora
                             const route = pos ? pickupById[ride.id] : undefined
+                            const trip = tripById[ride.id]
+                            const rideType = (ride as unknown as { ride_type: 'pessoa' | 'animal' | 'objeto' }).ride_type
+                            const q = rideQuote<DriverPricing>({
+                                offeredPrice: ride.offered_price != null ? Number(ride.offered_price) : null,
+                                distanceKm: ride.distance_km, routeKm: trip?.km ?? null,
+                                platformShape, customShape, useCustom,
+                                pickupKm: route?.km ?? null, pickupMin: route?.min ?? null,
+                                tripMin: trip?.min ?? ride.duration_min ?? (ride.distance_km != null ? (ride.distance_km / 40) * 60 : null),
+                                minHourly: ride.offered_price != null ? null : minHourly,
+                                tripFare: (shape, km) => km != null
+                                    ? computeSuggestedPrice(km, shape, rideType, flags)
+                                    : shape.baseFee + shape.extraFees[rideType] + computeConditionExtras(flags, shape.conditionExtraFees),
+                                pickupFee: (shape, km) => computePickupFee(shape, km),
+                            })
+                            const usesPlatformTariff = q.shownKind === 'platform'
                             const pickup = usesPlatformTariff ? route : undefined
                             const pickupKm = pickup?.km
                             const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km) : 0
-                            const total = suggestedPrice + pickupAmount
-                            // Ganho por hora: valor ÷ tempo total (ir buscar + corrida), com os minutos que o mapa estimou
-                            const tripMin = ride.duration_min ?? (ride.distance_km != null ? (ride.distance_km / 40) * 60 : null)
-                            const hourlyValue = route && tripMin != null ? perHourOfMinutes(total, route.min + tripMin) : null
+                            const total = q.shown
+                            const hourlyValue = q.perHour
                             const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
                             return (
                             <div
@@ -641,12 +682,12 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                     requester={requester}
                                     storeName={null}
                                     toPickup={{ km: null, min: null, hasGps: true }}
-                                    trip={{ km: ride.distance_km, min: ride.duration_min }}
+                                    trip={{ km: q.tripKm, min: trip?.min ?? ride.duration_min }}
                                     footer={
                                         <div className="flex flex-col gap-2">
                                             <div className="flex items-end justify-between gap-3 rounded-xl px-3 py-2" style={{ background: '#22c55e14', border: '1px solid #22c55e40' }}>
                                                 <div>
-                                                    <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>{usesPlatformTariff && pickupKm == null ? 'Você ganha a partir de' : 'Você pode ganhar'}</span>
+                                                    <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>{q.shownKind === 'custom' ? 'Você pode ganhar (sua tarifa)' : usesPlatformTariff && pickupKm == null ? 'Você ganha a partir de' : 'Você pode ganhar'}</span>
                                                     <span className="block text-xl font-black leading-tight" style={{ color: '#16a34a' }}>{brl(total)}</span>
                                                     {hourlyValue != null && (
                                                         <span className="block text-[10px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>
@@ -669,8 +710,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                                     </span>
                                                 )}
                                             </div>
-                                            {usesPlatformTariff && pickupKm == null && ride.distance_km != null && (
-                                                <p className="text-[10px] leading-snug -mt-1" style={{ color: colors.textSecondary }}>{describeTripFare(ride.distance_km, platformShape)}</p>
+                                            {usesPlatformTariff && pickupKm == null && q.tripKm != null && (
+                                                <p className="text-[10px] leading-snug -mt-1" style={{ color: colors.textSecondary }}>{describeTripFare(q.tripKm, platformShape)}</p>
                                             )}
                                             <button
                                                 onClick={() => goToRide(ride.id)}
