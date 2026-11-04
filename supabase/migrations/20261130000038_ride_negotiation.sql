@@ -150,7 +150,7 @@ DROP TRIGGER IF EXISTS ride_applications_negotiation_init ON public.ride_applica
 CREATE TRIGGER ride_applications_negotiation_init AFTER INSERT ON public.ride_applications
     FOR EACH ROW EXECUTE FUNCTION public.ride_applications_negotiation_init();
 
--- candidatura que sai da disputa (recusada, aceita, retirada): as propostas abertas dela se encerram
+-- candidatura RECUSADA: as propostas abertas dela se encerram (na aceitação, quem fecha as propostas é a própria função que confirma o acordo)
 CREATE OR REPLACE FUNCTION public.ride_applications_close_offers()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
@@ -159,7 +159,7 @@ BEGIN
 END; $$;
 DROP TRIGGER IF EXISTS ride_applications_close_offers ON public.ride_applications;
 CREATE TRIGGER ride_applications_close_offers AFTER UPDATE OF status ON public.ride_applications
-    FOR EACH ROW WHEN (NEW.status IS DISTINCT FROM OLD.status AND NEW.status <> 'pending') EXECUTE FUNCTION public.ride_applications_close_offers();
+    FOR EACH ROW WHEN (NEW.status IS DISTINCT FROM OLD.status AND NEW.status = 'rejected') EXECUTE FUNCTION public.ride_applications_close_offers();
 
 -- ===== FECHAR O ACORDO (as duas partes concordaram com o MESMO valor) =====
 CREATE OR REPLACE FUNCTION public._neg_confirm(p_ride public.ride_requests, p_app public.ride_applications, p_amount numeric, p_offer uuid)

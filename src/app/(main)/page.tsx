@@ -521,7 +521,7 @@ function HomePageContent() {
             }
 
             if (error) {
-                alert('Erro ao salvar: ' + error.message)
+                toast.error('Erro ao salvar: ' + error.message)
             } else {
                 if (data) {
                     setSavedLocation({
@@ -532,10 +532,10 @@ function HomePageContent() {
                         addressComplement: data.address_complement || ''
                     })
                 }
-                alert('Localização salva com sucesso!')
+                toast.success('Localização salva com sucesso!')
             }
         } catch (err) {
-            alert('Erro: ' + (err as Error).message)
+            toast.error('Erro: ' + (err as Error).message)
         } finally {
             setIsSavingLocation(false)
             setShowLocationDialog(false)

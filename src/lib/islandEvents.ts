@@ -37,7 +37,12 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     // caixa do entregador (repasse, maquininha) e contestação de entrega: o texto e o destino vêm prontos do banco
     dues_update: { level: 'info', icon: '💵', label: 'Ver', duration: 9000 },
     dispute_update: { level: 'message', icon: '⚖️', label: 'Ver', duration: 10000 },
-    moderation_update: { level: 'info', icon: '🚩', label: 'Ver', duration: 9000 },   // conteúdo seu foi ocultado ou restaurado pelo iUser
+    moderation_update: { level: 'info', icon: '🚩', label: 'Ver', duration: 9000 },
+    // negociação do valor da corrida: a proposta do outro lado, recusa, acordo e expiração (texto e destino prontos do banco)
+    ride_offer_new: { level: 'message', icon: '🤝', label: 'Responder', duration: 20000 },   // vale poucos minutos: fica mais tempo na ilha
+    ride_offer_declined: { level: 'info', icon: '🙅', label: 'Ver', duration: 7000 },
+    ride_offer_agreed: { level: 'success', icon: '✅', label: 'Ver', duration: 9000 },
+    ride_offer_expired: { level: 'info', icon: '⏳', label: 'Ver', duration: 6500 },   // conteúdo seu foi ocultado ou restaurado pelo iUser
 }
 
 export function islandEventFor(n: RawNotification): IslandEvent | null {

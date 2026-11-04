@@ -14,3 +14,8 @@ test('ninguém importa sonner (o aviso é da ilha, via lib/toast)', () => {
 test('providers não monta o <Toaster /> do sonner', () => {
   assert.ok(!/<Toaster/.test(readFileSync('src/app/providers.tsx', 'utf8')))
 })
+
+test('ninguém usa alert() do navegador: todo aviso vai para a ilha (lib/toast)', () => {
+  const bad = walk('src').filter((p) => readFileSync(p, 'utf8').split('\n').some((l) => /(^|[^\w.])alert\(/.test(l) && !/role="alert"/.test(l)))
+  assert.deepEqual(bad, [], `troque alert() por toast.* de '@/lib/toast': ${bad.join(', ')}`)
+})

@@ -20,6 +20,10 @@ export const LIVE_PUSH_KINDS: Record<string, { urgent: boolean }> = {
     dues_update: { urgent: false },               // repasse a fazer/confirmar, maquininha a devolver
     dispute_update: { urgent: true },             // entrega contestada / decisão do iUser
     moderation_update: { urgent: false },         // conteúdo do autor ocultado/restaurado
+    ride_offer_new: { urgent: true },             // proposta de valor do outro lado (vale poucos minutos)
+    ride_offer_declined: { urgent: false },
+    ride_offer_agreed: { urgent: true },          // o motorista aceitou o valor: corrida confirmada
+    ride_offer_expired: { urgent: false },
 }
 
 export interface LivePushRow { id: string; kind: string; meta?: Record<string, any> | null }

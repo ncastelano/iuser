@@ -17,6 +17,7 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useInsideShell } from '@/components/InsideShell'
 import V3Section, { V3_GRADIENT } from '@/components/StoreDashboard/V3Section'
 import StatChips from '@/components/StoreDashboard/StatChips'
+import { toast } from '@/lib/toast'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -171,7 +172,7 @@ export default function AtalhoCompromissosDaLoja({
             .update({ status: 'confirmed' })
             .eq('id', id)
         if (!error) { notifyAppointmentUpdate(id); refetch() }
-        else alert(error.message.includes('pós-pago') ? error.message : 'Erro ao aceitar.')
+        else toast.error(error.message.includes('pós-pago') ? error.message : 'Erro ao aceitar.')
     }, [refetch])
 
     const handleDecline = useCallback(async (id: string, e: React.MouseEvent) => {

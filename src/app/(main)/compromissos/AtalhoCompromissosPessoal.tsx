@@ -14,6 +14,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { toast } from '@/lib/toast'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -199,9 +200,9 @@ export default function AtalhoCompromissosPessoal({
             .eq('id', profileId)
 
         if (error) {
-            alert('Erro ao salvar horários.')
+            toast.error('Erro ao salvar horários.')
         } else {
-            alert('Horários salvos!')
+            toast.success('Horários salvos!')
         }
         setHoursSaving(false)
     }
@@ -268,7 +269,7 @@ export default function AtalhoCompromissosPessoal({
         e.preventDefault()
         const { error } = await supabase.rpc('confirm_appointment', { incoming_id: id })
         if (!error) { notifyAppointmentUpdate(id); refetch() }
-        else alert('Erro ao aceitar convite.')
+        else toast.error('Erro ao aceitar convite.')
     }, [refetch])
 
     const handleDecline = useCallback(async (id: string, e: React.MouseEvent) => {

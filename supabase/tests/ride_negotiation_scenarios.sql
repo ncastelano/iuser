@@ -105,6 +105,7 @@ BEGIN
     PERFORM pg_temp.as_server();
     SELECT agreed_price, status INTO ag, st FROM ride_requests WHERE id = ride;
     IF ag <> 14 OR st <> 'accepted' THEN RAISE EXCEPTION '7: acordo errado % %', ag, st; END IF;
+    IF (SELECT status FROM ride_price_offers WHERE id = o) <> 'accepted' THEN RAISE EXCEPTION '7: a proposta aceita deve ficar como aceita no histórico'; END IF;
     RAISE NOTICE 'OK 7';
 
     -- 8) oferta abaixo do ganho mínimo: aviso deixa aceitar, bloqueio impede (e o passageiro nunca vê a meta)
@@ -203,6 +204,46 @@ BEGIN
     PERFORM pg_temp.as_server();
     RAISE NOTICE 'OK 15';
 
+
+    -- 16) avisos da ilha: cada lado é avisado quando o outro propõe, recusa, aceita ou deixa expirar
+    ride := pg_temp.new_ride(P, 5, 12);
+    a1 := pg_temp.new_app(ride, D1, 18);
+    PERFORM pg_temp.as_user(P);
+    PERFORM passenger_counter(a1, 14);                                   -- aviso para o motorista
+    PERFORM pg_temp.as_server();
+    IF (SELECT count(*) FROM profile_notifications WHERE profile_id = D1 AND kind = 'ride_offer_new' AND ref_id = ride) <> 1 THEN RAISE EXCEPTION '16: motorista não foi avisado da oferta'; END IF;
+    IF (SELECT meta->>'text' FROM profile_notifications WHERE profile_id = D1 AND kind = 'ride_offer_new' AND ref_id = ride) NOT LIKE '%R$ 14,00%' THEN RAISE EXCEPTION '16: texto sem o valor'; END IF;
+    PERFORM pg_temp.as_user(D1);
+    PERFORM driver_counter(a1, 16);                                      -- aviso para o passageiro (2ª proposta do motorista)
+    PERFORM pg_temp.as_server();
+    IF (SELECT count(*) FROM profile_notifications WHERE profile_id = P AND kind = 'ride_offer_new' AND ref_id = ride) <> 1 THEN RAISE EXCEPTION '16: passageiro não foi avisado da contraproposta'; END IF;
+    IF (SELECT count(*) FROM profile_notifications WHERE profile_id = P AND kind = 'ride_offer_new' AND ref_id = ride AND meta->>'text' LIKE '%R$ 18,00%') <> 0 THEN RAISE EXCEPTION '16: a 1ª proposta (candidatura) não deveria gerar este aviso'; END IF;
+    SELECT id INTO o FROM ride_price_offers WHERE application_id = a1 AND author_role = 'driver' AND status = 'pending';
+    PERFORM pg_temp.as_user(P);
+    PERFORM respond_ride_offer(o, false);                                -- recusa: o motorista é avisado
+    PERFORM pg_temp.as_server();
+    IF (SELECT count(*) FROM profile_notifications WHERE profile_id = D1 AND kind = 'ride_offer_declined' AND ref_id = ride) <> 1 THEN RAISE EXCEPTION '16: autor não foi avisado da recusa'; END IF;
+    -- aceite do motorista a uma oferta do passageiro: o passageiro é avisado do acordo
+    ride := pg_temp.new_ride(P, 5, 12);
+    a1 := pg_temp.new_app(ride, D1, 18);
+    PERFORM pg_temp.as_user(P);
+    PERFORM passenger_counter(a1, 15);
+    PERFORM pg_temp.as_server();
+    SELECT id INTO o FROM ride_price_offers WHERE application_id = a1 AND author_role = 'passenger' AND status = 'pending';
+    PERFORM pg_temp.as_user(D1);
+    PERFORM respond_ride_offer(o, true);
+    PERFORM pg_temp.as_server();
+    IF (SELECT count(*) FROM profile_notifications WHERE profile_id = P AND kind = 'ride_offer_agreed' AND ref_id = ride) <> 1 THEN RAISE EXCEPTION '16: passageiro não foi avisado do acordo'; END IF;
+    -- expiração avisa quem fez a proposta
+    ride := pg_temp.new_ride(P, 5, 12);
+    a1 := pg_temp.new_app(ride, D2, 18);
+    PERFORM pg_temp.as_user(P);
+    PERFORM passenger_counter(a1, 14);
+    PERFORM pg_temp.as_server();
+    UPDATE ride_price_offers SET expires_at = now() - interval '1 second' WHERE application_id = a1 AND author_role = 'passenger' AND status = 'pending';
+    PERFORM expire_ride_price_offers();
+    IF (SELECT count(*) FROM profile_notifications WHERE profile_id = P AND kind = 'ride_offer_expired' AND ref_id = ride) <> 1 THEN RAISE EXCEPTION '16: quem propôs não foi avisado da expiração'; END IF;
+    RAISE NOTICE 'OK 16';
 END $$;
 
 ROLLBACK;

@@ -50,3 +50,10 @@ test('frase pronta e "estou no local" trazem a RESPOSTA de um toque; o aviso de 
   assert.equal(islandEventFor({ kind: 'delivery_at_door', meta: { title: 'x', text: 'y', reply_code: 'coming' } })?.reply, undefined)
 })
 
+
+test('negociação do valor da corrida: a proposta do outro lado aparece na ilha, com tempo para responder', () => {
+  const e = islandEventFor({ kind: 'ride_offer_new', meta: { title: 'Nova oferta do passageiro', text: 'O passageiro ofereceu R$ 14,00 pela corrida.', path: '/aceitar-corridas?aba=candidatos&ride=r1' } })
+  assert.equal(e?.level, 'message'); assert.equal(e?.actionLabel, 'Responder'); assert.ok(e && e.duration >= 15000); assert.match(e.path, /aceitar-corridas/)
+  for (const k of ['ride_offer_declined', 'ride_offer_agreed', 'ride_offer_expired']) assert.ok(islandEventFor({ kind: k, meta: { title: 't', text: 'x', path: '/pedir-motorista' } }), k)
+  assert.equal(islandEventFor({ kind: 'ride_offer_new', meta: {} }), null)
+})
