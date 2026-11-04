@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/contexts/theme'
-import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio, Trash2 } from 'lucide-react'
+import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio, Trash2, ChevronRight } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -182,9 +182,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     // 'choose' pergunta como a pessoa quer definir o local (escrever ou
     // marcar no mapa); 'address' mostra a busca/mapa; 'number' e
     // 'complement' vêm depois, em sequência, só depois do endereço definido.
-    // Com askRadarVisibility (e logada), a 1ª etapa é a pergunta "aparecer no Radar ou só salvar o endereço".
+    // Com askRadarVisibility (e logada), a ÚLTIMA etapa (depois do complemento) é a pergunta "aparecer no Radar ou só salvar o endereço".
     const askVisibility = askRadarVisibility && !isStore && !!userId
-    const [step, setStep] = useState<'visibility' | 'choose' | 'address' | 'number' | 'complement'>(askVisibility ? 'visibility' : 'choose')
+    const [step, setStep] = useState<'visibility' | 'choose' | 'address' | 'number' | 'complement'>('choose')
     const [radarChoice, setRadarChoice] = useState<boolean | null>(null)
     const [savingChoice, setSavingChoice] = useState(false)
     // o que a pessoa já tinha escolhido (se já tem localização salva, vem marcado)
@@ -198,7 +198,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [askVisibility, userId])
     const totalSteps = askVisibility ? 5 : 4
-    const stepNo = (n: number) => (askVisibility ? n + 1 : n)
+    const stepNo = (n: number) => n
     const [method, setMethod] = useState<'search' | 'map' | null>(null)
     // Enquanto busca o GPS do aparelho antes de abrir o mapa (só quando não
     // há localização salva pra centralizar nela) - sem isso o mapa abriria
@@ -831,54 +831,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                         {isStore ? 'Localização da loja' : 'Definir localização'}
                     </h3>
 
-                    {/* ===== ETAPA 1 · APARECER NO RADAR OU SÓ GUARDAR O ENDEREÇO ===== */}
-                    {step === 'visibility' && (
-                        <>
-                            <div className="flex items-center justify-between mb-3">
-                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa 1 de {totalSteps} · Visibilidade
-                                </p>
-                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
-                                    <X size={16} />
-                                </button>
-                            </div>
-                            <p className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que você quer fazer com essa localização?</p>
-                            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Você pode mudar isso quando quiser em Painel do perfil → Visível no Radar.</p>
-                            <div className="flex flex-col gap-2">
-                                {([
-                                    { value: true, icon: <Radio size={18} />, title: 'Aparecer no Radar', text: 'Você e seus serviços aparecem no mapa do Radar, perto de quem procura.' },
-                                    { value: false, icon: <Home size={18} />, title: 'Só salvar meu endereço', text: 'Fica guardado para os pedidos que você fizer nas lojas. Ninguém vê você no Radar.' },
-                                ] as const).map((o) => {
-                                    const on = radarChoice === o.value
-                                    return (
-                                        <button
-                                            key={String(o.value)}
-                                            onClick={() => setRadarChoice(o.value)}
-                                            className="flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition active:scale-[0.99]"
-                                            style={{ borderColor: on ? '#f97316' : colors.border, background: on ? '#f973161a' : 'transparent' }}
-                                        >
-                                            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: on ? 'linear-gradient(135deg, #f97316, #dc2626)' : `${colors.border}` , color: on ? '#fff' : colors.textSecondary }}>{o.icon}</span>
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{o.title}</span>
-                                                <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{o.text}</span>
-                                            </span>
-                                            {on && <Check size={18} style={{ color: '#f97316' }} className="flex-shrink-0" />}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                            <button
-                                onClick={() => setStep('choose')}
-                                disabled={radarChoice === null}
-                                className="mt-3 w-full py-3 rounded-full text-sm font-black text-white disabled:opacity-40"
-                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
-                            >
-                                Continuar
-                            </button>
-                            {clearControl && <div className="mt-1 w-full [&>button]:mx-auto">{clearControl}</div>}
-                        </>
-                    )}
-
                     {/* ===== ETAPA · COMO DEFINIR ===== */}
                     {step === 'choose' && (
                         <>
@@ -1299,7 +1251,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                     type="text"
                                     value={newComplement}
                                     onChange={(e) => setNewComplement(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveWithConfirmation() }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { if (askVisibility) setStep('visibility'); else handleSaveWithConfirmation() } }}
                                     placeholder="Ex: Casa com parede de cerâmica, portão azul..."
                                     className="w-full bg-transparent outline-none text-xs font-medium"
                                     style={{ color: colors.textPrimary }}
@@ -1321,13 +1273,71 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={handleSaveWithConfirmation}
+                                    onClick={() => (askVisibility ? setStep('visibility') : handleSaveWithConfirmation())}
                                     disabled={loading || !newAddress}
                                     className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                                     style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
                                 >
-                                    <Check size={14} />
-                                    {isStore ? 'Salvar localização da loja' : 'Salvar localização'}
+                                    {askVisibility ? <ChevronRight size={14} /> : <Check size={14} />}
+                                    {askVisibility ? 'Continuar' : isStore ? 'Salvar localização da loja' : 'Salvar localização'}
+                                </button>
+                            </div>
+                        </>
+                    )}
+                    {/* ===== ÚLTIMA ETAPA · APARECER NO RADAR OU SÓ GUARDAR O ENDEREÇO ===== */}
+                    {step === 'visibility' && (
+                        <>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                    Etapa {totalSteps} de {totalSteps} · Visibilidade
+                                </p>
+                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <p className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que você quer fazer com essa localização?</p>
+                            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Você pode mudar isso quando quiser em Painel do perfil → Visível no Radar.</p>
+                            <div className="flex flex-col gap-2">
+                                {([
+                                    { value: true, icon: <Radio size={18} />, title: 'Aparecer no Radar', text: 'Você e seus serviços aparecem no mapa do Radar, perto de quem procura.' },
+                                    { value: false, icon: <Home size={18} />, title: 'Só salvar meu endereço', text: 'Fica guardado para os pedidos que você fizer nas lojas. Ninguém vê você no Radar.' },
+                                ] as const).map((o) => {
+                                    const on = radarChoice === o.value
+                                    return (
+                                        <button
+                                            key={String(o.value)}
+                                            onClick={() => setRadarChoice(o.value)}
+                                            className="flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition active:scale-[0.99]"
+                                            style={{ borderColor: on ? '#f97316' : colors.border, background: on ? '#f973161a' : 'transparent' }}
+                                        >
+                                            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: on ? 'linear-gradient(135deg, #f97316, #dc2626)' : `${colors.border}` , color: on ? '#fff' : colors.textSecondary }}>{o.icon}</span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{o.title}</span>
+                                                <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{o.text}</span>
+                                            </span>
+                                            {on && <Check size={18} style={{ color: '#f97316' }} className="flex-shrink-0" />}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            {error && <p className="text-red-500 text-xs font-medium mt-2 ml-1">{error}</p>}
+                            <div className="flex gap-2 mt-3">
+                                <button
+                                    onClick={() => setStep('complement')}
+                                    disabled={loading || savingChoice}
+                                    className="flex-1 py-3 rounded-full text-sm font-black transition active:scale-95 disabled:opacity-50"
+                                    style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={handleSaveWithConfirmation}
+                                    disabled={radarChoice === null || loading || savingChoice || !newAddress}
+                                    className="flex-[1.6] py-3 rounded-full text-sm font-black text-white disabled:opacity-40 flex items-center justify-center gap-2"
+                                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 4px 14px #f9731660' }}
+                                >
+                                    <Check size={15} />
+                                    Salvar localização
                                 </button>
                             </div>
                         </>
