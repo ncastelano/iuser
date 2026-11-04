@@ -12,11 +12,11 @@ import { presignUrl, signHeaders } from '../../src/lib/r2.ts'
 
 const root = path.resolve(import.meta.dirname, '..', '..')
 const ENV_FILE = path.join(root, '.local-supabase', 'dev.env')
-const FAKE = { accountId: crypto.createHash('md5').update('iuser-local-r2').digest('hex'), ak: 'LOCALFAKEACCESSKEY', sk: 'local-fake-secret-key-not-real', bucket: 'iuser-media', port: 4599 }
+const FAKE = { accountId: crypto.createHash('md5').update('iuser-local-r2').digest('hex'), ak: 'LOCALFAKEACCESSKEY', sk: 'local-fake-secret-key-not-real', bucket: 'iuser-media', digital: 'iuser-digital', port: 4599 }
 const APP = 'http://localhost:3100'
 
 if (process.argv.includes('--prepare')) {
-    fs.writeFileSync(ENV_FILE, [`R2_ACCOUNT_ID=${FAKE.accountId}`, `R2_ACCESS_KEY_ID=${FAKE.ak}`, `R2_SECRET_ACCESS_KEY=${FAKE.sk}`, `R2_BUCKET=${FAKE.bucket}`, `R2_TEST_ENDPOINT=http://127.0.0.1:${FAKE.port}`, 'R2_PUBLIC_BASE=https://midia.exemplo.test', ''].join('\n'))
+    fs.writeFileSync(ENV_FILE, [`R2_ACCOUNT_ID=${FAKE.accountId}`, `R2_ACCESS_KEY_ID=${FAKE.ak}`, `R2_SECRET_ACCESS_KEY=${FAKE.sk}`, `R2_BUCKET=${FAKE.bucket}`, `R2_DIGITAL_BUCKET=${FAKE.digital}`, `R2_TEST_ENDPOINT=http://127.0.0.1:${FAKE.port}`, 'R2_PUBLIC_BASE=https://midia.exemplo.test', ''].join('\n'))
     console.log(`gravado ${ENV_FILE}\nReinicie o app: npm run dev:local (ou preview_stop/preview_start), e rode este script sem --prepare.`); process.exit(0)
 }
 
@@ -64,10 +64,13 @@ const server = http.createServer(async (req, res) => {
         if (req.method === 'GET') {   // leitura por link assinado
             const q = url.searchParams, date = q.get('X-Amz-Date')
             const now = new Date(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}T${date.slice(9, 11)}:${date.slice(11, 13)}:${date.slice(13, 15)}Z`)
-            const expect = presignUrl({ host, scheme: 'http', path: '/' + objKey, method: 'GET', accessKeyId: FAKE.ak, secretAccessKey: FAKE.sk, expires: Number(q.get('X-Amz-Expires')), now })
+            const extra = {}; for (const [k, v] of q.entries()) if (!k.startsWith('X-Amz-')) extra[k] = v   // ex.: response-content-disposition (assinado dentro do link)
+            const expect = presignUrl({ host, scheme: 'http', path: '/' + objKey, method: 'GET', accessKeyId: FAKE.ak, secretAccessKey: FAKE.sk, expires: Number(q.get('X-Amz-Expires')), now, query: extra })
+            if (log.length < 500 && q.get('response-content-disposition')) log.push('GET com nome de download')
             if (new URL(expect).searchParams.get('X-Amz-Signature') !== q.get('X-Amz-Signature')) return reply(403)
             const o = store.get(objKey); if (!o) return reply(404)
-            res.writeHead(200, { 'content-length': String(o.body.length), 'content-type': o.type }); return res.end(o.body)
+            const hdrs = { 'content-length': String(o.body.length), 'content-type': o.type }; if (extra['response-content-disposition']) hdrs['content-disposition'] = extra['response-content-disposition']
+            res.writeHead(200, hdrs); return res.end(o.body)
         }
         if (req.method === 'PUT') {
             const q = url.searchParams, date = q.get('X-Amz-Date')
@@ -326,12 +329,117 @@ try {
     { const cs = JSON.parse(cleanSaved); psql(`update upload_settings set cleanup_enabled=${cs.cleanup_enabled}, cleanup_min_age_days=${cs.cleanup_min_age_days}, cleanup_quarantine_days=${cs.cleanup_quarantine_days}, cleanup_max_per_run=${cs.cleanup_max_per_run} where id`) }
     psql(`update profiles set bio = ${bioSaved === '' ? 'NULL' : `'${bioSaved.replace(/'/g, "''")}'`} where id='${A.id}'`)
 
+
+    console.log('10) Digital pesado no R2 PRIVADO (bucket iuser-digital)')
+    const dkSaved = psql(`select row_to_json(k) from (select enabled, per_hour_files, per_day_bytes, per_user_bytes, max_bytes from upload_kinds where kind='digital_heavy') k`)
+    psql(`update upload_kinds set enabled=false where kind='digital_heavy'`)
+    const availD = async () => (await fetch(APP + '/api/uploads/r2/sign?kind=digital_heavy')).json()
+    ok((await availD()).available === false, 'com o tipo desligado (como nasce) o app sabe que não está disponível')
+    psql(`update upload_kinds set enabled=true, per_hour_files=50, per_day_bytes=NULL, per_user_bytes=NULL where kind='digital_heavy'`)
+    const av10 = await availD()
+    ok(av10.available === true && av10.maxBytes === 536870912 && av10.mimeTypes.includes('application/octet-stream'), 'ligado: disponível (512 MB, com programa e pacote)')
+    ok(JSON.stringify(av10).includes(FAKE.sk) === false, 'a resposta pública não traz chave')
+
+    // recusas antes de assinar
+    r = await api(A, '/api/uploads/r2/sign', { kind: 'digital_heavy', mime: 'application/octet-stream', ext: 'html', bytes: 1000 })
+    ok(r.status === 415, 'octet-stream com extensão fora da lista (html): 415')
+    r = await api(A, '/api/uploads/r2/sign', { kind: 'digital_heavy', mime: 'application/octet-stream', bytes: 1000 })
+    ok(r.status === 415, 'octet-stream SEM extensão: 415')
+    r = await api(A, '/api/uploads/r2/sign', { kind: 'digital_heavy', mime: 'text/html', ext: 'exe', bytes: 1000 })
+    ok(r.status === 415, 'tipo html com extensão de programa: 415 (a extensão só vale com octet-stream)')
+    r = await api(A, '/api/uploads/r2/sign', { kind: 'media_r2', mime: 'application/octet-stream', ext: 'exe', bytes: 1000 })
+    ok(r.status === 415 && r.json.code === 'type_not_allowed', 'o tipo de vídeo/música (media_r2) não aceita programa: 415')
+    r = await api(A, '/api/uploads/r2/sign', { kind: 'digital_heavy', mime: 'application/octet-stream', ext: 'exe', bytes: 536870913 })
+    ok(r.status === 413 && /512 MB/.test(r.json.error), `acima do máximo do tipo: 413 (${r.json.error})`)
+
+    // programa .exe (sem tipo no navegador): assinar → enviar → confirmar; mora no bucket privado e NÃO tem endereço público
+    const exeFile = crypto.randomBytes(90_000)
+    r = await api(A, '/api/uploads/r2/sign', { kind: 'digital_heavy', mime: 'application/octet-stream', ext: 'exe', bytes: exeFile.length })
+    ok(r.status === 200 && r.json.ok, 'programa autorizado')
+    const dKey = r.json.key, dLink = new URL(r.json.url)
+    ok(dKey.startsWith(A.id + '/') && /^[0-9a-f-]{36}\.exe$/.test(dKey.split('/')[1]), 'o servidor escolheu o nome: <pessoa>/<uuid>.exe')
+    ok(dLink.pathname === `/iuser-digital/${dKey}`, 'o link aponta para o bucket PRIVADO do digital (não para o da mídia)')
+    ok(r.json.headers['Content-Type'] === 'application/octet-stream', 'o tipo assinado é octet-stream (o navegador baixa, nunca executa)')
+    ok((await put(r.json.url, r.json.headers, exeFile)).status === 200, 'enviado direto ao R2 privado')
+    const dDone = await api(A, '/api/uploads/r2/complete', { key: dKey })
+    ok(dDone.status === 200 && dDone.json.bytes === exeFile.length && dDone.json.url === null, 'confirmado e SEM endereço público (o bucket não tem domínio)')
+    ok(psql(`select provider||'|'||bucket||'|'||kind||'|'||state from media_assets where key='${dKey}'`) === 'r2|iuser-digital|digital_heavy|ready', 'registrado em media_assets no bucket do digital')
+    ok((await fetch(`${APP}/api/media/r2?key=${encodeURIComponent(dKey)}`, { redirect: 'manual' })).status === 404, 'a rota pública de mídia NÃO abre arquivo do digital')
+    // tipo conhecido manda; a extensão digitada é ignorada
+    r = await api(A, '/api/uploads/r2/sign', { kind: 'digital_heavy', mime: 'video/mp4', ext: 'exe', bytes: 5000 })
+    ok(r.status === 200 && r.json.key.endsWith('.mp4'), 'vídeo mp4 com "ext: exe" no pedido: o nome sai .mp4')
+    const vFile = video(5000)
+    await put(r.json.url, r.json.headers, vFile); const vDone = await api(A, '/api/uploads/r2/complete', { key: r.json.key }); const vKey = r.json.key
+    ok(vDone.status === 200, 'vídeo da aula enviado e registrado')
+
+    // itens do produto (como o editor faz, pelo PostgREST, logado como a dona)
+    const prodId = psql(`insert into products (name, slug, price, type, store_id, owner_id, is_active) select 'Digital R2 e2e', 'digital-r2-e2e', 30, 'digital', (select id from stores limit 1), '${A.id}', true returning id`).split('\n')[0]
+    const rest = (who, method, route, body) => fetch(`${API}/rest/v1/${route}`, { method, headers: { apikey: ANON, Authorization: `Bearer ${who.token}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: body ? JSON.stringify(body) : undefined })
+    ok((await rest(A, 'POST', 'rpc/declare_digital_rights', { p_product: prodId })).status < 300, 'a dona declara a autoria')
+    let ins = await rest(A, 'POST', 'digital_contents', { product_id: prodId, owner_id: A.id, title: 'Setup', kind: 'app', bucket: 'iuser-digital', storage_path: dKey, file_name: 'Meu Programa 1.0.exe', platform: 'windows', version: '1.0', size_bytes: exeFile.length, position: 0 })
+    const appItem = (await ins.json())[0]
+    ok(ins.status === 201 && appItem.bucket === 'iuser-digital', 'item de programa entra apontando para o arquivo do R2')
+    ins = await rest(A, 'POST', 'digital_contents', { product_id: prodId, owner_id: A.id, title: 'Aula 1', kind: 'video', bucket: 'iuser-digital', storage_path: vKey, file_name: 'aula 1.mp4', size_bytes: vFile.length, position: 1, is_preview: false })
+    const vidItem = (await ins.json())[0]
+    ok(ins.status === 201, 'item de vídeo entra')
+    ins = await rest(B, 'POST', 'digital_contents', { product_id: prodId, owner_id: B.id, title: 'Roubado', kind: 'video', bucket: 'iuser-digital', storage_path: vKey, position: 2 })
+    ok(ins.status >= 400, 'outra pessoa não consegue pôr o arquivo da dona num item (nem no produto dela)')
+    ins = await rest(A, 'POST', 'digital_contents', { product_id: prodId, owner_id: A.id, title: 'Repetido', kind: 'video', bucket: 'iuser-digital', storage_path: vKey, position: 3 })
+    ok(ins.status >= 400, 'o mesmo arquivo em dois itens: recusado')
+
+    // abrir / baixar: só com direito; link assinado do bucket PRIVADO; download com o nome original
+    const openAs = (who, id, extra = '') => fetch(`${APP}/api/digital/open?item=${id}${extra}`, { headers: who ? { cookie: who.cookie } : {} }).then(async (x) => ({ status: x.status, json: await x.json().catch(() => null) }))
+    ok((await openAs(null, appItem.id, '&download=1')).status === 403, 'visitante sem direito: 403')
+    ok((await openAs(B, appItem.id, '&download=1')).status === 403, 'quem não comprou: 403')
+    psql(`insert into digital_claims (profile_id, product_id) values ('${B.id}', '${prodId}')`)   // o direito que a compra (ou o "pegar grátis") gravaria
+    const dl = await openAs(B, appItem.id, '&download=1')
+    ok(dl.status === 200 && dl.json.external === false, 'quem tem o direito recebe o link')
+    const dlUrl = new URL(dl.json.url)
+    ok(dlUrl.origin === `http://127.0.0.1:${FAKE.port}` && dlUrl.pathname === `/iuser-digital/${dKey}` && dlUrl.searchParams.get('X-Amz-Expires') === '3600', 'link assinado de 1 hora do bucket privado do digital')
+    ok(/Meu%20Programa%201\.0\.exe/.test(dlUrl.searchParams.get('response-content-disposition') + dlUrl.search) , 'o nome do download (original) vai assinado no link')
+    const got = await fetch(dl.json.url)
+    ok(got.status === 200 && Buffer.compare(Buffer.from(await got.arrayBuffer()), exeFile) === 0, 'o link entrega o arquivo inteiro')
+    ok(/attachment; filename="Meu Programa 1\.0\.exe"/.test(got.headers.get('content-disposition') || ''), 'e manda baixar com o nome original')
+    ok((await fetch(dl.json.url.replace('X-Amz-Signature=', 'X-Amz-Signature=00'))).status === 403, 'link adulterado: o R2 recusa')
+    ok(Number(psql(`select count(*) from digital_downloads where item_id='${appItem.id}'`)) === 1, 'o download do programa foi contado')
+    const watch = await openAs(B, vidItem.id)
+    ok(watch.status === 200 && !new URL(watch.json.url).searchParams.get('response-content-disposition'), 'vídeo abre para tocar (sem forçar download)')
+    // dono do produto sempre abre; a rota não vaza chave
+    ok((await openAs(A, vidItem.id)).status === 200, 'a dona abre o próprio conteúdo')
+    ok(!JSON.stringify(dl.json).includes(FAKE.sk), 'a resposta não traz a chave secreta')
+
+    // painel do admin: o bucket privado aparece e o teste de conexão passa
+    const load10 = await admin('load')
+    ok(load10.json.r2Digital && load10.json.r2Digital.configured === true && load10.json.r2Digital.bucket === 'iuser-digital' && load10.json.r2Digital.publicBase === null, 'o painel mostra o R2 privado configurado e SEM endereço público')
+    const chk10 = await adminPost({ action: 'r2_check', scope: 'digital' })
+    ok(chk10.json.ok === true && chk10.json.bucket === 'iuser-digital' && chk10.json.steps.length === 4, 'teste do R2 privado: gravou, conferiu, leu e apagou (4 passos)')
+    ok(![...store.keys()].some((k) => k.startsWith('iuser-digital/_healthcheck')), 'sem sobra do teste')
+
+    // apagar: enquanto o item existe o servidor recusa; sem o item, apaga do R2
+    const busy10 = await api(A, '/api/uploads/r2/remove', { key: dKey })
+    ok(busy10.status === 409 && busy10.json.code === 'in_use', 'apagar o arquivo de um item que existe: 409')
+    ok((await api(B, '/api/uploads/r2/remove', { key: dKey })).status === 400, 'outra pessoa não apaga o arquivo alheio')
+    ok((await rest(A, 'DELETE', `digital_contents?id=eq.${appItem.id}`)).status < 300, 'a dona apaga o item')
+    const rm10 = await api(A, '/api/uploads/r2/remove', { key: dKey })
+    ok(rm10.status === 200 && rm10.json.removed === true && !store.has(`iuser-digital/${dKey}`), 'depois, o arquivo sai do R2 privado')
+    ok(psql(`select state||'/'||deleted_reason from media_assets where key='${dKey}'`) === 'deleted/owner', 'registro marcado como apagado pela dona')
+    ok(store.has(`iuser-digital/${vKey}`), 'o outro arquivo (ainda em uso) ficou')
+
+    // o bucket do digital sem configuração = não disponível (a mídia segue funcionando): confere pelo catálogo apontando para um bucket que o servidor não tem
+    psql(`update upload_kinds set bucket='iuser-sem-config' where kind='digital_heavy'`)
+    ok((await availD()).available === false, 'tipo apontando para um bucket que este servidor não tem: não disponível')
+    r = await api(A, '/api/uploads/r2/sign', { kind: 'digital_heavy', mime: 'video/mp4', bytes: 1000 })
+    ok(r.status === 503 && r.json.code === 'r2_unconfigured', 'e assinar responde 503 (o app usa o plano B)')
+    psql(`update upload_kinds set bucket='iuser-digital' where kind='digital_heavy'`)
+    psql(`delete from digital_claims where product_id='${prodId}'; delete from digital_contents where product_id='${prodId}'; delete from digital_rights where product_id='${prodId}'; delete from products where id='${prodId}'`)
+    { const d = JSON.parse(dkSaved); psql(`update upload_kinds set enabled=${d.enabled}, per_hour_files=${d.per_hour_files ?? 'NULL'}, per_day_bytes=${d.per_day_bytes ?? 'NULL'}, per_user_bytes=${d.per_user_bytes ?? 'NULL'}, max_bytes=${d.max_bytes} where kind='digital_heavy'`) }
+
     console.log(`\nTUDO CERTO: ${passed} verificações\n(registro do R2 de mentira: ${log.length} chamadas, ${log.filter((l) => /NÃO confere/.test(l)).length} com assinatura errada — esperado: só as de teste da seção 3)`)
 } finally {
     console.log('\nlimpando…')
     try {
         server.close()
-        psql(`delete from upload_cleanup_runs where started_at >= '${startedAt}'; delete from flashes where content like 'r2e2e%'; delete from upload_blocks where reason='teste do R2'; delete from upload_denials where kind='media_r2'; delete from upload_grants where kind='media_r2'; delete from media_assets where provider='r2'`)
+        psql(`delete from upload_cleanup_runs where started_at >= '${startedAt}'; delete from flashes where content like 'r2e2e%'; delete from upload_blocks where reason='teste do R2'; delete from upload_denials where kind='media_r2'; delete from upload_grants where kind in ('media_r2','digital_heavy'); delete from upload_denials where kind='digital_heavy'; delete from media_assets where provider='r2'`)
         psql(`delete from admin_config_audit where scope='upload_blocks' and changed_at > now() - interval '30 minutes'`)
         if (saved) { const s = JSON.parse(saved); psql(`update upload_kinds set enabled=${s.enabled}, per_hour_files=${s.per_hour_files ?? 'NULL'}, per_day_bytes=${s.per_day_bytes ?? 'NULL'}, per_user_bytes=${s.per_user_bytes ?? 'NULL'}, max_bytes=${s.max_bytes} where kind='media_r2'`) }
         console.log('  banco restaurado (apague .local-supabase/dev.env e reinicie o app para desligar o R2 de mentira)')

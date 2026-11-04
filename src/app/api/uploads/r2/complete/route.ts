@@ -5,16 +5,13 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { readR2Config, isSafeR2Key, r2Head, r2Delete, r2PublicUrl } from '@/lib/r2'
+import { r2ConfigForBucket, isSafeR2Key, r2Head, r2Delete, r2PublicUrl } from '@/lib/r2'
 
 export const dynamic = 'force-dynamic'
 const NO_STORE = { 'Cache-Control': 'no-store' }
 const fail = (status: number, code: string, error: string) => NextResponse.json({ ok: false, code, error }, { status, headers: NO_STORE })
 
 export async function POST(req: Request) {
-    const cfg = readR2Config()
-    if (!cfg) return fail(503, 'r2_unconfigured', 'O envio de arquivos pesados ainda não está disponível.')
-
     const supabase = await createServerSupabase()
     const { data: auth } = await supabase.auth.getUser()
     const user = auth?.user
@@ -27,7 +24,9 @@ export async function POST(req: Request) {
     // a autorização desta pessoa para ESTE caminho (aberta, não usada, dentro da validade)
     const { data: grant } = await supabaseAdmin.from('upload_grants').select('id, kind, bucket, declared_bytes')
         .eq('profile_id', user.id).eq('key', key).is('used_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(1).maybeSingle()
-    if (!grant || grant.bucket !== cfg.bucket) return fail(404, 'no_grant', 'Este envio não foi autorizado ou já venceu. Envie o arquivo de novo.')
+    if (!grant) return fail(404, 'no_grant', 'Este envio não foi autorizado ou já venceu. Envie o arquivo de novo.')
+    const cfg = r2ConfigForBucket(grant.bucket)   // o bucket da autorização (vídeo/música ou o privado do digital)
+    if (!cfg) return fail(503, 'r2_unconfigured', 'O envio de arquivos pesados ainda não está disponível.')
     const { data: k } = await supabaseAdmin.from('upload_kinds').select('kind, max_bytes, mime_types').eq('kind', grant.kind).eq('provider', 'r2').maybeSingle()
     if (!k) return fail(404, 'no_grant', 'Este envio não foi autorizado ou já venceu. Envie o arquivo de novo.')
 

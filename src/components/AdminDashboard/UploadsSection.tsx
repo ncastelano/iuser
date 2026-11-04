@@ -37,7 +37,7 @@ interface CleanupOverview {
 }
 interface R2Info { configured: boolean; bucket: string | null; publicBase: string | null; problems: string[] }
 interface R2Check { ok: boolean; steps: { step: string; ok: boolean; detail: string; ms: number }[]; problems?: string[]; bucket?: string }
-interface Loaded { r2: R2Info | null; overview: { enforced: boolean; totals: Totals; kinds: KindRow[] }; top: Owner[]; denials: Denial[]; blocks: BlockRow[]; audit: AuditRow[]; meters: Meter[]; cleanup: CleanupOverview | null }
+interface Loaded { r2: R2Info | null; r2Digital: R2Info | null; overview: { enforced: boolean; totals: Totals; kinds: KindRow[] }; top: Owner[]; denials: Denial[]; blocks: BlockRow[]; audit: AuditRow[]; meters: Meter[]; cleanup: CleanupOverview | null }
 
 const ORANGE = '#f97316'
 const who = (p: { name: string | null; slug: string | null }) => (p.slug ? `@${p.slug}` : p.name || 'Pessoa')
@@ -80,7 +80,7 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
     const [cleanForm, setCleanForm] = useState<{ form: CleanupForm; errors: CleanupErrors } | null>(null)
     const [cleanConfirm, setCleanConfirm] = useState<'switch' | 'run' | null>(null)
     const [cleanResult, setCleanResult] = useState<CleanupResult | null>(null)
-    const [r2Check, setR2Check] = useState<R2Check | null>(null)
+    const [r2Check, setR2Check] = useState<(R2Check & { scope: 'media' | 'digital' }) | null>(null)
 
     const load = useCallback(async () => {
         try { const r = await callAdminApi<Loaded>('/api/admin/uploads', { action: 'load' }); setData(r); setTop(r.top); setTopKind(null) }
@@ -103,11 +103,38 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
             await load()
         } catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(false) }
     }
-    const checkR2 = async () => {
+    const checkR2 = async (scope: 'media' | 'digital' = 'media') => {
         setBusy(true); setR2Check(null)
-        try { setR2Check(await callAdminApi<R2Check>('/api/admin/uploads', { action: 'r2_check' })) }
+        try { setR2Check({ ...(await callAdminApi<R2Check>('/api/admin/uploads', { action: 'r2_check', scope })), scope }) }
         catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(false) }
     }
+    const r2Card = (info: R2Info | null | undefined, scope: 'media' | 'digital', title: string, desc: string) => (
+        info && (
+                <div style={cardStyle} className="flex flex-col gap-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                        <div>
+                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>{title}</h3>
+                            <p className="text-[12px]" style={{ color: colors.textSecondary }}>{desc}</p>
+                        </div>
+                        {chip(info.configured ? 'CONFIGURADO' : 'NÃO CONFIGURADO', info.configured ? '#22c55e' : '#f59e0b')}
+                    </div>
+                    {info.configured
+                        ? <p className="text-[12px]" style={{ color: colors.textSecondary }}>Bucket <b style={{ color: colors.textPrimary }}>{info.bucket}</b> · {scope === 'digital' ? <b style={{ color: colors.textPrimary }}>sem endereço público, de propósito: os arquivos só abrem por link assinado, depois de conferir quem comprou</b> : <>endereço público {info.publicBase ? <b style={{ color: colors.textPrimary }}>{info.publicBase}</b> : 'ainda não ligado (os arquivos só abrem por link assinado)'}</>}.</p>
+                        : <ul className="flex flex-col gap-0.5">{info.problems.map((p) => <li key={p} className="text-[12px] font-bold" style={{ color: '#f59e0b' }}>{p}</li>)}</ul>}
+                    <button disabled={busy || !info.configured} onClick={() => checkR2(scope)} className={pill} style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}>{scope === 'digital' ? 'Testar o R2 privado' : 'Testar o R2'}</button>
+                    {r2Check && r2Check.scope === scope && (
+                        <div className="rounded-2xl p-3 flex flex-col gap-1" style={{ background: soft, border: `1.5px solid ${r2Check.ok ? '#22c55e' : '#ef4444'}` }}>
+                            <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>{r2Check.ok ? (scope === 'digital' ? 'R2 privado funcionando' : 'R2 funcionando') : 'O teste não passou'}</p>
+                            {r2Check.problems?.map((p) => <p key={p} className="text-[12px] font-bold" style={{ color: '#ef4444' }}>{p}</p>)}
+                            {r2Check.steps.map((st) => (
+                                <p key={st.step} className="text-[12px]" style={{ color: st.ok ? colors.textPrimary : '#ef4444' }}>{st.ok ? '✓' : '✗'} {st.step} — {st.detail} <span style={{ color: colors.textSecondary }}>({st.ms} ms)</span></p>
+                            ))}
+                            {!r2Check.ok && r2Check.steps.some((st) => !st.ok && /40[13]/.test(st.detail)) && <p className="text-[11px]" style={{ color: colors.textSecondary }}>Erro 403 costuma ser chave errada, ou chave sem permissão de leitura e escrita neste bucket. Confira as variáveis na Vercel e o escopo do token na Cloudflare.</p>}
+                        </div>
+                    )}
+                </div>
+        )
+    )
     const showTop = async (kind: string | null) => {
         setTopKind(kind)
         try { const r = await callAdminApi<{ top: Owner[] }>('/api/admin/uploads', { action: 'top', kind }); setTop(r.top) } catch (e: any) { toast.error(e?.message || 'Erro ao carregar') }
@@ -216,32 +243,8 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
             {/* ===== Banda estimada dos downloads de programas (a banda foi o que estourou o projeto) ===== */}
             <DownloadBandwidthCard cardStyle={cardStyle} colors={colors} />
 
-            {/* ===== Cloudflare R2 (vídeo e música) ===== */}
-            {data.r2 && (
-                <div style={cardStyle} className="flex flex-col gap-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                        <div>
-                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>Cloudflare R2 (vídeo e música)</h3>
-                            <p className="text-[12px]" style={{ color: colors.textSecondary }}>Armazenamento para arquivos pesados, fora da cota do Supabase. O tipo “Vídeo e música (R2)” só deve ser ligado depois de o teste abaixo passar.</p>
-                        </div>
-                        {chip(data.r2.configured ? 'CONFIGURADO' : 'NÃO CONFIGURADO', data.r2.configured ? '#22c55e' : '#f59e0b')}
-                    </div>
-                    {data.r2.configured
-                        ? <p className="text-[12px]" style={{ color: colors.textSecondary }}>Bucket <b style={{ color: colors.textPrimary }}>{data.r2.bucket}</b> · endereço público {data.r2.publicBase ? <b style={{ color: colors.textPrimary }}>{data.r2.publicBase}</b> : 'ainda não ligado (os arquivos só abrem por link assinado)'}.</p>
-                        : <ul className="flex flex-col gap-0.5">{data.r2.problems.map((p) => <li key={p} className="text-[12px] font-bold" style={{ color: '#f59e0b' }}>{p}</li>)}</ul>}
-                    <button disabled={busy || !data.r2.configured} onClick={checkR2} className={pill} style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}>Testar o R2</button>
-                    {r2Check && (
-                        <div className="rounded-2xl p-3 flex flex-col gap-1" style={{ background: soft, border: `1.5px solid ${r2Check.ok ? '#22c55e' : '#ef4444'}` }}>
-                            <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>{r2Check.ok ? 'R2 funcionando' : 'O teste não passou'}</p>
-                            {r2Check.problems?.map((p) => <p key={p} className="text-[12px] font-bold" style={{ color: '#ef4444' }}>{p}</p>)}
-                            {r2Check.steps.map((st) => (
-                                <p key={st.step} className="text-[12px]" style={{ color: st.ok ? colors.textPrimary : '#ef4444' }}>{st.ok ? '✓' : '✗'} {st.step} — {st.detail} <span style={{ color: colors.textSecondary }}>({st.ms} ms)</span></p>
-                            ))}
-                            {!r2Check.ok && r2Check.steps.some((st) => !st.ok && /40[13]/.test(st.detail)) && <p className="text-[11px]" style={{ color: colors.textSecondary }}>Erro 403 costuma ser chave errada, ou chave sem permissão de leitura e escrita neste bucket. Confira as variáveis na Vercel e o escopo do token na Cloudflare.</p>}
-                        </div>
-                    )}
-                </div>
-            )}
+            {r2Card(data.r2, 'media', 'Cloudflare R2 (vídeo e música)', 'Armazenamento para arquivos pesados, fora da cota do Supabase. O tipo “Vídeo e música (R2)” só deve ser ligado depois de o teste abaixo passar.')}
+            {r2Card(data.r2Digital, 'digital', 'Cloudflare R2 privado (conteúdo digital vendido)', 'Bucket PRIVADO e separado (R2_DIGITAL_BUCKET), sem endereço público: aula, música, e-book e programa do produto digital, sem cobrança de saída de dados. O tipo “Digital pesado (R2 privado)” só deve ser ligado depois de o teste abaixo passar.')}
 
             {/* ===== por tipo ===== */}
             <div style={cardStyle} className="flex flex-col gap-2.5">

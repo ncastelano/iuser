@@ -56,6 +56,7 @@
     "test:tips": "node --test scripts/test-tips.mjs",
     "test:my-space": "node --test scripts/test-my-space.mjs",
     "test:upload-valve": "node --test scripts/test-upload-valve.mjs",
+    "test:digital-r2": "node --test scripts/test-digital-r2.mjs",
     "test:promotions": "node --test scripts/test-promotions.mjs",
     "test:toast": "node --test scripts/test-toast.mjs",
     "test:handoff": "python3 scripts/local/test-handoff.py",

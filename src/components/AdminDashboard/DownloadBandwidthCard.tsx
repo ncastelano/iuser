@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { formatBytes, gbText } from '@/modules/uploads'
 
-interface Bandwidth { days: number; downloads: number; est_bytes: number; month_downloads: number; month_est_bytes: number; month_projection_bytes: number; items: { item_id: string; product_name: string; store_name: string | null; platform: string | null; version: string | null; size_bytes: number; downloads: number; est_bytes: number }[] }
+interface Bandwidth { days: number; downloads: number; est_bytes: number; month_downloads: number; month_est_bytes: number; month_projection_bytes: number; r2_month_downloads?: number; r2_month_bytes?: number; items: { item_id: string; product_name: string; store_name: string | null; platform: string | null; version: string | null; size_bytes: number; downloads: number; est_bytes: number }[] }
 
 /** Cota de banda do plano gratuito do Supabase (5 GB/mês de "Cached Egress"); confira o seu plano no painel do Supabase */
 const FREE_QUOTA = 5 * 1024 * 1024 * 1024
@@ -43,6 +43,7 @@ export default function DownloadBandwidthCard({ cardStyle, colors }: { cardStyle
                         <div className="rounded-xl p-2" style={{ background: `${tone}18`, border: `1px solid ${tone}55` }}><p className="text-base font-black" style={{ color: tone }}>{gbText(bw.month_projection_bytes)}</p><p className="text-[10px]" style={{ color: colors.textSecondary }}>projeção do mês ({pct}% de 5 GB)</p></div>
                     </div>
                     {pct >= 60 && <p className="text-xs font-bold" style={{ color: tone }}>Só os downloads de programa já projetam {pct}% da cota de banda do plano gratuito{pct >= 100 ? ' — vai estourar' : ''}. Antes de abrir mais, passe os programas para o R2 ou o plano pago.</p>}
+                    {(bw.r2_month_downloads ?? 0) > 0 && <p className="text-[11px]" style={{ color: colors.textSecondary }}>No R2 privado (sem cobrança de saída; fora desta conta): {bw.r2_month_downloads} download{bw.r2_month_downloads === 1 ? '' : 's'} no mês, {gbText(bw.r2_month_bytes ?? 0)}.</p>}
                     {bw.items.length === 0 ? (
                         <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum download de programa no período.</p>
                     ) : (

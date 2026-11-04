@@ -135,7 +135,7 @@ test('cliente: falhas do envio, da confirmação, de rede e arquivos ruins', asy
 
 test('rotas: o porteiro é o banco, o nome do arquivo é do servidor e o objeto é conferido de verdade', () => {
     const sign = read('src/app/api/uploads/r2/sign/route.ts'), done = read('src/app/api/uploads/r2/complete/route.ts')
-    assert.ok(sign.indexOf('readR2Config()') < sign.indexOf('auth.getUser()') && sign.indexOf('auth.getUser()') < sign.indexOf("rpc('authorize_upload'") && sign.indexOf("rpc('authorize_upload'") < sign.indexOf('r2PresignPut('), 'só assina depois de logar e autorizar')
+    assert.ok(sign.indexOf('auth.getUser()') > 0 && sign.indexOf('auth.getUser()') < sign.lastIndexOf('r2ConfigForBucket(k.bucket)') && sign.lastIndexOf('r2ConfigForBucket(k.bucket)') < sign.indexOf("rpc('authorize_upload'") && sign.indexOf("rpc('authorize_upload'") < sign.indexOf('r2PresignPut('), 'só assina depois de logar, achar o bucket do tipo e autorizar')
     assert.match(sign, /supabase\.rpc\('authorize_upload'/, 'autoriza como a própria pessoa (cliente com a sessão), nunca com o serviço'); assert.ok(!/supabaseAdmin\.rpc\('authorize_upload'/.test(sign))
     assert.match(sign, /`\$\{user\.id\}\/\$\{randomUUID\(\)\}\.\$\{ext\}`/, 'caminho = <pessoa>/<uuid>.<extensão pelo tipo>'); assert.ok(!/body\??\.(name|path|key)/.test(sign), 'nome vindo do cliente nunca entra')
     assert.match(sign, /'Cache-Control': 'no-store'/); assert.match(sign, /fail\(503, 'r2_unconfigured'/, 'sem R2 configurado responde 503')

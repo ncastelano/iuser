@@ -57,10 +57,7 @@ export function isR2Key(path: string | null | undefined): boolean {
     return !!path && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm|mov)$/.test(path)
 }
 
-/** Erros do R2 em que vale tentar o Supabase (o R2 não está pronto ou caiu). Recusas de regra (bloqueio, ritmo, cota, tamanho, tipo) NUNCA caem no Supabase: seria burlar a regra. */
-export function r2FallbackAllowed(code: string): boolean {
-    return ['r2_unconfigured', 'kind_disabled', 'wrong_provider', 'authorize_unavailable', 'server_error', 'storage_unavailable', 'upload_failed', 'network', 'complete_failed'].includes(code)
-}
+export { r2FallbackAllowed } from '../../lib/r2Types.ts'
 
 const mbText = (bytes: number) => `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`.replace('.', ',').replace(/,0 MB$/, ' MB')
 

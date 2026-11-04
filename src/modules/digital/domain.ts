@@ -15,15 +15,17 @@ export interface CurriculumItem {
 
 export const KIND_LABEL: Record<DigitalKind, string> = { video: 'Vídeo', audio: 'Áudio', document: 'Arquivo', link: 'Link', app: 'Programa' }
 
-/** Em que bucket (privado) cada tipo de item mora: música, programa e o resto (curso, e-book, material) têm limites SEPARADOS no banco (migration 20261130000031) */
-export const DIGITAL_BUCKETS = { files: 'digital-files', music: 'digital-music', apps: 'digital-apps' } as const
+/** Em que bucket (privado) cada tipo de item mora: música, programa e o resto (curso, e-book, material) têm limites SEPARADOS no banco (migration 20261130000031). `heavy` (iuser-digital) é o R2 PRIVADO do digital pesado (migration 20261130000033): quando está pronto, TODO arquivo novo vai para lá (a saída de dados do R2 é grátis); o bucketForKind abaixo é só o caminho do Supabase (também o plano B). */
+export const DIGITAL_BUCKETS = { files: 'digital-files', music: 'digital-music', apps: 'digital-apps', heavy: 'iuser-digital' } as const
 export type DigitalBucket = (typeof DIGITAL_BUCKETS)[keyof typeof DIGITAL_BUCKETS]
 export const bucketForKind = (kind: DigitalKind): DigitalBucket => (kind === 'audio' ? DIGITAL_BUCKETS.music : kind === 'app' ? DIGITAL_BUCKETS.apps : DIGITAL_BUCKETS.files)
 /** O tipo de upload (upload_kinds) de cada bucket do digital */
-export const DIGITAL_UPLOAD_KIND: Record<DigitalBucket, string> = { 'digital-files': 'digital_file', 'digital-music': 'digital_music', 'digital-apps': 'digital_app' }
+export const DIGITAL_UPLOAD_KIND: Record<DigitalBucket, string> = { 'digital-files': 'digital_file', 'digital-music': 'digital_music', 'digital-apps': 'digital_app', 'iuser-digital': 'digital_heavy' }
+export const DIGITAL_HEAVY_KIND = DIGITAL_UPLOAD_KIND[DIGITAL_BUCKETS.heavy]
+export const isHeavyBucket = (bucket: string | null | undefined) => bucket === DIGITAL_BUCKETS.heavy
 /** Limite provisório por arquivo (plano gratuito) — só para mostrar antes de o app ler os limites reais do banco; quem decide é o servidor */
 export const DIGITAL_MAX_BYTES = 50 * 1024 * 1024
-export const DIGITAL_MAX_BYTES_BY_BUCKET: Record<DigitalBucket, number> = { 'digital-files': 50 * 1024 * 1024, 'digital-music': 25 * 1024 * 1024, 'digital-apps': 50 * 1024 * 1024 }
+export const DIGITAL_MAX_BYTES_BY_BUCKET: Record<DigitalBucket, number> = { 'digital-files': 50 * 1024 * 1024, 'digital-music': 25 * 1024 * 1024, 'digital-apps': 50 * 1024 * 1024, 'iuser-digital': 512 * 1024 * 1024 }
 
 export function kindFromFile(mime: string | null | undefined, name = ''): DigitalKind {
     const m = (mime || '').toLowerCase()

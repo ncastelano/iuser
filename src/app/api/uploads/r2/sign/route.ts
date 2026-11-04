@@ -8,7 +8,8 @@ import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { readR2Config, r2PresignPut, extensionForMime } from '@/lib/r2'
+import { r2ConfigForBucket, r2PresignPut } from '@/lib/r2'
+import { resolveUploadExtension } from '@/lib/r2Types'
 import { uploadDeniedMessage } from '@/lib/uploadAuthorization'
 
 export const dynamic = 'force-dynamic'
@@ -23,33 +24,32 @@ const fail = (status: number, code: string, error: string, extra: Record<string,
 export async function GET(req: Request) {
     const kind = new URL(req.url).searchParams.get('kind') || ''
     const off = NextResponse.json({ available: false }, { headers: { 'Cache-Control': 'private, max-age=30' } })
-    if (!KIND.test(kind) || !readR2Config()) return off
+    if (!KIND.test(kind)) return off
     const { data: k } = await supabaseAdmin.from('upload_kinds').select('enabled, max_bytes, mime_types, bucket').eq('kind', kind).eq('provider', 'r2').maybeSingle()
-    if (!k || !k.enabled || k.bucket !== readR2Config()!.bucket) return off
+    if (!k || !k.enabled || !r2ConfigForBucket(k.bucket)) return off   // cada tipo aponta para o seu bucket (vídeo/música ou o privado do digital); sem as variáveis desse bucket: não disponível
     return NextResponse.json({ available: true, maxBytes: Number(k.max_bytes), mimeTypes: k.mime_types ?? null }, { headers: { 'Cache-Control': 'private, max-age=30' } })
 }
 
 export async function POST(req: Request) {
-    const cfg = readR2Config()
-    if (!cfg) return fail(503, 'r2_unconfigured', 'O envio de arquivos pesados ainda não está disponível.')
-
     const supabase = await createServerSupabase()
     const { data: auth } = await supabase.auth.getUser()
     const user = auth?.user
     if (!user) return fail(401, 'not_authenticated', 'Entre na sua conta para enviar arquivos.')
 
-    const body = (await req.json().catch(() => null)) as { kind?: unknown; mime?: unknown; bytes?: unknown } | null
+    const body = (await req.json().catch(() => null)) as { kind?: unknown; mime?: unknown; bytes?: unknown; ext?: unknown } | null
     const kind = typeof body?.kind === 'string' ? body.kind : ''
     const mime = typeof body?.mime === 'string' ? body.mime.toLowerCase().trim() : ''
     const bytes = body?.bytes
     if (!KIND.test(kind) || typeof bytes !== 'number' || !Number.isSafeInteger(bytes) || bytes <= 0) return fail(400, 'invalid_request', 'Pedido de envio inválido.')
-    const ext = extensionForMime(mime)
+    // a extensão do caminho: pelo tipo declarado; programa e pacote (octet-stream) só com extensão da lista fechada. Nada mais digitado entra no nome.
+    const ext = resolveUploadExtension(mime, body?.ext)
     if (!ext) return fail(415, 'type_not_allowed', uploadDeniedMessage({ ok: false, error: 'type_not_allowed' }))
 
     const { data: k, error: kErr } = await supabaseAdmin.from('upload_kinds').select('kind, bucket, provider').eq('kind', kind).eq('provider', 'r2').maybeSingle()
     if (kErr) return fail(500, 'server_error', 'Não foi possível preparar o envio. Tente de novo.')
     if (!k) return fail(400, 'invalid_request', 'Tipo de envio inválido.')
-    if (k.bucket !== cfg.bucket) return fail(503, 'r2_unconfigured', 'O envio de arquivos pesados ainda não está disponível.')   // o tipo aponta para outro bucket que o configurado
+    const cfg = r2ConfigForBucket(k.bucket)
+    if (!cfg) return fail(503, 'r2_unconfigured', 'O envio de arquivos pesados ainda não está disponível.')   // o bucket deste tipo não está configurado neste servidor
 
     const key = `${user.id}/${randomUUID()}.${ext}`
     const { data, error } = await supabase.rpc('authorize_upload', { p_bucket: k.bucket, p_path: key, p_bytes: bytes, p_mime: mime, p_upsert: false })

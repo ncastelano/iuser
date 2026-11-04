@@ -7,7 +7,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **33 migrations**: `20261130000000` até `20261130000032` (lista no Anexo A). |
+| **Faltam na produção** | **34 migrations**: `20261130000000` até `20261130000033` (lista no Anexo A). |
 | **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
@@ -84,7 +84,7 @@ npx next build
 npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src/versions   # só o ciclo conhecido
 ```
 - [ ] **`npx next build` passa.** (Não foi rodado nas últimas rodadas; só o `tsc`. O build de produção é mais exigente.)
-- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 33 migrations e o aviso da Fase 3.
+- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 34 migrations e o aviso da Fase 3.
 
 ### Fase 3 — O dia da publicação (nesta ordem, sem pausas longas entre os passos 3 e 4)
 1. **Horário calmo.** Confirme que **não há entrega de loja em andamento**. Motivo: veja "riscos" abaixo — por alguns minutos o banco novo e o código antigo convivem. Consulta só de leitura (Supabase → SQL Editor, projeto de produção; o resultado deve ser `0`):
@@ -168,6 +168,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 30 | `digital_apps` | Programas e aplicativos para baixar (item `app` com plataforma, versão, notas, SHA-256, contador de downloads) e CORREÇÃO DE SEGURANÇA do gatilho de conteúdo digital (`current_user` → `auth.role()`) | `digital_apps_rollback.sql` |
 | 31 | `digital_limits_split` | Limites do digital por tipo (música/programa/curso+arquivos, buckets e cotas próprios, provisórios do plano gratuito), `digital_contents.bucket`, "Meu espaço" (`get_my_upload_limits`) e estimativa de banda dos programas (`admin_download_bandwidth`) | `digital_limits_split_rollback.sql` |
 | 32 | `upload_valve` | Válvula de segurança dos uploads: mede armazenamento e banda contra a cota e, LIGADA, pausa sozinha os envios digitais/R2 (e o Flash no crítico), religa com histerese; tabelas `upload_valve_settings`/`upload_valve_events`, cron `upload-valve-tick`; nasce desligada | `upload_valve_rollback.sql` |
+| 33 | `digital_r2` | Digital pesado no R2 PRIVADO (bucket `iuser-digital`, sem domínio público): tipo `digital_heavy` (nasce desligado), `digital_contents.bucket`/`file_name`, trava `digital_r2_guard`, `release_r2_asset` confere itens digitais; a banda do Supabase deixa de contar o que está no R2 | `digital_r2_rollback.sql` |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 
@@ -196,6 +197,15 @@ A migration `20261130000022` nasce com a exclusão **DESLIGADA**: a rotina só p
 1. **Variável na Vercel:** crie `CRON_SECRET` (qualquer texto aleatório de 16+ caracteres) em Settings → Environment Variables (Production). Sem ela a rotina agendada responde 503 e não faz nada (de propósito: falha fechada). O `vercel.json` já agenda a chamada diária (06:20 UTC).
 2. Deixe rodar uns dias **desligada**. Em Admin → Uploads → "Limpeza de arquivos sem uso" confira a lista de candidatos: o que estiver ali e não deveria apagar, toque em **Manter**.
 3. Só então toque em **Ligar a exclusão** (pede confirmação). Voltar atrás é "Voltar a só simular" (vale na hora). Se aparecer arquivo demais de uma vez, a rotina para sozinha (disjuntor) e mostra o motivo nas últimas rodadas.
+
+## Anexo F2 — R2 PRIVADO do digital (conteúdo vendido): o que o dono precisa fazer na Cloudflare
+O código está pronto e desligado. Para ligar (nada disto foi feito em conta real):
+1. **Cloudflare → R2 → Create bucket** (classe Standard), nome sugerido **`iuser-digital`**. **PRIVADO: não ligue Custom Domain nem o endereço `r2.dev`** (se ligar, o conteúdo pago fica aberto). Não use o `iuser-media` para isso.
+2. **CORS do bucket** (Settings → CORS policy): origens `https://www.iuser.com.br` e `https://iuser.com.br` (e as de preview/staging que for testar), métodos `PUT`, `GET`, `HEAD`, cabeçalho permitido `Content-Type`, `ExposeHeaders` vazio.
+3. **Token**: o token de hoje está restrito ao `iuser-media`. Ou edite-o para cobrir os DOIS buckets (Object Read & Write), ou crie um token só para o `iuser-digital` e use as variáveis `R2_DIGITAL_ACCESS_KEY_ID`/`R2_DIGITAL_SECRET_ACCESS_KEY`.
+4. **Vercel (Production):** `R2_DIGITAL_BUCKET=iuser-digital` (e as duas chaves do passo 3, se criou um token novo). Publique de novo para valer.
+5. Depois de publicar (migration `...33` ANTES do código): Admin → Uploads → cartão **Cloudflare R2 privado** → **Testar o R2 privado** (4 passos verdes). Só então ligue o tipo **Digital pesado (R2 privado)** (Editar limites → Tipo ligado) e ajuste os limites. Antes disso o digital segue pelo Supabase como hoje.
+6. Alerta de gasto na Cloudflare (o plano grátis do R2 tem 10 GB no total, somando os dois buckets).
 
 ## Anexo F — R2 (vídeo e música): o que já está feito e o que falta
 **Já feito (03/11/2026):** R2 ativado; bucket privado `iuser-media`; token da conta restrito a esse bucket (Object Read & Write); variáveis `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` na Vercel (Production); CORS do bucket para `https://www.iuser.com.br` e `https://iuser.com.br`.

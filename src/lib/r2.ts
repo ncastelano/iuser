@@ -11,36 +11,55 @@
 //      fecha a autorização; objeto fora do combinado é apagado.
 // O bucket é PRIVADO. Ler = link assinado (r2PresignGet) ou, para o que é público, o domínio de mídia ligado ao bucket (R2_PUBLIC_BASE, ex.: https://midia.iuser.com.br).
 import { createHash, createHmac } from 'node:crypto'
+import { MIME_EXT } from './r2Types.ts'
 
-export type R2Config = { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string; publicBase: string | null; host: string; origin: string }
+export type R2Scope = 'media' | 'digital'
+export type R2Config = { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string; publicBase: string | null; host: string; origin: string; scope: R2Scope }
 
 const REGION = 'auto'
 const SERVICE = 's3'
 const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 
-/** Lê a configuração do ambiente. null = R2 não configurado (as rotas respondem 503 e nada quebra). */
-export function readR2Config(env: Record<string, string | undefined> = process.env): R2Config | null {
+type Env = Record<string, string | undefined>
+const BUCKET_RE = /^[a-z0-9][a-z0-9-]{2,62}$/
+
+/** Lê a configuração do ambiente. null = R2 não configurado (as rotas respondem 503 e nada quebra).
+ *  `media` = o bucket de vídeo/música (R2_BUCKET; pode ter domínio público). `digital` = o bucket PRIVADO do conteúdo vendido (R2_DIGITAL_BUCKET): NUNCA tem domínio público
+ *  (publicBase sempre null), pode ter chave própria (R2_DIGITAL_ACCESS_KEY_ID/R2_DIGITAL_SECRET_ACCESS_KEY; sem elas usa as mesmas) e NÃO pode ser o mesmo bucket do `media` (se fosse,
+ *  o conteúdo pago ficaria aberto pelo domínio público dele). */
+export function readR2Config(env: Env = process.env, scope: R2Scope = 'media'): R2Config | null {
     const accountId = (env.R2_ACCOUNT_ID || '').trim()
-    const accessKeyId = (env.R2_ACCESS_KEY_ID || '').trim()
-    const secretAccessKey = (env.R2_SECRET_ACCESS_KEY || '').trim()
-    const bucket = (env.R2_BUCKET || '').trim()
-    if (!/^[0-9a-f]{32}$/i.test(accountId) || !accessKeyId || !secretAccessKey || !/^[a-z0-9][a-z0-9-]{2,62}$/.test(bucket)) return null
-    const base = (env.R2_PUBLIC_BASE || '').trim().replace(/\/+$/, '')
+    const digital = scope === 'digital'
+    const accessKeyId = ((digital && (env.R2_DIGITAL_ACCESS_KEY_ID || '').trim()) || (env.R2_ACCESS_KEY_ID || '').trim())
+    const secretAccessKey = ((digital && (env.R2_DIGITAL_SECRET_ACCESS_KEY || '').trim()) || (env.R2_SECRET_ACCESS_KEY || '').trim())
+    const bucket = (digital ? env.R2_DIGITAL_BUCKET : env.R2_BUCKET || '')?.toString().trim() || ''
+    if (!/^[0-9a-f]{32}$/i.test(accountId) || !accessKeyId || !secretAccessKey || !BUCKET_RE.test(bucket)) return null
+    if (digital && bucket === (env.R2_BUCKET || '').trim()) return null   // o conteúdo pago nunca divide bucket com o que tem domínio público
+    const base = digital ? '' : (env.R2_PUBLIC_BASE || '').trim().replace(/\/+$/, '')
     // Só para TESTE LOCAL: um "R2 de mentira" em http://127.0.0.1:<porta> (scripts/local/test-r2-flow.mjs). Ignorado em produção e para qualquer endereço que não seja o próprio computador.
     const fake = (env.R2_TEST_ENDPOINT || '').trim().match(/^http:\/\/(127\.0\.0\.1|localhost):(\d{2,5})$/)
     const testing = !!fake && env.NODE_ENV !== 'production' && env.VERCEL_ENV !== 'production'
     const host = testing ? `${fake![1]}:${fake![2]}` : `${accountId}.r2.cloudflarestorage.com`
-    return { accountId, accessKeyId, secretAccessKey, bucket, publicBase: /^https:\/\/[a-z0-9.-]+$/i.test(base) ? base : null, host, origin: `${testing ? 'http' : 'https'}://${host}` }
+    return { accountId, accessKeyId, secretAccessKey, bucket, publicBase: /^https:\/\/[a-z0-9.-]+$/i.test(base) ? base : null, host, origin: `${testing ? 'http' : 'https'}://${host}`, scope }
+}
+
+/** A configuração (media ou digital) que corresponde a um bucket lógico do catálogo (`upload_kinds.bucket`). null = esse bucket não está configurado neste servidor. */
+export function r2ConfigForBucket(bucket: string, env: Env = process.env): R2Config | null {
+    for (const scope of ['media', 'digital'] as const) { const c = readR2Config(env, scope); if (c && c.bucket === bucket) return c }
+    return null
 }
 
 /** O que está errado na configuração (só NOMES das variáveis e o motivo, nunca os valores). Lista vazia = pronto. Alimenta o botão "Testar o R2" do painel. */
-export function r2ConfigProblems(env: Record<string, string | undefined> = process.env): string[] {
+export function r2ConfigProblems(env: Env = process.env, scope: R2Scope = 'media'): string[] {
     const out: string[] = []
     const v = (n: string) => (env[n] || '').trim()
+    const digital = scope === 'digital'
     if (!v('R2_ACCOUNT_ID')) out.push('R2_ACCOUNT_ID não está definida.'); else if (!/^[0-9a-f]{32}$/i.test(v('R2_ACCOUNT_ID'))) out.push('R2_ACCOUNT_ID deve ter 32 letras/números (o Account ID da Cloudflare).')
-    if (!v('R2_ACCESS_KEY_ID')) out.push('R2_ACCESS_KEY_ID não está definida.')
-    if (!v('R2_SECRET_ACCESS_KEY')) out.push('R2_SECRET_ACCESS_KEY não está definida.')
-    if (!v('R2_BUCKET')) out.push('R2_BUCKET não está definida.'); else if (!/^[a-z0-9][a-z0-9-]{2,62}$/.test(v('R2_BUCKET'))) out.push('R2_BUCKET tem um nome inválido (só minúsculas, números e hífen).')
+    if (!(digital && v('R2_DIGITAL_ACCESS_KEY_ID')) && !v('R2_ACCESS_KEY_ID')) out.push('R2_ACCESS_KEY_ID não está definida.')
+    if (!(digital && v('R2_DIGITAL_SECRET_ACCESS_KEY')) && !v('R2_SECRET_ACCESS_KEY')) out.push('R2_SECRET_ACCESS_KEY não está definida.')
+    const name = digital ? 'R2_DIGITAL_BUCKET' : 'R2_BUCKET'
+    if (!v(name)) out.push(`${name} não está definida.`); else if (!BUCKET_RE.test(v(name))) out.push(`${name} tem um nome inválido (só minúsculas, números e hífen).`)
+    else if (digital && v(name) === v('R2_BUCKET')) out.push('R2_DIGITAL_BUCKET não pode ser o mesmo bucket de R2_BUCKET (esse tem domínio público): crie um bucket PRIVADO só para o conteúdo vendido.')
     return out
 }
 
@@ -49,12 +68,6 @@ export function isSafeR2Key(key: unknown): key is string {
     return typeof key === 'string' && key.length > 0 && key.length <= 400 && /^[A-Za-z0-9._/-]+$/.test(key) && !/(^|\/)\.\.(\/|$)/.test(key) && !key.startsWith('/') && !key.endsWith('/')
 }
 
-const MIME_EXT: Record<string, string> = {
-    'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov',
-    'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/webm': 'weba',
-    'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif',
-    'application/pdf': 'pdf',
-}
 /** Extensão do arquivo pelo tipo declarado (o servidor escolhe o nome; o nome que a pessoa deu nunca entra no caminho). */
 export function extensionForMime(mime: string): string | null {
     return MIME_EXT[String(mime || '').toLowerCase().trim()] ?? null
@@ -138,10 +151,18 @@ export function r2PresignPut(cfg: R2Config, key: string, o: { contentType: strin
     })
 }
 
-/** Link de LEITURA (GET) por tempo limitado. */
-export function r2PresignGet(cfg: R2Config, key: string, o: { expiresSec?: number; now?: Date } = {}): string {
+/** Link de LEITURA (GET) por tempo limitado. `downloadName` faz o navegador baixar com esse nome (cabeçalho Content-Disposition da resposta, assinado no link). */
+export function r2PresignGet(cfg: R2Config, key: string, o: { expiresSec?: number; now?: Date; downloadName?: string } = {}): string {
     need(key)
-    return presignUrl({ host: cfg.host, scheme: schemeOf(cfg), path: objectPath(cfg, key), method: 'GET', accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, now: o.now, expires: o.expiresSec ?? 3600 })
+    const query = o.downloadName ? { 'response-content-disposition': contentDisposition(o.downloadName) } : undefined
+    return presignUrl({ host: cfg.host, scheme: schemeOf(cfg), path: objectPath(cfg, key), method: 'GET', accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, now: o.now, expires: o.expiresSec ?? 3600, query })
+}
+
+/** attachment; filename="..."; filename*=UTF-8''... — só caracteres seguros no nome simples; o nome completo (acentos) vai codificado */
+export function contentDisposition(name: string): string {
+    const clean = String(name || 'arquivo').replace(/[\u0000-\u001f\u007f"\\/]/g, '_').slice(0, 200).trim() || 'arquivo'
+    const ascii = clean.replace(/[^\x20-\x7e]/g, '_').replace(/[;%]/g, '_')
+    return `attachment; filename="${ascii}"; filename*=UTF-8''${enc(clean)}`
 }
 
 /** Endereço público do arquivo, só se o domínio de mídia estiver ligado ao bucket (R2_PUBLIC_BASE). */

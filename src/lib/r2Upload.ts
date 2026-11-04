@@ -4,12 +4,14 @@
 // não passa pelo servidor nem pelo Supabase) e confirma em /api/uploads/r2/complete. Não tem chave nenhuma: tudo que precisa de segredo é do servidor (src/lib/r2.ts, que NÃO pode ser
 // importado aqui). As regras (tipo, tamanho, ritmo, cota, bloqueio) vêm do banco; aqui só se orquestra e se mostra a mensagem em português que o servidor mandou.
 // Sem importar o cliente do Supabase nem usar o alias '@/', para rodar nos testes de Node; fetch e envio são injetáveis.
+import { heavyUploadInfo } from './r2Types.ts'
 
 export type R2UploadResult =
     | { ok: true; id: string; key: string; bytes: number; url: string | null }
     | { ok: false; code: string; message: string }
 
-export type R2UploadOptions = { onProgress?: (percent: number) => void; signal?: AbortSignal }
+/** `binary`: arquivo do digital pesado (programa, pacote, e-book...): sem tipo ou como octet-stream, o tipo e a extensão saem da lista fechada de programas (src/lib/r2Types.ts) */
+export type R2UploadOptions = { onProgress?: (percent: number) => void; signal?: AbortSignal; binary?: boolean }
 export type R2UploadDeps = {
     fetch?: typeof fetch
     /** Envia o arquivo ao link assinado (PUT). Padrão: XMLHttpRequest, que tem progresso. */
@@ -38,12 +40,18 @@ export async function uploadToR2(file: Blob, kind: string, opts: R2UploadOptions
     const f = deps.fetch ?? fetch
     const put = deps.put ?? xhrPut
     if (!file || file.size <= 0) return failure('empty_file', 'O arquivo está vazio.')
-    if (!file.type) return failure('type_not_allowed', 'Não foi possível identificar o formato do arquivo.')
+    let mime = file.type
+    let ext: string | undefined
+    if (opts.binary) {
+        const info = heavyUploadInfo(file.type, (file as File).name || '')
+        if (!info) return failure('type_not_allowed', 'Esse formato de arquivo não é aceito.')
+        mime = info.mime; ext = info.ext
+    } else if (!mime) return failure('type_not_allowed', 'Não foi possível identificar o formato do arquivo.')
 
     // 1) autorização (o servidor decide e escolhe o nome do arquivo)
     let sign: { ok: true; url: string; headers: Record<string, string>; key: string } | ApiFail
     try {
-        const res = await f('/api/uploads/r2/sign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, mime: file.type, bytes: file.size }), signal: opts.signal })
+        const res = await f('/api/uploads/r2/sign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, mime, bytes: file.size, ...(ext ? { ext } : {}) }), signal: opts.signal })
         sign = await res.json()
     } catch (e) {
         if ((e as Error)?.name === 'AbortError') return failure('aborted', 'Envio cancelado.')

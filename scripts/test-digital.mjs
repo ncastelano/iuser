@@ -183,10 +183,11 @@ test('limites do digital: um bucket por tipo, com os MESMOS tamanhos do banco', 
     assert.equal(bucketForKind('audio'), 'digital-music')
     assert.equal(bucketForKind('app'), 'digital-apps')
     for (const k of ['video', 'document', 'link']) assert.equal(bucketForKind(k), 'digital-files')
-    assert.deepEqual(Object.values(DIGITAL_BUCKETS).sort(), ['digital-apps', 'digital-files', 'digital-music'])
-    assert.deepEqual(DIGITAL_UPLOAD_KIND, { 'digital-files': 'digital_file', 'digital-music': 'digital_music', 'digital-apps': 'digital_app' })
+    assert.deepEqual(Object.values(DIGITAL_BUCKETS).sort(), ['digital-apps', 'digital-files', 'digital-music', 'iuser-digital'])
+    assert.deepEqual(DIGITAL_UPLOAD_KIND, { 'digital-files': 'digital_file', 'digital-music': 'digital_music', 'digital-apps': 'digital_app', 'iuser-digital': 'digital_heavy' })
     // tamanho por arquivo = o do bucket na migration
     for (const [bucket, max] of Object.entries(DIGITAL_MAX_BYTES_BY_BUCKET)) {
+        if (bucket === 'iuser-digital') continue   // o R2 não é bucket do Supabase: o tamanho dele vem do catálogo (migration 33, conferido abaixo)
         if (bucket === 'digital-files') assert.match(sqlLimits, new RegExp(`UPDATE storage\\.buckets SET file_size_limit = ${max} WHERE id = 'digital-files'`))
         else assert.match(sqlLimits, new RegExp(`'${bucket}',\\s+'${bucket}',\\s+false,\\s+${max}`))
     }
