@@ -12,7 +12,7 @@ import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from '@/lib/toast'
-import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack, Images } from 'lucide-react'
+import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
 import { useMyOrigin } from '@/hooks/useMyOrigin'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { formatDistance } from '@/lib/radarNearest'
@@ -433,9 +433,26 @@ function SerParceiroContent() {
                                                 </span>
                                             </div>
 
-                                            <p className={`${fullText.length <= 90 && !fullText.includes('\n') ? 'text-xl font-black' : 'text-base font-bold'} leading-snug whitespace-pre-wrap break-words`} style={{ color: colors.textPrimary }}>
-                                                {fullText || label}
-                                            </p>
+                                            <div className="flex items-start gap-3">
+                                                <p className={`${fullText.length <= 90 && !fullText.includes('\n') ? 'text-xl font-black' : 'text-base font-bold'} flex-1 min-w-0 leading-snug whitespace-pre-wrap break-words`} style={{ color: colors.textPrimary }}>
+                                                    {fullText || label}
+                                                </p>
+                                                {/* Miniatura da foto (pequena): tocar abre o card de detalhes, onde a foto amplia com zoom */}
+                                                {job.photo_urls[0] && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setViewJob(job)}
+                                                        aria-label={`Ver a foto do pedido${job.photo_urls.length > 1 ? ` (${job.photo_urls.length} fotos)` : ''}`}
+                                                        className="relative flex-shrink-0 w-16 h-16 rounded-2xl overflow-hidden active:scale-95 transition"
+                                                        style={{ border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        <img src={job.photo_urls[0]} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                                        {job.photo_urls.length > 1 && (
+                                                            <span className="absolute bottom-1 right-1 text-[10px] font-black text-white px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0,0,0,0.6)' }}>+{job.photo_urls.length - 1}</span>
+                                                        )}
+                                                    </button>
+                                                )}
+                                            </div>
 
                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black" style={{ background: `${colors.accent}18`, color: colors.accent }}><Icon size={12} /> {label}</span>
@@ -444,9 +461,6 @@ function SerParceiroContent() {
                                                     <span className="truncate">{getItemAddress(job)}</span>
                                                     {km != null && <span className="flex-shrink-0 font-black" style={{ color: colors.accent }}>· {formatDistance(km)}</span>}
                                                 </span>
-                                                {job.photo_urls.length > 0 && (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: `${colors.border}30`, color: colors.textSecondary }} title="Este pedido tem foto: toque para ver"><Images size={12} /> {job.photo_urls.length}</span>
-                                                )}
                                             </div>
                                             {job.location_needs_access && (
                                                 <span className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
