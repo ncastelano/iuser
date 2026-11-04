@@ -50,3 +50,26 @@ test('pessoas no singular e plural', () => {
     assert.equal(peopleLabel(1), '1 pessoa')
     assert.equal(peopleLabel(34), '34 pessoas')
 })
+
+import { hitFromRow, groupHits, totalOf, RESULT_ORDER, RESULT_INFO } from '../src/modules/search/domain.ts'
+const row = (o) => ({ kind: 'produto', id: 'a', title: 'Pizza', subtitle: 'em Loja', image: 'p.jpg', bucket: 'product-images', href: '/loja/pizza', extra: 'R$ 10,00', total: 4, ...o })
+test('resultado da busca ampla: descarta o que não é seguro ou não tem nome', () => {
+    assert.equal(hitFromRow(null), null)
+    assert.equal(hitFromRow(row({ kind: 'estranho' })), null)
+    assert.equal(hitFromRow(row({ title: '  ' })), null)
+    assert.equal(hitFromRow(row({ href: 'https://golpe.com' })), null)
+    assert.equal(hitFromRow(row({ href: '//golpe.com' })), null)
+    const h = hitFromRow(row({ total: '0' }))
+    assert.equal(h.total, 1)
+    assert.equal(h.href, '/loja/pizza')
+})
+test('agrupar: ordem fixa, tipo vazio some e o total vem do banco', () => {
+    const hits = [row({ kind: 'flash', id: 'f', href: '/flash?de=f', total: 9 }), row({ kind: 'loja', id: 'l', href: '/x', total: 1 }), row({ kind: 'produto', id: 'p1', total: 4 }), row({ kind: 'produto', id: 'p2', total: 4 })].map(hitFromRow)
+    const g = groupHits(hits)
+    assert.deepEqual(g.map((x) => x.kind), ['loja', 'produto', 'flash'])
+    assert.equal(g[1].total, 4)
+    assert.equal(totalOf(g), 1 + 4 + 9)
+})
+test('todo tipo de resultado tem rótulo e cor', () => {
+    for (const k of RESULT_ORDER) { assert.ok(RESULT_INFO[k].label && RESULT_INFO[k].plural); assert.match(RESULT_INFO[k].color, /^#[0-9a-f]{6}$/i) }
+})

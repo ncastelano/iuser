@@ -7,7 +7,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **37 migrations**: `20261130000000` até `20261130000036` (lista no Anexo A). |
+| **Faltam na produção** | **38 migrations**: `20261130000000` até `20261130000037` (lista no Anexo A). |
 | **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
@@ -172,6 +172,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 34 | `music_club` | Clube da loja PAGO + música: mensalidade por Pix declarado (+30 dias por confirmação), `includes_music` abre as músicas da loja (`_digital_access` reconhece o clube), taxa de R$ 0,50 no pós-pago por pagamento confirmado; `store_club_settings`, `store_club_payments` | `music_club_rollback.sql` |
 | 35 | `outdoor` | Outdoor (vitrine por pontuação): tabela `outdoor_rules` (pesos), `get_outdoor`/`get_outdoor_rules` públicas; só adiciona. Home, /comprar, /social, /imoveis e o filtro do /radar chamam `get_outdoor`: aplique ANTES do código. Rollback `outdoor_rollback.sql`. |
 | 36 | `search_trends` | Busca: `search_events` (buscas de pessoas logadas, sem acesso do app), `log_search`, `clear_my_searches`, `get_search_trends` (pública, mínimo de pessoas diferentes). Só adiciona; a home 3.0 chama: aplique ANTES do código. Rollback `search_trends_rollback.sql` (apaga o histórico registrado). |
+| 37 | `search_all` | Busca ampla: função pública `search_all` (lojas, pessoas, produtos, serviços, publicações, digitais, imóveis, pedidos, flashes, comunidades). Só adiciona; a busca da home chama: aplique ANTES do código. Rollback `search_all_rollback.sql`. |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 

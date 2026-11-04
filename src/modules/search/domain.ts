@@ -65,3 +65,59 @@ export function trendSection(scope: TrendScope, place: string | null): SectionIn
 export function peopleLabel(n: number): string {
     return n === 1 ? '1 pessoa' : `${n.toLocaleString('pt-BR')} pessoas`
 }
+
+// ===== RESULTADOS DA BUSCA (search_all) =====
+export type ResultKind = 'loja' | 'pessoa' | 'produto' | 'servico' | 'publicacao' | 'digital' | 'imovel' | 'pedido' | 'flash' | 'comunidade'
+/** a ordem em que as seções aparecem em "Tudo" */
+export const RESULT_ORDER: ResultKind[] = ['loja', 'produto', 'servico', 'pessoa', 'publicacao', 'digital', 'imovel', 'pedido', 'flash', 'comunidade']
+export const RESULT_INFO: Record<ResultKind, { label: string; plural: string; color: string }> = {
+    loja:       { label: 'Loja',       plural: 'Lojas',               color: '#f97316' },
+    produto:    { label: 'Produto',    plural: 'Produtos',            color: '#ef4444' },
+    servico:    { label: 'Serviço',    plural: 'Serviços',            color: '#0d9488' },
+    pessoa:     { label: 'Pessoa',     plural: 'Pessoas',             color: '#8b5cf6' },
+    publicacao: { label: 'Publicação', plural: 'Publicações',         color: '#db2777' },
+    digital:    { label: 'Digital',    plural: 'Cursos e digitais',   color: '#7c3aed' },
+    imovel:     { label: 'Imóvel',     plural: 'Imóveis para alugar', color: '#2563eb' },
+    pedido:     { label: 'Pedido',     plural: 'Quem procura serviço', color: '#ea580c' },
+    flash:      { label: 'Flash',      plural: 'Flashes',             color: '#eab308' },
+    comunidade: { label: 'Comunidade', plural: 'Comunidades',         color: '#16a34a' },
+}
+
+export interface SearchHit {
+    kind: ResultKind
+    id: string
+    title: string
+    subtitle: string
+    image: string | null
+    bucket: string
+    href: string
+    extra: string | null
+    /** quantos resultados desse tipo existem no total (a lista mostra só alguns) */
+    total: number
+}
+
+const KINDS = new Set<string>(RESULT_ORDER)
+/** A linha de search_all → resultado. Sem tipo conhecido, título ou endereço interno é descartada (o destino só pode ser do próprio app). */
+export function hitFromRow(r: Record<string, any> | null | undefined): SearchHit | null {
+    if (!r || !KINDS.has(r.kind) || !r.id || !String(r.title || '').trim()) return null
+    const href = String(r.href || '')
+    if (!href.startsWith('/') || href.startsWith('//')) return null
+    return {
+        kind: r.kind as ResultKind, id: String(r.id), title: String(r.title).trim(), subtitle: String(r.subtitle || '').trim(),
+        image: r.image ? String(r.image) : null, bucket: String(r.bucket || ''), href, extra: r.extra ? String(r.extra) : null,
+        total: Math.max(1, Math.round(Number(r.total) || 1)),
+    }
+}
+
+export interface HitGroup { kind: ResultKind; hits: SearchHit[]; total: number }
+/** Agrupa por tipo, na ordem de RESULT_ORDER; tipo sem resultado não entra */
+export function groupHits(hits: SearchHit[]): HitGroup[] {
+    const map = new Map<ResultKind, SearchHit[]>()
+    for (const h of hits) map.set(h.kind, [...(map.get(h.kind) || []), h])
+    return RESULT_ORDER.filter((k) => map.has(k)).map((k) => { const list = map.get(k)!; return { kind: k, hits: list, total: Math.max(list.length, list[0].total) } })
+}
+
+/** soma de todos os resultados (para "N resultados") */
+export function totalOf(groups: HitGroup[]): number {
+    return groups.reduce((n, g) => n + g.total, 0)
+}

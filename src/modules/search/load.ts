@@ -1,6 +1,7 @@
 // src/modules/search/load.ts — fala com o banco (tendências, registro de busca) e guarda o histórico neste aparelho.
 import { supabase } from '@/lib/supabase/client'
-import { addRecent, isRecordable, parseRecent, removeRecent, trendFromRow, type Trend, type TrendScope } from './domain'
+import { addRecent, hitFromRow, isRecordable, parseRecent, removeRecent, trendFromRow, type SearchHit, type ResultKind, type Trend, type TrendScope } from './domain'
+import { proxyImageUrl } from '@/lib/imageProxy'
 
 const RECENT_KEY = 'iuser_recent_searches'
 const TTL_MS = 60_000
@@ -45,4 +46,19 @@ export function clearSearches(loggedIn: boolean): string[] {
     cache.clear()
     if (loggedIn) void supabase.rpc('clear_my_searches').then(() => undefined, () => undefined)
     return []
+}
+
+/** Procura em tudo (lojas, pessoas, produtos, serviços, publicações, digitais, imóveis, pedidos, flashes, comunidades). null = falhou. */
+export async function searchEverything(term: string, perKind = 6, kind?: ResultKind): Promise<SearchHit[] | null> {
+    const { data, error } = await supabase.rpc('search_all', { p_term: term, p_limit: perKind, p_kind: kind ?? null })
+    if (error || !Array.isArray(data)) return null
+    return data.map(hitFromRow).filter((h): h is SearchHit => !!h)
+}
+
+/** Link público da imagem de um resultado (a coluna guarda o caminho no bucket do tipo, ou já um link) */
+export function hitImageUrl(hit: SearchHit): string | null {
+    if (!hit.image) return null
+    if (hit.image.startsWith('http')) return proxyImageUrl(hit.image)
+    if (!hit.bucket) return null
+    return supabase.storage.from(hit.bucket).getPublicUrl(hit.image).data.publicUrl
 }
