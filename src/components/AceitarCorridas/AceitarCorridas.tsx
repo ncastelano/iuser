@@ -54,6 +54,7 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 import RideMapDialog from '@/app/(main)/aceitar-corridas/RideMapDialog'
 import { RideOfferCard } from './RideOfferCard'
+import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from './LocationAskDialog'
 import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { submitRideApplication } from '@/lib/rideApplication'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -365,7 +366,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     // distância do motorista até a partida (ver "Pedimos sua localização" na lista).
     const gpsFixRef = useRef(false)
     const gpsWatchRef = useRef<{ clear: () => void } | null>(null)
-    const [gpsStatus, setGpsStatus] = useState<'asking' | 'granted' | 'denied' | 'unavailable'>('asking')
+    const [gpsStatus, setGpsStatus] = useState<'idle' | 'asking' | 'granted' | 'denied' | 'unavailable'>('idle')
+    const [locAskDismissed, setLocAskDismissed] = useState(false)
     const requestGps = useCallback(() => {
         gpsWatchRef.current?.clear()
         setGpsStatus(gpsFixRef.current ? 'granted' : 'asking')
@@ -382,8 +384,10 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
         )
     }, [])
+    // Sem permissão ainda, quem pergunta é o diálogo (LocationAskDialog); com permissão já dada, busca em silêncio
     useEffect(() => {
-        requestGps()
+        setLocAskDismissed(wasLocationAskDismissed())
+        void isGeoPermissionGranted().then((ok) => { if (ok) requestGps() })
         return () => gpsWatchRef.current?.clear()
     }, [requestGps])
     const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
@@ -1440,76 +1444,6 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     <>
                     {hasDriver && <DriverDebtBanner userId={contextUserId} />}
 
-                    {/* Por que pedimos a localização: a Tarifa iUser soma a distância até a partida */}
-                    {activeTab === 'servicos' && gpsStatus !== 'granted' && !driverCoords && (v3 ? (
-                        <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: surf }}>
-                            <div className="flex items-center gap-3">
-                                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f973161f', color: '#f97316' }}>
-                                    {gpsStatus === 'asking' ? <Spinner size={18} color="#f97316" /> : <LocateFixed size={20} />}
-                                </span>
-                                <p className="text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>
-                                    {gpsStatus === 'asking' ? 'Localizando você...' : 'Precisamos da sua localização'}
-                                </p>
-                            </div>
-                            <p className="text-xs leading-snug" style={{ color: colors.textSecondary }}>
-                                Usamos sua localização para ajustar o valor da <strong style={{ color: colors.textPrimary }}>Tarifa iUser</strong>: se você estiver longe do ponto de partida, somamos esse deslocamento ao valor para você não perder dinheiro rodando até o passageiro.
-                            </p>
-                            {gpsStatus === 'asking' ? (
-                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>Permita a localização quando o navegador perguntar.</p>
-                            ) : (
-                                <>
-                                    <p className="text-xs font-bold" style={{ color: '#ca8a04' }}>
-                                        {gpsStatus === 'denied'
-                                            ? 'A localização está bloqueada. Libere nas configurações do navegador (ou do app) e toque abaixo.'
-                                            : 'Não conseguimos obter sua localização agora.'}
-                                    </p>
-                                    <button
-                                        onClick={requestGps}
-                                        className="w-full h-11 rounded-full text-sm font-black text-white transition active:scale-[0.98]"
-                                        style={{ background: '#f97316' }}
-                                    >
-                                        Permitir localização
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    ) : (
-                        <div
-                            className="rounded-2xl p-3.5 flex items-start gap-3"
-                            style={{ background: '#f9731612', border: '1px solid #f9731640' }}
-                        >
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                                {gpsStatus === 'asking' ? <Spinner size={18} color="#fff" /> : <LocateFixed size={18} />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>
-                                    {gpsStatus === 'asking' ? 'Localizando você...' : 'Precisamos da sua localização'}
-                                </p>
-                                <p className="text-xs mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>
-                                    Usamos sua localização para ajustar o valor da <strong style={{ color: colors.textPrimary }}>Tarifa iUser</strong>: se você estiver longe do ponto de partida, somamos esse deslocamento ao valor para você não perder dinheiro rodando até o passageiro.
-                                </p>
-                                {gpsStatus === 'asking' && (
-                                    <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>Permita a localização quando o navegador perguntar.</p>
-                                )}
-                                {gpsStatus !== 'asking' && (
-                                    <>
-                                        <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>
-                                            {gpsStatus === 'denied'
-                                                ? 'A localização está bloqueada. Libere nas configurações do navegador (ou do app) e toque abaixo.'
-                                                : 'Não conseguimos obter sua localização agora.'}
-                                        </p>
-                                        <button
-                                            onClick={requestGps}
-                                            className="mt-2 px-4 py-2 rounded-full text-xs font-black"
-                                            style={{ background: GRADIENT, color: '#fff' }}
-                                        >
-                                            Permitir localização
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    ))}
                     {activeTab === 'servicos' && visibleRides.length === 0 && (v3 ? (
                         <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: surf }}>
                             <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textSecondary }}>
@@ -1948,6 +1882,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     />
                 )
             })()}
+
+            <LocationAskDialog
+                open={activeTab === 'servicos' && !loading && !showLogin && gpsStatus !== 'granted' && !driverCoords && !locAskDismissed}
+                status={gpsStatus === 'granted' ? 'idle' : gpsStatus}
+                onAllow={requestGps}
+                onLater={() => { rememberLocationAskDismissed(); setLocAskDismissed(true) }}
+            />
 
             {showVehicleDialog && (
                 <VehicleRequiredDialog

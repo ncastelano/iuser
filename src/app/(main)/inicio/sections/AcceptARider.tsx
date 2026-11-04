@@ -20,6 +20,7 @@ import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyVehicles } from '@/lib/vehicleHeaderTabs'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
+import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from '@/components/AceitarCorridas/LocationAskDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -402,8 +403,11 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     // Pede a localização sozinho assim que existe corrida na Tarifa iUser pra mostrar.
     // (o deslocamento até o passageiro também entra no ganho por hora, qualquer que seja a tarifa)
     const needsLocation = openRides.length > 0
+    // Com permissão já dada busca em silêncio; sem ela, quem pergunta é o diálogo (LocationAskDialog)
+    const [locAskDismissed, setLocAskDismissed] = useState(false)
     useEffect(() => {
-        if (needsLocation && gpsStatus === 'idle') requestGps()
+        setLocAskDismissed(wasLocationAskDismissed())
+        if (needsLocation && gpsStatus === 'idle') void isGeoPermissionGranted().then((ok) => { if (ok) requestGps() })
     }, [needsLocation, gpsStatus, requestGps])
 
     // Km de estrada do motorista até a partida de cada corrida (recalcula se ele andou +300 m)
@@ -604,27 +608,12 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     </div>
                 )}
 
-                {/* Por que pedimos a localização: a Tarifa iUser soma o deslocamento até a partida */}
-                {needsLocation && gpsStatus !== 'granted' && !fallbackPos && (
-                    <div className="rounded-2xl p-3 flex items-start gap-3 mb-3" style={{ background: '#f9731612', border: '1px solid #f9731640' }}>
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                            {gpsStatus === 'asking' || gpsStatus === 'idle' ? <Spinner size={16} color="#fff" /> : <LocateFixed size={16} />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>
-                                {gpsStatus === 'asking' || gpsStatus === 'idle' ? 'Localizando você...' : 'Precisamos da sua localização'}
-                            </p>
-                            <p className="text-[11px] mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>
-                                Para mostrar quanto você pode ganhar (e quanto isso rende por hora): contamos o deslocamento até o ponto de partida, pra você não perder dinheiro rodando até o passageiro.
-                            </p>
-                            {gpsStatus !== 'asking' && gpsStatus !== 'idle' && (
-                                <button onClick={requestGps} className="mt-2 px-3.5 py-1.5 rounded-full text-[11px] font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                    Permitir localização
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                )}
+                <LocationAskDialog
+                    open={needsLocation && gpsStatus !== 'granted' && !fallbackPos && !locAskDismissed}
+                    status={gpsStatus === 'granted' ? 'idle' : gpsStatus}
+                    onAllow={requestGps}
+                    onLater={() => { rememberLocationAskDismissed(); setLocAskDismissed(true) }}
+                />
 
                 {openRides.length > 0 && (
                     <div className="flex flex-col gap-3">

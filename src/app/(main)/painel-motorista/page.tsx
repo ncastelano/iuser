@@ -414,16 +414,17 @@ function PainelMotoristaContent() {
         }
     }
 
-    const handleSaveVehicle = async () => {
+    /** Salva o veículo. Devolve true se salvou (o assistente só segue para as corridas depois de salvar de verdade). */
+    const handleSaveVehicle = async (): Promise<boolean> => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
             setShowLogin(true)
-            return
+            return false
         }
 
         if (!isAdmin && ((!carPhotoFile && !carPhotoPath) || (!driverPhotoFile && !driverPhotoPath))) {
             toast.error('A foto do veículo e a sua foto são obrigatórias')
-            return
+            return false
         }
 
         setSavingVehicle(true)
@@ -499,8 +500,10 @@ function PainelMotoristaContent() {
                 setIsFirstVehicleSetup(false)
                 setShowFirstVehicleDialog(true)
             }
+            return true
         } catch (err: any) {
             toast.error('Erro ao salvar o veículo: ' + (err.message || 'tente novamente'))
+            return false
         } finally {
             setSavingVehicle(false)
         }
@@ -530,8 +533,11 @@ function PainelMotoristaContent() {
             toast.error(`Falta completar: ${missingFields.join(', ')}`)
             return
         }
-        await handleSaveVehicle()
-        setActiveTab('plano')
+        const saved = await handleSaveVehicle()
+        if (!saved) return
+        // Veículo cadastrado: a pessoa vai direto para as corridas (é lá que aparece quanto ela ganha); a tarifa da plataforma já vale
+        setShowFirstVehicleDialog(false)
+        router.push(nextUrl || '/aceitar-corridas')
     }
 
     useEffect(() => {
@@ -1621,19 +1627,19 @@ function PainelMotoristaContent() {
                             Agora ligue o <strong>Modo motorista</strong> no painel pra ficar disponível: sua localização é compartilhada, você vê as solicitações em tempo real e pode se candidatar.
                         </p>
                         <button
-                            onClick={() => { setShowFirstVehicleDialog(false); setActiveTab('painel') }}
+                            onClick={() => { setShowFirstVehicleDialog(false); router.push(nextUrl || '/aceitar-corridas') }}
                             className="mt-2 w-full py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2"
                             style={{ background: GRADIENT, color: '#fff' }}
                         >
                             <Car size={18} />
-                            Ir para o painel
+                            Ver corridas e valores
                         </button>
                         <button
-                            onClick={() => setShowFirstVehicleDialog(false)}
+                            onClick={() => { setShowFirstVehicleDialog(false); setActiveTab('painel') }}
                             className="w-full py-2.5 rounded-full font-bold text-sm"
                             style={{ color: colors.textSecondary }}
                         >
-                            Continuar aqui
+                            Ir para o painel
                         </button>
                     </div>
                 </div>
