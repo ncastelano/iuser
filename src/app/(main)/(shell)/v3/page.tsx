@@ -798,6 +798,43 @@ export default function ModeloInicialPage() {
                             )}
                         </div>
 
+                        <section className="mt-8">
+                            <SectionHeader type="pedido" title="Quem está procurando serviço" subtitle="Ganhe dinheiro fazendo serviços" onSeeAll={() => go('/procurar-servico')} colors={colors} />
+                            {requests === null ? <Skeleton colors={colors} /> : requests.length === 0 ? null : (
+                                <Strip>
+                                    {requests.map((r) => (
+                                        <TallTile
+                                            key={r.id}
+                                            type="pedido"
+                                            colors={colors}
+                                            image={r.photo_urls?.[0] || null}
+                                            title={getRequestTitle(r.description, r.service_type, r.custom_service)}
+                                            onClick={() => go(`/procurar-servico?ver=${r.id}`)}
+                                            meta={
+                                                <span className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
+                                                    <MapPin size={10} className="flex-shrink-0" />
+                                                    <span className="truncate">{shortAddress(r.location_address).replace(/[,\s]+\d+\s*\w*$/, '')}</span>
+                                                    <span className="flex-shrink-0">· {askedAgo(r.created_at).replace('pediu ', '').replace('há ', '')}</span>
+                                                </span>
+                                            }
+                                            action={<div className="w-full flex items-center gap-1.5">{r.requester_id === userId ? (
+                                                <span className="flex-1 h-8 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>Seu pedido</span>
+                                            ) : (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); if (!applied.has(r.id)) applyTo(r.id) }}
+                                                    disabled={applied.has(r.id) || applying === r.id}
+                                                    className="flex-1 min-w-0 h-8 rounded-full text-[12px] font-black transition active:scale-95 disabled:opacity-70"
+                                                    style={applied.has(r.id) ? { background: `${colors.border}40`, color: colors.textSecondary } : { background: '#f97316', color: '#fff' }}
+                                                >
+                                                    {applying === r.id ? '...' : applied.has(r.id) ? 'Inscrição enviada' : 'Quero me inscrever'}
+                                                </button>
+                                            )}<ServiceRequestShareButton item={r} size={32} /></div>}
+                                        />
+                                    ))}
+                                </Strip>
+                            )}
+                        </section>
+
                             <h2 className="text-xl font-black mt-6 mb-3" style={{ color: colors.textPrimary }}>Quero ganhar com o iUser</h2>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 {earns.map((a) => {
@@ -936,43 +973,6 @@ export default function ModeloInicialPage() {
 
                         {/* Cursos e produtos digitais (vídeo-aula, curso, playlist, e-book): abrem na hora depois que a loja confirma o pagamento */}
                         <DigitalStrip />
-
-                        <section className="mt-8">
-                            <SectionHeader type="pedido" title="Quem está procurando serviço" subtitle="Ganhe dinheiro fazendo serviços" onSeeAll={() => go('/procurar-servico')} colors={colors} />
-                            {requests === null ? <Skeleton colors={colors} /> : requests.length === 0 ? null : (
-                                <Strip>
-                                    {requests.map((r) => (
-                                        <TallTile
-                                            key={r.id}
-                                            type="pedido"
-                                            colors={colors}
-                                            image={r.photo_urls?.[0] || null}
-                                            title={getRequestTitle(r.description, r.service_type, r.custom_service)}
-                                            onClick={() => go(`/procurar-servico?ver=${r.id}`)}
-                                            meta={
-                                                <span className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
-                                                    <MapPin size={10} className="flex-shrink-0" />
-                                                    <span className="truncate">{shortAddress(r.location_address).replace(/[,\s]+\d+\s*\w*$/, '')}</span>
-                                                    <span className="flex-shrink-0">· {askedAgo(r.created_at).replace('pediu ', '').replace('há ', '')}</span>
-                                                </span>
-                                            }
-                                            action={<div className="w-full flex items-center gap-1.5">{r.requester_id === userId ? (
-                                                <span className="flex-1 h-8 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>Seu pedido</span>
-                                            ) : (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); if (!applied.has(r.id)) applyTo(r.id) }}
-                                                    disabled={applied.has(r.id) || applying === r.id}
-                                                    className="flex-1 min-w-0 h-8 rounded-full text-[12px] font-black transition active:scale-95 disabled:opacity-70"
-                                                    style={applied.has(r.id) ? { background: `${colors.border}40`, color: colors.textSecondary } : { background: '#f97316', color: '#fff' }}
-                                                >
-                                                    {applying === r.id ? '...' : applied.has(r.id) ? 'Inscrição enviada' : 'Quero me inscrever'}
-                                                </button>
-                                            )}<ServiceRequestShareButton item={r} size={32} /></div>}
-                                        />
-                                    ))}
-                                </Strip>
-                            )}
-                        </section>
 
                         <section className="mt-8">
                             <SectionHeader type="pessoa" title="OUTDOOR iUSER" subtitle="Os perfis com mais pontos do iUser" onSeeAll={() => go('/social')} colors={colors} />
