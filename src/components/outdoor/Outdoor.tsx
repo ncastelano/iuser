@@ -18,13 +18,6 @@ const MEDAL: Record<Medal, { ring: string; glow: string; text: string }> = {
     bronze: { ring: '#d97706', glow: 'rgba(217,119,6,0.55)',   text: '#431407' },
 }
 
-/** escurece uma cor #rrggbb (percentual negativo) para o degradê do painel */
-function shade(hex: string, pct: number): string {
-    const n = parseInt(hex.slice(1), 16)
-    const f = (v: number) => Math.max(0, Math.min(255, Math.round(v * (1 + pct / 100))))
-    return `#${[(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => f(v).toString(16).padStart(2, '0')).join('')}`
-}
-
 function Logo({ kind, item, size, medal, index }: { kind: OutdoorKind; item: OutdoorItem; size: number; medal: Medal | null; index: number }) {
     const info = OUTDOOR_INFO[kind]
     const url = outdoorImageUrl(kind, item.image)
@@ -34,8 +27,8 @@ function Logo({ kind, item, size, medal, index }: { kind: OutdoorKind; item: Out
             className="iuser-outdoor-float relative block flex-shrink-0 overflow-hidden"
             style={{
                 width: size, height: size, borderRadius: radius, background: '#fff', animationDelay: `${(index % 6) * -0.55}s`,
-                border: `${medal ? 3 : 2.5}px solid ${medal ? MEDAL[medal].ring : 'rgba(255,255,255,0.95)'}`,
-                boxShadow: medal ? `0 0 0 3px ${MEDAL[medal].glow}, 0 10px 22px rgba(0,0,0,0.35)` : '0 8px 16px rgba(0,0,0,0.28)',
+                border: `${medal ? 3 : 2.5}px solid ${medal ? MEDAL[medal].ring : '#fff'}`,
+                boxShadow: medal ? `0 0 0 3px ${MEDAL[medal].glow}, 0 8px 18px rgba(0,0,0,0.25)` : '0 6px 14px rgba(0,0,0,0.2)',
             }}
         >
             <span className="absolute inset-0 flex items-center justify-center font-black text-orange-500" style={{ fontSize: size * 0.4, background: 'linear-gradient(135deg,#ffedd5,#fee2e2)' }}>
@@ -92,6 +85,7 @@ function RulesSheet({ kind, onClose }: { kind: OutdoorKind; onClose: () => void 
 
 export default function Outdoor({ kind, limit = 12, className = '', title }: { kind: OutdoorKind; limit?: number; className?: string; title?: string }) {
     const router = useRouter()
+    const { colors } = useTheme()
     const info = OUTDOOR_INFO[kind]
     const [items, setItems] = useState<OutdoorItem[] | null | undefined>(undefined)   // undefined = carregando; null = falhou
     const [rulesOpen, setRulesOpen] = useState(false)
@@ -104,27 +98,23 @@ export default function Outdoor({ kind, limit = 12, className = '', title }: { k
 
     if (items === null || (items && items.length === 0)) return null   // sem dados ou falha: não ocupa lugar nem mostra "vazio"
 
-    const bg = `linear-gradient(135deg, ${info.color} 0%, ${shade(info.color, -32)} 100%)`
+    // Sem painel de fundo: só o título, os logos flutuando e os pontos, nas cores do tema da página
     return (
-        <section aria-label={info.title} className={`relative overflow-hidden rounded-3xl ${className}`} style={{ background: bg, boxShadow: `0 10px 28px ${info.color}55` }}>
-            {/* brilho e holofote de fundo */}
-            <span aria-hidden className="pointer-events-none absolute -top-16 -left-10 w-56 h-56 rounded-full" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.28), transparent 65%)' }} />
-            <span aria-hidden className="pointer-events-none absolute -bottom-20 -right-10 w-64 h-64 rounded-full" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.14), transparent 65%)' }} />
-
-            <div className="relative flex items-center gap-2 px-4 pt-3.5">
-                <Crown size={16} className="text-yellow-300 flex-shrink-0" fill="#fde047" />
-                <p className="flex-1 min-w-0 text-[13px] font-black tracking-wide uppercase text-white truncate">{title || info.title}</p>
-                <button onClick={() => setRulesOpen(true)} aria-label="Como pontua" className="flex items-center gap-1 h-7 pl-2 pr-2.5 rounded-full text-[11px] font-black text-white transition active:scale-95" style={{ background: 'rgba(255,255,255,0.22)' }}>
+        <section aria-label={info.title} className={`relative ${className}`}>
+            <div className="flex items-center gap-2">
+                <Crown size={16} className="flex-shrink-0" style={{ color: '#eab308' }} fill="#facc15" />
+                <p className="flex-1 min-w-0 text-[13px] font-black tracking-wide uppercase truncate" style={{ color: colors.textPrimary }}>{title || info.title}</p>
+                <button onClick={() => setRulesOpen(true)} aria-label="Como pontua" className="flex items-center gap-1 h-7 pl-2 pr-2.5 rounded-full text-[11px] font-black transition active:scale-95" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>
                     <Info size={13} /> Como pontua
                 </button>
             </div>
 
-            <div className="relative flex gap-3.5 overflow-x-auto scrollbar-hide px-4 pt-6 pb-4 snap-x items-start" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex gap-3.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pt-7 pb-3 snap-x items-start" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {items === undefined
                     ? Array.from({ length: 5 }).map((_, i) => (
                         <div key={i} className="flex-shrink-0 w-[76px] flex flex-col items-center gap-2">
-                            <span className="w-[64px] h-[64px] rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.3)' }} />
-                            <span className="w-14 h-2.5 rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.3)' }} />
+                            <span className="w-[64px] h-[64px] rounded-full animate-pulse" style={{ background: `${colors.border}55` }} />
+                            <span className="w-14 h-2.5 rounded-full animate-pulse" style={{ background: `${colors.border}55` }} />
                         </div>
                     ))
                     : items.map((item, idx) => {
@@ -144,13 +134,13 @@ export default function Outdoor({ kind, limit = 12, className = '', title }: { k
                                     <Logo kind={kind} item={item} size={size} medal={medal} index={idx} />
                                     <span
                                         className="absolute -bottom-1 -right-1 min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center text-[10px] font-black"
-                                        style={{ background: medal ? MEDAL[medal].ring : '#fff', color: medal ? MEDAL[medal].text : shade(info.color, -25), boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}
+                                        style={{ background: medal ? MEDAL[medal].ring : info.color, color: medal ? MEDAL[medal].text : '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}
                                     >
                                         {item.rank}º
                                     </span>
                                 </span>
-                                <span className="mt-2 w-full text-[11px] font-black leading-tight text-white line-clamp-2" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}>{item.name}</span>
-                                <span className="mt-1 text-[10px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: 'rgba(255,255,255,0.22)', color: '#fff' }}>{pointsLabel(item.points)}</span>
+                                <span className="mt-2 w-full text-[11px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{item.name}</span>
+                                <span className="mt-1 text-[10px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: `${info.color}1f`, color: info.color }}>{pointsLabel(item.points)}</span>
                             </Tag>
                         )
                     })}
