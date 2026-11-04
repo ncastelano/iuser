@@ -167,35 +167,37 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                 )}
 
                 <div className="p-4 pt-1 flex flex-col gap-3">
-                    {/* Quem pediu */}
-                    <button
-                        onClick={() => { if (item.requester?.profileSlug) router.push(`/${item.requester.profileSlug}`) }}
-                        className="flex items-center gap-2.5 text-left"
-                    >
-                        <PlanAvatarRing userId={item.requester_id} linkToProfile={false}>
-                            {item.requester?.avatarUrl ? (
-                                <img src={item.requester.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
-                            ) : (
-                                <span className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-black" style={{ background: GRADIENT }}>
-                                    {who.replace('@', '').charAt(0).toUpperCase()}
-                                </span>
-                            )}
-                        </PlanAvatarRing>
-                        <span className="min-w-0">
-                            <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{isMine ? 'Você' : who}</span>
-                            <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{askedAgo(item.created_at)}</span>
+                    {/* Quem pediu: avatar + @ + "pediu há…" e, à direita, as visitas num selo */}
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => { if (item.requester?.profileSlug) router.push(`/${item.requester.profileSlug}`) }}
+                            className="flex items-center gap-3 text-left min-w-0 flex-1"
+                        >
+                            <PlanAvatarRing userId={item.requester_id} linkToProfile={false}>
+                                {item.requester?.avatarUrl ? (
+                                    <img src={item.requester.avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
+                                ) : (
+                                    <span className="w-11 h-11 rounded-full flex items-center justify-center text-white text-base font-black" style={{ background: GRADIENT }}>
+                                        {who.replace('@', '').charAt(0).toUpperCase()}
+                                    </span>
+                                )}
+                            </PlanAvatarRing>
+                            <span className="min-w-0">
+                                <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{isMine ? 'Você' : who}</span>
+                                <span className="block text-xs mt-0.5" style={{ color: colors.textSecondary }}>{askedAgo(item.created_at)}</span>
+                            </span>
+                        </button>
+                        <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0" style={{ background: `${colors.border}30`, color: colors.textSecondary }} title="Quantas pessoas abriram este pedido">
+                            <Eye size={14} />{views} {views === 1 ? 'visita' : 'visitas'}
                         </span>
-                    </button>
+                    </div>
 
-                    {(hasText || photo) && (
-                        <div className="-mt-1.5 pl-[46px]">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black" style={{ background: `${colors.accent}18`, color: colors.accent }}><Icon size={12} /> {label}</span>
-                        </div>
-                    )}
-
-                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: colors.textSecondary }}>
-                        <span className="flex items-center gap-1"><MapPin size={13} />{place}</span>
-                        <span className="flex items-center gap-1"><Eye size={13} />{views} {views === 1 ? 'visita' : 'visitas'}</span>
+                    {/* Etiquetas: o tipo do serviço e o lugar, lado a lado */}
+                    <div className="flex flex-wrap gap-2">
+                        {(hasText || photo) && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black" style={{ background: `${colors.accent}18`, color: colors.accent }}><Icon size={13} /> {label}</span>
+                        )}
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold max-w-full" style={{ background: `${colors.border}30`, color: colors.textPrimary }}><MapPin size={13} className="flex-shrink-0" /><span className="truncate">{place}</span></span>
                     </div>
 
                     <ServiceRequestShareButton item={item} size={44} label="Compartilhar" className="w-full" />
