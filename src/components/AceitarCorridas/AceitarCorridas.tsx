@@ -1031,7 +1031,15 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     useEffect(() => {
         if (!focusRideId || focusedRef.current || loading) return
         const el = document.getElementById(`ride-card-${focusRideId}`)
-        if (!el) return
+        if (!el) {
+            // A corrida do link não está na lista (outro veículo, já aceita, lotada ou cancelada): avisa em vez de largar a pessoa em outra lista sem explicar
+            const t = setTimeout(() => {
+                if (focusedRef.current || document.getElementById(`ride-card-${focusRideId}`)) return
+                focusedRef.current = true
+                toast.info('Essa corrida não está disponível para você agora: pode ser de outro tipo de veículo, já ter sido aceita ou ter sido cancelada.')
+            }, 2500)
+            return () => clearTimeout(t)
+        }
         focusedRef.current = true
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
         setHighlightRideId(focusRideId)

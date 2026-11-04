@@ -10,7 +10,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, describeTripFare, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
-import { kindForRideType } from '@/lib/rideVehicle'
+import { kindForRideType, rideAcceptsAnyVehicle, ridesAcceptableForVehicleKind, type VehicleKind } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { watchPosition } from '@/lib/nativeGeolocation'
 import { Spinner } from '@/components/Spinner'
@@ -190,6 +190,11 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             // própria, então vale a tarifa iUser e nada é filtrado por "já me candidatei".
             let pricingRow: { pricing_mode: any; base_distance_km: any; base_fee: any; price_per_km_after_base: any } | null = null
             let appliedIds = new Set<string>()
+            // Mesma regra do quadro de /aceitar-corridas: só as corridas do veículo que a pessoa tem cadastrado (carro não vê entrega de moto).
+            // Sem veículo cadastrado, qualquer tipo.
+            const { data: vehicleRows } = await supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', userId)
+            const myKinds = (vehicleRows || []).map((v) => v.vehicle_kind as VehicleKind)
+            const acceptableTypes = new Set<string>(myKinds.length > 0 ? myKinds.flatMap((k) => ridesAcceptableForVehicleKind(k)) : ['carro', 'van', 'van-grande', 'moto', 'bicicleta', 'qualquer'])
             if (userId) {
                 // As corridas aparecem mesmo sem o modo motorista ativado (e sem tarifa
                 // cadastrada ainda): quem não tem driver_pricing vê o valor pela tarifa iUser.
@@ -218,10 +223,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 .eq('status', 'pending')
             const { data: rows } = await openQuery
                 .order('created_at', { ascending: false })
-                .limit(15)
+                .limit(120)   // folga: o filtro do veículo descarta parte delas
             if (!active) return
 
-            const candidateRows = (rows || []).filter((r) => !appliedIds.has(r.id) && (r.applicant_count ?? 0) < 5)
+            const candidateRows = (rows || []).filter((r) => !appliedIds.has(r.id) && (r.applicant_count ?? 0) < 5 && (rideAcceptsAnyVehicle(r.vehicle_type) || acceptableTypes.has(r.vehicle_type)))
             const top = candidateRows.slice(0, 3)
             setOpenRidesTotal(candidateRows.length)
 
