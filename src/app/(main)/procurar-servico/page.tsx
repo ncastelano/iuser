@@ -14,6 +14,7 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from '@/lib/toast'
 import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
 import { useMyOrigin } from '@/hooks/useMyOrigin'
+import ListFilters, { type SortOption, type CategoryOption } from '@/components/ListFilters'
 import PhotoCollage from '@/components/PhotoCollage'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { formatDistance } from '@/lib/radarNearest'
@@ -278,18 +279,48 @@ function SerParceiroContent() {
     // Quem já se inscreveu sai da lista e passa pra aba "Me inscrevi"
     const availableJobs = useMemo(() => jobs.filter((j) => !appliedKeys.has(itemKey(j))), [jobs, appliedKeys])
 
+    // Filtros de UMA linha: tipo do serviço + ordenação. O tipo é o próprio nome do serviço pedido (pintor, cabeleireiro...)
+    const [typeFilter, setTypeFilter] = useState('todas')
+    const [sort, setSort] = useState<'recentes' | 'perto' | 'vistos'>('recentes')
+    const sorts: SortOption[] = [
+        { id: 'recentes', label: 'Mais recentes', short: 'Recentes', icon: Clock },
+        { id: 'perto', label: origin ? 'Mais perto de mim' : 'Mais perto (defina seu local)', short: 'Perto', icon: MapPin },
+        { id: 'vistos', label: 'Mais vistos', short: 'Vistos', icon: Eye },
+    ]
+    const typeOptions = useMemo<CategoryOption[]>(() => {
+        const seen = new Map<string, CategoryOption>()
+        for (const j of availableJobs) {
+            const label = getItemLabel(j)
+            if (!seen.has(label)) seen.set(label, { slug: label, label, icon: getItemIcon(j), color: '#f97316' })
+        }
+        return [...seen.values()]
+    }, [availableJobs])
+    const typeCounts = useMemo(() => {
+        const c: Record<string, number> = {}
+        for (const j of availableJobs) { const l = getItemLabel(j); c[l] = (c[l] || 0) + 1 }
+        return c
+    }, [availableJobs])
+    const distOf = (j: BoardItem) => (origin && j.approx_lat != null && j.approx_lng != null ? haversineKm([origin.lng, origin.lat], [Number(j.approx_lng), Number(j.approx_lat)]) : Infinity)
+
     const filteredJobs = useMemo(() => {
         const query = searchQuery.trim().toLowerCase()
-        if (!query) return availableJobs
-        return availableJobs.filter((job) => getItemSearchHaystack(job).includes(query))
-    }, [availableJobs, searchQuery])
+        let list = availableJobs
+        if (typeFilter !== 'todas') list = list.filter((j) => getItemLabel(j) === typeFilter)
+        if (query) list = list.filter((job) => getItemSearchHaystack(job).includes(query))
+        const by = [...list]
+        if (sort === 'perto') by.sort((a, b) => distOf(a) - distOf(b))
+        else if (sort === 'vistos') by.sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+        else by.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        return by
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [availableJobs, searchQuery, typeFilter, sort, origin])
 
     const activeApplications = myApplications.filter((a) => a.status !== 'rejected')
 
     const headerTabs: Tab[] = [
         {
             id: 'disponiveis',
-            label: 'Serviços disponíveis',
+            label: 'Disponíveis',
             icon: Briefcase,
             onClick: () => setActiveTab('disponiveis'),
             isActive: activeTab === 'disponiveis',
@@ -371,13 +402,22 @@ function SerParceiroContent() {
                         </div>
                     )}
 
+                    {activeTab === 'disponiveis' && !loading && !showLogin && availableJobs.length > 0 && (
+                        <div className="mb-3">
+                            <ListFilters
+                                sorts={sorts} sort={sort} onSort={(id) => setSort(id as typeof sort)}
+                                options={typeOptions} counts={typeCounts} category={typeFilter} onCategory={setTypeFilter} allLabel="Todos os serviços"
+                            />
+                        </div>
+                    )}
+
                     {activeTab === 'disponiveis' && !loading && !showLogin && availableJobs.length > 0 && filteredJobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhum pedido encontrado para "{searchQuery}".
+                                {searchQuery.trim() ? <>Nenhum pedido encontrado para "{searchQuery}".</> : 'Nenhum pedido com esse filtro.'}
                             </p>
                         </div>
                     )}

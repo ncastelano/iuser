@@ -33,7 +33,7 @@ export default function PageTabs({ tabs }: { tabs: Tab[] }) {
     const { colors } = useTheme()
     if (!tabs || tabs.length === 0) return null
     return (
-        <div className="flex gap-2 overflow-x-auto pb-1 pt-1 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex gap-2 overflow-x-auto pb-2 pt-2 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
             {tabs.map((tab) => {
                 const active = tab.isActive
                 const Icon = tab.icon
@@ -66,7 +66,7 @@ export default function PageTabs({ tabs }: { tabs: Tab[] }) {
                             </span>
                         )}
                         {tab.badge && tab.badge.count > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full text-white text-[8px] flex items-center justify-center font-black" style={{ background: tab.badge.color || '#ef4444' }}>{tab.badge.count}</span>
+                            <span className="min-w-5 h-5 px-1.5 -mr-1 rounded-full text-white text-[10px] leading-none flex items-center justify-center font-black tabular-nums" style={{ background: tab.badge.color || '#ef4444' }}>{tab.badge.count > 99 ? '99+' : tab.badge.count}</span>
                         )}
                     </button>
                 )

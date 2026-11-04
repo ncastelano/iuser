@@ -14,7 +14,10 @@ export interface SortOption { id: string; label: string; short: string; icon: Lu
 const catList = categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social')
 const catName = (slug: string) => (slug === 'transporte' ? 'Frete' : catList.find((c) => c.slug === slug)?.nome || slug)
 
-export default function ListFilters({ sorts, sort, onSort, counts, category = 'todas', onCategory, toggle }: {
+/** Categoria própria da lista (quando não é a categoria de loja do iUser), ex.: o tipo de serviço de um pedido */
+export interface CategoryOption { slug: string; label: string; icon: LucideIcon; color: string }
+
+export default function ListFilters({ sorts, sort, onSort, counts, category = 'todas', onCategory, toggle, options, allLabel = 'Todas' }: {
     sorts: SortOption[]
     sort: string
     onSort: (id: string) => void
@@ -23,15 +26,19 @@ export default function ListFilters({ sorts, sort, onSort, counts, category = 't
     category?: string
     onCategory?: (slug: string) => void
     toggle?: { label: string; active: boolean; onToggle: () => void }
+    /** lista de categorias própria; sem ela vale a de categorias de loja */
+    options?: CategoryOption[]
+    allLabel?: string
 }) {
     const { colors } = useTheme()
     const [menu, setMenu] = useState<'cat' | 'sort' | null>(null)
     const pill = { background: `${colors.border}40`, color: colors.textPrimary }
 
     const hasCats = !!counts && !!onCategory
-    const orderedCats = hasCats ? [...catList].sort((a, b) => (counts![b.slug] || 0) - (counts![a.slug] || 0)) : []
-    const cur = category === 'todas' ? null : catList.find((c) => c.slug === category) || null
-    const CurIcon = cur ? (cur.slug === 'servicos' ? Scissors : cur.icone) : LayoutGrid
+    const items: CategoryOption[] = options ?? catList.map((c) => ({ slug: c.slug, label: catName(c.slug), icon: c.slug === 'servicos' ? Scissors : c.icone, color: c.color }))
+    const orderedCats = hasCats ? [...items].sort((a, b) => (counts![b.slug] || 0) - (counts![a.slug] || 0)) : []
+    const cur = category === 'todas' ? null : items.find((c) => c.slug === category) || null
+    const CurIcon = cur ? cur.icon : LayoutGrid
     const curSort = sorts.find((x) => x.id === sort) || sorts[0]
     const SortIcon = curSort.icon
 
@@ -46,7 +53,7 @@ export default function ListFilters({ sorts, sort, onSort, counts, category = 't
                         style={cur ? { background: `${cur.color}1f`, color: colors.textPrimary } : pill}
                     >
                         <CurIcon size={15} className="flex-shrink-0" style={{ color: cur ? cur.color : colors.textSecondary }} />
-                        <span className="truncate">{cur ? catName(cur.slug) : 'Todas'}</span>
+                        <span className="truncate">{cur ? cur.label : allLabel}</span>
                         <ChevronDown size={14} className="flex-shrink-0 ml-auto" style={{ color: colors.textSecondary }} />
                     </button>
                 )}
@@ -79,8 +86,8 @@ export default function ListFilters({ sorts, sort, onSort, counts, category = 't
                     <div className="absolute left-0 right-0 top-12 z-40 rounded-3xl p-2" style={{ background: colors.surface, boxShadow: '0 14px 40px rgba(0,0,0,0.18)', border: `1px solid ${colors.border}` }}>
                         {menu === 'cat' ? (
                             <div className="grid grid-cols-2 gap-1 max-h-[52dvh] overflow-y-auto">
-                                {[{ slug: 'todas', nome: 'Todas', color: colors.textSecondary, icone: LayoutGrid } as any, ...orderedCats].map((c) => {
-                                    const Icon = c.slug === 'servicos' ? Scissors : c.icone
+                                {[{ slug: 'todas', label: allLabel, color: colors.textSecondary, icon: LayoutGrid } as CategoryOption, ...orderedCats].map((c) => {
+                                    const Icon = c.icon
                                     const selected = category === c.slug
                                     const has = c.slug === 'todas' || (counts![c.slug] || 0) > 0
                                     return (
@@ -91,7 +98,7 @@ export default function ListFilters({ sorts, sort, onSort, counts, category = 't
                                             style={{ background: selected ? `${c.color}22` : 'transparent', color: colors.textPrimary, opacity: has || selected ? 1 : 0.5 }}
                                         >
                                             <Icon size={16} style={{ color: c.color }} className="flex-shrink-0" />
-                                            <span className="flex-1 leading-tight">{c.slug === 'todas' ? 'Todas' : catName(c.slug)}</span>
+                                            <span className="flex-1 leading-tight">{c.label}</span>
                                             {selected && <Check size={14} strokeWidth={3} style={{ color: c.color }} className="flex-shrink-0" />}
                                         </button>
                                     )
