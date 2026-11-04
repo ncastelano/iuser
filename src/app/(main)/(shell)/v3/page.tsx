@@ -38,6 +38,8 @@ import SocialAroundCard from '@/components/v3/SocialAroundCard'
 import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 import DigitalStrip from '@/components/v3/DigitalStrip'
 import PromoStrip from '@/components/v3/PromoStrip'
+import SearchSuggestions from '@/components/search/SearchSuggestions'
+import { recordSearch, isRecordable } from '@/modules/search'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '@/components/social/SocialProfileCard'
@@ -407,6 +409,17 @@ export default function ModeloInicialPage() {
     const [query, setQuery] = useState('')
     // A lupa da barra do topo (que vive no layout) abre o campo de busca desta página
     const searchInputRef = useRef<HTMLInputElement>(null)
+    // Busca: ao tocar no campo vazio aparecem as últimas buscas e o que está em alta; uma busca "vale" no Enter, ao tocar numa sugestão ou depois de parar de digitar
+    const [searchFocused, setSearchFocused] = useState(false)
+    const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const commitSearch = (term: string) => { if (isRecordable(term)) recordSearch(term, !!userId) }
+    useEffect(() => {
+        const t = query.trim()
+        if (t.length < 3 || !isRecordable(t)) return
+        const id = setTimeout(() => commitSearch(t), 2000)
+        return () => clearTimeout(id)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [query, userId])
     useShellSearch({ value: query, onChange: setQuery, placeholder: 'O que você procura? Lojas, serviços, pessoas...', inline: true, focus: () => searchInputRef.current?.focus() })
     const [stores, setStores] = useState<StoreItem[] | null>(null)
     // Quantas lojas ativas cada categoria tem (null = carregando)
@@ -691,6 +704,9 @@ export default function ModeloInicialPage() {
                         enterKeyHint="search"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
+                        onFocus={() => { if (blurTimer.current) clearTimeout(blurTimer.current); setSearchFocused(true) }}
+                        onBlur={() => { blurTimer.current = setTimeout(() => setSearchFocused(false), 150) }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { commitSearch(query); (e.target as HTMLInputElement).blur() } }}
                         placeholder="O que você procura? Lojas, serviços, pessoas..."
                         className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none appearance-none [&::-webkit-search-cancel-button]:hidden"
                         style={{ color: colors.textPrimary }}
@@ -701,6 +717,10 @@ export default function ModeloInicialPage() {
 
                 {searching ? (
                     <div className="mt-6"><SearchResultsSection searchQuery={query} /></div>
+                ) : searchFocused ? (
+                    <div className="mt-5 pb-10">
+                        <SearchSuggestions loggedIn={!!userId} onPick={(t) => { setQuery(t); commitSearch(t); searchInputRef.current?.blur() }} />
+                    </div>
                 ) : (
                     <>
                         {/* ===== 1. O QUE VOCÊ QUER FAZER? — dois blocos: quem precisa / quem quer ganhar ===== */}

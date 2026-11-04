@@ -48,6 +48,7 @@
     "test:flash": "node --test scripts/test-flash.mjs",
     "test:people": "node --test scripts/test-people.mjs",
     "test:outdoor": "node --test scripts/test-outdoor.mjs",
+    "test:search": "node --test scripts/test-search.mjs",
     "test:deliveries": "node --test scripts/test-deliveries.mjs",
     "test:favorites": "node --test scripts/test-favorites.mjs",
     "test:live-push": "node --test scripts/test-live-push.mjs",
