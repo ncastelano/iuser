@@ -15,6 +15,8 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { getRequestTitle } from '@/lib/serviceTypes'
 import { askedAgo, getItemIcon, getItemLabel, shortAddress, type BoardItem } from '@/lib/serviceBoard'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
+import { haversineKm } from '@/lib/mapboxRoute'
+import { formatDistance } from '@/lib/radarNearest'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -61,9 +63,11 @@ interface Props {
     applied: boolean
     onApply?: () => void
     onClose: () => void
+    /** onde a pessoa está: com isso (e a posição aproximada do pedido) o card mostra a distância ao lado do endereço */
+    origin?: { lat: number; lng: number } | null
 }
 
-export default function ServiceRequestViewDialog({ item, isMine, applied, onApply, onClose }: Props) {
+export default function ServiceRequestViewDialog({ item, isMine, applied, onApply, onClose, origin }: Props) {
     const { colors } = useTheme()
     const router = useRouter()
     const [mounted, setMounted] = useState(false)
@@ -98,6 +102,8 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
     const who = item.requester?.profileSlug ? `@${item.requester.profileSlug}` : item.requester?.name || 'Alguém'
     const place = isMine ? shortAddress(item.location_address) : publicPlace(item.location_address)
     const views = item.view_count || 0
+    // distância até o pedido: só com o local da pessoa e a posição aproximada do pedido (nunca mostra a exata); no próprio pedido não faz sentido
+    const km = !isMine && origin && item.approx_lat != null && item.approx_lng != null ? haversineKm([origin.lng, origin.lat], [Number(item.approx_lng), Number(item.approx_lat)]) : null
 
     return createPortal(
         <>
@@ -197,7 +203,7 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                         {(hasText || photo) && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black" style={{ background: `${colors.accent}18`, color: colors.accent }}><Icon size={13} /> {label}</span>
                         )}
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold max-w-full" style={{ background: `${colors.border}30`, color: colors.textPrimary }}><MapPin size={13} className="flex-shrink-0" /><span className="truncate">{place}</span></span>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold max-w-full" style={{ background: `${colors.border}30`, color: colors.textPrimary }}><MapPin size={13} className="flex-shrink-0" /><span className="truncate">{place}</span>{km != null && <span className="flex-shrink-0 font-black" style={{ color: colors.accent }}>· {formatDistance(km)}</span>}</span>
                     </div>
 
                     <ServiceRequestShareButton item={item} size={44} label="Compartilhar" className="w-full" />

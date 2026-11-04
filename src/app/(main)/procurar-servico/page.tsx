@@ -12,7 +12,10 @@ import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from '@/lib/toast'
-import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
+import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack, Images } from 'lucide-react'
+import { useMyOrigin } from '@/hooks/useMyOrigin'
+import { haversineKm } from '@/lib/mapboxRoute'
+import { formatDistance } from '@/lib/radarNearest'
 import { Spinner } from '@/components/Spinner'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
@@ -74,6 +77,7 @@ function SerParceiroContent() {
     const [editAccessNotes, setEditAccessNotes] = useState('')
     const [savingEdit, setSavingEdit] = useState(false)
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const origin = useMyOrigin(userId)   // onde a pessoa está: serve para mostrar a distância de cada pedido
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
@@ -386,8 +390,8 @@ function SerParceiroContent() {
                                 const key = itemKey(job)
                                 const applied = appliedKeys.has(key)
                                 const isMine = job.requester_id === userId
-                                const title = getRequestTitle(job.description, job.service_type, job.custom_service)
-                                const photo = job.photo_urls[0] || null
+                                const fullText = (job.description || '').trim()
+                                const km = !isMine && origin && job.approx_lat != null && job.approx_lng != null ? haversineKm([origin.lng, origin.lat], [Number(job.approx_lng), Number(job.approx_lat)]) : null
                                 const requesterName = (job.requester?.profileSlug ? `@${job.requester.profileSlug}` : job.requester?.name || 'Alguém')
                                 return (
                                     <div
@@ -395,7 +399,7 @@ function SerParceiroContent() {
                                         id={`job-card-${job.id}`}
                                         // Tocar no card (fora dos botões) abre o pedido em tamanho grande e já conta a visita
                                         onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a, input, textarea')) setViewJob(job) }}
-                                        className={v3 ? 'py-3 scroll-mt-32 flex gap-3 cursor-pointer' : 'rounded-3xl p-3 scroll-mt-32 flex gap-3 cursor-pointer'}
+                                        className={v3 ? 'py-4 scroll-mt-32 flex cursor-pointer' : 'rounded-3xl p-4 scroll-mt-32 flex cursor-pointer'}
                                         style={v3 ? {
                                             borderBottom: `1px solid ${colors.border}50`,
                                             background: focusId === job.id ? `${colors.accent}10` : undefined,
@@ -405,27 +409,8 @@ function SerParceiroContent() {
                                             boxShadow: focusId === job.id ? `0 0 0 3px ${colors.accent}40` : colors.shadow,
                                         }}
                                     >
-                                        {/* Foto do pedido em destaque, à esquerda (sem foto: o ícone do tipo) */}
-                                        <div
-                                            className={v3 ? 'relative w-20 h-20 flex-shrink-0 rounded-2xl overflow-hidden' : 'relative w-28 sm:w-32 flex-shrink-0 rounded-2xl overflow-hidden self-stretch min-h-[132px]'}
-                                            style={v3 ? { background: photo ? '#0b1220' : '#f9731620' } : { background: photo ? '#0b1220' : GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.18)' }}
-                                        >
-                                            {photo ? (
-                                                <img src={photo} alt={title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-                                            ) : (
-                                                <div className="absolute inset-0 flex items-center justify-center">
-                                                    <Icon size={v3 ? 28 : 38} color={v3 ? '#f97316' : 'rgba(255,255,255,0.9)'} />
-                                                </div>
-                                            )}
-                                            {job.photo_urls.length > 1 && (
-                                                <span className="absolute bottom-1.5 right-1.5 text-[10px] font-black text-white px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                                                    +{job.photo_urls.length - 1}
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Tudo do lado direito: quem pede, o TÍTULO, onde, e o botão */}
-                                        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                                        {/* O foco é o que a pessoa ESCREVEU (inteiro, em letra grande); em volta: quem pediu, as etiquetas e o botão. Sem foto nem ícone ao lado. */}
+                                        <div className="flex-1 min-w-0 flex flex-col gap-2.5">
                                             <div className="flex items-center gap-1.5 min-w-0">
                                                 <PlanAvatarRing userId={job.requester_id}>
                                                     {job.requester?.avatarUrl ? (
@@ -448,16 +433,20 @@ function SerParceiroContent() {
                                                 </span>
                                             </div>
 
-                                            <p className={`${v3 ? 'text-[15px]' : 'text-base'} font-black leading-snug`} style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: v3 ? 2 : 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                                {title}
+                                            <p className={`${fullText.length <= 90 && !fullText.includes('\n') ? 'text-xl font-black' : 'text-base font-bold'} leading-snug whitespace-pre-wrap break-words`} style={{ color: colors.textPrimary }}>
+                                                {fullText || label}
                                             </p>
 
-                                            <div className="flex items-center gap-1.5 flex-wrap text-[11px]" style={{ color: colors.textSecondary }}>
-                                                <span className="flex items-center gap-1 min-w-0">
-                                                    <MapPin size={11} className="flex-shrink-0" />
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black" style={{ background: `${colors.accent}18`, color: colors.accent }}><Icon size={12} /> {label}</span>
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold min-w-0 max-w-full" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                                    <MapPin size={12} className="flex-shrink-0" />
                                                     <span className="truncate">{getItemAddress(job)}</span>
+                                                    {km != null && <span className="flex-shrink-0 font-black" style={{ color: colors.accent }}>· {formatDistance(km)}</span>}
                                                 </span>
-                                                <span className="px-1.5 py-px rounded-full font-bold flex-shrink-0" style={{ background: '#f9731618', color: '#ea580c' }}>{label}</span>
+                                                {job.photo_urls.length > 0 && (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: `${colors.border}30`, color: colors.textSecondary }} title="Este pedido tem foto: toque para ver"><Images size={12} /> {job.photo_urls.length}</span>
+                                                )}
                                             </div>
                                             {job.location_needs_access && (
                                                 <span className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
@@ -661,6 +650,7 @@ function SerParceiroContent() {
                     applied={appliedKeys.has(itemKey(viewJob))}
                     onApply={() => { const j = viewJob; setViewJob(null); handleApply(j) }}
                     onClose={() => setViewJob(null)}
+                    origin={origin ?? null}
                 />
             )}
         </div>

@@ -299,6 +299,7 @@ export default function NeedAService({ dragHandle, limit = 8, origin }: { dragHa
                     applied={applied.has(viewItem.id)}
                     onApply={() => { const id = viewItem.id; setViewItem(null); goFromHome(`/procurar-servico?pedido=${id}`) }}
                     onClose={() => setViewItem(null)}
+                    origin={origin}
                 />
             )}
 
