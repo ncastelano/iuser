@@ -7,7 +7,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **35 migrations**: `20261130000000` até `20261130000034` (lista no Anexo A). |
+| **Faltam na produção** | **36 migrations**: `20261130000000` até `20261130000035` (lista no Anexo A). |
 | **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
@@ -170,6 +170,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 32 | `upload_valve` | Válvula de segurança dos uploads: mede armazenamento e banda contra a cota e, LIGADA, pausa sozinha os envios digitais/R2 (e o Flash no crítico), religa com histerese; tabelas `upload_valve_settings`/`upload_valve_events`, cron `upload-valve-tick`; nasce desligada | `upload_valve_rollback.sql` |
 | 33 | `digital_r2` | Digital pesado no R2 PRIVADO (bucket `iuser-digital`, sem domínio público): tipo `digital_heavy` (nasce desligado), `digital_contents.bucket`/`file_name`, trava `digital_r2_guard`, `release_r2_asset` confere itens digitais; a banda do Supabase deixa de contar o que está no R2 | `digital_r2_rollback.sql` |
 | 34 | `music_club` | Clube da loja PAGO + música: mensalidade por Pix declarado (+30 dias por confirmação), `includes_music` abre as músicas da loja (`_digital_access` reconhece o clube), taxa de R$ 0,50 no pós-pago por pagamento confirmado; `store_club_settings`, `store_club_payments` | `music_club_rollback.sql` |
+| 35 | `outdoor` | Outdoor (vitrine por pontuação): tabela `outdoor_rules` (pesos), `get_outdoor`/`get_outdoor_rules` públicas; só adiciona. Home, /comprar, /social, /imoveis e o filtro do /radar chamam `get_outdoor`: aplique ANTES do código. Rollback `outdoor_rollback.sql`. |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 

@@ -11,6 +11,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { loadOutdoor, pointsById, pointsLabel } from '@/modules/outdoor'
 import { ArrowLeft, Search, Store, ShoppingCart, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera, ChevronDown, Check, Car } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from '@/lib/toast'
@@ -78,9 +79,12 @@ type RankKey =
     | 'views_desc' | 'views_asc' | 'sales_desc' | 'sales_asc'
     | 'comments_desc' | 'comments_asc' | 'followers_desc' | 'followers_asc'
     | 'rating_desc' | 'rating_asc' | 'recent_desc' | 'recent_asc'
+    | 'outdoor_desc' | 'outdoor_asc'
 
 // Sempre em pares: o "mais" e o "menos" de cada critério.
 const RANK_GROUPS: { id: string; title: string; storesOnly?: boolean; desc: { key: RankKey; label: string }; asc: { key: RankKey; label: string } }[] = [
+    // O Outdoor vem sempre primeiro (e é o filtro com que o Radar abre): a pontuação do tipo (lojas, serviços, produtos, pessoas), a mesma dos Outdoors do app
+    { id: 'outdoor', title: 'Outdoor', desc: { key: 'outdoor_desc', label: 'Outdoor' }, asc: { key: 'outdoor_asc', label: 'Menos pontos' } },
     { id: 'views', title: 'Visualizações', desc: { key: 'views_desc', label: 'Mais vistos' }, asc: { key: 'views_asc', label: 'Menos vistos' } },
     { id: 'sales', title: 'Vendas', desc: { key: 'sales_desc', label: 'Mais vendidos' }, asc: { key: 'sales_asc', label: 'Menos vendidos' } },
     { id: 'comments', title: 'Comentários', desc: { key: 'comments_desc', label: 'Mais comentados' }, asc: { key: 'comments_asc', label: 'Menos comentados' } },
@@ -89,7 +93,12 @@ const RANK_GROUPS: { id: string; title: string; storesOnly?: boolean; desc: { ke
     { id: 'recent', title: 'Novidade', desc: { key: 'recent_desc', label: 'Mais recentes' }, asc: { key: 'recent_asc', label: 'Mais antigos' } },
 ]
 
-function rankLabel(key: RankKey): string {
+const OUTDOOR_NOUN: Record<string, string> = { lojas: 'lojas', servicos: 'serviços', produtos: 'produtos', pessoas: 'pessoas', motoristas: 'motoristas' }
+/** "Outdoor de lojas" no lugar de só "Outdoor", conforme o que está sendo visto */
+function outdoorLabel(mode: string): string { return `Outdoor de ${OUTDOOR_NOUN[mode] || 'lojas'}` }
+
+function rankLabel(key: RankKey, mode: string = 'lojas'): string {
+    if (key === 'outdoor_desc') return outdoorLabel(mode)
     for (const g of RANK_GROUPS) {
         if (g.desc.key === key) return g.desc.label
         if (g.asc.key === key) return g.asc.label
@@ -99,7 +108,7 @@ function rankLabel(key: RankKey): string {
 
 type RadarMetrics = { stores: Record<string, { sales: number; comments: number; followers: number }>; products: Record<string, { sales: number; comments: number }> }
 
-function metricValue(item: any, key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null): number {
+function metricValue(item: any, key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null, points: Record<string, number> = {}): number {
     const base = key.split('_')[0]
     const m: any = metrics ? (isStoreMode ? metrics.stores[item.id] : metrics.products[item.id]) : null
     switch (base) {
@@ -109,14 +118,15 @@ function metricValue(item: any, key: RankKey, isStoreMode: boolean, metrics: Rad
         case 'followers': return Number(m?.followers) || 0
         case 'rating': return (Number(item.ratings_avg) || 0) * 1000 + (Number(item.ratings_count) || 0)
         case 'recent': return item.created_at ? new Date(item.created_at).getTime() : 0
+        case 'outdoor': return Number(points[item.id]) || 0
         default: return 0
     }
 }
 
-function sortByRank(items: any[], key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null): any[] {
+function sortByRank(items: any[], key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null, points: Record<string, number> = {}): any[] {
     const dir = key.endsWith('_asc') ? 1 : -1
     return [...items].sort((a, b) => {
-        const diff = metricValue(a, key, isStoreMode, metrics) - metricValue(b, key, isStoreMode, metrics)
+        const diff = metricValue(a, key, isStoreMode, metrics, points) - metricValue(b, key, isStoreMode, metrics, points)
         return diff !== 0 ? dir * diff : String(a.name || '').localeCompare(String(b.name || ''))
     })
 }
@@ -170,7 +180,9 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // Motoristas disponíveis agora (só para quem está logado): vêm de get_radar_drivers, com a posição aproximada
     const [drivers, setDrivers] = useState<any[]>([])
     const [metrics, setMetrics] = useState<RadarMetrics | null>(null)
-    const [rankKey, setRankKey] = useState<RankKey>('views_desc')
+    const [rankKey, setRankKey] = useState<RankKey>('outdoor_desc')
+    // pontos do Outdoor do tipo que está na tela (id → pontos); vazio enquanto carrega ou em motoristas
+    const [outdoorPts, setOutdoorPts] = useState<Record<string, number>>({})
     const [showRankMenu, setShowRankMenu] = useState(false)
     const [edgeIndicators, setEdgeIndicators] = useState<EdgeIndicator[]>([])
     const [stores, setStores] = useState<any[]>([])
@@ -509,6 +521,14 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         load()
     }, [])
 
+    // Pontos do Outdoor do tipo que está na tela (a pontuação mora no banco; aqui só ordena)
+    useEffect(() => {
+        if (mode === 'motoristas') { setOutdoorPts({}); return }
+        let alive = true
+        void loadOutdoor(mode, 200).then((items) => { if (alive) setOutdoorPts(items ? pointsById(items) : {}) })
+        return () => { alive = false }
+    }, [mode])
+
     // FILTER
     useEffect(() => {
         if (overrideList) {
@@ -531,10 +551,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         const q = search.toLowerCase()
         const matched = q ? items.filter(i => i.name?.toLowerCase().includes(q) || i.searchText?.includes(q)) : items
         // Ordena pelo filtro escolhido (padrão: mais vistos → menos vistos). Motoristas ficam do mais perto pro mais longe (ordem do banco), sem ranking.
-        const result = mode === 'motoristas' ? matched : sortByRank(matched, rankKey, mode === 'lojas', metrics)
+        const result = mode === 'motoristas' ? matched : sortByRank(matched, rankKey, mode === 'lojas', metrics, outdoorPts)
         setFiltered(result)
         console.log('[MapPage] 🎯 Filtrados:', { mode, count: result.length, search: q })
-    }, [search, mode, stores, products, people, drivers, overrideList, rankKey, metrics])
+    }, [search, mode, stores, products, people, drivers, overrideList, rankKey, metrics, outdoorPts])
 
     // Buscar detalhes extras da loja selecionada (seguidores, whatsapp, instagram,
     // se já sigo, produtos mais vistos, comentários)
@@ -1345,7 +1365,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                         style={active ? { background: 'linear-gradient(135deg, #f97316, #dc2626)' } : undefined}
                                                     >
                                                         {active && <Check className="w-3 h-3" />}
-                                                        {opt.label}
+                                                        {opt.key === 'outdoor_desc' ? outdoorLabel(mode) : opt.label}
                                                     </button>
                                                 )
                                             })}
@@ -1673,6 +1693,11 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                             <CrownBadge rank={rank} size={30} />
                                         </span>
                                     )}
+                                    {rankKey.startsWith('outdoor') && mode !== 'motoristas' && (
+                                        <span className="absolute z-10 left-1/2 -translate-x-1/2 -bottom-2.5 rounded-full px-1.5 py-px text-[9px] font-black text-white whitespace-nowrap leading-tight" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
+                                            {pointsLabel(outdoorPts[item.id] || 0)}
+                                        </span>
+                                    )}
                                     {v3 && (() => {
                                         const c = resolveItemCoords(item, mode, stores)
                                         const km = c && referenceLocation ? haversineKm([referenceLocation.lng, referenceLocation.lat], c) : null
@@ -1682,7 +1707,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                         ) : null
                                     })()}
                                     <div
-                                        className={`w-full h-full ${item.isPerson || item.isDriver ? 'rounded-full' : 'rounded-2xl'} overflow-hidden shadow-md bg-white ${rank ? '' : `border-2 ${mode === 'lojas'
+                                        className={`${rankKey.startsWith('outdoor') && mode !== 'motoristas' ? 'iuser-outdoor-float ' : ''}w-full h-full ${item.isPerson || item.isDriver ? 'rounded-full' : 'rounded-2xl'} overflow-hidden shadow-md bg-white ${rank ? '' : `border-2 ${mode === 'lojas'
                                             ? (item.is_open ? 'border-green-500' : 'border-red-500')
                                             : 'border-orange-200'}`}`}
                                         style={rank ? { border: `3px solid ${RANK_COLORS[rank].fill}`, boxShadow: `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 16px rgba(0,0,0,0.35)` } : undefined}
@@ -1706,7 +1731,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                             aria-expanded={showRankMenu}
                         >
                             <Flame className="w-3.5 h-3.5" />
-                            Filtro: {rankLabel(rankKey)}
+                            Filtro: {rankLabel(rankKey, mode)}
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
                         </button>
                         {rankMenuNode}

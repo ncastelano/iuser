@@ -20,6 +20,7 @@ import StoreImageCard from '@/components/StoreImageCard'
 import { Spinner } from '@/components/Spinner'
 import { notifyChatMessage } from '@/lib/notifyRideStatus'
 import { usePagedRotation } from '@/hooks/usePagedRotation'
+import Outdoor from '@/components/outdoor/Outdoor'
 import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
 import {
     isQuickAddable, matchesQuery, sortTrending, limitPerStore, loadShop, servicePriceLabel, serviceCta, sortServices,
@@ -329,6 +330,9 @@ export default function ComprarScreen() {
                     {query && <button onClick={() => setQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={16} /></button>}
                 </div>
             </div>
+
+            {/* Outdoor de lojas: as de mais pontos, logo abaixo da busca */}
+            <Outdoor kind="lojas" className="mt-3" />
 
             {/* Filtros e categorias numa linha só (rola pro lado): "Aberto agora" e "Entrega grátis" primeiro, pra ficarem à mão */}
             <div className="mt-3 flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ overflowAnchor: 'none' }}>

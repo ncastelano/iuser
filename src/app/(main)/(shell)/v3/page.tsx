@@ -33,6 +33,7 @@ import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communit
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ListingRowCard from '@/components/ListingRowCard'
 import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
+import Outdoor from '@/components/outdoor/Outdoor'
 import SocialAroundCard from '@/components/v3/SocialAroundCard'
 import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 import DigitalStrip from '@/components/v3/DigitalStrip'
@@ -677,8 +678,11 @@ export default function ModeloInicialPage() {
                     text={`@${profileSlug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:`}
                 />
 
+                {/* Outdoor de lojas: as de mais pontos, em cima da busca */}
+                <Outdoor kind="lojas" className="mt-2" />
+
                 {/* Busca sempre à mão, em cima de Comprar / Contratar serviço (a lupa da barra leva o foco pra cá) */}
-                <div className="mt-2 mb-3 flex items-center gap-2 px-4 rounded-full" style={{ height: 48, background: colors.surface, border: `1.5px solid ${colors.border}` }}>
+                <div className="mt-3 mb-3 flex items-center gap-2 px-4 rounded-full" style={{ height: 48, background: colors.surface, border: `1.5px solid ${colors.border}` }}>
                     <Search size={18} className="flex-shrink-0" style={{ color: colors.accent }} />
                     <input
                         ref={searchInputRef}

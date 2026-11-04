@@ -11,6 +11,7 @@ import RadarSection from './inicio/sections/RadarSection'
 import RentalShowcase from './inicio/sections/RentalShowcase'
 import DigitalShowcase from './inicio/sections/DigitalShowcase'
 import PromoShowcase from './inicio/sections/PromoShowcase'
+import Outdoor from '@/components/outdoor/Outdoor'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import AcceptARider from './inicio/sections/AcceptARider'
 import MyServiceRequests from './inicio/sections/MyServiceRequests'
@@ -54,6 +55,7 @@ const pendingHomeReturn: { value: { saved: string | null; anchor: string | null 
 
 const DEFAULT_SECTIONS = [
     'categorias',
+    'outdoorLojas',
     'meusPedidos',
     'servicosOferecidos',
     'radar',
@@ -250,6 +252,10 @@ function HomePageContent() {
                     if (!filtered.includes('rentalShowcase')) {
                         const at = filtered.indexOf('publicationShowcase')
                         filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'rentalShowcase', ...filtered.slice(at + 1)] : filtered
+                    }
+                    // Outdoor de lojas: logo abaixo da busca/categorias (o Header da 2.0 já tem a busca, então é a 1ª seção)
+                    if (!filtered.includes('outdoorLojas')) {
+                        filtered = ['outdoorLojas', ...filtered]
                     }
                     // Promoções das lojas: entram logo abaixo do Radar
                     if (!filtered.includes('promoShowcase')) {
@@ -593,6 +599,8 @@ function HomePageContent() {
                 return <ProductShowcase />
             case 'publicationShowcase':
                 return <FeaturedPublications maxItems={6} />
+            case 'outdoorLojas':
+                return <Outdoor kind="lojas" />
             case 'promoShowcase':
                 return <PromoShowcase />
             case 'digitalShowcase':

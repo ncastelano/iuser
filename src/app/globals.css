@@ -391,3 +391,11 @@ html[data-iuser-theme="escuro-cinza"] :is([class*="border-orange-"], [class*="ri
 html[data-iuser-theme="escuro-cinza"] [class*="text-orange-"]:not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *) {
     color: var(--bw-text) !important;
 }
+
+/* OUTDOOR: os logos flutuam de leve, cada um num ritmo (components/outdoor/Outdoor.tsx) */
+@keyframes iuser-outdoor-float {
+    0%, 100% { transform: translateY(0) rotate(-1.2deg); }
+    50% { transform: translateY(-6px) rotate(1.2deg); }
+}
+.iuser-outdoor-float { animation: iuser-outdoor-float 3.4s ease-in-out infinite; will-change: transform; }
+@media (prefers-reduced-motion: reduce) { .iuser-outdoor-float { animation: none; } }

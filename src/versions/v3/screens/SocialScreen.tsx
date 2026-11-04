@@ -16,6 +16,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import PageTabs, { type Tab } from '@/components/PageTabs'
 import SocialProfileList, { type SocialListTab } from '@/components/social/SocialProfileList'
+import Outdoor from '@/components/outdoor/Outdoor'
 import { useRecentProfiles } from '@/hooks/useRecentProfiles'
 import { flashGradient, mediaSrc, shortCount, timeAgo, authorAvatarUrl, type FlashItem } from '@/modules/flash'
 import {
@@ -232,6 +233,8 @@ export default function SocialScreen() {
 
     return (
         <div className="pb-6">
+            {/* Outdoor de pessoas: as de mais pontos, em cima de tudo */}
+            <Outdoor kind="pessoas" className="mb-4" />
             <header>
                 <h1 className="flex items-center gap-2 text-2xl font-black" style={{ color: colors.textPrimary }}><Users size={24} style={{ color: ORANGE }} /> Social</h1>
                 <p className="text-[13px] mt-0.5" style={{ color: colors.textSecondary }}>O que está rolando no mundo, de quem você segue e de quem te segue.</p>
