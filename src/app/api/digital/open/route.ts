@@ -21,7 +21,13 @@ export async function GET(req: Request) {
     const headers = { 'Cache-Control': 'no-store' }
     if (a.external_url) return NextResponse.json({ url: a.external_url, kind: a.kind, title: a.title, mime_type: null, external: true }, { headers })
     if (!a.storage_path) return NextResponse.json({ error: 'Item sem arquivo' }, { status: 404 })
-    const download = url.searchParams.get('download') === '1'
+    // programa sempre vem como download (o arquivo é um instalável, não abre no navegador)
+    const download = url.searchParams.get('download') === '1' || a.kind === 'app'
+    // conta o download do programa (1 por pessoa por dia; só o servidor conta)
+    if (a.kind === 'app' && url.searchParams.get('download') === '1') {
+        const { data: u } = await supabase.auth.getUser()
+        if (u?.user?.id) { try { await supabaseAdmin.rpc('track_digital_download', { p_item: item, p_profile: u.user.id }) } catch { /* contar nunca atrapalha baixar */ } }
+    }
     const fileName = a.storage_path.split('/').pop()?.replace(/^\d+-/, '') || 'arquivo'
     const { data: signed, error: e2 } = await supabaseAdmin.storage.from('digital-files').createSignedUrl(a.storage_path, 3600, download ? { download: fileName } : undefined)
     if (e2 || !signed?.signedUrl) return NextResponse.json({ error: 'Não foi possível abrir o arquivo' }, { status: 500 })

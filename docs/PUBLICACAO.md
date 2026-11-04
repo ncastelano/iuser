@@ -7,7 +7,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **30 migrations**: `20261130000000` até `20261130000029` (lista no Anexo A). |
+| **Faltam na produção** | **31 migrations**: `20261130000000` até `20261130000030` (lista no Anexo A). |
 | **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
@@ -84,7 +84,7 @@ npx next build
 npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src/versions   # só o ciclo conhecido
 ```
 - [ ] **`npx next build` passa.** (Não foi rodado nas últimas rodadas; só o `tsc`. O build de produção é mais exigente.)
-- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 30 migrations e o aviso da Fase 3.
+- [ ] Abrir o **PR `staging` → `main`**; CI verde. Escreva na descrição as 31 migrations e o aviso da Fase 3.
 
 ### Fase 3 — O dia da publicação (nesta ordem, sem pausas longas entre os passos 3 e 4)
 1. **Horário calmo.** Confirme que **não há entrega de loja em andamento**. Motivo: veja "riscos" abaixo — por alguns minutos o banco novo e o código antigo convivem. Consulta só de leitura (Supabase → SQL Editor, projeto de produção; o resultado deve ser `0`):
@@ -165,6 +165,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 27 | `digital_free_music` | Digital GRÁTIS (pegar sem pedido: `digital_claims`/`claim_free_digital`), prévia em ÁUDIO de até 30 s e declaração de autoria antes de enviar música (`digital_rights`) | `digital_free_music_rollback.sql` |
 | 28 | `digital_moderation` | Denunciar produto digital (tipo `digital_product`, motivo Direito autoral); oculto = inativo + arquivos deixam de ser entregues a quem não é o dono | `digital_moderation_rollback.sql` |
 | 29 | `store_tips` | Gorjeta / apoiar o artista: Pix direto para a loja, declarado pela pessoa e confirmado pela loja (`store_tips`, `store_tip_settings`) | `store_tips_rollback.sql` |
+| 30 | `digital_apps` | Programas e aplicativos para baixar (item `app` com plataforma, versão, notas, SHA-256, contador de downloads) e CORREÇÃO DE SEGURANÇA do gatilho de conteúdo digital (`current_user` → `auth.role()`) | `digital_apps_rollback.sql` |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 

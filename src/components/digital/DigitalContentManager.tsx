@@ -3,11 +3,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Link2, Trash2, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, Link2, Package, Trash2, Upload } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from '@/lib/toast'
-import { addFileItem, addLinkItem, declareRights, hasRights, kindFromFile, formatDuration, formatSize, groupByModule, listOwnItems, removeItem, setItemPreview, swapItems, curriculumSummary, type OwnItem, type CurriculumItem } from '@/modules/digital'
+import { addAppItem, addFileItem, addLinkItem, APP_NOTES_MAX, APP_PLATFORM_LABEL, APP_PLATFORMS, APP_VERSION_MAX, declareRights, detectPlatform, downloadsLabel, hasRights, kindFromFile, PROGRAM_ACCEPT, validateAppInput, type AppPlatform, formatDuration, formatSize, groupByModule, listOwnItems, removeItem, setItemPreview, swapItems, curriculumSummary, type OwnItem, type CurriculumItem } from '@/modules/digital'
 import { kindIcon } from './DigitalCurriculum'
 
 export default function DigitalContentManager({ productId }: { productId: string }) {
@@ -21,6 +21,13 @@ export default function DigitalContentManager({ productId }: { productId: string
     const [preview, setPreview] = useState(false)
     const [teaser, setTeaser] = useState(false)
     const fileRef = useRef<HTMLInputElement>(null)
+    // Programa ou aplicativo para baixar: um arquivo por plataforma e versão
+    const appFileRef = useRef<HTMLInputElement>(null)
+    const [appFile, setAppFile] = useState<File | null>(null)
+    const [appPlatform, setAppPlatform] = useState<AppPlatform | ''>('')
+    const [appVersion, setAppVersion] = useState('')
+    const [appNotes, setAppNotes] = useState('')
+    const [appDemo, setAppDemo] = useState(false)
     // Autoria: para enviar ÁUDIO o dono declara, uma vez por produto, que a obra é dele (ou licenciada)
     const [declared, setDeclared] = useState<boolean | null>(null)
     const [rightsChecked, setRightsChecked] = useState(false)
@@ -43,6 +50,24 @@ export default function DigitalContentManager({ productId }: { productId: string
             setTitle(''); setPreview(false); setTeaser(false)
         }, teaser ? 'Prévia da vitrine enviada ✓' : 'Arquivo enviado ✓')
         if (fileRef.current) fileRef.current.value = ''
+    }
+
+    const pickApp = (f: File | undefined) => {
+        if (!f) return
+        setAppFile(f)
+        setAppPlatform((cur) => cur || detectPlatform(f.name) || '')
+        if (appFileRef.current) appFileRef.current.value = ''
+    }
+    const sendApp = () => {
+        if (!userId || !appFile) { toast.error('Escolha o arquivo do programa.'); return }
+        const err = validateAppInput({ fileName: appFile.name, size: appFile.size, platform: appPlatform, version: appVersion, notes: appNotes })
+        if (err) { toast.error(err); return }
+        if (!declared && !rightsChecked) { toast.error('Marque a declaração de autoria para enviar programas.'); return }
+        run(async () => {
+            if (!declared) { await declareRights(productId); setDeclared(true) }
+            await addAppItem({ uid: userId, productId, file: appFile, platform: appPlatform as AppPlatform, version: appVersion, notes: appNotes, isPreview: appDemo })
+            setAppFile(null); setAppVersion(''); setAppNotes(''); setAppDemo(false)
+        }, 'Versão publicada ✓ (quem já tem o produto recebe a atualização)')
     }
 
     const field = 'w-full h-11 rounded-full px-4 text-sm outline-none'
@@ -69,7 +94,7 @@ export default function DigitalContentManager({ productId }: { productId: string
                 {declared === false && (
                     <label className="flex items-start gap-2 text-[12px] font-bold cursor-pointer rounded-xl p-2" style={{ color: colors.textPrimary, background: '#f9731612', border: '1px solid #f9731640' }}>
                         <input type="checkbox" className="w-4 h-4 mt-0.5 accent-orange-500" checked={rightsChecked} onChange={(e) => setRightsChecked(e.target.checked)} />
-                        <span><b>Declaração de autoria (para músicas).</b> Declaro que as músicas deste produto são de minha autoria — ou que tenho licença para vendê-las e distribuí-las no iUser — e que respondo por elas. Fica registrado.</span>
+                        <span><b>Declaração de autoria (músicas e programas).</b> Declaro que as músicas ou os programas deste produto são de minha autoria — ou que tenho licença para vendê-los e distribuí-los no iUser —, que os programas não contêm vírus nem código malicioso e que respondo por eles. Fica registrado.</span>
                     </label>
                 )}
                 <div className="flex gap-2">
@@ -87,6 +112,27 @@ export default function DigitalContentManager({ productId }: { productId: string
                 </div>
             </div>
 
+            <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: `${colors.border}1f`, border: `1px solid ${colors.border}` }}>
+                <p className="text-sm font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Package size={15} style={{ color: '#f97316' }} /> Programa ou aplicativo para baixar</p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>Um arquivo por plataforma e versão (.exe, .msi, .dmg, .apk, .zip...). Publicar uma versão nova libera a atualização para quem já tem o produto. Até 500 MB por arquivo.</p>
+                <button type="button" disabled={busy} onClick={() => appFileRef.current?.click()} className="h-11 rounded-full text-sm font-black inline-flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: `${colors.border}55`, color: colors.textPrimary }}>
+                    <Upload size={16} /> {appFile ? `${appFile.name} (${formatSize(appFile.size)})` : 'Escolher arquivo do programa'}
+                </button>
+                <input ref={appFileRef} type="file" accept={PROGRAM_ACCEPT} hidden onChange={(e) => pickApp(e.target.files?.[0])} />
+                <div className="flex gap-2">
+                    <select value={appPlatform} onChange={(e) => setAppPlatform(e.target.value as AppPlatform | '')} className={`${field} flex-1`} style={fs} aria-label="Plataforma">
+                        <option value="">Plataforma…</option>
+                        {APP_PLATFORMS.map((pl) => <option key={pl.code} value={pl.code}>{pl.label}</option>)}
+                    </select>
+                    <input className={`${field} flex-1`} style={fs} placeholder="Versão (ex.: 1.0.2)" value={appVersion} onChange={(e) => setAppVersion(e.target.value)} maxLength={APP_VERSION_MAX} />
+                </div>
+                <textarea className="rounded-2xl p-3 text-sm outline-none resize-none" style={fs} rows={2} placeholder="O que mudou nesta versão? (opcional)" value={appNotes} onChange={(e) => setAppNotes(e.target.value.slice(0, APP_NOTES_MAX))} />
+                <label className="flex items-center gap-2 text-[12px] font-bold cursor-pointer" style={{ color: colors.textPrimary }}>
+                    <input type="checkbox" className="w-4 h-4 accent-orange-500" checked={appDemo} onChange={(e) => setAppDemo(e.target.checked)} /> Versão de demonstração (qualquer pessoa baixa, sem pegar nem comprar)
+                </label>
+                <button type="button" disabled={busy || !appFile} onClick={sendApp} className="h-11 rounded-full text-sm font-black text-white disabled:opacity-50" style={{ background: '#f97316' }}>{busy ? 'Enviando…' : 'Publicar esta versão'}</button>
+            </div>
+
             {items.length === 0 ? (
                 <p className="text-[12px] text-center py-2" style={{ color: colors.textSecondary }}>Nenhum conteúdo ainda. Envie o primeiro arquivo acima.</p>
             ) : groupByModule(items).map((g, gi) => (
@@ -99,7 +145,7 @@ export default function DigitalContentManager({ productId }: { productId: string
                                 <span style={{ color: '#f97316' }}>{kindIcon(it.kind, 18)}</span>
                                 <span className="min-w-0 flex-1">
                                     <span className="block text-[13px] font-bold truncate" style={{ color: colors.textPrimary }}>{it.title}</span>
-                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{[formatDuration(it.duration_seconds), formatSize(it.size_bytes), it.external_url ? 'link' : ''].filter(Boolean).join(' · ') || ' '}</span>
+                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{[it.kind === 'app' && it.platform ? `${APP_PLATFORM_LABEL[it.platform]} · v${it.version}` : '', formatDuration(it.duration_seconds), formatSize(it.size_bytes), it.external_url ? 'link' : '', it.kind === 'app' ? downloadsLabel(it.download_count) : ''].filter(Boolean).join(' · ') || ' '}</span>
                                 </span>
                                 {it.is_teaser ? (
                                     <span className="text-[10px] font-black rounded-full px-2 py-1" style={{ background: '#0ea5e922', color: '#0284c7' }}>Prévia da vitrine</span>

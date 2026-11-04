@@ -1,5 +1,5 @@
 // src/modules/digital/domain.ts — regras puras dos PRODUTOS DIGITAIS (vídeo-aula, curso, playlist, e-book, planilha...). Sem React nem banco: testado em scripts/test-digital.mjs.
-export type DigitalKind = 'video' | 'audio' | 'document' | 'link'
+export type DigitalKind = 'video' | 'audio' | 'document' | 'link' | 'app'
 
 export interface CurriculumItem {
     id: string
@@ -13,7 +13,7 @@ export interface CurriculumItem {
     unlocked: boolean
 }
 
-export const KIND_LABEL: Record<DigitalKind, string> = { video: 'Vídeo', audio: 'Áudio', document: 'Arquivo', link: 'Link' }
+export const KIND_LABEL: Record<DigitalKind, string> = { video: 'Vídeo', audio: 'Áudio', document: 'Arquivo', link: 'Link', app: 'Programa' }
 
 /** Tamanho máximo de um arquivo enviado (o bucket aceita 500 MB; o servidor local pode ter um teto menor) */
 export const DIGITAL_MAX_BYTES = 500 * 1024 * 1024
@@ -71,19 +71,21 @@ export function groupByModule<T extends { module_title: string | null }>(items: 
 }
 
 export function curriculumStats(items: CurriculumItem[]) {
+    const apps = items.filter((i) => i.kind === 'app').length
     const videos = items.filter((i) => i.kind === 'video').length
     const audios = items.filter((i) => i.kind === 'audio').length
     const docs = items.filter((i) => i.kind === 'document').length
     const links = items.filter((i) => i.kind === 'link').length
     const seconds = items.reduce((a, i) => a + (i.duration_seconds || 0), 0)
-    return { total: items.length, videos, audios, docs, links, seconds, previews: items.filter((i) => i.is_preview).length, modules: groupByModule(items).filter((g) => g.title).length }
+    return { total: items.length, videos, audios, docs, links, apps, seconds, previews: items.filter((i) => i.is_preview).length, modules: groupByModule(items).filter((g) => g.title).length }
 }
 
-export interface ContentCounts { videos: number; audios: number; docs: number; links: number; seconds: number }
+export interface ContentCounts { videos: number; audios: number; docs: number; links: number; seconds: number; apps?: number }
 
 /** "12 aulas em vídeo · 3 arquivos · 2h 05min" — o que o produto entrega, numa linha (a partir das contagens) */
 export function summaryFromCounts(c: ContentCounts): string {
-    if (c.videos + c.audios + c.docs + c.links === 0) return 'Conteúdo em preparação'
+    const apps = c.apps || 0
+    if (c.videos + c.audios + c.docs + c.links + apps === 0) return 'Conteúdo em preparação'
     const parts: string[] = []
     const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
     if (c.videos) parts.push(plural(c.videos, 'aula em vídeo', 'aulas em vídeo'))
@@ -91,6 +93,7 @@ export function summaryFromCounts(c: ContentCounts): string {
     if (c.audios) parts.push(c.videos === 0 && c.docs === 0 ? plural(c.audios, 'faixa', 'faixas') : plural(c.audios, 'áudio', 'áudios'))
     if (c.docs) parts.push(plural(c.docs, 'arquivo', 'arquivos'))
     if (c.links) parts.push(plural(c.links, 'link', 'links'))
+    if (apps) parts.push(plural(apps, 'arquivo para baixar', 'arquivos para baixar'))
     const d = formatDuration(c.seconds)
     if (d) parts.push(d)
     return parts.join(' · ')
@@ -98,11 +101,11 @@ export function summaryFromCounts(c: ContentCounts): string {
 
 export function curriculumSummary(items: CurriculumItem[]): string {
     const s = curriculumStats(items)
-    return summaryFromCounts({ videos: s.videos, audios: s.audios, docs: s.docs, links: s.links, seconds: s.seconds })
+    return summaryFromCounts({ videos: s.videos, audios: s.audios, docs: s.docs, links: s.links, apps: s.apps, seconds: s.seconds })
 }
 
-export type DigitalProductKind = 'curso' | 'aula' | 'playlist' | 'ebook' | 'arquivo' | 'musica' | 'album'
-export const PRODUCT_KIND_LABEL: Record<DigitalProductKind, string> = { curso: 'Curso', aula: 'Aula única', playlist: 'Playlist', ebook: 'E-book', arquivo: 'Arquivo', musica: 'Música', album: 'Álbum' }
+export type DigitalProductKind = 'curso' | 'aula' | 'playlist' | 'ebook' | 'arquivo' | 'musica' | 'album' | 'programa'
+export const PRODUCT_KIND_LABEL: Record<DigitalProductKind, string> = { curso: 'Curso', aula: 'Aula única', playlist: 'Playlist', ebook: 'E-book', arquivo: 'Arquivo', musica: 'Música', album: 'Álbum', programa: 'Programa' }
 /** Filtros da vitrine (/digitais): chave → rótulo e quais tipos entram */
 export const SHOWCASE_FILTERS: { id: string; label: string; kinds: DigitalProductKind[] | null }[] = [
     { id: 'todos', label: 'Todos', kinds: null },
@@ -110,12 +113,15 @@ export const SHOWCASE_FILTERS: { id: string; label: string; kinds: DigitalProduc
     { id: 'aulas', label: 'Aulas únicas', kinds: ['aula'] },
     { id: 'playlists', label: 'Playlists', kinds: ['playlist'] },
     { id: 'musicas', label: 'Músicas', kinds: ['musica', 'album'] },
+    { id: 'programas', label: 'Programas', kinds: ['programa'] },
     { id: 'arquivos', label: 'E-books e arquivos', kinds: ['ebook', 'arquivo'] },
 ]
 
 /** Que "cara" o produto digital tem na vitrine, pelo que ele entrega (e pelo nome, para playlist e e-book) */
-export function productKindOf(p: { name: string } & Pick<ContentCounts, 'videos' | 'audios' | 'docs' | 'links'>): DigitalProductKind {
+export function productKindOf(p: { name: string } & Pick<ContentCounts, 'videos' | 'audios' | 'docs' | 'links'> & { apps?: number }): DigitalProductKind {
     const media = p.videos + p.audios
+    // tem programa para baixar (e nada de vídeo/áudio): é um programa
+    if ((p.apps || 0) > 0 && media === 0) return 'programa'
     if (media === 0) return p.docs > 0 && /^e-?book/i.test(p.name.trim()) ? 'ebook' : p.docs > 0 ? (p.docs === 1 ? 'ebook' : 'arquivo') : 'arquivo'
     if (media > 1 && /^playlist/i.test(p.name.trim())) return 'playlist'
     // só áudio, e não é podcast/aula/curso de áudio pelo nome: é música (1 faixa) ou álbum (2 ou mais)
@@ -178,5 +184,80 @@ export const isFreeProduct = (price: number | null | undefined) => !price || Num
 
 /** Texto do botão de pegar o que é grátis, conforme o tipo */
 export function freeCtaLabel(kind: DigitalProductKind): string {
-    return isMusicKind(kind) ? 'Adicionar à minha biblioteca' : 'Pegar grátis'
+    return isMusicKind(kind) ? 'Adicionar à minha biblioteca' : kind === 'programa' ? 'Liberar download grátis' : 'Pegar grátis'
 }
+
+// ------------------------------------------------------------------ programas e aplicativos para baixar
+export type AppPlatform = 'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'web' | 'other'
+export const APP_PLATFORMS: { code: AppPlatform; label: string }[] = [
+    { code: 'windows', label: 'Windows' },
+    { code: 'macos', label: 'macOS' },
+    { code: 'linux', label: 'Linux' },
+    { code: 'android', label: 'Android' },
+    { code: 'ios', label: 'iPhone / iPad' },
+    { code: 'web', label: 'Web / multiplataforma' },
+    { code: 'other', label: 'Outro' },
+]
+export const APP_PLATFORM_LABEL: Record<AppPlatform, string> = Object.fromEntries(APP_PLATFORMS.map((p) => [p.code, p.label])) as Record<AppPlatform, string>
+
+/** Extensões aceitas como programa (o banco confere a mesma lista) */
+export const PROGRAM_EXTENSIONS = ['exe', 'msi', 'dmg', 'pkg', 'apk', 'aab', 'ipa', 'appimage', 'deb', 'rpm', 'zip', '7z', 'rar', 'tar.gz', 'tgz', 'jar', 'msix', 'appx'] as const
+const PROGRAM_RE = new RegExp(`\\.(${PROGRAM_EXTENSIONS.map((e) => e.replace('.', '\\.')).join('|')})$`, 'i')
+/** Atributo `accept` do seletor de arquivo */
+export const PROGRAM_ACCEPT = PROGRAM_EXTENSIONS.map((e) => `.${e}`).join(',')
+export const isProgramFile = (name: string) => PROGRAM_RE.test(name.trim())
+/** Instaláveis "de verdade" (um .zip pode ser só um material comum): o seletor de arquivo comum manda estes para o bloco de programas */
+export const isInstallerFile = (name: string) => /\.(exe|msi|dmg|pkg|apk|aab|ipa|appimage|deb|rpm|msix|appx)$/i.test(name.trim())
+
+/** Palpite da plataforma pelo nome do arquivo (a pessoa pode trocar) */
+export function detectPlatform(name: string): AppPlatform | null {
+    const n = name.trim().toLowerCase()
+    if (/\.(exe|msi|msix|appx)$/.test(n)) return 'windows'
+    if (/\.(dmg|pkg)$/.test(n)) return 'macos'
+    if (/\.(apk|aab)$/.test(n)) return 'android'
+    if (/\.ipa$/.test(n)) return 'ios'
+    if (/\.(appimage|deb|rpm)$/.test(n)) return 'linux'
+    if (/\.jar$/.test(n)) return 'other'
+    return null
+}
+
+/** Tamanho máximo até o SHA-256 ser calculado no navegador (a conta lê o arquivo inteiro na memória) */
+export const SHA256_MAX_BYTES = 100 * 1024 * 1024
+export const APP_NOTES_MAX = 500
+export const APP_VERSION_MAX = 30
+
+export function validateAppInput(input: { fileName: string; size: number; platform: AppPlatform | ''; version: string; notes?: string }): string | null {
+    if (!isProgramFile(input.fileName)) return `Esse tipo de arquivo não é aceito como programa. Use: ${PROGRAM_EXTENSIONS.map((e) => '.' + e).join(' ')}.`
+    if (input.size > DIGITAL_MAX_BYTES) return 'O arquivo passa de 500 MB.'
+    if (!input.platform) return 'Escolha a plataforma.'
+    const v = input.version.trim()
+    if (!v) return 'Informe a versão (ex.: 1.0.2).'
+    if (v.length > APP_VERSION_MAX) return `A versão passa de ${APP_VERSION_MAX} caracteres.`
+    if ((input.notes || '').length > APP_NOTES_MAX) return `As notas passam de ${APP_NOTES_MAX} caracteres.`
+    return null
+}
+
+export interface AppVersion { item_id: string; title: string; platform: AppPlatform; version: string; release_notes: string | null; sha256: string | null; size_bytes: number | null; download_count: number; created_at: string; unlocked: boolean }
+
+/** Agrupa por plataforma (na ordem de APP_PLATFORMS); dentro de cada uma, a mais NOVA primeiro — e só a primeira leva o selo "Última versão" */
+export function groupAppsByPlatform(apps: AppVersion[]): { platform: AppPlatform; versions: (AppVersion & { latest: boolean })[] }[] {
+    const out: { platform: AppPlatform; versions: (AppVersion & { latest: boolean })[] }[] = []
+    for (const pl of APP_PLATFORMS) {
+        const list = apps.filter((a) => a.platform === pl.code).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        if (list.length) out.push({ platform: pl.code, versions: list.map((a, i) => ({ ...a, latest: i === 0 })) })
+    }
+    return out
+}
+
+/** "12,3 mil downloads" */
+export function downloadsLabel(n: number): string {
+    if (n <= 0) return 'Nenhum download ainda'
+    if (n === 1) return '1 download'
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.', ',')} mil downloads`
+    return `${n} downloads`
+}
+
+/** Para mostrar o hash sem ocupar a tela: "a3f9c2…8e1b" */
+export const shortHash = (h: string) => (h.length > 16 ? `${h.slice(0, 8)}…${h.slice(-6)}` : h)
+
+export const APP_WARNING = 'O iUser ainda não verifica vírus nos programas. Baixe só de quem você confia e, se quiser, confira o código SHA-256 do arquivo.'

@@ -14,6 +14,7 @@ import { toast } from '@/lib/toast'
 import { claimFree, fetchAudioPreview, fetchMyAccess, freeCtaLabel, isFreeProduct, openItem, productKindOf, summaryFromCounts, type CurriculumItem } from '@/modules/digital'
 import { useRef } from 'react'
 import TipButton from '@/components/tips/TipButton'
+import { APP_CLAIMED_EVENT } from './AppDownloads'
 
 export default function DigitalGet({ productId, productName, price, items, storeId, storeName }: { productId: string; productName: string; price: number | null; items: CurriculumItem[] | null; storeId?: string | null; storeName?: string | null }) {
     const { colors } = useTheme()
@@ -30,15 +31,19 @@ export default function DigitalGet({ productId, productName, price, items, store
     useEffect(() => { let on = true; if (!userId) { setHas(false); return }; fetchMyAccess(productId).then((v) => { if (on) setHas(v) }); return () => { on = false } }, [productId, userId])
     useEffect(() => { let on = true; fetchAudioPreview(productId).then((p) => { if (on) setPreview(p) }); return () => { on = false } }, [productId])
 
-    const counts = { videos: 0, audios: 0, docs: 0, links: 0, seconds: 0 }
-    for (const i of items || []) { if (i.kind === 'video') counts.videos++; else if (i.kind === 'audio') counts.audios++; else if (i.kind === 'link') counts.links++; else counts.docs++; counts.seconds += i.duration_seconds || 0 }
+    const counts = { videos: 0, audios: 0, docs: 0, links: 0, apps: 0, seconds: 0 }
+    for (const i of items || []) { if (i.kind === 'app') { counts.apps++; continue } if (i.kind === 'video') counts.videos++; else if (i.kind === 'audio') counts.audios++; else if (i.kind === 'link') counts.links++; else counts.docs++; counts.seconds += i.duration_seconds || 0 }
     const kind = productKindOf({ name: productName, ...counts })
     const open = () => router.push(`/minhas-compras-digitais/${productId}`)
 
     const claim = async () => {
         if (!userId) { toast.info('Entre na sua conta para pegar.'); router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`); return }
         setBusy(true)
-        try { await claimFree(productId); setHas(true); toast.success('Adicionado à sua biblioteca ✓'); open() } catch (e: any) { toast.error(e?.message || 'Não foi possível pegar.') } finally { setBusy(false) }
+        try {
+            await claimFree(productId); setHas(true)
+            // programa: fica na página e os downloads se liberam; o resto abre na biblioteca
+            if (kind === 'programa') { toast.success('Pronto! Os downloads foram liberados ✓'); window.dispatchEvent(new Event(APP_CLAIMED_EVENT)) } else { toast.success('Adicionado à sua biblioteca ✓'); open() }
+        } catch (e: any) { toast.error(e?.message || 'Não foi possível pegar.') } finally { setBusy(false) }
     }
     const togglePreview = async () => {
         if (!preview) return
@@ -64,8 +69,8 @@ export default function DigitalGet({ productId, productName, price, items, store
                             <span className="block text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{items ? summaryFromCounts(counts) : ''}{!has ? ' · abre na hora, sem pedido' : ''}</span>
                         </span>
                     </div>
-                    <button type="button" disabled={busy || has === null} onClick={has ? open : claim} className="w-full h-11 rounded-full text-sm font-black text-white transition active:scale-95 disabled:opacity-60" style={{ background: '#f97316' }}>
-                        {busy ? 'Adicionando…' : has ? 'Abrir na minha biblioteca' : freeCtaLabel(kind)}
+                    <button type="button" disabled={busy || has === null} onClick={has ? (kind === 'programa' ? () => document.getElementById('baixar-programa')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : open) : claim} className="w-full h-11 rounded-full text-sm font-black text-white transition active:scale-95 disabled:opacity-60" style={{ background: '#f97316' }}>
+                        {busy ? 'Adicionando…' : has ? (kind === 'programa' ? 'Baixe abaixo ↓' : 'Abrir na minha biblioteca') : freeCtaLabel(kind)}
                     </button>
                 </div>
             )}

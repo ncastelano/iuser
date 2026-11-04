@@ -1,7 +1,7 @@
 // Testes das regras puras dos produtos digitais (src/modules/digital/domain.ts). Rodar: npm run test:digital
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES, productKindOf, summaryFromCounts, SHOWCASE_FILTERS, PRODUCT_KIND_LABEL, previewPlaySeconds, nextSpotlightId, validateTeaser, autoPreviewAllowed, PREVIEW_PLAY_SECONDS, SPOTLIGHT_MS, TEASER_MAX_SECONDS, isMusicKind, isFreeProduct, freeCtaLabel } from '../src/modules/digital/domain.ts'
+import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES, productKindOf, summaryFromCounts, SHOWCASE_FILTERS, PRODUCT_KIND_LABEL, previewPlaySeconds, nextSpotlightId, validateTeaser, autoPreviewAllowed, PREVIEW_PLAY_SECONDS, SPOTLIGHT_MS, TEASER_MAX_SECONDS, isMusicKind, isFreeProduct, freeCtaLabel, APP_PLATFORMS, PROGRAM_EXTENSIONS, isProgramFile, isInstallerFile, detectPlatform, validateAppInput, groupAppsByPlatform, downloadsLabel, shortHash } from '../src/modules/digital/domain.ts'
 
 const it = (o) => ({ id: 'x', module_title: null, title: 't', kind: 'video', duration_seconds: null, size_bytes: null, position: 0, is_preview: false, unlocked: false, ...o })
 
@@ -77,7 +77,7 @@ test('resumo a partir das contagens e filtros da vitrine', () => {
     assert.equal(summaryFromCounts({ videos: 0, audios: 0, docs: 0, links: 0, seconds: 0 }), 'Conteúdo em preparação')
     assert.equal(summaryFromCounts({ videos: 8, audios: 0, docs: 1, links: 0, seconds: 86 }), '8 aulas em vídeo · 1 arquivo · 1:26')
     assert.equal(summaryFromCounts({ videos: 1, audios: 0, docs: 0, links: 0, seconds: 14 }), '1 aula em vídeo · 0:14')
-    assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'musicas', 'arquivos'])
+    assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'musicas', 'programas', 'arquivos'])
     assert.ok(SHOWCASE_FILTERS.find((f) => f.id === 'arquivos').kinds.includes('ebook'))
     assert.equal(PRODUCT_KIND_LABEL.aula, 'Aula única')
 })
@@ -124,4 +124,55 @@ test('música: faixas, grátis e botões', () => {
     assert.equal(PRODUCT_KIND_LABEL.musica, 'Música')
     assert.equal(PRODUCT_KIND_LABEL.album, 'Álbum')
     assert.ok(SHOWCASE_FILTERS.find((f) => f.id === 'musicas').kinds.includes('album'))
+})
+
+import { readFileSync } from 'node:fs'
+const sqlApps = readFileSync(new URL('../supabase/migrations/20261130000030_digital_apps.sql', import.meta.url), 'utf8')
+
+test('programas: plataformas e extensões são as MESMAS do banco', () => {
+    const plat = [...sqlApps.match(/platform IN \(([^)]*)\)/)[1].matchAll(/'([a-z]+)'/g)].map((m) => m[1])
+    assert.deepEqual(APP_PLATFORMS.map((p) => p.code).sort(), plat.sort())
+    const exts = sqlApps.match(/~ '\\\.\(([^)]*)\)\$'\n/)[1].split('|').map((e) => e.replace('\\.', '.'))
+    assert.deepEqual([...PROGRAM_EXTENSIONS].sort(), exts.sort())
+})
+test('programas: o tipo do arquivo e o palpite da plataforma', () => {
+    assert.ok(isProgramFile('Setup.EXE') && isProgramFile('app-1.0.tar.gz') && isProgramFile('x.apk') && !isProgramFile('musica.mp3') && !isProgramFile('manual.pdf'))
+    assert.ok(isInstallerFile('a.dmg') && !isInstallerFile('a.zip') && !isInstallerFile('a.pdf'))
+    assert.equal(detectPlatform('Setup.exe'), 'windows')
+    assert.equal(detectPlatform('app.APK'), 'android')
+    assert.equal(detectPlatform('app.dmg'), 'macos')
+    assert.equal(detectPlatform('app.AppImage'), 'linux')
+    assert.equal(detectPlatform('app.ipa'), 'ios')
+    assert.equal(detectPlatform('arquivo.zip'), null)
+})
+test('programas: validação de quem publica', () => {
+    const ok = { fileName: 'setup.exe', size: 1000, platform: 'windows', version: '1.0.2', notes: '' }
+    assert.equal(validateAppInput(ok), null)
+    assert.match(validateAppInput({ ...ok, fileName: 'foto.png' }), /não é aceito/)
+    assert.match(validateAppInput({ ...ok, size: 600 * 1024 * 1024 }), /500 MB/)
+    assert.match(validateAppInput({ ...ok, platform: '' }), /plataforma/)
+    assert.match(validateAppInput({ ...ok, version: '  ' }), /versão/)
+    assert.match(validateAppInput({ ...ok, version: 'x'.repeat(31) }), /versão/)
+    assert.match(validateAppInput({ ...ok, notes: 'n'.repeat(501) }), /notas/)
+})
+test('programas: o tipo do produto, o resumo e o agrupamento por plataforma', () => {
+    const c = (name, apps, videos = 0, audios = 0) => ({ name, apps, videos, audios, docs: 0, links: 0 })
+    assert.equal(productKindOf(c('Cronômetro do Forno', 3)), 'programa')
+    assert.equal(productKindOf(c('Curso com programa', 2, 5)), 'curso')
+    assert.equal(summaryFromCounts({ videos: 0, audios: 0, docs: 0, links: 0, apps: 3, seconds: 0 }), '3 arquivos para baixar')
+    assert.equal(summaryFromCounts({ videos: 0, audios: 0, docs: 0, links: 0, apps: 1, seconds: 0 }), '1 arquivo para baixar')
+    assert.equal(summaryFromCounts({ videos: 0, audios: 0, docs: 0, links: 0, seconds: 0 }), 'Conteúdo em preparação')
+    const v = (id, platform, version, day) => ({ item_id: id, title: id, platform, version, release_notes: null, sha256: null, size_bytes: 1, download_count: 0, created_at: `2026-11-${day}T10:00:00Z`, unlocked: true })
+    const g = groupAppsByPlatform([v('a', 'android', '1.0', '01'), v('b', 'windows', '1.0', '01'), v('c', 'windows', '1.1', '05'), v('d', 'macos', '2.0', '03')])
+    assert.deepEqual(g.map((x) => x.platform), ['windows', 'macos', 'android'])   // ordem da lista de plataformas
+    assert.deepEqual(g[0].versions.map((x) => [x.item_id, x.latest]), [['c', true], ['b', false]])   // a mais nova primeiro e só ela é "última"
+})
+test('programas: textos', () => {
+    assert.equal(downloadsLabel(0), 'Nenhum download ainda')
+    assert.equal(downloadsLabel(1), '1 download')
+    assert.equal(downloadsLabel(37), '37 downloads')
+    assert.equal(downloadsLabel(1500), '1,5 mil downloads')
+    assert.equal(downloadsLabel(25000), '25 mil downloads')
+    assert.equal(shortHash('a'.repeat(64)), 'aaaaaaaa…aaaaaa')
+    assert.equal(shortHash('abc'), 'abc')
 })

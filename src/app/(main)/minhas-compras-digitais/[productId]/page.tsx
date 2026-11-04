@@ -13,6 +13,7 @@ import { fetchCurriculum, formatDuration, formatSize, groupByModule, curriculumS
 import DigitalViewer from '@/components/digital/DigitalViewer'
 import ProPlayer from '@/components/digital/ProPlayer'
 import MusicPlayer from '@/components/digital/MusicPlayer'
+import AppDownloads from '@/components/digital/AppDownloads'
 import ReportButton from '@/components/moderation/ReportButton'
 import TipButton from '@/components/tips/TipButton'
 import { kindIcon } from '@/components/digital/DigitalCurriculum'
@@ -51,7 +52,7 @@ export default function SalaDeAulaPage() {
         })
         fetchCurriculum(productId).then((d) => {
             setItems(d)
-            const firstOpen = d.find((i) => i.unlocked && isPlayable(i)) || d.find((i) => i.unlocked)
+            const firstOpen = d.find((i) => i.unlocked && isPlayable(i)) || d.find((i) => i.unlocked && i.kind !== 'app')
             setCurrent((c) => c || firstOpen?.id || null)
         }).catch(() => setItems([]))
     }, [userId, productId])
@@ -64,6 +65,10 @@ export default function SalaDeAulaPage() {
     const prev = lessonIdx > 0 ? lessons[lessonIdx - 1] : null
     const next = lessonIdx >= 0 ? lessons[lessonIdx + 1] || null : null
     const fullAccess = !!items?.length && items.every((i) => i.unlocked)
+    // programas para baixar ficam no cartão "Baixar" (AppDownloads); a lista ao lado e o player são só do resto
+    const hasApps = !!items?.some((i) => i.kind === 'app')
+    const listItems = (items || []).filter((i) => i.kind !== 'app')
+    const programOnly = hasApps && listItems.length === 0
     // só áudio = música/álbum: textos e player de música
     const music = !!items?.length && items.filter((i) => i.kind !== 'link').every((i) => i.kind === 'audio' || i.kind === 'document') && items.some((i) => i.kind === 'audio')
     const unit = music ? 'Faixa' : 'Aula'
@@ -73,7 +78,7 @@ export default function SalaDeAulaPage() {
     }
     const stats = curriculumStats(items)
     const progress = lessons.length ? Math.round((lessons.filter((i) => done[i.id]).length / lessons.length) * 100) : 0
-    const groups = groupByModule(items)
+    const groups = groupByModule(listItems)
     const go = (id: string) => { setCurrent(id); window.scrollTo({ top: 0, behavior: 'smooth' }) }
 
     return (
@@ -83,7 +88,7 @@ export default function SalaDeAulaPage() {
                 <div className="flex items-center gap-3">
                     <button type="button" onClick={() => router.push('/minhas-compras-digitais')} aria-label="Voltar" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-90" style={{ background: C.surface2, border: `1px solid ${C.line}` }}><ArrowLeft size={18} /></button>
                     <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: C.orange }}>{music ? 'Minha música' : 'Sala de aula'}</p>
+                        <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: C.orange }}>{programOnly ? 'Meus programas' : music ? 'Minha música' : 'Sala de aula'}</p>
                         <h1 className="text-base sm:text-lg font-black leading-tight truncate">{name || 'Conteúdo'}</h1>
                     </div>
                     <div className="hidden sm:flex flex-col items-end gap-1 w-44">
@@ -109,9 +114,11 @@ export default function SalaDeAulaPage() {
                             <ProPlayer key={cur.id} itemId={cur.id} title={cur.title} nextTitle={next?.title} onEnded={() => mark(cur.id)} onNext={next ? () => go(next.id) : null} />
                         ) : cur ? (
                             <DigitalViewer itemId={cur.id} title={cur.title} />
-                        ) : (
+                        ) : !hasApps ? (
                             <div className="rounded-2xl p-10 text-center" style={{ background: C.surface, border: `1px solid ${C.line}`, color: C.muted }}>Nada para abrir ainda.</div>
-                        )}
+                        ) : null}
+
+                        {hasApps && <AppDownloads productId={productId} />}
 
                         {cur && (
                             <div className="flex flex-col gap-3">
@@ -148,7 +155,7 @@ export default function SalaDeAulaPage() {
                     </div>
 
                     {/* lista de aulas */}
-                    <aside className="rounded-2xl overflow-hidden lg:sticky lg:top-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+                    {!programOnly && <aside className="rounded-2xl overflow-hidden lg:sticky lg:top-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
                         <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${C.line}` }}>
                             <p className="text-sm font-black">{music ? 'Faixas' : 'Conteúdo do curso'}</p>
                             <span className="text-[11px] font-bold" style={{ color: C.muted }}>{lessons.filter((i) => done[i.id]).length}/{lessons.length}</span>
@@ -190,7 +197,7 @@ export default function SalaDeAulaPage() {
                                 )
                             })}
                         </div>
-                    </aside>
+                    </aside>}
                 </div>
             </div>
         </div>

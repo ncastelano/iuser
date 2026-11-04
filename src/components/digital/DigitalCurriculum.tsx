@@ -3,13 +3,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FileText, Link2, Lock, Music, PlayCircle, Unlock } from 'lucide-react'
+import { FileText, Link2, Lock, Music, Package, PlayCircle, Unlock } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { fetchCurriculum, formatDuration, formatSize, groupByModule, curriculumSummary, type CurriculumItem } from '@/modules/digital'
 import DigitalViewer from './DigitalViewer'
 
 export const kindIcon = (k: CurriculumItem['kind'], size = 16) =>
-    k === 'video' ? <PlayCircle size={size} /> : k === 'audio' ? <Music size={size} /> : k === 'link' ? <Link2 size={size} /> : <FileText size={size} />
+    k === 'video' ? <PlayCircle size={size} /> : k === 'audio' ? <Music size={size} /> : k === 'app' ? <Package size={size} /> : k === 'link' ? <Link2 size={size} /> : <FileText size={size} />
 
 export default function DigitalCurriculum({ productId, onLoaded }: { productId: string; onLoaded?: (items: CurriculumItem[]) => void }) {
     const { colors } = useTheme()
@@ -25,7 +25,9 @@ export default function DigitalCurriculum({ productId, onLoaded }: { productId: 
 
     if (!items) return null
     if (items.length === 0) return null
-    const groups = groupByModule(items)
+    // os programas aparecem no cartão "Baixar" (versões por plataforma), não nesta lista
+    const groups = groupByModule(items.filter((i) => i.kind !== 'app'))
+    if (groups.length === 0) return null   // só programas: o cartão "Baixar" mostra tudo
     return (
         <section className="rounded-3xl p-4 flex flex-col gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
             <div>

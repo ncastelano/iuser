@@ -51,6 +51,7 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 import ProductReviewsV3, { type ProductReviewV3 } from '@/components/v3/ProductReviewsV3'
 import DigitalCurriculum from '@/components/digital/DigitalCurriculum'
 import DigitalGet from '@/components/digital/DigitalGet'
+import AppDownloads from '@/components/digital/AppDownloads'
 import ReportButton from '@/components/moderation/ReportButton'
 import type { CurriculumItem } from '@/modules/digital'
 import Link from 'next/link'
@@ -1332,6 +1333,7 @@ export function ProductClientPage({
                             {product.type === 'digital' && (
                                 <>
                                     <DigitalGet productId={product.id} productName={product.name} price={product.price} items={digitalItems} storeId={product.store_id} storeName={product.store?.name} />
+                                    <AppDownloads productId={product.id} free={freeDigital} />
                                     <DigitalCurriculum productId={product.id} onLoaded={setDigitalItems} />
                                     <Link href="/carrinho?aba=digital" className="self-start inline-flex items-center gap-2 h-11 px-4 rounded-full text-sm font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
                                         <GraduationCap size={16} /> Já comprou? Abrir minhas compras digitais

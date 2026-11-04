@@ -1,9 +1,9 @@
 // src/modules/digital/load.ts — fala com o banco/servidor: vitrine (sumário), biblioteca do comprador, abrir um item e o editor do vendedor.
 import { supabase } from '@/lib/supabase/client'
-import { kindFromFile, storagePathFor, validateItem, validateTeaser, productKindOf, summaryFromCounts, previewPlaySeconds, type CurriculumItem, type DigitalKind, type DigitalProductKind } from './domain'
+import { kindFromFile, storagePathFor, validateItem, validateTeaser, productKindOf, summaryFromCounts, previewPlaySeconds, isInstallerFile, validateAppInput, SHA256_MAX_BYTES, type AppPlatform, type AppVersion, type CurriculumItem, type DigitalKind, type DigitalProductKind } from './domain'
 
 export interface LibraryItem { product_id: string; product_name: string; product_slug: string; store_slug: string | null; store_name: string | null; image_url: string | null; purchased_at: string; items_count: number }
-export interface OwnItem { id: string; product_id: string; module_title: string | null; title: string; kind: DigitalKind; storage_path: string | null; external_url: string | null; mime_type: string | null; size_bytes: number | null; duration_seconds: number | null; position: number; is_preview: boolean; is_teaser: boolean }
+export interface OwnItem { id: string; product_id: string; module_title: string | null; title: string; kind: DigitalKind; storage_path: string | null; external_url: string | null; mime_type: string | null; size_bytes: number | null; duration_seconds: number | null; position: number; is_preview: boolean; is_teaser: boolean; platform: AppPlatform | null; version: string | null; release_notes: string | null; sha256: string | null; download_count: number; created_at: string }
 export interface OpenedItem { url: string; kind: DigitalKind; title: string; mime_type: string | null; external: boolean }
 
 export async function fetchCurriculum(productId: string): Promise<CurriculumItem[]> {
@@ -93,6 +93,7 @@ async function readDuration(file: File): Promise<number | null> {
 export async function addFileItem(args: { uid: string; productId: string; file: File; title: string; moduleTitle?: string; isPreview?: boolean; isTeaser?: boolean }): Promise<void> {
     const err = validateItem({ title: args.title, module: args.moduleTitle, file: { size: args.file.size } })
     if (err) throw new Error(err)
+    if (isInstallerFile(args.file.name)) throw new Error('Instaladores e aplicativos vão no bloco "Programa ou aplicativo" (com plataforma e versão).')
     // prévia curta da vitrine: vídeo de até 30 s (não faz parte do conteúdo vendido)
     const duration = await readDuration(args.file)
     if (args.isTeaser) { const k = kindFromFile(args.file.type, args.file.name); const te = validateTeaser({ isVideo: k === 'video', isAudio: k === 'audio', durationSeconds: duration }); if (te) throw new Error(te) }
@@ -104,6 +105,37 @@ export async function addFileItem(args: { uid: string; productId: string; file: 
         storage_path: path, mime_type: args.file.type || null, size_bytes: args.file.size, duration_seconds: duration, position: args.isTeaser ? 0 : await nextPosition(args.productId), is_preview: !args.isTeaser && !!args.isPreview, is_teaser: !!args.isTeaser,
     })
     if (error) { await supabase.storage.from('digital-files').remove([path]); throw new Error(error.message) }
+}
+
+/** SHA-256 do arquivo em hexadecimal, calculado no navegador (null se for grande demais para a memória ou o navegador não souber) */
+export async function sha256Hex(file: File): Promise<string | null> {
+    if (file.size > SHA256_MAX_BYTES || typeof crypto === 'undefined' || !crypto.subtle) return null
+    try {
+        const buf = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+        return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('')
+    } catch { return null }
+}
+
+/** Publica uma versão de programa/aplicativo (um arquivo por plataforma e versão). O banco confere extensão, plataforma, versão e a declaração de autoria. */
+export async function addAppItem(args: { uid: string; productId: string; file: File; platform: AppPlatform; version: string; notes?: string; isPreview?: boolean }): Promise<void> {
+    const err = validateAppInput({ fileName: args.file.name, size: args.file.size, platform: args.platform, version: args.version, notes: args.notes })
+    if (err) throw new Error(err)
+    const sha = await sha256Hex(args.file)
+    const path = storagePathFor(args.uid, args.productId, args.file.name)
+    const up = await supabase.storage.from('digital-files').upload(path, args.file, { contentType: args.file.type || 'application/octet-stream', upsert: false })
+    if (up.error) throw new Error(up.error.message)
+    const { error } = await supabase.from('digital_contents').insert({
+        product_id: args.productId, owner_id: args.uid, title: `${args.version.trim()} · ${args.file.name}`.slice(0, 140), kind: 'app', storage_path: path, mime_type: args.file.type || null, size_bytes: args.file.size,
+        platform: args.platform, version: args.version.trim(), release_notes: args.notes?.trim() || null, sha256: sha, position: await nextPosition(args.productId), is_preview: !!args.isPreview,
+    })
+    if (error) { await supabase.storage.from('digital-files').remove([path]); throw new Error(error.message) }
+}
+
+/** As versões do programa para a página do produto (sem caminho nem link; o arquivo abre pela rota do servidor) */
+export async function fetchAppInfo(productId: string): Promise<AppVersion[]> {
+    const { data, error } = await supabase.rpc('get_digital_app_info', { p_product: productId })
+    if (error) throw new Error(error.message)
+    return ((data || []) as any[]).map((r) => ({ ...r, size_bytes: r.size_bytes == null ? null : Number(r.size_bytes), download_count: Number(r.download_count) || 0 })) as AppVersion[]
 }
 
 export async function addLinkItem(args: { uid: string; productId: string; url: string; title: string; moduleTitle?: string; isPreview?: boolean }): Promise<void> {
@@ -156,8 +188,8 @@ export async function loadDigitalShowcase(limit = 24, search?: string): Promise<
     return ((data || []) as any[]).map((r) => ({
         id: r.id, name: r.name, slug: r.slug, description: r.description, imageUrl: publicImage('product-images', r.image_url), price: Number(r.price || 0),
         storeId: r.store_id, storeSlug: r.store_slug, storeName: r.store_name, storeLogo: publicImage('store-logos', r.store_logo), viewCount: r.view_count || 0,
-        kind: productKindOf({ name: r.name, videos: r.videos, audios: r.audios, docs: r.docs, links: r.links }),
-        summary: summaryFromCounts({ videos: r.videos, audios: r.audios, docs: r.docs, links: r.links, seconds: Number(r.seconds || 0) }),
+        kind: productKindOf({ name: r.name, videos: r.videos, audios: r.audios, docs: r.docs, links: r.links, apps: r.apps || 0 }),
+        summary: summaryFromCounts({ videos: r.videos, audios: r.audios, docs: r.docs, links: r.links, apps: r.apps || 0, seconds: Number(r.seconds || 0) }),
         videos: r.videos, seconds: Number(r.seconds || 0), freeItems: r.free_items || 0,
         previewItemId: r.preview_item_id || null, previewSeconds: previewPlaySeconds(r.preview_seconds), previewSource: r.preview_source || null,
     }))
