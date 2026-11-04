@@ -1,6 +1,7 @@
 // components/StoreDashboard/StoreClubVip.tsx
 'use client'
 
+import ClubOwnerPanel from '@/components/club/ClubOwnerPanel'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { supabase } from '@/lib/supabase/client'
@@ -294,8 +295,8 @@ export default function StoreClubVip({ storeId }: StoreClubVipProps) {
                                 <div className="rounded-2xl p-4 border space-y-3" style={{ borderColor: colors.border, background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)` }}>
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm font-bold" style={{ color: textPrimary }}>Clube gratuito</p>
-                                            <p className="text-[11px]" style={{ color: textSecondary }}>Qualquer cliente entra de graça e vê suas campanhas exclusivas</p>
+                                            <p className="text-sm font-bold" style={{ color: textPrimary }}>Club VIP da loja</p>
+                                            <p className="text-[11px]" style={{ color: textSecondary }}>Clientes entram no clube e veem suas campanhas exclusivas. Grátis ou com mensalidade (abaixo).</p>
                                         </div>
                                         <button
                                             onClick={() => toggleVip(!vipEnabled)}
@@ -306,11 +307,10 @@ export default function StoreClubVip({ storeId }: StoreClubVipProps) {
                                             <div className="w-5 h-5 rounded-full bg-white" />
                                         </button>
                                     </div>
-                                    <div className="flex items-center gap-2 text-[11px] px-3 py-2 rounded-xl" style={{ background: `${colors.border}30`, color: textSecondary }}>
-                                        {!v3 && <Gift size={12} />}
-                                        Clube pago (mensalidade) em breve — por enquanto todo clube é gratuito.
-                                    </div>
+                                    {!vipEnabled && <p className="text-[11px]" style={{ color: textSecondary }}>Ligue o clube para os clientes entrarem. Depois você pode cobrar mensalidade e incluir as músicas da loja.</p>}
                                 </div>
+
+                                {vipEnabled && <ClubOwnerPanel storeId={storeId} />}
 
                                 {vipEnabled && (
                                     <>

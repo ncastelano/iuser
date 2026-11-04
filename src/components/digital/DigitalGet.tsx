@@ -14,6 +14,8 @@ import { toast } from '@/lib/toast'
 import { claimFree, fetchAudioPreview, fetchMyAccess, freeCtaLabel, isFreeProduct, openItem, productKindOf, summaryFromCounts, type CurriculumItem } from '@/modules/digital'
 import { useRef } from 'react'
 import TipButton from '@/components/tips/TipButton'
+import ClubPayDialog from '@/components/club/ClubPayDialog'
+import { canSubscribe, fetchClubInfo, moneyText, renewState, type ClubInfo } from '@/modules/club'
 import { APP_CLAIMED_EVENT } from './AppDownloads'
 
 export default function DigitalGet({ productId, productName, price, items, storeId, storeName }: { productId: string; productName: string; price: number | null; items: CurriculumItem[] | null; storeId?: string | null; storeName?: string | null }) {
@@ -27,6 +29,9 @@ export default function DigitalGet({ productId, productName, price, items, store
     const [playing, setPlaying] = useState(false)
     const audioRef = useRef<HTMLAudioElement>(null)
     const free = isFreeProduct(price)
+    const [club, setClub] = useState<ClubInfo | null>(null)
+    const [clubOpen, setClubOpen] = useState(false)
+    useEffect(() => { let on = true; if (!storeId) return; fetchClubInfo(storeId).then((i) => { if (on) setClub(i) }); return () => { on = false } }, [storeId, userId, has])
 
     useEffect(() => { let on = true; if (!userId) { setHas(false); return }; fetchMyAccess(productId).then((v) => { if (on) setHas(v) }); return () => { on = false } }, [productId, userId])
     useEffect(() => { let on = true; fetchAudioPreview(productId).then((p) => { if (on) setPreview(p) }); return () => { on = false } }, [productId])
@@ -52,12 +57,35 @@ export default function DigitalGet({ productId, productName, price, items, store
         if (a.paused) a.play().catch(() => {}); else a.pause()
     }
 
+    // música de loja que tem clube pago com música: oferece "Ouça com o clube" (quem já pode ouvir não vê)
+    const isMusic = counts.audios > 0 && counts.videos === 0 && counts.docs === 0 && counts.apps === 0 && counts.links === 0
+    const clubOffer = !!storeId && isMusic && !free && !has && !!club && club.includesMusic && canSubscribe(club)
+    const clubBtn = clubOffer ? (
+        <>
+            <button type="button" onClick={() => { if (!userId) { toast.info('Entre na sua conta para assinar.'); router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`); return } setClubOpen(true) }} className="w-full inline-flex items-center justify-center gap-2 h-11 px-4 rounded-full text-sm font-black text-white active:scale-95" style={{ background: 'linear-gradient(135deg, #a855f7, #6366f1)' }}>
+                <Headphones size={16} /> {renewState(club!.my) === 'expired' ? 'Renovar o clube' : 'Ouça com o clube'} · {moneyText(club!.priceCents!)}/mês{club!.tracks > 1 ? <span className="text-[11px] font-bold opacity-85">· {club!.tracks} músicas</span> : null}
+            </button>
+            <ClubPayDialog open={clubOpen} onClose={() => setClubOpen(false)} onDone={() => { fetchClubInfo(storeId!).then(setClub) }} storeId={storeId!} storeName={storeName || 'a loja'} includesMusic />
+        </>
+    ) : null
     const tip = storeId ? <TipButton storeId={storeId} storeName={storeName || 'o artista'} productId={productId} className="w-full" /> : null
-    if (!free && !preview && !tip) return null
-    if (items && items.length === 0 && !preview && !tip) return null
+    // quem já tem acesso a um produto pago (comprou ou o clube libera) vê "Está na sua biblioteca" e o botão de abrir
+    const owned = has === true && !free
+    if (!free && !preview && !tip && !clubBtn && !owned) return null
+    if (items && items.length === 0 && !preview && !tip && !clubBtn && !owned) return null
     const showPreview = !!preview && !has
     return (
         <>
+        {owned && (
+        <section className="rounded-3xl p-4 flex items-center gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+            <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#a855f722', color: '#7c3aed' }}><CheckCircle2 size={22} /></span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{club?.my?.musicOk ? 'Incluído no seu clube' : 'Está na sua biblioteca'}</span>
+                <span className="block text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{club?.my?.musicOk ? 'Você ouve com a assinatura do clube; não precisa comprar.' : (items ? summaryFromCounts(counts) : '')}</span>
+            </span>
+            <button type="button" onClick={kind === 'programa' ? () => document.getElementById('baixar-programa')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : open} className="h-10 px-4 rounded-full text-[13px] font-black text-white flex-shrink-0 active:scale-95" style={{ background: 'linear-gradient(135deg, #a855f7, #6366f1)' }}>{kind === 'programa' ? 'Baixar ↓' : 'Abrir'}</button>
+        </section>
+        )}
         {(free || showPreview) && (
         <section className="rounded-3xl p-4 flex flex-col gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
             {free && (
@@ -88,6 +116,7 @@ export default function DigitalGet({ productId, productName, price, items, store
             )}
         </section>
         )}
+        {clubBtn}
         {tip}
         </>
     )

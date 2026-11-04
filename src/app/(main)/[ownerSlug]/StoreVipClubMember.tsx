@@ -7,6 +7,8 @@ import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
 import { toast } from '@/lib/toast'
 import { Crown, Check, Copy, ChevronDown, ChevronUp } from 'lucide-react'
+import ClubPayDialog from '@/components/club/ClubPayDialog'
+import { canSubscribe, fetchClubInfo, moneyText, offerLine, periodLine, renewState, type ClubInfo } from '@/modules/club'
 
 interface StoreVipClubMemberProps {
     storeId: string
@@ -30,6 +32,9 @@ export default function StoreVipClubMember({ storeId, userId }: StoreVipClubMemb
 
     const [vipEnabled, setVipEnabled] = useState(false)
     const [isMember, setIsMember] = useState(false)
+    const [info, setInfo] = useState<ClubInfo | null>(null)
+    const [payOpen, setPayOpen] = useState(false)
+    const [storeName, setStoreName] = useState('')
     const [joining, setJoining] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
     const [campaigns, setCampaigns] = useState<Campaign[]>([])
@@ -37,20 +42,17 @@ export default function StoreVipClubMember({ storeId, userId }: StoreVipClubMemb
     const [redeemedCodes, setRedeemedCodes] = useState<Record<string, string>>({})
     const [redeemingId, setRedeemingId] = useState<string | null>(null)
 
+    // a situação do clube vem do banco numa chamada só (grátis ou pago; o pago vence, o grátis não)
     const checkMembership = useCallback(async () => {
-        const { data: storeData } = await supabase.from('stores').select('vip_club_enabled').eq('id', storeId).single()
-        setVipEnabled(!!storeData?.vip_club_enabled)
-
-        if (!userId) return
-        const { data: memberData } = await supabase
-            .from('store_vip_members')
-            .select('id')
-            .eq('store_id', storeId)
-            .eq('profile_id', userId)
-            .eq('status', 'active')
-            .maybeSingle()
-        setIsMember(!!memberData)
-    }, [storeId, userId])
+        const i = await fetchClubInfo(storeId)
+        setInfo(i)
+        setVipEnabled(!!i?.enabled)
+        setIsMember(!!i?.my?.active)
+        if (i?.enabled && !storeName) {
+            const { data } = await supabase.from('stores').select('name').eq('id', storeId).maybeSingle()
+            setStoreName(data?.name || 'a loja')
+        }
+    }, [storeId, userId])  // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { checkMembership() }, [checkMembership])
 
@@ -116,6 +118,14 @@ export default function StoreVipClubMember({ storeId, userId }: StoreVipClubMemb
     }
 
     if (!vipEnabled) return null
+    const paidClub = !!info && info.priceCents != null && !info.isOwner
+    const startPaid = () => {
+        if (!userId) { toast.error('Entre na sua conta para assinar o clube'); return }
+        if (info && !canSubscribe(info)) { toast.error('Esta loja ainda não recebe pagamentos pelo clube.'); return }
+        setPayOpen(true)
+    }
+    const my = info?.my
+    const rState = renewState(my)
 
     return (
         <div
@@ -133,7 +143,7 @@ export default function StoreVipClubMember({ storeId, userId }: StoreVipClubMemb
                     <div>
                         <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Club VIP</p>
                         <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                            {isMember ? 'Você é membro' : 'Entre pra ver campanhas exclusivas'}
+                            {paidClub ? offerLine(info!) : isMember ? 'Você é membro' : 'Entre pra ver campanhas exclusivas'}
                         </p>
                     </div>
                 </div>
@@ -143,15 +153,25 @@ export default function StoreVipClubMember({ storeId, userId }: StoreVipClubMemb
                     </button>
                 ) : (
                     <button
-                        onClick={handleJoin}
+                        onClick={paidClub ? startPaid : handleJoin}
                         disabled={joining}
                         className="px-4 py-2 rounded-full font-black text-xs disabled:opacity-60"
                         style={{ background: GRADIENT, color: '#fff' }}
                     >
-                        {joining ? '...' : 'Entrar'}
+                        {joining ? '...' : paidClub ? `Assinar · ${moneyText(info!.priceCents!)}/mês` : 'Entrar'}
                     </button>
                 )}
             </div>
+
+            {paidClub && my?.paid && (
+                <div className="flex items-center justify-between gap-2 rounded-xl px-3 py-2" style={{ background: rState === 'ok' ? '#22c55e18' : '#f59e0b1f' }}>
+                    <span className="text-[12px] font-bold" style={{ color: rState === 'ok' ? '#16a34a' : '#b45309' }}>{periodLine(my)}{my.musicOk ? ' · músicas liberadas' : ''}</span>
+                    {rState !== 'ok' && <button onClick={startPaid} className="px-3 py-1.5 rounded-full text-[11px] font-black text-white flex-shrink-0" style={{ background: GRADIENT }}>{rState === 'expired' ? 'Assinar de novo' : 'Renovar'}</button>}
+                </div>
+            )}
+            {paidClub && my?.openStatus && (
+                <p className="text-[11px] font-bold" style={{ color: '#7c3aed' }}>{my.openStatus === 'reported' ? 'Pagamento enviado: aguardando a loja confirmar o Pix.' : 'Você começou a assinar: falta pagar o Pix e tocar em "Já fiz o Pix".'}</p>
+            )}
 
             {isMember && isExpanded && (
                 <div className="flex flex-col gap-2 pt-1">
@@ -202,6 +222,7 @@ export default function StoreVipClubMember({ storeId, userId }: StoreVipClubMemb
                     )}
                 </div>
             )}
+                    <ClubPayDialog open={payOpen} onClose={() => setPayOpen(false)} onDone={() => checkMembership()} storeId={storeId} storeName={storeName || 'a loja'} includesMusic={!!info?.includesMusic} />
         </div>
     )
 }
