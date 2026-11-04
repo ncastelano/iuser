@@ -55,6 +55,9 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
     const label = getItemLabel(item)
     const title = getRequestTitle(item.description, item.service_type, item.custom_service)
     const fullText = (item.description || '').trim()
+    const hasText = fullText.length > 0
+    // letra do texto: quanto menos texto, maior (como num status de texto)
+    const textSize = fullText.length <= 50 ? 'text-3xl' : fullText.length <= 120 ? 'text-2xl' : fullText.length <= 260 ? 'text-xl' : 'text-base'
     const photos = item.photo_urls || []
     const photo = photos[photoIdx] || null
     const who = item.requester?.profileSlug ? `@${item.requester.profileSlug}` : item.requester?.name || 'Alguém'
@@ -73,31 +76,39 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                 className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl"
                 style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}
             >
-                {/* Foto grande, inteira */}
-                <div className="relative w-full overflow-hidden" style={{ background: GRADIENT }}>
-                    {photo ? (
-                        <>
-                            <img src={photo} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-70" />
-                            <img src={photo} alt={title} className="relative w-full h-auto max-h-[52dvh] object-contain" />
-                        </>
-                    ) : (
-                        <div className="w-full h-48 flex items-center justify-center"><Icon size={64} color="rgba(255,255,255,0.9)" /></div>
-                    )}
-                    <button
-                        onClick={onClose}
-                        aria-label="Fechar"
-                        className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center text-white"
-                        style={{ background: 'rgba(0,0,0,0.55)' }}
-                    >
+                {/* Fechar: fica no topo mesmo rolando */}
+                <div className="sticky top-0 z-10 h-0 flex justify-end pr-3 pt-3">
+                    <button onClick={onClose} aria-label="Fechar" className="w-10 h-10 rounded-full flex items-center justify-center text-white" style={{ background: 'rgba(0,0,0,0.55)' }}>
                         <X size={20} />
                     </button>
-                    <span className="absolute left-3 top-3 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wide text-white" style={{ background: GRADIENT }}>
-                        <Icon size={12} />
-                        {label}
-                    </span>
                 </div>
 
-                {photos.length > 1 && (
+                {/* Como o status do WhatsApp: com TEXTO, o texto toma o espaço (inteiro, sem cortar, letra maior quanto menor o texto); sem texto, a FOTO é o topo.
+                    Sem texto e sem foto, o tipo do serviço faz o papel de título. Nada de bloco colorido com ícone. */}
+                {hasText ? (
+                    <div className="px-5 pt-14 pb-4">
+                        <p className={`${textSize} ${fullText.length <= 120 ? 'font-black' : 'font-bold'} leading-tight whitespace-pre-wrap break-words`} style={{ color: colors.textPrimary }}>{fullText}</p>
+                    </div>
+                ) : photo ? (
+                    <div className="relative w-full overflow-hidden" style={{ background: '#0b0b0f' }}>
+                        <img src={photo} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-60" />
+                        <img src={photo} alt={title} className="relative w-full h-auto max-h-[60dvh] object-contain" />
+                    </div>
+                ) : (
+                    <div className="px-5 pt-14 pb-4">
+                        <p className="text-3xl font-black leading-tight break-words" style={{ color: colors.textPrimary }}>{label}</p>
+                    </div>
+                )}
+
+                {/* Fotos: com texto, vêm logo depois dele; sem texto, a primeira já é o topo e as miniaturas escolhem qual ver */}
+                {hasText && photos.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory px-5 pb-3 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+                        {photos.map((p, i) => (
+                            <img key={p + i} src={p} alt={`Foto ${i + 1} de ${title}`} className="snap-center flex-shrink-0 h-56 max-w-[88%] w-auto rounded-2xl object-cover" />
+                        ))}
+                    </div>
+                )}
+                {!hasText && photos.length > 1 && (
                     <div className="flex gap-2 overflow-x-auto px-4 pt-3">
                         {photos.map((p, i) => (
                             <button
@@ -113,10 +124,7 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                     </div>
                 )}
 
-                <div className="p-4 flex flex-col gap-3">
-                    {/* O texto do pedido INTEIRO, sem cortar: é o título e também a descrição (não se repete embaixo). Texto curto = título grande; longo = letra menor e quebra de linha. */}
-                    <h2 className={`${fullText.length <= 80 && !fullText.includes('\n') ? 'text-xl font-black leading-tight' : 'text-base font-bold leading-snug'} whitespace-pre-wrap break-words`} style={{ color: colors.textPrimary }}>{fullText || title}</h2>
-
+                <div className="p-4 pt-1 flex flex-col gap-3">
                     {/* Quem pediu */}
                     <button
                         onClick={() => { if (item.requester?.profileSlug) router.push(`/${item.requester.profileSlug}`) }}
@@ -136,6 +144,12 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                             <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{askedAgo(item.created_at)}</span>
                         </span>
                     </button>
+
+                    {(hasText || photo) && (
+                        <div className="-mt-1.5 pl-[46px]">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black" style={{ background: `${colors.accent}18`, color: colors.accent }}><Icon size={12} /> {label}</span>
+                        </div>
+                    )}
 
                     <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: colors.textSecondary }}>
                         <span className="flex items-center gap-1"><MapPin size={13} />{place}</span>
