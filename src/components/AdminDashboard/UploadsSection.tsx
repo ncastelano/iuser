@@ -10,6 +10,7 @@ import { toast } from '@/lib/toast'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
 import DownloadBandwidthCard from './DownloadBandwidthCard'
+import UploadValveCard from './UploadValveCard'
 import type { ThemeColors } from '@/app/contexts/theme'
 import {
     ABUSE_CODES, BLOCK_DURATIONS, FIELD_LABEL, LIMIT_FIELDS, denialLabel, formToPatch, formatBytes, kindToForm, limitText, meterPct, meterTone,
@@ -208,6 +209,9 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
                     })}
                 </div>
             )}
+
+            {/* ===== Válvula de segurança: desliga sozinha os envios pesados perto da cota do plano ===== */}
+            <UploadValveCard cardStyle={cardStyle} colors={colors} />
 
             {/* ===== Banda estimada dos downloads de programas (a banda foi o que estourou o projeto) ===== */}
             <DownloadBandwidthCard cardStyle={cardStyle} colors={colors} />

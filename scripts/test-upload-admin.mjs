@@ -120,7 +120,7 @@ test('a rota: só o admin geral, o id do admin vem do login (nunca do corpo) e s
     const r = read('src/app/api/admin/uploads/route.ts')
     assert.match(r, /const admin = await requireSuperAdmin\(req\)\s*\n\s*if \(!admin\) return NextResponse\.json\(\{ error: 'Sem permissão' \}, \{ status: 403 \}\)/)
     assert.ok(!/body\.(admin|p_admin|changed_by|created_by)/.test(r), 'o id do admin nunca é lido do corpo')
-    assert.equal((r.match(/p_admin: admin\.id/g) || []).length, 6, 'as 6 escritas levam o admin do login (4 da Camada 5 + manter e configuração da limpeza)')
+    assert.equal((r.match(/p_admin: admin\.id/g) || []).length, 9, 'as 9 escritas levam o admin do login (4 da Camada 5 + manter e configuração da limpeza + 3 da válvula: configurar, liberar e estágio)')
     for (const fn of ['admin_upload_overview', 'admin_upload_top_owners', 'admin_upload_denials', 'admin_upload_set_enforced', 'admin_upload_block', 'admin_upload_unblock', 'admin_upload_update_kind']) assert.ok(r.includes(`'${fn}'`), fn)
     assert.match(r, /validatePatch\(body\.patch/); assert.match(r, /validateBlock\(/)
     assert.match(r, /v\.value\.profile_id === admin\.id/, 'o admin não bloqueia a si mesmo')

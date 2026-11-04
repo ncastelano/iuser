@@ -15,6 +15,8 @@ export interface UploadLimit {
     usedBytes: number
     usedFiles: number
     usedDayBytes: number
+    /** o tipo foi pausado pela VÁLVULA (espaço/banda do servidor perto do limite), não por um admin */
+    paused: boolean
 }
 
 /** Linha do banco (get_my_upload_limits) → objeto do app */
@@ -23,7 +25,7 @@ export function limitFromRow(r: Record<string, any>): UploadLimit {
     return {
         kind: r.kind, label: r.label, bucket: r.bucket, provider: r.provider, enabled: !!r.enabled, maxBytes: Number(r.max_bytes) || 0,
         perHourFiles: n(r.per_hour_files), perDayBytes: n(r.per_day_bytes), perUserBytes: n(r.per_user_bytes),
-        usedBytes: Number(r.used_bytes) || 0, usedFiles: Number(r.used_files) || 0, usedDayBytes: Number(r.used_day_bytes) || 0,
+        usedBytes: Number(r.used_bytes) || 0, usedFiles: Number(r.used_files) || 0, usedDayBytes: Number(r.used_day_bytes) || 0, paused: !!r.paused,
     }
 }
 
@@ -56,7 +58,7 @@ export function roomLeftBytes(l: Pick<UploadLimit, 'maxBytes' | 'perDayBytes' | 
 /** Antes de enviar: mensagem em português se o arquivo não cabe (ou null se pode). O banco confere de novo. */
 export function checkFitsLimit(l: UploadLimit | null | undefined, size: number, what = 'arquivo'): string | null {
     if (!l) return null
-    if (!l.enabled) return `O envio de ${l.label.toLowerCase()} está desligado no momento.`
+    if (!l.enabled) return l.paused ? `O envio de ${l.label.toLowerCase()} está pausado: o servidor está com o espaço quase cheio. Tente de novo mais tarde.` : `O envio de ${l.label.toLowerCase()} está desligado no momento.`
     if (size > l.maxBytes) return `Este ${what} tem ${formatBytes(size)} e o limite é ${formatBytes(l.maxBytes)} por arquivo.`
     if (l.perUserBytes && l.usedBytes + size > l.perUserBytes) return `Seu espaço de ${l.label.toLowerCase()} está cheio (${formatBytes(l.usedBytes)} de ${formatBytes(l.perUserBytes)}). Apague algo antes de enviar.`
     if (l.perDayBytes && l.usedDayBytes + size > l.perDayBytes) return `Você já enviou ${formatBytes(l.usedDayBytes)} de ${formatBytes(l.perDayBytes)} hoje. Tente de novo amanhã.`

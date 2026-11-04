@@ -18,7 +18,7 @@ export type AuthorizeResult =
     | { status: 'denied'; code: string; message: string; retryAfter?: number }
     | { status: 'unavailable' }
 
-type Denial = { ok: false; error?: string; limit?: number; used?: number; retry_after?: number; reason?: string }
+type Denial = { ok: false; error?: string; limit?: number; used?: number; retry_after?: number; reason?: string; valve?: boolean }
 
 /** "menos de 1 minuto", "5 minutos", "2 horas". */
 export function waitText(seconds: number): string {
@@ -34,7 +34,7 @@ export function waitText(seconds: number): string {
 export function uploadDeniedMessage(d: Denial): string {
     switch (d.error) {
         case 'not_authenticated': return 'Entre na sua conta para enviar arquivos.'
-        case 'kind_disabled': return 'Este tipo de envio está temporariamente desativado.'
+        case 'kind_disabled': return d.valve ? 'Estamos com o espaço do servidor quase cheio e pausamos os envios deste tipo por um tempo. O que já foi enviado continua funcionando. Tente de novo mais tarde.' : 'Este tipo de envio está temporariamente desativado.'
         case 'wrong_provider': return 'Este tipo de envio ainda não está disponível.'
         case 'account_blocked': return 'Sua conta não pode enviar arquivos no momento.'
         case 'blocked': return d.reason ? `Seus envios estão bloqueados: ${d.reason}` : 'Seus envios estão bloqueados no momento.'

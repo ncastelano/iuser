@@ -3,13 +3,14 @@
 // Painel Admin → Uploads (Camada 5 do controle de uploads, docs/CONTROLE-DE-UPLOADS.md). Só o administrador geral. UMA rota com `action`:
 //   load (visão geral + maiores consumidores + recusas + bloqueios + histórico + alertas da cota do Supabase), top (maiores consumidores de um tipo),
 //   set_enforced (liga/desliga o "envio só com autorização"), block / unblock, update_kind (limites de um tipo),
-//   r2_check (testa a conexão com o R2: grava, lê e apaga um arquivo de teste), cleanup_run (rodar a limpeza de arquivos órfãos agora: simulação ou de verdade), cleanup_keep (manter / deixar de manter um arquivo), cleanup_settings (configuração da limpeza).
+//   r2_check (testa a conexão com o R2: grava, lê e apaga um arquivo de teste), cleanup_run (rodar a limpeza de arquivos órfãos agora: simulação ou de verdade), cleanup_keep (manter / deixar de manter um arquivo), cleanup_settings (configuração da limpeza),
+//   valve (estado da VÁLVULA de segurança), valve_tick (medir/avaliar agora), valve_update (limiares, cotas, ligar/desligar), valve_override (liberar por X horas), valve_kind (estágio de um tipo).
 // Toda leitura agregada e toda escrita são funções do banco só do serviço (admin_upload_*), que gravam admin_config_audit; aqui só se valida a entrada (a MESMA validação da tela,
 // no módulo uploads) e se identifica o admin: o id do admin NUNCA vem do corpo da requisição.
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
-import { validatePatch, validateBlock, validateCleanupPatch, type KindLimits } from '@/modules/uploads'
+import { validatePatch, validateBlock, validateCleanupPatch, validateValvePatch, type KindLimits } from '@/modules/uploads'
 import { runUploadCleanup, type CleanupClient } from '@/lib/uploadCleanup'
 import { readR2Config, r2ConfigProblems, r2Head, r2Put, r2Delete, r2PresignGet } from '@/lib/r2'
 import { r2CleanupOps } from '@/lib/r2Cleanup'
@@ -88,6 +89,34 @@ export async function POST(req: Request) {
             cleanup: cleanup.error ? null : cleanup.data,
             r2: (() => { const c = readR2Config(); return { configured: !!c, bucket: c?.bucket ?? null, publicBase: c?.publicBase ?? null, problems: c ? [] : r2ConfigProblems() } })(),
         }, { headers: NO_STORE })
+    }
+
+    // VÁLVULA DE SEGURANÇA (migration 20261130000032): mede o armazenamento e a banda do plano e desliga sozinha os tipos pesados perto da cota. Toda ação devolve o estado novo.
+    if (action === 'valve' || action === 'valve_tick' || action === 'valve_update' || action === 'valve_override' || action === 'valve_kind') {
+        if (action === 'valve_tick') { const { error } = await supabaseAdmin.rpc('upload_valve_tick'); if (error) return dbError(error) }
+        if (action === 'valve_update') {
+            const v = validateValvePatch(body.patch)
+            if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
+            const { error } = await supabaseAdmin.rpc('admin_upload_valve_update', { p_patch: v.patch, p_admin: admin.id })
+            if (error) return dbError(error)
+            // ligou ou mudou limiar: já avalia (senão só mudaria na próxima rodada de 10 min)
+            const { error: e2 } = await supabaseAdmin.rpc('upload_valve_tick'); if (e2) return dbError(e2)
+        }
+        if (action === 'valve_override') {
+            const hours = Number(body.hours)
+            if (!Number.isInteger(hours) || hours < 1 || hours > 168) return NextResponse.json({ error: 'Escolha de 1 a 168 horas' }, { status: 400 })
+            const { error } = await supabaseAdmin.rpc('admin_upload_valve_override', { p_hours: hours, p_admin: admin.id })
+            if (error) return dbError(error)
+        }
+        if (action === 'valve_kind') {
+            const kind = String(body.kind || ''), stage = body.stage == null || body.stage === '' ? null : Number(body.stage)
+            if (!KIND.test(kind) || (stage !== null && stage !== 1 && stage !== 2)) return NextResponse.json({ error: 'Tipo ou estágio inválido' }, { status: 400 })
+            const { error } = await supabaseAdmin.rpc('admin_upload_valve_kind', { p_kind: kind, p_stage: stage, p_admin: admin.id })
+            if (error) return dbError(error)
+        }
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_valve_status')
+        if (error) return dbError(error)
+        return NextResponse.json({ valve: data }, { headers: NO_STORE })
     }
 
     // Estimativa de banda dos downloads de PROGRAMAS (tamanho × downloads contados; música tocada e aula assistida não entram)

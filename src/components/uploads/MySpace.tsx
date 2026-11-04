@@ -38,7 +38,7 @@ export default function MySpace({ kinds, onlyUsed = false, limits: given, title 
                         </div>
                         {l.perUserBytes ? <div className="h-1.5 rounded-full overflow-hidden" style={{ background: colors.border }}><div className="h-full rounded-full" style={{ width: `${Math.max(pct, l.usedBytes > 0 ? 2 : 0)}%`, background: TONE[spaceTone(pct)], transition: 'width .4s' }} /></div> : null}
                         <p className="text-[11px] leading-snug" style={{ color: colors.textSecondary }}>
-                            {l.enabled ? ruleText(l) : 'Envio desligado no momento'}
+                            {l.enabled ? ruleText(l) : l.paused ? 'Envio pausado: o servidor está com o espaço quase cheio. Volta sozinho quando liberar.' : 'Envio desligado no momento'}
                             {l.perDayBytes && l.usedDayBytes > 0 ? <> · hoje: <b style={{ color: dayPct >= 80 ? TONE[spaceTone(dayPct)] : colors.textPrimary }}>{formatBytes(l.usedDayBytes)} de {formatBytes(l.perDayBytes)}</b></> : null}
                         </p>
                     </div>
