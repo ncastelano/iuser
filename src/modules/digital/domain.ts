@@ -15,8 +15,15 @@ export interface CurriculumItem {
 
 export const KIND_LABEL: Record<DigitalKind, string> = { video: 'Vídeo', audio: 'Áudio', document: 'Arquivo', link: 'Link', app: 'Programa' }
 
-/** Tamanho máximo de um arquivo enviado (o bucket aceita 500 MB; o servidor local pode ter um teto menor) */
-export const DIGITAL_MAX_BYTES = 500 * 1024 * 1024
+/** Em que bucket (privado) cada tipo de item mora: música, programa e o resto (curso, e-book, material) têm limites SEPARADOS no banco (migration 20261130000031) */
+export const DIGITAL_BUCKETS = { files: 'digital-files', music: 'digital-music', apps: 'digital-apps' } as const
+export type DigitalBucket = (typeof DIGITAL_BUCKETS)[keyof typeof DIGITAL_BUCKETS]
+export const bucketForKind = (kind: DigitalKind): DigitalBucket => (kind === 'audio' ? DIGITAL_BUCKETS.music : kind === 'app' ? DIGITAL_BUCKETS.apps : DIGITAL_BUCKETS.files)
+/** O tipo de upload (upload_kinds) de cada bucket do digital */
+export const DIGITAL_UPLOAD_KIND: Record<DigitalBucket, string> = { 'digital-files': 'digital_file', 'digital-music': 'digital_music', 'digital-apps': 'digital_app' }
+/** Limite provisório por arquivo (plano gratuito) — só para mostrar antes de o app ler os limites reais do banco; quem decide é o servidor */
+export const DIGITAL_MAX_BYTES = 50 * 1024 * 1024
+export const DIGITAL_MAX_BYTES_BY_BUCKET: Record<DigitalBucket, number> = { 'digital-files': 50 * 1024 * 1024, 'digital-music': 25 * 1024 * 1024, 'digital-apps': 50 * 1024 * 1024 }
 
 export function kindFromFile(mime: string | null | undefined, name = ''): DigitalKind {
     const m = (mime || '').toLowerCase()
@@ -32,12 +39,13 @@ export function isSafeHttps(url: string): boolean {
     try { return new URL(url.trim()).protocol === 'https:' } catch { return false }
 }
 
-export function validateItem(input: { title: string; module?: string | null; url?: string | null; file?: { size: number } | null }): string | null {
+export function validateItem(input: { title: string; module?: string | null; url?: string | null; file?: { size: number; maxBytes?: number } | null }): string | null {
     const t = input.title.trim()
     if (!t) return 'Dê um nome ao item.'
     if (t.length > 140) return 'O nome passa de 140 caracteres.'
     if ((input.module || '').trim().length > 100) return 'O nome do módulo passa de 100 caracteres.'
-    if (input.file) return input.file.size > DIGITAL_MAX_BYTES ? 'O arquivo passa de 500 MB.' : null
+    // o tamanho só é conferido aqui quando quem chama passa o limite real (vindo do banco); sem ele, quem decide é o servidor
+    if (input.file) return input.file.maxBytes != null && input.file.size > input.file.maxBytes ? `O arquivo passa de ${formatSize(input.file.maxBytes)}.` : null
     if (!input.url || !input.url.trim()) return 'Envie um arquivo ou informe um link.'
     return isSafeHttps(input.url) ? null : 'O link precisa começar com https://'
 }
@@ -226,9 +234,9 @@ export const SHA256_MAX_BYTES = 100 * 1024 * 1024
 export const APP_NOTES_MAX = 500
 export const APP_VERSION_MAX = 30
 
-export function validateAppInput(input: { fileName: string; size: number; platform: AppPlatform | ''; version: string; notes?: string }): string | null {
+export function validateAppInput(input: { fileName: string; size: number; maxBytes?: number; platform: AppPlatform | ''; version: string; notes?: string }): string | null {
     if (!isProgramFile(input.fileName)) return `Esse tipo de arquivo não é aceito como programa. Use: ${PROGRAM_EXTENSIONS.map((e) => '.' + e).join(' ')}.`
-    if (input.size > DIGITAL_MAX_BYTES) return 'O arquivo passa de 500 MB.'
+    if (input.maxBytes != null && input.size > input.maxBytes) return `O arquivo passa de ${formatSize(input.maxBytes)}.`
     if (!input.platform) return 'Escolha a plataforma.'
     const v = input.version.trim()
     if (!v) return 'Informe a versão (ex.: 1.0.2).'

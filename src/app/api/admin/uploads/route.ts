@@ -90,6 +90,14 @@ export async function POST(req: Request) {
         }, { headers: NO_STORE })
     }
 
+    // Estimativa de banda dos downloads de PROGRAMAS (tamanho × downloads contados; música tocada e aula assistida não entram)
+    if (action === 'bandwidth') {
+        const days = Math.min(90, Math.max(1, Number(body.days) || 30))
+        const { data, error } = await supabaseAdmin.rpc('admin_download_bandwidth', { p_days: days })
+        if (error) return dbError(error)
+        return NextResponse.json({ bandwidth: data }, { headers: NO_STORE })
+    }
+
     if (action === 'top') {
         const kind = body.kind == null || body.kind === '' ? null : String(body.kind)
         if (kind && !KIND.test(kind)) return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })

@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     await supabase.auth.getSession()
     const { data, error } = await supabase.rpc('get_digital_item_access', { p_item: item })
     if (error) return NextResponse.json({ error: 'Não foi possível conferir o acesso' }, { status: 400 })
-    const a = data as { allowed: boolean; reason?: string; kind: string; title: string; storage_path: string | null; external_url: string | null; mime_type: string | null } | null
+    const a = data as { allowed: boolean; reason?: string; kind: string; title: string; storage_path: string | null; bucket?: string; external_url: string | null; mime_type: string | null } | null
     if (a?.reason === 'hidden') return NextResponse.json({ error: 'Este conteúdo foi retirado do ar pelo iUser.' }, { status: 403 })
     if (!a?.allowed) return NextResponse.json({ error: 'Você ainda não tem acesso a este conteúdo. Ele abre quando a loja confirma o seu pagamento.' }, { status: 403 })
     const headers = { 'Cache-Control': 'no-store' }
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
         if (u?.user?.id) { try { await supabaseAdmin.rpc('track_digital_download', { p_item: item, p_profile: u.user.id }) } catch { /* contar nunca atrapalha baixar */ } }
     }
     const fileName = a.storage_path.split('/').pop()?.replace(/^\d+-/, '') || 'arquivo'
-    const { data: signed, error: e2 } = await supabaseAdmin.storage.from('digital-files').createSignedUrl(a.storage_path, 3600, download ? { download: fileName } : undefined)
+    const { data: signed, error: e2 } = await supabaseAdmin.storage.from(['digital-files', 'digital-music', 'digital-apps'].includes(a.bucket || '') ? a.bucket! : 'digital-files').createSignedUrl(a.storage_path, 3600, download ? { download: fileName } : undefined)
     if (e2 || !signed?.signedUrl) return NextResponse.json({ error: 'Não foi possível abrir o arquivo' }, { status: 500 })
     return NextResponse.json({ url: signed.signedUrl, kind: a.kind, title: a.title, mime_type: a.mime_type, external: false }, { headers })
 }

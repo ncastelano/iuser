@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@/lib/toast'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
+import DownloadBandwidthCard from './DownloadBandwidthCard'
 import type { ThemeColors } from '@/app/contexts/theme'
 import {
     ABUSE_CODES, BLOCK_DURATIONS, FIELD_LABEL, LIMIT_FIELDS, denialLabel, formToPatch, formatBytes, kindToForm, limitText, meterPct, meterTone,
@@ -62,6 +63,7 @@ function auditText(a: AuditRow, kinds: KindRow[]): string {
     if (!(LIMIT_FIELDS as readonly string[]).includes(f)) return a.setting
     return `${kindLabel(kind)} — ${FIELD_LABEL[f]}: ${limitText(f, a.old_value)} → ${limitText(f, a.new_value)}`
 }
+
 
 export default function UploadsSection({ cardStyle, colors }: { cardStyle: React.CSSProperties; colors: ThemeColors }) {
     const [data, setData] = useState<Loaded | null>(null)
@@ -206,6 +208,9 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
                     })}
                 </div>
             )}
+
+            {/* ===== Banda estimada dos downloads de programas (a banda foi o que estourou o projeto) ===== */}
+            <DownloadBandwidthCard cardStyle={cardStyle} colors={colors} />
 
             {/* ===== Cloudflare R2 (vídeo e música) ===== */}
             {data.r2 && (

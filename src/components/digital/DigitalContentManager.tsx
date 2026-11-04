@@ -9,6 +9,10 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from '@/lib/toast'
 import { addAppItem, addFileItem, addLinkItem, APP_NOTES_MAX, APP_PLATFORM_LABEL, APP_PLATFORMS, APP_VERSION_MAX, declareRights, detectPlatform, downloadsLabel, hasRights, kindFromFile, PROGRAM_ACCEPT, validateAppInput, type AppPlatform, formatDuration, formatSize, groupByModule, listOwnItems, removeItem, setItemPreview, swapItems, curriculumSummary, type OwnItem, type CurriculumItem } from '@/modules/digital'
 import { kindIcon } from './DigitalCurriculum'
+import MySpace from '@/components/uploads/MySpace'
+import { fetchMyUploadLimits } from '@/lib/myUploadLimits'
+import { bucketForKind, DIGITAL_UPLOAD_KIND } from '@/modules/digital'
+import { checkFitsLimit, ruleText, type UploadLimit } from '@/modules/uploads'
 
 export default function DigitalContentManager({ productId }: { productId: string }) {
     const { colors } = useTheme()
@@ -28,12 +32,16 @@ export default function DigitalContentManager({ productId }: { productId: string
     const [appVersion, setAppVersion] = useState('')
     const [appNotes, setAppNotes] = useState('')
     const [appDemo, setAppDemo] = useState(false)
+    // Limites de cada tipo de envio (do banco) e quanto já foi usado: mostrados antes de enviar e conferidos antes de subir o arquivo
+    const [limits, setLimits] = useState<Record<string, UploadLimit> | null>(null)
+    const reloadLimits = useCallback(async () => { setLimits(await fetchMyUploadLimits()) }, [])
+    useEffect(() => { reloadLimits() }, [reloadLimits])
     // Autoria: para enviar ÁUDIO o dono declara, uma vez por produto, que a obra é dele (ou licenciada)
     const [declared, setDeclared] = useState<boolean | null>(null)
     const [rightsChecked, setRightsChecked] = useState(false)
     useEffect(() => { hasRights(productId).then(setDeclared) }, [productId])
 
-    const load = useCallback(async () => { try { setItems(await listOwnItems(productId)) } catch (e: any) { toast.error(e.message) } }, [productId])
+    const load = useCallback(async () => { try { setItems(await listOwnItems(productId)); reloadLimits() } catch (e: any) { toast.error(e.message) } }, [productId, reloadLimits])
     useEffect(() => { load() }, [load])
 
     const run = async (fn: () => Promise<void>, ok?: string) => {
@@ -42,11 +50,15 @@ export default function DigitalContentManager({ productId }: { productId: string
     }
     const onFile = (f: File | undefined) => {
         if (!f || !userId) return
-        const isAudio = kindFromFile(f.type, f.name) === 'audio'
+        const fileKind = kindFromFile(f.type, f.name)
+        const lim = limits?.[DIGITAL_UPLOAD_KIND[bucketForKind(fileKind)]]
+        const tooBig = checkFitsLimit(lim, f.size, fileKind === 'audio' ? 'áudio' : 'arquivo')
+        if (tooBig) { toast.error(tooBig); if (fileRef.current) fileRef.current.value = ''; return }
+        const isAudio = fileKind === 'audio'
         if (isAudio && !declared && !rightsChecked) { toast.error('Marque a declaração de autoria para enviar música.'); if (fileRef.current) fileRef.current.value = ''; return }
         run(async () => {
             if (isAudio && !declared) { await declareRights(productId); setDeclared(true) }
-            await addFileItem({ uid: userId, productId, file: f, title: title.trim() || (teaser ? 'Prévia da vitrine' : f.name.replace(/\.[^.]+$/, '')), moduleTitle: teaser ? undefined : moduleTitle, isPreview: preview, isTeaser: teaser })
+            await addFileItem({ uid: userId, productId, file: f, title: title.trim() || (teaser ? 'Prévia da vitrine' : f.name.replace(/\.[^.]+$/, '')), moduleTitle: teaser ? undefined : moduleTitle, isPreview: preview, isTeaser: teaser, maxBytes: lim?.maxBytes })
             setTitle(''); setPreview(false); setTeaser(false)
         }, teaser ? 'Prévia da vitrine enviada ✓' : 'Arquivo enviado ✓')
         if (fileRef.current) fileRef.current.value = ''
@@ -62,10 +74,12 @@ export default function DigitalContentManager({ productId }: { productId: string
         if (!userId || !appFile) { toast.error('Escolha o arquivo do programa.'); return }
         const err = validateAppInput({ fileName: appFile.name, size: appFile.size, platform: appPlatform, version: appVersion, notes: appNotes })
         if (err) { toast.error(err); return }
+        const appFit = checkFitsLimit(limits?.digital_app, appFile.size, 'programa')
+        if (appFit) { toast.error(appFit); return }
         if (!declared && !rightsChecked) { toast.error('Marque a declaração de autoria para enviar programas.'); return }
         run(async () => {
             if (!declared) { await declareRights(productId); setDeclared(true) }
-            await addAppItem({ uid: userId, productId, file: appFile, platform: appPlatform as AppPlatform, version: appVersion, notes: appNotes, isPreview: appDemo })
+            await addAppItem({ uid: userId, productId, file: appFile, platform: appPlatform as AppPlatform, version: appVersion, notes: appNotes, isPreview: appDemo, maxBytes: limits?.digital_app?.maxBytes })
             setAppFile(null); setAppVersion(''); setAppNotes(''); setAppDemo(false)
         }, 'Versão publicada ✓ (quem já tem o produto recebe a atualização)')
     }
@@ -79,6 +93,8 @@ export default function DigitalContentManager({ productId }: { productId: string
                 <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Conteúdo digital</p>
                 <p className="text-[11px]" style={{ color: colors.textSecondary }}>{curriculumSummary(asCurriculum)}. Quem comprar abre tudo aqui depois que você confirmar o pagamento; o item marcado como grátis qualquer pessoa assiste. <b>Preço R$ 0 = produto grátis</b>: a pessoa o adiciona à biblioteca e abre na hora, sem pedido.</p>
             </div>
+
+            <MySpace limits={limits} kinds={['digital_music', 'digital_app', 'digital_file']} title="Meu espaço (regras de tamanho e quanto você já usou)" />
 
             <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: `${colors.border}1f`, border: `1px solid ${colors.border}` }}>
                 <input className={field} style={fs} placeholder="Nome da aula ou do arquivo" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} />
@@ -114,7 +130,7 @@ export default function DigitalContentManager({ productId }: { productId: string
 
             <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: `${colors.border}1f`, border: `1px solid ${colors.border}` }}>
                 <p className="text-sm font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Package size={15} style={{ color: '#f97316' }} /> Programa ou aplicativo para baixar</p>
-                <p className="text-[11px]" style={{ color: colors.textSecondary }}>Um arquivo por plataforma e versão (.exe, .msi, .dmg, .apk, .zip...). Publicar uma versão nova libera a atualização para quem já tem o produto. Até 500 MB por arquivo.</p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>Um arquivo por plataforma e versão (.exe, .msi, .dmg, .apk, .zip...). Publicar uma versão nova libera a atualização para quem já tem o produto. {limits?.digital_app ? `Regras: ${ruleText(limits.digital_app)}.` : ''}</p>
                 <button type="button" disabled={busy} onClick={() => appFileRef.current?.click()} className="h-11 rounded-full text-sm font-black inline-flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: `${colors.border}55`, color: colors.textPrimary }}>
                     <Upload size={16} /> {appFile ? `${appFile.name} (${formatSize(appFile.size)})` : 'Escolher arquivo do programa'}
                 </button>

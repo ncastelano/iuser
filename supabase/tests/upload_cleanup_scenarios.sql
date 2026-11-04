@@ -204,7 +204,7 @@ BEGIN
     IF c->>'key' <> 'zz-cl-o-grande.jpg' OR (c->>'due')::boolean IS NOT TRUE OR (c->>'days_left')::int <> 0 THEN RAISE EXCEPTION 'o maior vem primeiro e já está pronto: %', c; END IF;
     c := o->'candidates'->1;
     IF c->>'key' <> 'zz-cl-o-pequeno.jpg' OR (c->>'due')::boolean IS NOT FALSE OR (c->>'days_left')::int <> 4 THEN RAISE EXCEPTION 'o pequeno falta 4 dias (7 - 3): %', c; END IF;
-    IF NOT (o->'protected_kinds') @> '["Foto da prova de entrega", "Arquivo de produto digital", "Foto do objeto da corrida"]'::jsonb THEN RAISE EXCEPTION 'tipos protegidos: %', o->'protected_kinds'; END IF;
+    IF NOT (o->'protected_kinds') @> '["Foto da prova de entrega", "Curso, e-book e arquivos (produto digital)", "Foto do objeto da corrida"]'::jsonb THEN RAISE EXCEPTION 'tipos protegidos: %', o->'protected_kinds'; END IF;
     IF (o->'runs'->0->>'source') <> 'admin' OR (o->'runs'->0->>'dry_run')::boolean IS NOT TRUE OR (o->'runs'->0->>'marked')::int <> 2 THEN RAISE EXCEPTION 'última rodada: %', o->'runs'->0; END IF;
     IF (o->'settings'->>'enabled')::boolean IS NOT FALSE THEN RAISE EXCEPTION 'configuração na visão'; END IF;
     RAISE NOTICE 'OK 8: a visão traz números, candidatos ordenados com os dias que faltam, tipos protegidos e as rodadas';

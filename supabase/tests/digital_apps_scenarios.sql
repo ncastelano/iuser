@@ -13,20 +13,20 @@ BEGIN
     -- 1) o dono: sem a declaração não entra programa; extensão, plataforma e versão são conferidas
     PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner, 'role', 'authenticated')::text, true);
     SET LOCAL ROLE authenticated;
-    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, platform, version) VALUES (v_p, v_owner, 'v1', 'app', v_owner || '/x/p.exe', 'windows', '1.0');
+    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, platform, version) VALUES (v_p, v_owner, 'v1', 'app', 'digital-apps', v_owner || '/x/p.exe', 'windows', '1.0');
         RAISE EXCEPTION 'FALHA 1: programa entrou sem declaração';
     EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS v_hint = PG_EXCEPTION_HINT; IF v_hint <> 'rights_declaration_required' THEN RAISE; END IF; END;
     PERFORM declare_digital_rights(v_p);
-    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, platform, version) VALUES (v_p, v_owner, 'v1', 'app', v_owner || '/x/p.txt', 'windows', '1.0');
+    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, platform, version) VALUES (v_p, v_owner, 'v1', 'app', 'digital-apps', v_owner || '/x/p.txt', 'windows', '1.0');
         RAISE EXCEPTION 'FALHA 1b: extensão .txt aceita como programa';
     EXCEPTION WHEN check_violation THEN NULL; END;
-    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, platform, version) VALUES (v_p, v_owner, 'v1', 'app', v_owner || '/x/p.exe', 'amiga', '1.0');
+    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, platform, version) VALUES (v_p, v_owner, 'v1', 'app', 'digital-apps', v_owner || '/x/p.exe', 'amiga', '1.0');
         RAISE EXCEPTION 'FALHA 1c: plataforma inválida aceita';
     EXCEPTION WHEN check_violation THEN NULL; END;
-    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, platform) VALUES (v_p, v_owner, 'v1', 'app', v_owner || '/x/p.exe', 'windows');
+    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, platform) VALUES (v_p, v_owner, 'v1', 'app', 'digital-apps', v_owner || '/x/p.exe', 'windows');
         RAISE EXCEPTION 'FALHA 1d: programa sem versão aceito';
     EXCEPTION WHEN check_violation THEN NULL; END;
-    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, platform, version, sha256) VALUES (v_p, v_owner, 'v1', 'app', v_owner || '/x/p.exe', 'windows', '1.0', 'xyz');
+    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, platform, version, sha256) VALUES (v_p, v_owner, 'v1', 'app', 'digital-apps', v_owner || '/x/p.exe', 'windows', '1.0', 'xyz');
         RAISE EXCEPTION 'FALHA 1e: sha256 inválido aceito';
     EXCEPTION WHEN check_violation THEN NULL; END;
     BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, external_url, platform, version) VALUES (v_p, v_owner, 'v1', 'app', 'https://x.com/p.exe', 'windows', '1.0');
@@ -34,10 +34,10 @@ BEGIN
     EXCEPTION WHEN check_violation THEN NULL; END;
 
     -- 2) duas versões do Windows e uma do Android; o contador nasce zerado e o dono não o altera
-    INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, platform, version, release_notes, sha256, size_bytes, download_count) VALUES (v_p, v_owner, 'Setup 1.0', 'app', v_owner || '/x/setup-1.0.exe', 'windows', '1.0', 'Primeira versão', v_sha, 1000, 999) RETURNING id INTO v_old;
+    INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, platform, version, release_notes, sha256, size_bytes, download_count) VALUES (v_p, v_owner, 'Setup 1.0', 'app', 'digital-apps', v_owner || '/x/setup-1.0.exe', 'windows', '1.0', 'Primeira versão', v_sha, 1000, 999) RETURNING id INTO v_old;
     IF (SELECT download_count FROM digital_contents WHERE id = v_old) <> 0 THEN RAISE EXCEPTION 'FALHA 2: o dono definiu o contador'; END IF;
-    INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, platform, version, size_bytes) VALUES (v_p, v_owner, 'Setup 1.1', 'app', v_owner || '/x/setup-1.1.msi', 'windows', '1.1', 1200) RETURNING id INTO v_new;
-    INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, platform, version) VALUES (v_p, v_owner, 'App', 'app', v_owner || '/x/app.apk', 'android', '1.1');
+    INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, platform, version, size_bytes) VALUES (v_p, v_owner, 'Setup 1.1', 'app', 'digital-apps', v_owner || '/x/setup-1.1.msi', 'windows', '1.1', 1200) RETURNING id INTO v_new;
+    INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, platform, version) VALUES (v_p, v_owner, 'App', 'app', 'digital-apps', v_owner || '/x/app.apk', 'android', '1.1');
     UPDATE digital_contents SET download_count = 500 WHERE id = v_new;
     IF (SELECT download_count FROM digital_contents WHERE id = v_new) <> 0 THEN RAISE EXCEPTION 'FALHA 2b: o dono mexeu no contador'; END IF;
     RESET ROLE;

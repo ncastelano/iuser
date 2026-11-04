@@ -1,7 +1,7 @@
 // Testes das regras puras dos produtos digitais (src/modules/digital/domain.ts). Rodar: npm run test:digital
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES, productKindOf, summaryFromCounts, SHOWCASE_FILTERS, PRODUCT_KIND_LABEL, previewPlaySeconds, nextSpotlightId, validateTeaser, autoPreviewAllowed, PREVIEW_PLAY_SECONDS, SPOTLIGHT_MS, TEASER_MAX_SECONDS, isMusicKind, isFreeProduct, freeCtaLabel, APP_PLATFORMS, PROGRAM_EXTENSIONS, isProgramFile, isInstallerFile, detectPlatform, validateAppInput, groupAppsByPlatform, downloadsLabel, shortHash } from '../src/modules/digital/domain.ts'
+import { kindFromFile, isSafeHttps, validateItem, formatDuration, formatSize, groupByModule, curriculumStats, curriculumSummary, isDigitalCart, storagePathFor, DIGITAL_MAX_BYTES, productKindOf, summaryFromCounts, SHOWCASE_FILTERS, PRODUCT_KIND_LABEL, previewPlaySeconds, nextSpotlightId, validateTeaser, autoPreviewAllowed, PREVIEW_PLAY_SECONDS, SPOTLIGHT_MS, TEASER_MAX_SECONDS, isMusicKind, isFreeProduct, freeCtaLabel, APP_PLATFORMS, PROGRAM_EXTENSIONS, isProgramFile, isInstallerFile, bucketForKind, DIGITAL_BUCKETS, DIGITAL_UPLOAD_KIND, DIGITAL_MAX_BYTES_BY_BUCKET, detectPlatform, validateAppInput, groupAppsByPlatform, downloadsLabel, shortHash } from '../src/modules/digital/domain.ts'
 
 const it = (o) => ({ id: 'x', module_title: null, title: 't', kind: 'video', duration_seconds: null, size_bytes: null, position: 0, is_preview: false, unlocked: false, ...o })
 
@@ -21,7 +21,8 @@ test('link só https', () => {
 test('validar item: nome, tamanho e link', () => {
     assert.match(validateItem({ title: ' ', url: 'https://a.com' }), /nome/i)
     assert.match(validateItem({ title: 'x'.repeat(141), url: 'https://a.com' }), /140/)
-    assert.match(validateItem({ title: 'Aula', file: { size: DIGITAL_MAX_BYTES + 1 } }), /500 MB/)
+    assert.match(validateItem({ title: 'Aula', file: { size: DIGITAL_MAX_BYTES + 1, maxBytes: DIGITAL_MAX_BYTES } }), /50 MB/)
+    assert.equal(validateItem({ title: 'Aula', file: { size: DIGITAL_MAX_BYTES + 1 } }), null)   // sem o limite do banco, quem decide é o servidor
     assert.equal(validateItem({ title: 'Aula', file: { size: 10 } }), null)
     assert.match(validateItem({ title: 'Aula' }), /arquivo ou/)
     assert.match(validateItem({ title: 'Aula', url: 'http://x.com' }), /https/)
@@ -149,7 +150,7 @@ test('programas: validação de quem publica', () => {
     const ok = { fileName: 'setup.exe', size: 1000, platform: 'windows', version: '1.0.2', notes: '' }
     assert.equal(validateAppInput(ok), null)
     assert.match(validateAppInput({ ...ok, fileName: 'foto.png' }), /não é aceito/)
-    assert.match(validateAppInput({ ...ok, size: 600 * 1024 * 1024 }), /500 MB/)
+    assert.match(validateAppInput({ ...ok, size: 60 * 1024 * 1024, maxBytes: 50 * 1024 * 1024 }), /50 MB/)
     assert.match(validateAppInput({ ...ok, platform: '' }), /plataforma/)
     assert.match(validateAppInput({ ...ok, version: '  ' }), /versão/)
     assert.match(validateAppInput({ ...ok, version: 'x'.repeat(31) }), /versão/)
@@ -175,4 +176,21 @@ test('programas: textos', () => {
     assert.equal(downloadsLabel(25000), '25 mil downloads')
     assert.equal(shortHash('a'.repeat(64)), 'aaaaaaaa…aaaaaa')
     assert.equal(shortHash('abc'), 'abc')
+})
+
+const sqlLimits = readFileSync(new URL('../supabase/migrations/20261130000031_digital_limits_split.sql', import.meta.url), 'utf8')
+test('limites do digital: um bucket por tipo, com os MESMOS tamanhos do banco', () => {
+    assert.equal(bucketForKind('audio'), 'digital-music')
+    assert.equal(bucketForKind('app'), 'digital-apps')
+    for (const k of ['video', 'document', 'link']) assert.equal(bucketForKind(k), 'digital-files')
+    assert.deepEqual(Object.values(DIGITAL_BUCKETS).sort(), ['digital-apps', 'digital-files', 'digital-music'])
+    assert.deepEqual(DIGITAL_UPLOAD_KIND, { 'digital-files': 'digital_file', 'digital-music': 'digital_music', 'digital-apps': 'digital_app' })
+    // tamanho por arquivo = o do bucket na migration
+    for (const [bucket, max] of Object.entries(DIGITAL_MAX_BYTES_BY_BUCKET)) {
+        if (bucket === 'digital-files') assert.match(sqlLimits, new RegExp(`UPDATE storage\\.buckets SET file_size_limit = ${max} WHERE id = 'digital-files'`))
+        else assert.match(sqlLimits, new RegExp(`'${bucket}',\\s+'${bucket}',\\s+false,\\s+${max}`))
+    }
+    // o item novo só entra no bucket do seu tipo (a regra do banco)
+    assert.match(sqlLimits, /kind = 'audio' AND bucket = 'digital-music'/)
+    assert.match(sqlLimits, /kind = 'app' AND bucket = 'digital-apps'/)
 })

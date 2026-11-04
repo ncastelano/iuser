@@ -69,13 +69,13 @@ for (const p of PRODUCTS) {
     let pos = 0
     for (const t of p.tracks) {
         const buf = wav(t.seconds, t.notes), sp = `${admin.id}/${p.id}/${Date.now()}-faixa-${pos + 1}.wav`
-        await upload('digital-files', sp, buf, 'audio/wav')
-        rows.push({ product_id: p.id, owner_id: admin.id, title: t.title, kind: 'audio', storage_path: sp, mime_type: 'audio/wav', size_bytes: buf.length, duration_seconds: t.seconds, position: pos++, is_preview: false, is_teaser: false })
+        await upload('digital-music', sp, buf, 'audio/wav')
+        rows.push({ product_id: p.id, owner_id: admin.id, title: t.title, kind: 'audio', bucket: 'digital-music', storage_path: sp, mime_type: 'audio/wav', size_bytes: buf.length, duration_seconds: t.seconds, position: pos++, is_preview: false, is_teaser: false })
     }
     if (p.teaser) {
         const buf = wav(p.teaser.seconds, p.teaser.notes), sp = `${admin.id}/${p.id}/${Date.now()}-previa.wav`
-        await upload('digital-files', sp, buf, 'audio/wav')
-        rows.push({ product_id: p.id, owner_id: admin.id, title: 'Prévia', kind: 'audio', storage_path: sp, mime_type: 'audio/wav', size_bytes: buf.length, duration_seconds: p.teaser.seconds, position: 0, is_preview: false, is_teaser: true })
+        await upload('digital-music', sp, buf, 'audio/wav')
+        rows.push({ product_id: p.id, owner_id: admin.id, title: 'Prévia', kind: 'audio', bucket: 'digital-music', storage_path: sp, mime_type: 'audio/wav', size_bytes: buf.length, duration_seconds: p.teaser.seconds, position: 0, is_preview: false, is_teaser: true })
     }
 }
 await api('POST', '/rest/v1/digital_contents', rows, { Prefer: 'return=minimal' })

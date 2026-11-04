@@ -11,8 +11,8 @@ BEGIN
     -- preparo (como serviço): um álbum grátis e um pago, com uma faixa em cada
     INSERT INTO products (name, slug, price, type, store_id, owner_id, is_active) VALUES ('Álbum grátis de teste', 'album-gratis-teste-x', 0, 'digital', v_store, v_owner, true) RETURNING id INTO v_free;
     INSERT INTO products (name, slug, price, type, store_id, owner_id, is_active) VALUES ('Single pago de teste', 'single-pago-teste-x', 5, 'digital', v_store, v_owner, true) RETURNING id INTO v_paid;
-    INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, position) VALUES (v_free, v_owner, 'Faixa 1', 'audio', v_owner || '/x/faixa1.mp3', 0) RETURNING id INTO v_track;
-    INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, position) VALUES (v_paid, v_owner, 'Faixa paga', 'audio', v_owner || '/x/paga.mp3', 0);
+    INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, position) VALUES (v_free, v_owner, 'Faixa 1', 'audio', 'digital-music', v_owner || '/x/faixa1.mp3', 0) RETURNING id INTO v_track;
+    INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, position) VALUES (v_paid, v_owner, 'Faixa paga', 'audio', 'digital-music', v_owner || '/x/paga.mp3', 0);
 
     PERFORM set_config('request.jwt.claim.sub', v_stranger::text, true);
     PERFORM set_config('request.jwt.claims', json_build_object('sub', v_stranger, 'role', 'authenticated')::text, true);
@@ -51,18 +51,18 @@ BEGIN
     PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner, 'role', 'authenticated')::text, true);
     SET LOCAL ROLE authenticated;
     IF has_digital_rights(v_free) THEN RAISE EXCEPTION 'FALHA 5b: já declarado'; END IF;
-    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, position) VALUES (v_free, v_owner, 'Faixa 2', 'audio', v_owner || '/x/faixa2.mp3', 1);
+    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, position) VALUES (v_free, v_owner, 'Faixa 2', 'audio', 'digital-music', v_owner || '/x/faixa2.mp3', 1);
         RAISE EXCEPTION 'FALHA 5c: áudio entrou sem declaração';
     EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS v_err = PG_EXCEPTION_HINT; IF v_err <> 'rights_declaration_required' THEN RAISE; END IF; END;
     -- documento não precisa de declaração
     INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, position) VALUES (v_free, v_owner, 'Cifra', 'document', v_owner || '/x/cifra.pdf', 2);
     PERFORM declare_digital_rights(v_free);
     IF NOT has_digital_rights(v_free) THEN RAISE EXCEPTION 'FALHA 5d: declaração não gravou'; END IF;
-    INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, position) VALUES (v_free, v_owner, 'Faixa 2', 'audio', v_owner || '/x/faixa2.mp3', 1);
+    INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, position) VALUES (v_free, v_owner, 'Faixa 2', 'audio', 'digital-music', v_owner || '/x/faixa2.mp3', 1);
 
     -- 6) prévia em áudio: 1–30 s; mais que isso é recusado; aparece para qualquer pessoa, fora do sumário
-    INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, duration_seconds, is_teaser, position) VALUES (v_free, v_owner, 'Prévia', 'audio', v_owner || '/x/previa.mp3', 28, true, 0) RETURNING id INTO v_teaser;
-    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, duration_seconds, is_teaser, position) VALUES (v_free, v_owner, 'Prévia longa', 'audio', v_owner || '/x/longa.mp3', 45, true, 0);
+    INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, duration_seconds, is_teaser, position) VALUES (v_free, v_owner, 'Prévia', 'audio', 'digital-music', v_owner || '/x/previa.mp3', 28, true, 0) RETURNING id INTO v_teaser;
+    BEGIN INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, duration_seconds, is_teaser, position) VALUES (v_free, v_owner, 'Prévia longa', 'audio', 'digital-music', v_owner || '/x/longa.mp3', 45, true, 0);
         RAISE EXCEPTION 'FALHA 6: prévia de 45 s aceita';
     EXCEPTION WHEN check_violation THEN NULL; END;
     RESET ROLE;

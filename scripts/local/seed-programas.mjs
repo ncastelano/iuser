@@ -62,8 +62,8 @@ const rows = []
 let pos = 0
 for (const p of PRODUCTS) for (const f of p.files) {
     const buf = fake(`${p.name} ${f.version}`, f.kb), sp = `${admin.id}/${p.id}/${Date.now()}-${f.name}`
-    await upload('digital-files', sp, buf, 'application/octet-stream')
-    rows.push({ product_id: p.id, owner_id: admin.id, title: `${f.version} · ${f.name}`.slice(0, 140), kind: 'app', storage_path: sp, mime_type: 'application/octet-stream', size_bytes: buf.length,
+    await upload('digital-apps', sp, buf, 'application/octet-stream')
+    rows.push({ product_id: p.id, owner_id: admin.id, title: `${f.version} · ${f.name}`.slice(0, 140), kind: 'app', bucket: 'digital-apps', storage_path: sp, mime_type: 'application/octet-stream', size_bytes: buf.length,
         platform: f.platform, version: f.version, release_notes: f.notes, sha256: crypto.createHash('sha256').update(buf).digest('hex'), position: pos++, is_preview: !!f.demo, created_at: daysAgo(f.age) })
 }
 await api('POST', '/rest/v1/digital_contents', rows, { Prefer: 'return=minimal' })

@@ -11,7 +11,7 @@ BEGIN
            (SELECT id FROM profiles WHERE id <> v_owner AND created_at < now() - interval '2 days' ORDER BY id OFFSET 2 LIMIT 1),
            (SELECT id FROM profiles WHERE id <> v_owner AND created_at < now() - interval '2 days' ORDER BY id OFFSET 3 LIMIT 1) INTO v_a, v_b, v_c, v_buyer;
     INSERT INTO products (name, slug, price, type, store_id, owner_id, is_active) VALUES ('Música denunciada de teste', 'musica-denunciada-teste-x', 0, 'digital', v_store, v_owner, true) RETURNING id INTO v_p;
-    INSERT INTO digital_contents (product_id, owner_id, title, kind, storage_path, position) VALUES (v_p, v_owner, 'Faixa', 'audio', v_owner || '/x/f.mp3', 0) RETURNING id INTO v_item;
+    INSERT INTO digital_contents (product_id, owner_id, title, kind, bucket, storage_path, position) VALUES (v_p, v_owner, 'Faixa', 'audio', 'digital-music', v_owner || '/x/f.mp3', 0) RETURNING id INTO v_item;
     INSERT INTO digital_claims (profile_id, product_id) VALUES (v_buyer, v_p);
 
     -- 1) o dono não denuncia o que é dele; motivo/tipo inválidos são recusados

@@ -83,7 +83,8 @@ BEGIN
     IF (pg_temp.authz(a, 'community-photos', a || '/x.jpg', 1000, 'image/png')->>'ok')::boolean IS NOT TRUE THEN RAISE EXCEPTION 'pasta própria deveria passar'; END IF;
     IF pg_temp.authz(a, 'flash-media', a || '/v.mp4', 15728641, 'video/mp4')->>'error' <> 'too_large' THEN RAISE EXCEPTION 'flash acima de 15 MB'; END IF;
     IF (pg_temp.authz(a, 'flash-media', a || '/v.mp4', 15728640, 'video/mp4')->>'ok')::boolean IS NOT TRUE THEN RAISE EXCEPTION 'flash de vídeo até 15 MB deveria passar'; END IF;
-    IF (pg_temp.authz(a, 'digital-files', a || '/p/aula.pdf', 500000000, 'application/pdf')->>'ok')::boolean IS NOT TRUE THEN RAISE EXCEPTION 'digital (qualquer tipo, até 500 MB) deveria passar'; END IF;
+    IF (pg_temp.authz(a, 'digital-files', a || '/p/aula.pdf', 52428800, 'application/pdf')->>'ok')::boolean IS NOT TRUE THEN RAISE EXCEPTION 'digital (curso/e-book/arquivos, até 50 MB) deveria passar'; END IF;
+    IF pg_temp.authz(a, 'digital-files', a || '/p/aula.pdf', 52428801, 'application/pdf')->>'error' <> 'too_large' THEN RAISE EXCEPTION 'digital acima de 50 MB deveria ser recusado'; END IF;
     RAISE NOTICE 'OK 2: tipo, vazio, tamanho (no limite passa, 1 byte a mais não), caminhos inválidos e pasta própria';
 END $$;
 
