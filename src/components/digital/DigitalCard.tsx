@@ -125,7 +125,7 @@ export default function DigitalCard({ p, spotlight, upNext, onVisible, onInterac
                 <p className="text-[14px] font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</p>
                 <p className="text-[11.5px] leading-snug line-clamp-2" style={{ color: colors.textSecondary }}>{p.summary}</p>
                 <div className="mt-auto pt-1.5 flex items-center gap-2">
-                    <span className="text-base font-black" style={{ color: ORANGE }}>{brl(p.price)}</span>
+                    <span className="text-base font-black" style={{ color: ORANGE }}>{p.price > 0 ? brl(p.price) : 'Grátis'}</span>
                     {p.viewCount > 0 && <span className="flex items-center gap-0.5 text-[11px]" style={{ color: colors.textSecondary }}><Eye size={11} />{p.viewCount}</span>}
                     <span className="ml-auto flex items-center gap-1.5 min-w-0">
                         {p.storeLogo && <img src={p.storeLogo} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" loading="lazy" />}

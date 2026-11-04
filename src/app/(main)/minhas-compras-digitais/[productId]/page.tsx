@@ -179,7 +179,7 @@ export default function SalaDeAulaPage() {
                                                     </span>
                                                     <span className="min-w-0 flex-1">
                                                         <span className="block text-[13px] font-bold leading-snug" style={{ color: C.text }}>{it.title}</span>
-                                                        <span className="block text-[11px]" style={{ color: C.muted }}>{[play ? 'Vídeo' : it.kind === 'document' ? 'Material' : it.kind === 'audio' ? 'Áudio' : 'Link', formatDuration(it.duration_seconds), formatSize(it.size_bytes)].filter(Boolean).join(' · ')}</span>
+                                                        <span className="block text-[11px]" style={{ color: C.muted }}>{[it.kind === 'video' ? 'Vídeo' : it.kind === 'audio' ? (music ? 'Faixa' : 'Áudio') : it.kind === 'document' ? 'Material' : 'Link', formatDuration(it.duration_seconds), formatSize(it.size_bytes)].filter(Boolean).join(' · ')}</span>
                                                     </span>
                                                     {it.is_preview && <span className="text-[10px] font-black rounded-full px-2 py-0.5 flex-shrink-0" style={{ background: 'rgba(34,197,94,.16)', color: C.green }}>Grátis</span>}
                                                     {!it.unlocked && <Lock size={14} style={{ color: C.muted }} />}
