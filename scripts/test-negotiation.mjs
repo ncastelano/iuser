@@ -1,7 +1,7 @@
 // Testes das regras puras da negociação de corridas (src/modules/negotiation/domain.ts). Rodar: npm run test:negotiation
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText } from '../src/modules/negotiation/domain.ts'
+import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem } from '../src/modules/negotiation/domain.ts'
 
 test('valor válido: positivo e até R$ 100.000', () => {
     assert.equal(validateAmount(12.5), null)
@@ -109,4 +109,21 @@ test('valor mínimo da plataforma: minutos × mínimo por minuto, arredondado pa
     assert.equal(belowPlatformFloor(5, 0), false)
     assert.equal(platformFloorText(19, 0.5), 'O valor mínimo da plataforma para esta corrida é R$ 19,00 (R$ 0,50 por minuto de trabalho).')
     assert.match(negotiationError({ hint: 'below_platform_min', message: 'O valor mínimo é R$ 19,00' }), /R\$ 19,00/)
+})
+
+test('mínimo padrão R$ 0,80 por minuto, teto R$ 1,00; só o admin eleva o teto', () => {
+    assert.equal(DEFAULT_MIN_PER_MINUTE, 0.8)
+    assert.equal(DEFAULT_MIN_PER_MINUTE_CAP, 1)
+    assert.equal(platformFloor(38, DEFAULT_MIN_PER_MINUTE), 30.4)              // 38 min não saem por menos de R$ 30,40
+    assert.equal(minPerMinuteProblem(0.8), null)
+    assert.equal(minPerMinuteProblem(1), null)                                  // no teto: vale
+    assert.equal(minPerMinuteProblem(0), null)                                  // 0 desliga
+    assert.match(minPerMinuteProblem(1.01), /não pode passar de R\$ 1,00/)
+    assert.equal(minPerMinuteProblem(1.5, 2), null)                             // com o teto elevado pelo admin
+    assert.ok(minPerMinuteProblem(-1))
+    assert.ok(minPerMinuteProblem(NaN))
+    assert.equal(capProblem(1.5, 0.8), null)
+    assert.match(capProblem(0.7, 0.8), /abaixo do mínimo/)
+    assert.ok(capProblem(25, 0.8))
+    assert.ok(capProblem(0, 0))
 })

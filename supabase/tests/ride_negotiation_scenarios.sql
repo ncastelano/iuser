@@ -45,6 +45,11 @@ BEGIN
     SELECT id INTO D1 FROM profiles WHERE is_active AND id <> P AND id NOT IN (SELECT driver_id FROM driver_earning_goals) AND id NOT IN (SELECT driver_id FROM driver_pricing) ORDER BY created_at OFFSET 1 LIMIT 1;
     SELECT id INTO D2 FROM profiles WHERE is_active AND id NOT IN (P, D1) AND id NOT IN (SELECT driver_id FROM driver_earning_goals) AND id NOT IN (SELECT driver_id FROM driver_pricing) ORDER BY created_at OFFSET 2 LIMIT 1;
 
+    -- o padrão de fábrica do mínimo por minuto é R$ 0,80 e o teto R$ 1,00 (conferido no cenário 17)
+    IF (SELECT column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ride_negotiation_settings' AND column_name = 'min_per_minute') NOT LIKE '0.80%' THEN RAISE EXCEPTION '0: padrão do mínimo deveria ser 0.80'; END IF;
+    -- os cenários 1-16 testam a negociação em si, com valores pequenos: sem o piso da plataforma (o cenário 17 testa só ele)
+    UPDATE ride_negotiation_settings SET min_per_minute = 0;
+
     -- 1-3) passageiro oferece = referência, menos e mais; a oferta chega aos motoristas (ride_offers) e a anterior é substituída
     ride := pg_temp.new_ride(P, 5, 12);
     PERFORM pg_temp.as_user(P);
@@ -246,28 +251,39 @@ BEGIN
     IF (SELECT count(*) FROM profile_notifications WHERE profile_id = P AND kind = 'ride_offer_expired' AND ref_id = ride) <> 1 THEN RAISE EXCEPTION '16: quem propôs não foi avisado da expiração'; END IF;
     RAISE NOTICE 'OK 16';
 
-    -- 17) valor mínimo da plataforma: R$ 0,50 por minuto de trabalho; ninguém fecha abaixo disso
-    ride := pg_temp.new_ride(P, 5, 12);                     -- corrida de 12 min: piso do trajeto R$ 6,00
-    IF get_ride_minimum() <> 0.50 THEN RAISE EXCEPTION '17: mínimo padrão deveria ser R$ 0,50 por minuto'; END IF;
-    PERFORM pg_temp.expect_fail(format('select pg_temp.new_app(%L, %L, 5.99)', ride, D1), 'below_platform_min');   -- candidatura abaixo do piso
-    a1 := pg_temp.new_app(ride, D1, 6);                                                                           -- no piso: passa
+    -- 17) valor mínimo da plataforma: R$ 0,80 por minuto de trabalho (teto R$ 1,00, só o admin eleva); ninguém fecha abaixo disso
+    UPDATE ride_negotiation_settings SET min_per_minute = 0.80, max_per_minute = 1.00;   -- volta ao padrão de fábrica
+    ride := pg_temp.new_ride(P, 5, 12);                     -- corrida de 12 min: piso do trajeto R$ 9,60
+    IF get_ride_minimum() <> 0.80 THEN RAISE EXCEPTION '17: mínimo padrão deveria ser R$ 0,80 por minuto'; END IF;
+    IF get_ride_minimum_cap() <> 1.00 THEN RAISE EXCEPTION '17: teto padrão deveria ser R$ 1,00 por minuto'; END IF;
+    PERFORM pg_temp.expect_fail(format('select pg_temp.new_app(%L, %L, 9.59)', ride, D1), 'below_platform_min');   -- candidatura abaixo do piso
+    a1 := pg_temp.new_app(ride, D1, 9.60);                                                                         -- no piso: passa
     PERFORM pg_temp.as_user(P);
-    PERFORM pg_temp.expect_fail(format('select set_passenger_offer(%L, 5)', ride), 'below_platform_min');
-    PERFORM pg_temp.expect_fail(format('select passenger_counter(%L, 5)', a1), 'below_platform_min');
+    PERFORM pg_temp.expect_fail(format('select set_passenger_offer(%L, 9)', ride), 'below_platform_min');
+    PERFORM pg_temp.expect_fail(format('select passenger_counter(%L, 9)', a1), 'below_platform_min');
     PERFORM pg_temp.as_user(D1);
-    PERFORM pg_temp.expect_fail(format('select driver_counter(%L, 5, 30)', a1), 'below_platform_min');
-    r := driver_hourly_check(ride, 14, 30);                  -- 30 min de trabalho no total: piso R$ 15,00
-    IF (r->>'platform_min')::numeric <> 15 OR (r->>'below_platform')::boolean IS NOT TRUE OR (r->>'blocked')::boolean IS NOT TRUE THEN RAISE EXCEPTION '17: piso da plataforma não bloqueou %', r; END IF;
-    r := driver_hourly_check(ride, 15, 30);
+    PERFORM pg_temp.expect_fail(format('select driver_counter(%L, 9, 30)', a1), 'below_platform_min');
+    r := driver_hourly_check(ride, 23.99, 30);               -- 30 min de trabalho no total: piso R$ 24,00
+    IF (r->>'platform_min')::numeric <> 24 OR (r->>'below_platform')::boolean IS NOT TRUE OR (r->>'blocked')::boolean IS NOT TRUE THEN RAISE EXCEPTION '17: piso da plataforma não bloqueou %', r; END IF;
+    r := driver_hourly_check(ride, 24, 30);
     IF (r->>'below_platform')::boolean IS NOT FALSE THEN RAISE EXCEPTION '17: no piso não pode bloquear %', r; END IF;
     PERFORM pg_temp.as_server();
-    PERFORM admin_set_ride_minimum(1.00, P);                 -- o admin sobe para R$ 1,00 por minuto
+    PERFORM admin_set_ride_minimum(1.00, P);                 -- o admin sobe até o teto: R$ 1,00 por minuto
     IF _ride_trip_floor(ride) <> 12 THEN RAISE EXCEPTION '17: o piso não acompanhou a mudança do admin'; END IF;
     IF (SELECT count(*) FROM admin_config_audit WHERE scope = 'ride_minimum' AND changed_by = P) <> 1 THEN RAISE EXCEPTION '17: mudança do admin não ficou auditada'; END IF;
-    PERFORM pg_temp.expect_fail('select admin_set_ride_minimum(25)', NULL);   -- fora de R$ 0 a R$ 20
+    PERFORM pg_temp.expect_fail('select admin_set_ride_minimum(1.01)', NULL);   -- acima do teto de R$ 1,00: recusa
+    IF get_ride_minimum() <> 1.00 THEN RAISE EXCEPTION '17: valor acima do teto não pode ter sido gravado'; END IF;
+    PERFORM admin_set_ride_minimum_cap(1.50, P);             -- só o admin libera um teto maior
+    PERFORM admin_set_ride_minimum(1.20, P);
+    IF _ride_trip_floor(ride) <> 14.40 THEN RAISE EXCEPTION '17: o piso não acompanhou o novo teto'; END IF;
+    PERFORM pg_temp.expect_fail('select admin_set_ride_minimum_cap(1.10)', NULL);   -- teto abaixo do mínimo em vigor
+    PERFORM pg_temp.expect_fail('select admin_set_ride_minimum_cap(25)', NULL);     -- fora de R$ 0,01 a R$ 20
+    PERFORM pg_temp.expect_fail('select admin_set_ride_minimum(-1)', NULL);
+    IF (SELECT count(*) FROM admin_config_audit WHERE scope = 'ride_minimum' AND setting = 'max_per_minute' AND changed_by = P) <> 1 THEN RAISE EXCEPTION '17: mudança do teto não ficou auditada'; END IF;
     PERFORM admin_set_ride_minimum(0, P);                    -- 0 desliga
     IF _ride_trip_floor(ride) <> 0 THEN RAISE EXCEPTION '17: com 0 não há piso'; END IF;
-    IF has_function_privilege('authenticated', 'public.admin_set_ride_minimum(numeric,uuid)', 'execute') OR has_function_privilege('anon', 'public.admin_set_ride_minimum(numeric,uuid)', 'execute') THEN RAISE EXCEPTION '17: só o servidor altera o mínimo'; END IF;
+    IF has_function_privilege('authenticated', 'public.admin_set_ride_minimum(numeric,uuid)', 'execute') OR has_function_privilege('anon', 'public.admin_set_ride_minimum(numeric,uuid)', 'execute')
+       OR has_function_privilege('authenticated', 'public.admin_set_ride_minimum_cap(numeric,uuid)', 'execute') OR has_function_privilege('anon', 'public.admin_set_ride_minimum_cap(numeric,uuid)', 'execute') THEN RAISE EXCEPTION '17: só o servidor altera o mínimo e o teto'; END IF;
     RAISE NOTICE 'OK 17';
 END $$;
 

@@ -37,6 +37,8 @@ DROP FUNCTION IF EXISTS public._neg_cfg();
 DROP TRIGGER IF EXISTS ride_applications_platform_min ON public.ride_applications;
 DROP FUNCTION IF EXISTS public.ride_applications_platform_min();
 DROP FUNCTION IF EXISTS public._ride_trip_floor(uuid);
+DROP FUNCTION IF EXISTS public.admin_set_ride_minimum_cap(numeric, uuid);
+DROP FUNCTION IF EXISTS public.get_ride_minimum_cap();
 DROP FUNCTION IF EXISTS public.admin_set_ride_minimum(numeric, uuid);
 DROP FUNCTION IF EXISTS public.get_ride_minimum();
 DROP FUNCTION IF EXISTS public._ride_min_per_minute();

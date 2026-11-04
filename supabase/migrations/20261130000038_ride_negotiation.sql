@@ -16,8 +16,13 @@ CREATE TABLE IF NOT EXISTS public.ride_negotiation_settings (
     offer_ttl_seconds integer NOT NULL DEFAULT 180 CHECK (offer_ttl_seconds BETWEEN 30 AND 3600) -- quanto tempo vale uma proposta pendente
 );
 -- VALOR MÍNIMO POR MINUTO de trabalho (ir buscar + corrida): nenhuma corrida de passageiro pode ser fechada por menos que minutos × este valor.
--- R$ 0,50 por minuto = R$ 30 por hora. Editado em Admin → Tarifas (admin_set_ride_minimum); 0 desliga.
-ALTER TABLE public.ride_negotiation_settings ADD COLUMN IF NOT EXISTS min_per_minute numeric(6,2) NOT NULL DEFAULT 0.50 CHECK (min_per_minute >= 0 AND min_per_minute <= 20);
+-- Padrão R$ 0,80 por minuto = R$ 48 por hora. Editado em Admin → Tarifas (admin_set_ride_minimum); 0 desliga.
+-- TETO: o mínimo não passa de R$ 1,00 por minuto (max_per_minute); só o administrador geral eleva o próprio teto (admin_set_ride_minimum_cap).
+ALTER TABLE public.ride_negotiation_settings ADD COLUMN IF NOT EXISTS min_per_minute numeric(6,2) NOT NULL DEFAULT 0.80 CHECK (min_per_minute >= 0 AND min_per_minute <= 20);
+ALTER TABLE public.ride_negotiation_settings ADD COLUMN IF NOT EXISTS max_per_minute numeric(6,2) NOT NULL DEFAULT 1.00 CHECK (max_per_minute >= 0.01 AND max_per_minute <= 20);
+DO $$ BEGIN
+    ALTER TABLE public.ride_negotiation_settings ADD CONSTRAINT rns_min_within_cap CHECK (min_per_minute <= max_per_minute);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 INSERT INTO public.ride_negotiation_settings (id) VALUES (true) ON CONFLICT DO NOTHING;
 ALTER TABLE public.ride_negotiation_settings ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.ride_negotiation_settings FROM anon, authenticated;
@@ -97,7 +102,7 @@ REVOKE ALL ON FUNCTION public._neg_money(numeric) FROM public, anon, authenticat
 
 CREATE OR REPLACE FUNCTION public._ride_min_per_minute()
 RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-    SELECT COALESCE((SELECT min_per_minute FROM public.ride_negotiation_settings), 0.50);
+    SELECT COALESCE((SELECT min_per_minute FROM public.ride_negotiation_settings), 0.80);
 $$;
 REVOKE ALL ON FUNCTION public._ride_min_per_minute() FROM public, anon, authenticated;
 
@@ -107,12 +112,23 @@ RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
 REVOKE ALL ON FUNCTION public.get_ride_minimum() FROM public;
 GRANT EXECUTE ON FUNCTION public.get_ride_minimum() TO anon, authenticated, service_role;
 
+-- o teto atual do mínimo por minuto (público: as telas e o Admin mostram o limite)
+CREATE OR REPLACE FUNCTION public.get_ride_minimum_cap()
+RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+    SELECT COALESCE((SELECT max_per_minute FROM public.ride_negotiation_settings), 1.00)
+$$;
+REVOKE ALL ON FUNCTION public.get_ride_minimum_cap() FROM public;
+GRANT EXECUTE ON FUNCTION public.get_ride_minimum_cap() TO anon, authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.admin_set_ride_minimum(p_value numeric, p_admin uuid DEFAULT NULL)
 RETURNS numeric LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_old numeric; v numeric := round(COALESCE(p_value, 0), 2);
+DECLARE v_old numeric; v_cap numeric; v numeric := round(COALESCE(p_value, 0), 2);
 BEGIN
-    IF v < 0 OR v > 20 THEN RAISE EXCEPTION 'O mínimo por minuto precisa ficar entre R$ 0 e R$ 20' USING ERRCODE = '22023'; END IF;
-    SELECT min_per_minute INTO v_old FROM public.ride_negotiation_settings WHERE id;
+    SELECT min_per_minute, max_per_minute INTO v_old, v_cap FROM public.ride_negotiation_settings WHERE id;
+    IF v < 0 THEN RAISE EXCEPTION 'O mínimo por minuto não pode ser negativo' USING ERRCODE = '22023'; END IF;
+    IF v > v_cap THEN
+        RAISE EXCEPTION 'O mínimo por minuto não pode passar de % (o teto só é elevado pelo administrador geral)', public._neg_money(v_cap) USING ERRCODE = '22023';
+    END IF;
     UPDATE public.ride_negotiation_settings SET min_per_minute = v WHERE id;
     IF v_old IS DISTINCT FROM v THEN
         INSERT INTO public.admin_config_audit (scope, setting, old_value, new_value, changed_by) VALUES ('ride_minimum', 'min_per_minute', to_jsonb(v_old), to_jsonb(v), p_admin);
@@ -120,6 +136,22 @@ BEGIN
     RETURN v;
 END; $$;
 REVOKE ALL ON FUNCTION public.admin_set_ride_minimum(numeric, uuid) FROM public, anon, authenticated;
+
+-- eleva (ou baixa) o TETO do mínimo por minuto. Nunca fica abaixo do mínimo em vigor; vai até R$ 20. Auditado.
+CREATE OR REPLACE FUNCTION public.admin_set_ride_minimum_cap(p_value numeric, p_admin uuid DEFAULT NULL)
+RETURNS numeric LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_old numeric; v_min numeric; v numeric := round(COALESCE(p_value, 0), 2);
+BEGIN
+    SELECT max_per_minute, min_per_minute INTO v_old, v_min FROM public.ride_negotiation_settings WHERE id;
+    IF v < 0.01 OR v > 20 THEN RAISE EXCEPTION 'O teto precisa ficar entre R$ 0,01 e R$ 20,00 por minuto' USING ERRCODE = '22023'; END IF;
+    IF v < v_min THEN RAISE EXCEPTION 'O teto não pode ficar abaixo do mínimo em vigor (%)', public._neg_money(v_min) USING ERRCODE = '22023'; END IF;
+    UPDATE public.ride_negotiation_settings SET max_per_minute = v WHERE id;
+    IF v_old IS DISTINCT FROM v THEN
+        INSERT INTO public.admin_config_audit (scope, setting, old_value, new_value, changed_by) VALUES ('ride_minimum', 'max_per_minute', to_jsonb(v_old), to_jsonb(v), p_admin);
+    END IF;
+    RETURN v;
+END; $$;
+REVOKE ALL ON FUNCTION public.admin_set_ride_minimum_cap(numeric, uuid) FROM public, anon, authenticated;
 
 -- piso do TRAJETO (só os minutos da corrida, que o servidor conhece): usado onde não há como saber de onde o motorista sai
 CREATE OR REPLACE FUNCTION public._ride_trip_floor(p_ride uuid)

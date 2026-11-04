@@ -1,6 +1,6 @@
 // src/modules/negotiation/load.ts — fala com o banco (ofertas, contrapropostas, ganho mínimo). A validação de verdade mora nas funções do banco.
 import { supabase } from '@/lib/supabase/client'
-import { DEFAULT_MIN_PER_MINUTE, negotiationError, offerFromRow, parseHourlyCheck, type HourlyCheck, type PriceOffer } from './domain'
+import { DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, negotiationError, offerFromRow, parseHourlyCheck, type HourlyCheck, type PriceOffer } from './domain'
 
 export class NegotiationError extends Error {
     hint: string | null
@@ -63,3 +63,9 @@ export async function loadRideMinimum(): Promise<number> {
     return v
 }
 export function forgetRideMinimum() { minCache = null }
+
+/** O teto do mínimo por minuto (só para o Admin mostrar). */
+export async function loadRideMinimumCap(): Promise<number> {
+    const { data, error } = await supabase.rpc('get_ride_minimum_cap')
+    return !error && data != null && Number.isFinite(Number(data)) ? Number(data) : DEFAULT_MIN_PER_MINUTE_CAP
+}

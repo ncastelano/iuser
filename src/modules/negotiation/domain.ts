@@ -55,8 +55,26 @@ export function suggestedFare(distanceFare: number, floor: number | null): numbe
 }
 
 // ===== VALOR MÍNIMO DA PLATAFORMA (por minuto de trabalho) =====
-/** Padrão: R$ 0,50 por minuto (= R$ 30 por hora). O valor de verdade mora no banco (Admin → Tarifas); este só vale até ele carregar. */
-export const DEFAULT_MIN_PER_MINUTE = 0.5
+/** Padrão: R$ 0,80 por minuto (= R$ 48 por hora). O valor de verdade mora no banco (Admin → Tarifas); este só vale até ele carregar. */
+export const DEFAULT_MIN_PER_MINUTE = 0.8
+/** Teto padrão do mínimo: R$ 1,00 por minuto. Só o administrador geral eleva o teto (Admin → Tarifas); o banco confere. */
+export const DEFAULT_MIN_PER_MINUTE_CAP = 1
+/** Teto absoluto do que o admin pode liberar (igual ao CHECK do banco). */
+export const MAX_MIN_PER_MINUTE_CAP = 20
+
+/** Confere o mínimo por minuto digitado contra o teto em vigor. Devolve o motivo em português ou null se vale. */
+export function minPerMinuteProblem(value: number, cap: number = DEFAULT_MIN_PER_MINUTE_CAP): string | null {
+    if (!Number.isFinite(value) || value < 0) return 'Digite um valor de 0 para cima por minuto'
+    if (value > cap + 1e-9) return `O mínimo por minuto não pode passar de R$ ${cap.toFixed(2).replace('.', ',')} (o teto só é elevado nas configurações de administrador)`
+    return null
+}
+
+/** Confere o novo teto contra o mínimo em vigor. */
+export function capProblem(cap: number, currentMin: number): string | null {
+    if (!Number.isFinite(cap) || cap < 0.01 || cap > MAX_MIN_PER_MINUTE_CAP) return `O teto precisa ficar entre R$ 0,01 e R$ ${MAX_MIN_PER_MINUTE_CAP},00 por minuto`
+    if (cap + 1e-9 < currentMin) return `O teto não pode ficar abaixo do mínimo em vigor (R$ ${currentMin.toFixed(2).replace('.', ',')})`
+    return null
+}
 
 /** Piso de uma corrida: minutos de trabalho (ir buscar + corrida) × o mínimo por minuto, arredondado PARA CIMA em centavos. 0 se não dá para medir ou o mínimo está desligado. */
 export function platformFloor(minutes: number | null | undefined, minPerMinute: number | null | undefined): number {
