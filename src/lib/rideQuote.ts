@@ -2,7 +2,7 @@
 // e /aceitar-corridas) para os valores nunca mais divergirem. Sem rede nem React; as fórmulas de tarifa entram por parâmetro (tripFare/pickupFee), então
 // aqui só vive a composição: distância da ROTA em vez do km gravado quando divergem, Tarifa iUser (+ deslocamento), Minha tarifa, o piso por hora e qual valor mostrar.
 // Testado em scripts/test-ride-quote.mjs (npm run test:ride-quote).
-import { hourlyFloor, perHour, round2, suggestedFare } from '../modules/negotiation/domain.ts'
+import { hourlyFloor, perHour, platformFloor, round2, suggestedFare } from '../modules/negotiation/domain.ts'
 
 /** km da rota que o mapa mostra só vale no lugar do km gravado no pedido quando a diferença passa disto */
 export const ROUTE_KM_TOLERANCE = 0.3
@@ -23,6 +23,8 @@ export interface RideQuoteInput<Shape> {
     pickupMin: number | null
     tripMin: number | null
     minHourly: number | null
+    /** valor mínimo da plataforma por minuto de trabalho (null/0 = sem regra) */
+    minPerMinute: number | null
     tripFare: (shape: Shape, km: number | null) => number
     pickupFee: (shape: Shape, km: number) => number
 }
@@ -40,6 +42,8 @@ export interface RideQuote {
     shown: number
     shownKind: 'offered' | 'custom' | 'platform'
     minutes: number | null
+    /** piso da plataforma para esta corrida (minutos × mínimo por minuto); 0 se não dá para medir */
+    platformMin: number
     /** ganho por hora do valor destacado (valor ÷ tempo total) */
     perHour: number | null
 }
@@ -49,14 +53,16 @@ export function rideQuote<Shape>(i: RideQuoteInput<Shape>): RideQuote {
     const tripKm = useRoute ? i.routeKm : i.distanceKm ?? i.routeKm
     const platformTrip = i.tripFare(i.platformShape, tripKm)
     const pickupAmount = i.pickupKm != null ? i.pickupFee(i.platformShape, i.pickupKm) : 0
-    const platform = round2(platformTrip + pickupAmount)
     const minutes = i.pickupMin != null && i.tripMin != null ? i.pickupMin + i.tripMin : null
+    // Piso da plataforma: nenhuma corrida de passageiro (Tarifa iUser ou a do motorista) sai por menos que minutos × o mínimo por minuto. Frete de loja é fixo.
+    const platformMin = i.offeredPrice != null ? 0 : platformFloor(minutes, i.minPerMinute)
+    const platform = round2(Math.max(platformTrip + pickupAmount, platformMin))
     const floor = hourlyFloor(minutes, i.minHourly)
-    const custom = i.customShape ? suggestedFare(i.tripFare(i.customShape, tripKm), floor) : null
+    const custom = i.customShape ? round2(Math.max(suggestedFare(i.tripFare(i.customShape, tripKm), floor), platformMin)) : null
 
     let shown = platform
     let shownKind: RideQuote['shownKind'] = 'platform'
     if (i.offeredPrice != null) { shown = i.offeredPrice; shownKind = 'offered' }
     else if (i.useCustom && custom != null) { shown = custom; shownKind = 'custom' }
-    return { tripKm, platformTrip: round2(platformTrip), platform, custom, shown: round2(shown), shownKind, minutes, perHour: perHour(shown, minutes) }
+    return { tripKm, platformTrip: round2(platformTrip), platform, custom, shown: round2(shown), shownKind, minutes, platformMin, perHour: perHour(shown, minutes) }
 }

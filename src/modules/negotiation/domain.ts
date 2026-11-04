@@ -54,6 +54,25 @@ export function suggestedFare(distanceFare: number, floor: number | null): numbe
     return round2(Math.max(distanceFare, floor))
 }
 
+// ===== VALOR MÍNIMO DA PLATAFORMA (por minuto de trabalho) =====
+/** Padrão: R$ 0,50 por minuto (= R$ 30 por hora). O valor de verdade mora no banco (Admin → Tarifas); este só vale até ele carregar. */
+export const DEFAULT_MIN_PER_MINUTE = 0.5
+
+/** Piso de uma corrida: minutos de trabalho (ir buscar + corrida) × o mínimo por minuto, arredondado PARA CIMA em centavos. 0 se não dá para medir ou o mínimo está desligado. */
+export function platformFloor(minutes: number | null | undefined, minPerMinute: number | null | undefined): number {
+    if (!minutes || minutes <= 0 || !minPerMinute || minPerMinute <= 0) return 0
+    return Math.ceil(minutes * minPerMinute * 100 - 1e-9) / 100
+}
+
+/** Nenhuma corrida abaixo do piso da plataforma (piso 0 = sem regra) */
+export const belowPlatformFloor = (amount: number | null | undefined, floor: number): boolean => floor > 0 && amount != null && amount < floor
+
+/** "O valor mínimo da plataforma para esta corrida é R$ 19,00 (R$ 0,50 por minuto)." */
+export function platformFloorText(floor: number, minPerMinute: number): string {
+    const m = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`
+    return `O valor mínimo da plataforma para esta corrida é ${m(floor)} (${m(minPerMinute)} por minuto de trabalho).`
+}
+
 /** Está abaixo do mínimo do motorista? (sem mínimo ou sem como medir: não) */
 export function belowMinimum(perHourValue: number | null, minHourly: number | null | undefined): boolean {
     return perHourValue != null && minHourly != null && minHourly > 0 && perHourValue < minHourly
@@ -65,12 +84,12 @@ export function belowMinimumText(perHourValue: number, minHourly: number, what =
     return `Esta ${what} representa aproximadamente ${f(perHourValue)}, abaixo do seu mínimo de ${f(minHourly)}.`
 }
 
-export interface HourlyCheck { minutes: number | null; perHour: number | null; minHourly: number | null; protection: 'warn' | 'block'; below: boolean; blocked: boolean }
+export interface HourlyCheck { minutes: number | null; perHour: number | null; minHourly: number | null; protection: 'warn' | 'block'; below: boolean; blocked: boolean; platformMin: number | null; belowPlatform: boolean }
 /** A resposta de driver_hourly_check (jsonb do banco) → objeto tipado */
 export function parseHourlyCheck(j: Record<string, any> | null | undefined): HourlyCheck | null {
     if (!j || typeof j !== 'object') return null
     const num = (v: any) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
-    return { minutes: num(j.minutes), perHour: num(j.per_hour), minHourly: num(j.min_hourly), protection: j.protection === 'block' ? 'block' : 'warn', below: j.below === true, blocked: j.blocked === true }
+    return { minutes: num(j.minutes), perHour: num(j.per_hour), minHourly: num(j.min_hourly), protection: j.protection === 'block' ? 'block' : 'warn', below: j.below === true, blocked: j.blocked === true, platformMin: num(j.platform_min), belowPlatform: j.below_platform === true }
 }
 
 // ===== VALORES RÁPIDOS E SUGESTÃO DE ACORDO =====
@@ -156,6 +175,7 @@ export function negotiationError(err: { message?: string; hint?: string | null }
         case 'ride_closed': return 'Esta corrida já foi decidida.'
         case 'application_closed': return 'Esta candidatura não está mais aberta.'
         case 'below_min_hourly': return 'Esse valor está abaixo do seu ganho mínimo por hora.'
+        case 'below_platform_min': return err?.message || 'Esse valor está abaixo do mínimo da plataforma para esta corrida.'
         case 'same_as_proposal': return 'Esse é o valor que o motorista já pediu: aceite a proposta.'
         case 'above_proposal': return 'Sua oferta é maior que a proposta do motorista: aceite a proposta.'
         case 'invalid_amount': return 'Valor inválido.'

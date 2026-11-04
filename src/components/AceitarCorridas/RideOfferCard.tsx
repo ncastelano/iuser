@@ -15,7 +15,7 @@ import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
-import { belowMinimum, belowMinimumText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
+import { belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -100,6 +100,8 @@ interface RideOfferCardProps {
     protection?: 'warn' | 'block'
     // Tocar em "Minha tarifa" abre a tarifa personalizada do motorista (onde ele muda os valores); mandar a proposta por ela é pelo "outro" ou pelo botão da sugestão
     onEditTariff?: () => void
+    // Valor mínimo da plataforma por minuto de trabalho (Admin → Tarifas): nenhum valor sai abaixo de minutos × isto (0/undefined = sem regra)
+    minPerMinute?: number
 }
 
 function relativeTime(iso: string): string {
@@ -120,7 +122,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, compact = false, pickup, tripFareNote }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, minPerMinute = 0, compact = false, pickup, tripFareNote }: RideOfferCardProps) {
     const { colors } = useTheme()
     // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
     const v3 = useInsideShell()
@@ -142,12 +144,16 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     }
     // Ganho mínimo do motorista: piso por tempo, sugestão e alertas (só dele; nada disso vai para o passageiro)
     const floor = hourlyFloor(minutesTotal, minHourly)
-    const myFare = customPrice != null ? suggestedFare(customPrice, floor) : null
+    // Piso da plataforma: minutos × mínimo por minuto. Vale para a Tarifa iUser, para a tarifa do motorista e para qualquer proposta; frete de loja é fixo
+    const platFloor = ride.order_id || ride.offered_price != null ? 0 : platformFloor(minutesTotal, minPerMinute)
+    const raise = (v: number) => (platFloor > 0 ? Math.max(v, platFloor) : v)
+    platformPrice = raise(platformPrice)
+    const myFare = customPrice != null ? raise(suggestedFare(customPrice, floor)) : null
     // O piso do ganho mínimo SUBIU a tarifa só quando ele é maior que a tarifa por distância (comparando já arredondado, senão uma diferença de centavos acusa "no seu mínimo" sem o piso ter feito nada)
-    const floorRaised = floor != null && customPrice != null && floor > round2(customPrice)
-    const iuserSuggestion = customPrice == null && floor != null && floor > platformPrice ? floor : null   // sugestão calculada, nunca salva como preferência
+    const floorRaised = customPrice != null && ((floor != null && floor > round2(customPrice)) || (platFloor > 0 && platFloor > round2(customPrice)))
+    const iuserSuggestion = customPrice == null && floor != null && floor > platformPrice ? raise(floor) : null   // sugestão calculada, nunca salva como preferência
     const below = (price: number) => belowMinimum(perHour(price), minHourly)
-    const blocked = (price: number) => protection === 'block' && below(price)
+    const blocked = (price: number) => belowPlatformFloor(price, platFloor) || (protection === 'block' && below(price))
     const [counterOpen, setCounterOpen] = useState(false)
 
     const haveTotal = toPickup.km != null && toPickup.min != null && trip.km != null && trip.min != null
@@ -332,6 +338,9 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                     <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>Sua tarifa foi ajustada ao seu ganho mínimo por hora.</p>
                                 )}
                             </div>
+                            {belowPlatformFloor(offer, platFloor) && (
+                                <p className="text-[11px] font-bold leading-snug rounded-xl px-3 py-2" style={{ background: '#ef44441a', color: '#b91c1c' }}>{platformFloorText(platFloor, minPerMinute)} Essa oferta não pode ser aceita; faça uma contraproposta.</p>
+                            )}
                             {offerBelow && minHourly != null && perHour(offer) != null && (
                                 <p className="text-[11px] font-bold leading-snug rounded-xl px-3 py-2" style={{ background: '#f59e0b1f', color: '#b45309' }}>
                                     {belowMinimumText(perHour(offer) as number, minHourly)}{protection === 'block' ? ' Você ativou "não aceitar abaixo do mínimo".' : ''}
@@ -467,6 +476,15 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         </button>
                     </div>
 
+                    {platFloor > 0 && (
+                        <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>
+                            Mínimo da plataforma nesta corrida: <strong style={{ color: colors.textPrimary }}>{brl(platFloor)}</strong> · {brl(minPerMinute)} por minuto de trabalho ({minutesTotal != null ? `${Math.round(minutesTotal)} min` : ''})
+                        </p>
+                    )}
+
+                    {editing && belowPlatformFloor(parseFloat(value) || 0, platFloor) && (
+                        <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>{platformFloorText(platFloor, minPerMinute)}</p>
+                    )}
                     {editing && (
                         <div className="flex items-center gap-2">
                             <input

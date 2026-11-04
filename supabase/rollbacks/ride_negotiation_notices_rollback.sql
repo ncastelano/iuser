@@ -1,7 +1,6 @@
 -- Desfaz 20261130000039_ride_negotiation_notices.sql (volta a lista de tipos e o gatilho de push ao que eram; apaga os avisos dessa negociação)
 DROP TRIGGER IF EXISTS ride_price_offers_notify ON public.ride_price_offers;
 DROP FUNCTION IF EXISTS public.trg_notify_ride_price_offer();
-DROP FUNCTION IF EXISTS public._neg_money(numeric);
 DELETE FROM public.profile_notifications WHERE kind IN ('ride_offer_new', 'ride_offer_declined', 'ride_offer_agreed', 'ride_offer_expired');
 ALTER TABLE public.profile_notifications DROP CONSTRAINT IF EXISTS profile_notifications_kind_check;
 ALTER TABLE public.profile_notifications ADD CONSTRAINT profile_notifications_kind_check CHECK (kind = ANY (ARRAY[

@@ -11,14 +11,14 @@ import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { toast } from '@/lib/toast'
 import {
-    belowMinimum, belowMinimumText, clock, currentOffer, driverCounter, loadOffers, midpoint, NegotiationError, parseMoney, perHour, quickValues,
+    belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, clock, currentOffer, driverCounter, loadOffers, midpoint, NegotiationError, parseMoney, perHour, quickValues,
     respondOffer, roundsLeft, secondsLeft, validateAmount, type PriceOffer,
 } from '@/modules/negotiation'
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-export default function DriverNegotiation({ applicationId, myPrice, rideOffer, minutes, minHourly, protection, onChanged }: {
+export default function DriverNegotiation({ applicationId, myPrice, rideOffer, minutes, minHourly, protection, minPerMinute = 0, onChanged }: {
     applicationId: string
     /** o valor que o motorista está pedindo agora */
     myPrice: number | null
@@ -28,6 +28,8 @@ export default function DriverNegotiation({ applicationId, myPrice, rideOffer, m
     minutes: number | null
     minHourly: number | null
     protection: 'warn' | 'block'
+    /** valor mínimo da plataforma por minuto de trabalho (0 = sem regra) */
+    minPerMinute?: number
     onChanged: () => void
 }) {
     const { colors } = useTheme()
@@ -54,7 +56,8 @@ export default function DriverNegotiation({ applicationId, myPrice, rideOffer, m
 
     const hour = (v: number) => perHour(v, minutes)
     const isBelow = (v: number) => belowMinimum(hour(v), minHourly)
-    const isBlocked = (v: number) => protection === 'block' && isBelow(v)
+    const platFloor = platformFloor(minutes, minPerMinute)
+    const isBlocked = (v: number) => belowPlatformFloor(v, platFloor) || (protection === 'block' && isBelow(v))
 
     const run = async (fn: () => Promise<unknown>, okMsg: string) => {
         setBusy(true)
@@ -84,6 +87,9 @@ export default function DriverNegotiation({ applicationId, myPrice, rideOffer, m
                         </div>
                         {secs != null && <span className="flex items-center gap-1 text-[11px] font-black" style={{ color: secs < 30 ? '#dc2626' : colors.textSecondary }}><Clock size={11} />{clock(secs)}</span>}
                     </div>
+                    {belowPlatformFloor(fromPassenger.amount, platFloor) && (
+                        <p className="text-[11px] font-bold leading-snug rounded-xl px-3 py-2" style={{ background: '#ef44441a', color: '#b91c1c' }}>{platformFloorText(platFloor, minPerMinute)} Essa oferta não pode ser aceita: faça uma contraproposta.</p>
+                    )}
                     {isBelow(fromPassenger.amount) && minHourly != null && hour(fromPassenger.amount) != null && (
                         <p className="text-[11px] font-bold leading-snug rounded-xl px-3 py-2" style={{ background: '#f59e0b1f', color: '#b45309' }}>
                             {belowMinimumText(hour(fromPassenger.amount) as number, minHourly)}{protection === 'block' ? ' Você ativou "não aceitar abaixo do mínimo".' : ''}
@@ -132,7 +138,8 @@ export default function DriverNegotiation({ applicationId, myPrice, rideOffer, m
                         <input inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))} placeholder="Outro valor (R$)" className="flex-1 min-w-0 px-4 py-2.5 rounded-full text-sm font-semibold outline-none" style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }} />
                         <button onClick={() => parsed != null && run(() => driverCounter(applicationId, parsed, minutes), `Contraproposta de ${brl(parsed)} enviada`)} disabled={busy || parsed == null || !!validateAmount(parsed) || isBlocked(parsed)} className="px-4 py-2.5 rounded-full text-xs font-black text-white disabled:opacity-50" style={{ background: GRADIENT }}>{busy ? <Spinner size={12} /> : 'Enviar'}</button>
                     </div>
-                    {parsed != null && isBlocked(parsed) && minHourly != null && hour(parsed) != null && <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>{belowMinimumText(hour(parsed) as number, minHourly, 'proposta')}</p>}
+                    {parsed != null && belowPlatformFloor(parsed, platFloor) && <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>{platformFloorText(platFloor, minPerMinute)}</p>}
+                    {parsed != null && !belowPlatformFloor(parsed, platFloor) && isBlocked(parsed) && minHourly != null && hour(parsed) != null && <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>{belowMinimumText(hour(parsed) as number, minHourly, 'proposta')}</p>}
                     <p className="text-[10px]" style={{ color: colors.textSecondary }}>O passageiro tem 3 minutos para responder. Restam {left} proposta{left > 1 ? 's' : ''}.</p>
                 </div>
             )}

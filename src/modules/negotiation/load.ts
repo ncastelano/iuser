@@ -1,6 +1,6 @@
 // src/modules/negotiation/load.ts — fala com o banco (ofertas, contrapropostas, ganho mínimo). A validação de verdade mora nas funções do banco.
 import { supabase } from '@/lib/supabase/client'
-import { negotiationError, offerFromRow, parseHourlyCheck, type HourlyCheck, type PriceOffer } from './domain'
+import { DEFAULT_MIN_PER_MINUTE, negotiationError, offerFromRow, parseHourlyCheck, type HourlyCheck, type PriceOffer } from './domain'
 
 export class NegotiationError extends Error {
     hint: string | null
@@ -51,3 +51,15 @@ export async function saveEarningGoal(driverId: string, goal: EarningGoal): Prom
     const { error } = await supabase.from('driver_earning_goals').upsert({ driver_id: driverId, min_hourly: goal.minHourly, protection: goal.protection, updated_at: new Date().toISOString() }, { onConflict: 'driver_id' })
     if (error) throw new NegotiationError(error)
 }
+
+// ===== VALOR MÍNIMO DA PLATAFORMA (por minuto) =====
+let minCache: { at: number; value: number } | null = null
+/** O mínimo por minuto de trabalho (Admin → Tarifas). Guardado 5 min; se não carregar, vale o padrão. */
+export async function loadRideMinimum(): Promise<number> {
+    if (minCache && Date.now() - minCache.at < 300_000) return minCache.value
+    const { data, error } = await supabase.rpc('get_ride_minimum')
+    const v = !error && data != null && Number.isFinite(Number(data)) ? Number(data) : DEFAULT_MIN_PER_MINUTE
+    minCache = { at: Date.now(), value: v }
+    return v
+}
+export function forgetRideMinimum() { minCache = null }

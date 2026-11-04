@@ -40,9 +40,10 @@ DO $$
 DECLARE
     P uuid; D1 uuid; D2 uuid; ride uuid; a1 uuid; a2 uuid; o uuid; r jsonb; ag numeric; st text; n int;
 BEGIN
-    SELECT id INTO P  FROM profiles WHERE is_active ORDER BY created_at LIMIT 1;
-    SELECT id INTO D1 FROM profiles WHERE is_active AND id <> P ORDER BY created_at OFFSET 1 LIMIT 1;
-    SELECT id INTO D2 FROM profiles WHERE is_active AND id NOT IN (P, D1) ORDER BY created_at OFFSET 2 LIMIT 1;
+    -- pessoas de teste que NÃO têm meta/tarifa própria cadastrada (quem usa o app local mexe nas dele)
+    SELECT id INTO P  FROM profiles WHERE is_active AND id NOT IN (SELECT driver_id FROM driver_earning_goals) AND id NOT IN (SELECT driver_id FROM driver_pricing) ORDER BY created_at LIMIT 1;
+    SELECT id INTO D1 FROM profiles WHERE is_active AND id <> P AND id NOT IN (SELECT driver_id FROM driver_earning_goals) AND id NOT IN (SELECT driver_id FROM driver_pricing) ORDER BY created_at OFFSET 1 LIMIT 1;
+    SELECT id INTO D2 FROM profiles WHERE is_active AND id NOT IN (P, D1) AND id NOT IN (SELECT driver_id FROM driver_earning_goals) AND id NOT IN (SELECT driver_id FROM driver_pricing) ORDER BY created_at OFFSET 2 LIMIT 1;
 
     -- 1-3) passageiro oferece = referência, menos e mais; a oferta chega aos motoristas (ride_offers) e a anterior é substituída
     ride := pg_temp.new_ride(P, 5, 12);
@@ -244,6 +245,30 @@ BEGIN
     PERFORM expire_ride_price_offers();
     IF (SELECT count(*) FROM profile_notifications WHERE profile_id = P AND kind = 'ride_offer_expired' AND ref_id = ride) <> 1 THEN RAISE EXCEPTION '16: quem propôs não foi avisado da expiração'; END IF;
     RAISE NOTICE 'OK 16';
+
+    -- 17) valor mínimo da plataforma: R$ 0,50 por minuto de trabalho; ninguém fecha abaixo disso
+    ride := pg_temp.new_ride(P, 5, 12);                     -- corrida de 12 min: piso do trajeto R$ 6,00
+    IF get_ride_minimum() <> 0.50 THEN RAISE EXCEPTION '17: mínimo padrão deveria ser R$ 0,50 por minuto'; END IF;
+    PERFORM pg_temp.expect_fail(format('select pg_temp.new_app(%L, %L, 5.99)', ride, D1), 'below_platform_min');   -- candidatura abaixo do piso
+    a1 := pg_temp.new_app(ride, D1, 6);                                                                           -- no piso: passa
+    PERFORM pg_temp.as_user(P);
+    PERFORM pg_temp.expect_fail(format('select set_passenger_offer(%L, 5)', ride), 'below_platform_min');
+    PERFORM pg_temp.expect_fail(format('select passenger_counter(%L, 5)', a1), 'below_platform_min');
+    PERFORM pg_temp.as_user(D1);
+    PERFORM pg_temp.expect_fail(format('select driver_counter(%L, 5, 30)', a1), 'below_platform_min');
+    r := driver_hourly_check(ride, 14, 30);                  -- 30 min de trabalho no total: piso R$ 15,00
+    IF (r->>'platform_min')::numeric <> 15 OR (r->>'below_platform')::boolean IS NOT TRUE OR (r->>'blocked')::boolean IS NOT TRUE THEN RAISE EXCEPTION '17: piso da plataforma não bloqueou %', r; END IF;
+    r := driver_hourly_check(ride, 15, 30);
+    IF (r->>'below_platform')::boolean IS NOT FALSE THEN RAISE EXCEPTION '17: no piso não pode bloquear %', r; END IF;
+    PERFORM pg_temp.as_server();
+    PERFORM admin_set_ride_minimum(1.00, P);                 -- o admin sobe para R$ 1,00 por minuto
+    IF _ride_trip_floor(ride) <> 12 THEN RAISE EXCEPTION '17: o piso não acompanhou a mudança do admin'; END IF;
+    IF (SELECT count(*) FROM admin_config_audit WHERE scope = 'ride_minimum' AND changed_by = P) <> 1 THEN RAISE EXCEPTION '17: mudança do admin não ficou auditada'; END IF;
+    PERFORM pg_temp.expect_fail('select admin_set_ride_minimum(25)', NULL);   -- fora de R$ 0 a R$ 20
+    PERFORM admin_set_ride_minimum(0, P);                    -- 0 desliga
+    IF _ride_trip_floor(ride) <> 0 THEN RAISE EXCEPTION '17: com 0 não há piso'; END IF;
+    IF has_function_privilege('authenticated', 'public.admin_set_ride_minimum(numeric,uuid)', 'execute') OR has_function_privilege('anon', 'public.admin_set_ride_minimum(numeric,uuid)', 'execute') THEN RAISE EXCEPTION '17: só o servidor altera o mínimo'; END IF;
+    RAISE NOTICE 'OK 17';
 END $$;
 
 ROLLBACK;

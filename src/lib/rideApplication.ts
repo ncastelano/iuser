@@ -11,6 +11,9 @@ import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeol
 export async function submitRideApplication(userId: string, rideId: string, price: number, minutes?: number | null): Promise<void> {
     // Ganho mínimo por hora do motorista em modo "não aceitar abaixo": vale para QUALQUER forma de candidatura (card, aviso do celular...)
     const check = await hourlyCheck(rideId, price, minutes)
+    if (check?.belowPlatform && check.platformMin != null) {
+        throw Object.assign(new Error(`O valor mínimo da plataforma para esta corrida é R$ ${check.platformMin.toFixed(2).replace('.', ',')}.`), { hint: 'below_platform_min' })
+    }
     if (check?.blocked) {
         throw Object.assign(new Error(belowMinimumText(check.perHour as number, check.minHourly as number, 'proposta')), { hint: 'below_min_hourly' })
     }

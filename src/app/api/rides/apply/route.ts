@@ -23,6 +23,9 @@ export async function POST(req: Request) {
 
     // Ganho mínimo por hora do motorista em modo "não aceitar abaixo": vale também para o aceite pelo aviso do celular
     const { data: check } = await supabase.rpc('driver_hourly_check', { p_ride: rideId, p_amount: value, p_minutes: null })
+    if (check?.below_platform) {
+        return NextResponse.json({ error: `O valor mínimo da plataforma para esta corrida é R$ ${Number(check.platform_min).toFixed(2).replace('.', ',')}.`, code: 'below_platform_min' }, { status: 422 })
+    }
     if (check?.blocked) {
         return NextResponse.json({ error: 'Esse valor está abaixo do seu ganho mínimo por hora.', code: 'below_min_hourly' }, { status: 422 })
     }

@@ -1,7 +1,7 @@
 // Testes das regras puras da negociação de corridas (src/modules/negotiation/domain.ts). Rodar: npm run test:negotiation
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError } from '../src/modules/negotiation/domain.ts'
+import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText } from '../src/modules/negotiation/domain.ts'
 
 test('valor válido: positivo e até R$ 100.000', () => {
     assert.equal(validateAmount(12.5), null)
@@ -38,7 +38,9 @@ test('abaixo do mínimo e o texto do aviso', () => {
 })
 test('resposta do banco → verificação do mínimo', () => {
     const c = parseHourlyCheck({ minutes: '30.0', per_hour: 40, min_hourly: 50, protection: 'block', below: true, blocked: true })
-    assert.deepEqual(c, { minutes: 30, perHour: 40, minHourly: 50, protection: 'block', below: true, blocked: true })
+    assert.deepEqual(c, { minutes: 30, perHour: 40, minHourly: 50, protection: 'block', below: true, blocked: true, platformMin: null, belowPlatform: false })
+    const p = parseHourlyCheck({ minutes: 30, per_hour: 28, platform_min: 15, below_platform: true, blocked: true })
+    assert.equal(p.platformMin, 15); assert.equal(p.belowPlatform, true)
     assert.equal(parseHourlyCheck(null), null)
     assert.equal(parseHourlyCheck({ min_hourly: null }).minHourly, null)
     assert.equal(parseHourlyCheck({}).protection, 'warn')
@@ -93,4 +95,18 @@ test('mensagens de erro em português', () => {
     assert.match(negotiationError({ hint: 'offer_expired' }), /expirou/)
     assert.equal(negotiationError({ message: 'x' }), 'x')
     assert.ok(negotiationError(null))
+})
+
+test('valor mínimo da plataforma: minutos × mínimo por minuto, arredondado para cima', () => {
+    assert.equal(platformFloor(38, 0.5), 19)
+    assert.equal(platformFloor(38.05, 0.5), 19.03)
+    assert.equal(platformFloor(12, 0.5), 6)
+    assert.equal(platformFloor(null, 0.5), 0)
+    assert.equal(platformFloor(30, 0), 0)
+    assert.equal(platformFloor(30, null), 0)
+    assert.equal(belowPlatformFloor(18.99, 19), true)
+    assert.equal(belowPlatformFloor(19, 19), false)
+    assert.equal(belowPlatformFloor(5, 0), false)
+    assert.equal(platformFloorText(19, 0.5), 'O valor mínimo da plataforma para esta corrida é R$ 19,00 (R$ 0,50 por minuto de trabalho).')
+    assert.match(negotiationError({ hint: 'below_platform_min', message: 'O valor mínimo é R$ 19,00' }), /R\$ 19,00/)
 })

@@ -12,6 +12,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, describeTripFare, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { perHour as perHourOfMinutes } from '@/modules/negotiation/domain'
 import { rideQuote } from '@/lib/rideQuote'
+import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { loadEarningGoal } from '@/modules/negotiation'
 import { kindForRideType, rideAcceptsAnyVehicle, ridesAcceptableForVehicleKind, type VehicleKind } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
@@ -116,6 +117,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     // a corrida em si (partida → chegada) pela rota do mapa: o valor usa este km, igual a /aceitar-corridas
     const [tripById, setTripById] = useState<Record<string, { km: number; min: number }>>({})
     const [minHourly, setMinHourly] = useState<number | null>(null)
+    const minPerMinute = useRideMinimum()
     useEffect(() => { if (contextUserId) void loadEarningGoal(contextUserId).then((g) => setMinHourly(g.minHourly)).catch(() => {}) }, [contextUserId])
     const lastRouteRef = useRef<{ coords: [number, number]; key: string } | null>(null)
 
@@ -658,6 +660,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                 pickupKm: route?.km ?? null, pickupMin: route?.min ?? null,
                                 tripMin: trip?.min ?? ride.duration_min ?? (ride.distance_km != null ? (ride.distance_km / 40) * 60 : null),
                                 minHourly: ride.offered_price != null ? null : minHourly,
+                                minPerMinute,
                                 tripFare: (shape, km) => km != null
                                     ? computeSuggestedPrice(km, shape, rideType, flags)
                                     : shape.baseFee + shape.extraFees[rideType] + computeConditionExtras(flags, shape.conditionExtraFees),

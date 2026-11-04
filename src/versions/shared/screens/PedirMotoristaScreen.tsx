@@ -21,6 +21,8 @@ import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideCo
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import PassengerOfferBox from '@/components/negotiation/PassengerOfferBox'
 import { setPassengerOffer } from '@/modules/negotiation'
+import { platformFloor } from '@/modules/negotiation/domain'
+import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { createSquareImage } from '@/lib/image'
 import {
     Car,
@@ -1508,6 +1510,9 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     const [offerMode, setOfferMode] = useState<'drivers' | 'mine'>('drivers')
     const [offerValue, setOfferValue] = useState<number | null>(null)
     const [referencePrice, setReferencePrice] = useState<number | null>(null)
+    const minPerMinute = useRideMinimum()
+    // mínimo da plataforma para este trajeto (R$ por minuto × os minutos da rota): nem a referência nem a oferta ficam abaixo
+    const tripFloor = platformFloor(route?.durationMin ?? null, minPerMinute)
     useEffect(() => {
         if (!showPlateReminder || !requestFor) return
         let alive = true
@@ -1528,11 +1533,11 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                 wants_air_conditioning: isTwoWheels || requestFor === 'objeto' ? false : wantsAirConditioning,
             }
             const shape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(effectiveVehicleType)]
-            setReferencePrice(Math.round(computeSuggestedPrice(route.distanceKm, shape, requestFor, flags) * 100) / 100)
+            setReferencePrice(Math.max(Math.round(computeSuggestedPrice(route.distanceKm, shape, requestFor, flags) * 100) / 100, platformFloor(route.durationMin ?? null, minPerMinute)))
         })()
         return () => { alive = false }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showPlateReminder, requestFor, route, effectiveVehicleType, wantsAirConditioning])
+    }, [showPlateReminder, requestFor, route, effectiveVehicleType, wantsAirConditioning, minPerMinute])
 
     const handleSubmit = async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -1845,7 +1850,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             ))}
                         </div>
 
-                        <PassengerOfferBox reference={referencePrice} mode={offerMode} onMode={setOfferMode} value={offerValue} onValue={setOfferValue} />
+                        <PassengerOfferBox reference={referencePrice} min={tripFloor} mode={offerMode} onMode={setOfferMode} value={offerValue} onValue={setOfferValue} />
 
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.

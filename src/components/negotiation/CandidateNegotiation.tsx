@@ -14,7 +14,7 @@ import { clock, currentOffer, midpoint, parseMoney, passengerCounter, quickValue
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
 
-export default function CandidateNegotiation({ applicationId, proposedPrice, offers, rideOffer, onChanged }: {
+export default function CandidateNegotiation({ applicationId, proposedPrice, offers, rideOffer, minAmount = 0, onChanged }: {
     applicationId: string
     /** o valor que o motorista está pedindo agora */
     proposedPrice: number | null
@@ -22,6 +22,8 @@ export default function CandidateNegotiation({ applicationId, proposedPrice, off
     offers: PriceOffer[]
     /** a oferta geral que o passageiro fez ao pedir (se fez) */
     rideOffer: number | null
+    /** mínimo da plataforma para este trajeto: ofertas abaixo disso não são aceitas pelo banco */
+    minAmount?: number
     /** depois de enviar uma oferta: a tela recarrega */
     onChanged: () => void
 }) {
@@ -66,7 +68,7 @@ export default function CandidateNegotiation({ applicationId, proposedPrice, off
 
     if (proposedPrice == null) return null
     const parsed = parseMoney(value)
-    const quick = quickValues(proposedPrice * 0.88).filter((q) => q < proposedPrice)
+    const quick = quickValues(proposedPrice * 0.88).filter((q) => q < proposedPrice && q >= minAmount)
     const secs = myPending ? secondsLeft(myPending.expiresAt, now) : null
 
     return (
@@ -103,9 +105,9 @@ export default function CandidateNegotiation({ applicationId, proposedPrice, off
                     )}
                     <div className="flex items-center gap-1.5">
                         <input inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))} placeholder="Outro valor (R$)" className="flex-1 min-w-0 h-8 px-3 rounded-full text-[12px] font-bold outline-none" style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }} />
-                        <button onClick={() => parsed != null && send(parsed)} disabled={busy || parsed == null || (parsed != null && parsed >= proposedPrice)} className="h-8 px-3 rounded-full text-[11px] font-black text-white disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>{busy ? <Spinner size={11} /> : 'Oferecer'}</button>
+                        <button onClick={() => parsed != null && send(parsed)} disabled={busy || parsed == null || (parsed != null && (parsed >= proposedPrice || parsed < minAmount))} className="h-8 px-3 rounded-full text-[11px] font-black text-white disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>{busy ? <Spinner size={11} /> : 'Oferecer'}</button>
                     </div>
-                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>Valor menor que {brl(proposedPrice)}. O motorista tem 3 minutos para aceitar ou responder. Restam {left} oferta{left > 1 ? 's' : ''}.</p>
+                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>{minAmount > 0 ? `Entre ${brl(minAmount)} (mínimo do trajeto) e ` : ''}Valor menor que {brl(proposedPrice)}. O motorista tem 3 minutos para aceitar ou responder. Restam {left} oferta{left > 1 ? 's' : ''}.</p>
                 </div>
             )}
         </div>

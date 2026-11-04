@@ -59,6 +59,7 @@ import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { submitRideApplication } from '@/lib/rideApplication'
 import { loadEarningGoal, type EarningGoal } from '@/modules/negotiation'
 import DriverNegotiation from '@/components/negotiation/DriverNegotiation'
+import { useRideMinimum } from '@/hooks/useRideMinimum'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
@@ -359,6 +360,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
     const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
     // ganho mínimo por hora (privado do motorista): o card avisa ou, no modo "block", não deixa aceitar abaixo dele
+    const minPerMinute = useRideMinimum()
     const [earningGoal, setEarningGoal] = useState<EarningGoal>({ minHourly: null, protection: 'warn' })
     useEffect(() => { if (contextUserId) void loadEarningGoal(contextUserId).then(setEarningGoal).catch(() => {}) }, [contextUserId])
     const [applyingId, setApplyingId] = useState<string | null>(null)
@@ -1013,7 +1015,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     toast.error('Essa corrida já atingiu o limite de candidatos.')
                     setRides((prev) => prev.filter((r) => r.id !== ride.id))
                 }
-            } else if (err.hint === 'below_min_hourly') {
+            } else if (err.hint === 'below_min_hourly' || err.hint === 'below_platform_min') {
                 toast.error(err.message)
             } else {
                 toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
@@ -1530,6 +1532,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
                                             minHourly={ride.order_id ? null : earningGoal.minHourly}
                                             protection={earningGoal.protection}
+                                            minPerMinute={ride.order_id ? 0 : minPerMinute}
                                             onEditTariff={ride.order_id ? undefined : () => router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}`)}
                                             toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
                                             trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
@@ -1610,6 +1613,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                                             minutes={info && info.toPickupMin != null ? info.toPickupMin + info.tripMin : null}
                                                             minHourly={earningGoal.minHourly}
                                                             protection={earningGoal.protection}
+                                                            minPerMinute={minPerMinute}
                                                             onChanged={() => load()}
                                                         />
                                                     )}

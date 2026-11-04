@@ -15,6 +15,7 @@ import type { ThemeColors } from '@/app/contexts/theme'
 import { PLATFORM_TARIFF_COLUMNS, loadPlatformTariffs, type PlatformTariffRow } from '@/lib/platformTariffs'
 import { computeHourlyEarnings, explainSuggestedPrice, type DriverPricing } from '@/lib/driverPricing'
 import type { VehicleKind } from '@/lib/rideVehicle'
+import { forgetRideMinimum, loadRideMinimum } from '@/modules/negotiation'
 
 const VEHICLES: { kind: VehicleKind; label: string; icon: typeof Car }[] = [
     { kind: 'carro', label: 'Carro', icon: Car },
@@ -56,6 +57,24 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
     const [forms, setForms] = useState<Partial<Record<VehicleKind, Form>>>({})
     const [saving, setSaving] = useState(false)
     const [missingTable, setMissingTable] = useState(false)
+    // Valor mínimo por minuto de trabalho (ir buscar + corrida): o piso de TODA corrida de passageiro
+    const [minPerMinute, setMinPerMinute] = useState('')
+    const [savedMin, setSavedMin] = useState<number | null>(null)
+    const [savingMin, setSavingMin] = useState(false)
+    useEffect(() => { void loadRideMinimum().then((v) => { setSavedMin(v); setMinPerMinute(String(v).replace('.', ',')) }) }, [])
+    const saveMin = async () => {
+        const v = num(minPerMinute)
+        if (v < 0 || v > 20) { toast.error('Digite um valor entre R$ 0 e R$ 20 por minuto'); return }
+        setSavingMin(true)
+        try {
+            await callAdminApi('/api/admin/ride-minimum', { value: v })
+            forgetRideMinimum()
+            setSavedMin(v)
+            toast.success(v > 0 ? `Mínimo por minuto: ${`R$ ${v.toFixed(2).replace('.', ',')}`} (≈ R$ ${(v * 60).toFixed(0)} por hora)` : 'Mínimo por minuto desligado')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar o mínimo')
+        } finally { setSavingMin(false) }
+    }
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -143,6 +162,27 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
                 <p className="text-xs" style={{ color: colors.textSecondary }}>
                     Tudo da Tarifa iUser num lugar só. O preço de uma corrida é: <strong style={{ color: colors.textPrimary }}>valor base + quilometragem acima da distância base + extras</strong>. A mudança vale na hora para todos os motoristas que usam a tarifa da plataforma.
                 </p>
+            </div>
+
+            <div style={cardStyle} className="space-y-2">
+                <p className="text-xs font-black" style={{ color: colors.textPrimary }}>Valor mínimo por minuto de trabalho</p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                    Nenhuma corrida de passageiro fecha por menos que <strong style={{ color: colors.textPrimary }}>minutos × este valor</strong> (tempo de ir buscar + a corrida). Vale para a Tarifa iUser, para a tarifa de cada motorista e para qualquer proposta; entrega de loja (frete fixo) fica de fora. Coloque 0 para desligar.
+                </p>
+                <div className="flex items-end gap-2">
+                    <div className="flex-1 flex flex-col gap-0.5">
+                        <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>R$ por minuto</span>
+                        <input type="text" inputMode="decimal" value={minPerMinute} onChange={(e) => setMinPerMinute(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))} style={inputStyle} />
+                    </div>
+                    <button onClick={saveMin} disabled={savingMin || savedMin === null || num(minPerMinute) === savedMin} className="px-4 py-2.5 rounded-xl text-xs font-black text-white disabled:opacity-50 flex items-center gap-1.5" style={{ background: colors.accent }}>
+                        {savingMin ? <Spinner size={14} /> : <Save size={14} />} Salvar
+                    </button>
+                </div>
+                {num(minPerMinute) > 0 && (
+                    <p className="text-[11px] font-bold" style={{ color: '#16a34a' }}>
+                        ≈ R$ {(num(minPerMinute) * 60).toFixed(0)} por hora · uma corrida de 38 min (buscar + corrida) não sai por menos de {brl(Math.ceil(38 * num(minPerMinute) * 100) / 100)}
+                    </p>
+                )}
             </div>
 
             <div className="flex gap-2">

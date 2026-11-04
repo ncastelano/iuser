@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS public.ride_negotiation_settings (
     max_rounds        integer NOT NULL DEFAULT 3  CHECK (max_rounds BETWEEN 1 AND 10),         -- propostas por lado, por motorista
     offer_ttl_seconds integer NOT NULL DEFAULT 180 CHECK (offer_ttl_seconds BETWEEN 30 AND 3600) -- quanto tempo vale uma proposta pendente
 );
+-- VALOR MÍNIMO POR MINUTO de trabalho (ir buscar + corrida): nenhuma corrida de passageiro pode ser fechada por menos que minutos × este valor.
+-- R$ 0,50 por minuto = R$ 30 por hora. Editado em Admin → Tarifas (admin_set_ride_minimum); 0 desliga.
+ALTER TABLE public.ride_negotiation_settings ADD COLUMN IF NOT EXISTS min_per_minute numeric(6,2) NOT NULL DEFAULT 0.50 CHECK (min_per_minute >= 0 AND min_per_minute <= 20);
 INSERT INTO public.ride_negotiation_settings (id) VALUES (true) ON CONFLICT DO NOTHING;
 ALTER TABLE public.ride_negotiation_settings ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.ride_negotiation_settings FROM anon, authenticated;
@@ -87,6 +90,46 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
 $$;
 REVOKE ALL ON FUNCTION public._neg_cfg() FROM public, anon, authenticated;
 
+-- "R$ 12,50"
+CREATE OR REPLACE FUNCTION public._neg_money(p numeric)
+RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT 'R$ ' || replace(to_char(p, 'FM999990D00'), '.', ',') $$;
+REVOKE ALL ON FUNCTION public._neg_money(numeric) FROM public, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public._ride_min_per_minute()
+RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+    SELECT COALESCE((SELECT min_per_minute FROM public.ride_negotiation_settings), 0.50);
+$$;
+REVOKE ALL ON FUNCTION public._ride_min_per_minute() FROM public, anon, authenticated;
+
+-- o mínimo por minuto, para as telas calcularem o piso (público: o valor não é segredo, o passageiro também vê o mínimo do trajeto)
+CREATE OR REPLACE FUNCTION public.get_ride_minimum()
+RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$ SELECT public._ride_min_per_minute() $$;
+REVOKE ALL ON FUNCTION public.get_ride_minimum() FROM public;
+GRANT EXECUTE ON FUNCTION public.get_ride_minimum() TO anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.admin_set_ride_minimum(p_value numeric, p_admin uuid DEFAULT NULL)
+RETURNS numeric LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_old numeric; v numeric := round(COALESCE(p_value, 0), 2);
+BEGIN
+    IF v < 0 OR v > 20 THEN RAISE EXCEPTION 'O mínimo por minuto precisa ficar entre R$ 0 e R$ 20' USING ERRCODE = '22023'; END IF;
+    SELECT min_per_minute INTO v_old FROM public.ride_negotiation_settings WHERE id;
+    UPDATE public.ride_negotiation_settings SET min_per_minute = v WHERE id;
+    IF v_old IS DISTINCT FROM v THEN
+        INSERT INTO public.admin_config_audit (scope, setting, old_value, new_value, changed_by) VALUES ('ride_minimum', 'min_per_minute', to_jsonb(v_old), to_jsonb(v), p_admin);
+    END IF;
+    RETURN v;
+END; $$;
+REVOKE ALL ON FUNCTION public.admin_set_ride_minimum(numeric, uuid) FROM public, anon, authenticated;
+
+-- piso do TRAJETO (só os minutos da corrida, que o servidor conhece): usado onde não há como saber de onde o motorista sai
+CREATE OR REPLACE FUNCTION public._ride_trip_floor(p_ride uuid)
+RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+    SELECT CASE WHEN r.order_id IS NOT NULL THEN 0
+                ELSE ceil(COALESCE(r.duration_min, r.distance_km / 40.0 * 60.0, 0) * public._ride_min_per_minute() * 100) / 100 END
+    FROM public.ride_requests r WHERE r.id = p_ride;
+$$;
+REVOKE ALL ON FUNCTION public._ride_trip_floor(uuid) FROM public, anon, authenticated;
+
 -- valor em reais com 2 casas, positivo e dentro do limite (o app nunca é a única validação)
 CREATE OR REPLACE FUNCTION public._neg_amount(p numeric)
 RETURNS numeric LANGUAGE plpgsql IMMUTABLE AS $$
@@ -106,7 +149,7 @@ BEGIN
     SELECT * INTO r FROM public.ride_requests WHERE id = p_ride;
     IF NOT FOUND THEN RETURN NULL; END IF;
     -- entrega de loja tem frete fixo e fica fora do ganho mínimo (o motorista aceita ou não, como sempre)
-    IF r.order_id IS NOT NULL THEN RETURN jsonb_build_object('minutes', NULL, 'per_hour', NULL, 'min_hourly', NULL, 'protection', 'warn', 'below', false, 'blocked', false); END IF;
+    IF r.order_id IS NOT NULL THEN RETURN jsonb_build_object('minutes', NULL, 'per_hour', NULL, 'min_hourly', NULL, 'protection', 'warn', 'below', false, 'platform_min', NULL, 'below_platform', false, 'blocked', false); END IF;
     trip := COALESCE(r.duration_min, r.distance_km / 40.0 * 60.0, 0);
     SELECT * INTO d FROM public.driver_pricing WHERE driver_id = p_driver;
     IF FOUND AND d.live_lat IS NOT NULL AND d.live_lng IS NOT NULL AND r.origin_lat IS NOT NULL AND r.origin_lng IS NOT NULL
@@ -119,9 +162,13 @@ BEGIN
     IF total > 0 AND p_amount IS NOT NULL THEN perh := round(p_amount / total * 60.0, 2); END IF;
     SELECT * INTO g FROM public.driver_earning_goals WHERE driver_id = p_driver;
     IF FOUND AND g.min_hourly IS NOT NULL AND perh IS NOT NULL THEN below := perh < g.min_hourly; END IF;
-    RETURN jsonb_build_object('minutes', round(total, 1), 'per_hour', perh, 'min_hourly', CASE WHEN FOUND THEN g.min_hourly END,
-        'protection', CASE WHEN FOUND THEN g.protection ELSE 'warn' END, 'below', below,
-        'blocked', below AND FOUND AND g.protection = 'block');
+    DECLARE pmin numeric := ceil(total * public._ride_min_per_minute() * 100) / 100; below_p boolean := p_amount IS NOT NULL AND p_amount < ceil(total * public._ride_min_per_minute() * 100) / 100;
+    BEGIN
+        RETURN jsonb_build_object('minutes', round(total, 1), 'per_hour', perh, 'min_hourly', CASE WHEN FOUND THEN g.min_hourly END,
+            'protection', CASE WHEN FOUND THEN g.protection ELSE 'warn' END, 'below', below,
+            'platform_min', pmin, 'below_platform', below_p,
+            'blocked', below_p OR (below AND FOUND AND g.protection = 'block'));
+    END;
 END; $$;
 REVOKE ALL ON FUNCTION public._ride_hourly(uuid, uuid, numeric, numeric) FROM public, anon, authenticated;
 
@@ -134,6 +181,23 @@ BEGIN
 END; $$;
 REVOKE ALL ON FUNCTION public.driver_hourly_check(uuid, numeric, numeric) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.driver_hourly_check(uuid, numeric, numeric) TO authenticated, service_role;
+
+-- ===== NENHUMA CANDIDATURA ABAIXO DO MÍNIMO DA PLATAFORMA =====
+-- Aqui só dá para conferir os minutos da corrida (de onde o motorista sai, só a tela sabe): o piso inteiro (buscar + corrida) é conferido
+-- por driver_hourly_check antes de enviar. Entrega de loja (frete fixo) fica de fora.
+CREATE OR REPLACE FUNCTION public.ride_applications_platform_min()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_floor numeric;
+BEGIN
+    IF NEW.proposed_price IS NULL THEN RETURN NEW; END IF;
+    v_floor := public._ride_trip_floor(NEW.ride_request_id);
+    IF v_floor > 0 AND NEW.proposed_price < v_floor THEN
+        RAISE EXCEPTION 'O valor mínimo para esta corrida é %', public._neg_money(v_floor) USING HINT = 'below_platform_min', ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END; $$;
+DROP TRIGGER IF EXISTS ride_applications_platform_min ON public.ride_applications;
+CREATE TRIGGER ride_applications_platform_min BEFORE INSERT ON public.ride_applications FOR EACH ROW EXECUTE FUNCTION public.ride_applications_platform_min();
 
 -- ===== A CANDIDATURA JÁ NASCE COM A 1ª PROPOSTA NO HISTÓRICO =====
 CREATE OR REPLACE FUNCTION public.ride_applications_negotiation_init()
@@ -206,6 +270,7 @@ BEGIN
     IF r.order_id IS NOT NULL THEN RAISE EXCEPTION 'O frete de entrega de loja é fixo' USING ERRCODE = '42501'; END IF;
     IF r.status <> 'pending' OR r.driver_id IS NOT NULL THEN RAISE EXCEPTION 'Este pedido já foi decidido.' USING HINT = 'ride_closed'; END IF;
     SELECT * INTO cfg FROM public._neg_cfg();
+    IF v < public._ride_trip_floor(p_ride) THEN RAISE EXCEPTION 'O valor mínimo para este trajeto é %', public._neg_money(public._ride_trip_floor(p_ride)) USING HINT = 'below_platform_min', ERRCODE = '23514'; END IF;
     SELECT count(*) INTO n FROM public.ride_price_offers WHERE ride_request_id = p_ride AND application_id IS NULL AND author_role = 'passenger';
     IF n >= cfg.max_rounds THEN RAISE EXCEPTION 'Você já fez o máximo de ofertas para este pedido' USING HINT = 'rounds_exhausted'; END IF;
     UPDATE public.ride_price_offers SET status = 'superseded', responded_at = now() WHERE ride_request_id = p_ride AND application_id IS NULL AND status = 'pending';
@@ -229,6 +294,7 @@ BEGIN
     IF a.status <> 'pending' THEN RAISE EXCEPTION 'Esta candidatura não está mais aberta' USING HINT = 'application_closed'; END IF;
     IF a.proposed_price IS NOT NULL AND v = a.proposed_price THEN RAISE EXCEPTION 'Esse é o valor que o motorista já pediu: aceite a proposta' USING HINT = 'same_as_proposal'; END IF;
     IF a.proposed_price IS NOT NULL AND v > a.proposed_price THEN RAISE EXCEPTION 'Sua oferta é maior que a proposta do motorista: aceite a proposta' USING HINT = 'above_proposal'; END IF;
+    IF v < public._ride_trip_floor(r.id) THEN RAISE EXCEPTION 'O valor mínimo para este trajeto é %', public._neg_money(public._ride_trip_floor(r.id)) USING HINT = 'below_platform_min', ERRCODE = '23514'; END IF;
     SELECT * INTO cfg FROM public._neg_cfg();
     SELECT count(*) INTO n FROM public.ride_price_offers WHERE application_id = p_application AND author_role = 'passenger';
     IF n >= cfg.max_rounds THEN RAISE EXCEPTION 'Você já fez o máximo de ofertas a este motorista' USING HINT = 'rounds_exhausted'; END IF;
@@ -254,6 +320,7 @@ BEGIN
     IF r.status <> 'pending' OR a.status <> 'pending' THEN RAISE EXCEPTION 'Esta corrida não está mais aberta' USING HINT = 'ride_closed'; END IF;
     IF r.order_id IS NOT NULL THEN RAISE EXCEPTION 'O frete de entrega de loja é fixo' USING ERRCODE = '42501'; END IF;
     h := public._ride_hourly(r.id, auth.uid(), v, p_minutes);
+    IF (h->>'below_platform')::boolean THEN RAISE EXCEPTION 'O valor mínimo da plataforma para esta corrida é %', public._neg_money((h->>'platform_min')::numeric) USING HINT = 'below_platform_min', ERRCODE = '23514'; END IF;
     IF (h->>'blocked')::boolean THEN RAISE EXCEPTION 'Esse valor está abaixo do seu ganho mínimo por hora' USING HINT = 'below_min_hourly'; END IF;
     SELECT * INTO cfg FROM public._neg_cfg();
     SELECT count(*) INTO n FROM public.ride_price_offers WHERE application_id = p_application AND author_role = 'driver';
@@ -302,6 +369,7 @@ BEGIN
     IF o.author_role = 'passenger' THEN
         -- motorista aceitando o valor que o passageiro ofereceu a ELE: respeita o piso do próprio motorista
         h := public._ride_hourly(r.id, uid, o.amount, p_minutes);
+        IF (h->>'below_platform')::boolean THEN RAISE EXCEPTION 'O valor mínimo da plataforma para esta corrida é %', public._neg_money((h->>'platform_min')::numeric) USING HINT = 'below_platform_min', ERRCODE = '23514'; END IF;
         IF (h->>'blocked')::boolean THEN RAISE EXCEPTION 'Esse valor está abaixo do seu ganho mínimo por hora' USING HINT = 'below_min_hourly'; END IF;
     ELSIF a.proposed_price IS DISTINCT FROM o.amount THEN
         RAISE EXCEPTION 'A proposta do motorista mudou' USING HINT = 'offer_closed';

@@ -8,7 +8,7 @@ const fare = (s, km) => (km == null ? s.fee : s.fee + Math.max(0, km - s.base) *
 const pickupFee = (s, km) => km * s.perKm
 const platform = { fee: 7, base: 2, perKm: 2 }
 const custom = { fee: 10, base: 3, perKm: 2 }
-const base = { offeredPrice: null, distanceKm: 3.6, routeKm: 9.3, platformShape: platform, customShape: null, useCustom: false, pickupKm: 9.8, pickupMin: 20, tripMin: 18, minHourly: null, tripFare: fare, pickupFee }
+const base = { offeredPrice: null, distanceKm: 3.6, routeKm: 9.3, platformShape: platform, customShape: null, useCustom: false, pickupKm: 9.8, pickupMin: 20, tripMin: 18, minHourly: null, minPerMinute: null, tripFare: fare, pickupFee }
 
 test('a distância da ROTA vale no lugar do km gravado quando divergem', () => {
     const q = rideQuote(base)
@@ -42,4 +42,18 @@ test('ganho por hora = valor ÷ tempo total; sem os minutos não há', () => {
     assert.equal(q.perHour, Math.round((41.2 / 38) * 60 * 100) / 100)
     assert.equal(rideQuote({ ...base, pickupMin: null }).perHour, null)
     assert.equal(rideQuote({ ...base, pickupKm: null }).platform, 21.6)       // sem posição: só a corrida
+})
+
+test('piso da plataforma (R$ 0,50 por minuto): nem a Tarifa iUser nem a tarifa própria saem abaixo dele; frete de loja fica de fora', () => {
+    const cheap = { ...base, distanceKm: 1, routeKm: 1, pickupKm: 0.5, pickupMin: 25, tripMin: 15, minPerMinute: 0.5 }   // 40 min de trabalho: piso R$ 20,00
+    const q = rideQuote({ ...cheap, customShape: custom, useCustom: true })
+    assert.equal(q.platformMin, 20)
+    assert.equal(q.platform, 20)                  // tarifa por km (7 + 1) seria bem menor
+    assert.equal(q.custom, 20)                    // a própria também sobe até o piso
+    assert.equal(q.shown, 20)
+    const above = rideQuote({ ...base, minPerMinute: 0.5 })                 // 38 min → piso R$ 19,00; Tarifa iUser já é R$ 41,20
+    assert.equal(above.platformMin, 19); assert.equal(above.platform, 41.2)
+    assert.equal(rideQuote({ ...cheap, offeredPrice: 8 }).platformMin, 0)   // entrega: frete fixo
+    assert.equal(rideQuote({ ...cheap, minPerMinute: 0 }).platformMin, 0)   // 0 desliga
+    assert.equal(rideQuote({ ...cheap, pickupMin: null, minPerMinute: 0.5 }).platformMin, 0)   // sem os minutos não dá para medir
 })

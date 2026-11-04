@@ -33,10 +33,6 @@ BEGIN
     RETURN NEW;
 END; $$;
 
-CREATE OR REPLACE FUNCTION public._neg_money(p numeric)
-RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT 'R$ ' || replace(to_char(p, 'FM999990D00'), '.', ',') $$;
-REVOKE ALL ON FUNCTION public._neg_money(numeric) FROM public, anon, authenticated;
-
 CREATE OR REPLACE FUNCTION public.trg_notify_ride_price_offer()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
