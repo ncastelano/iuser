@@ -105,6 +105,8 @@ DECLARE
 BEGIN
     SELECT * INTO r FROM public.ride_requests WHERE id = p_ride;
     IF NOT FOUND THEN RETURN NULL; END IF;
+    -- entrega de loja tem frete fixo e fica fora do ganho mínimo (o motorista aceita ou não, como sempre)
+    IF r.order_id IS NOT NULL THEN RETURN jsonb_build_object('minutes', NULL, 'per_hour', NULL, 'min_hourly', NULL, 'protection', 'warn', 'below', false, 'blocked', false); END IF;
     trip := COALESCE(r.duration_min, r.distance_km / 40.0 * 60.0, 0);
     SELECT * INTO d FROM public.driver_pricing WHERE driver_id = p_driver;
     IF FOUND AND d.live_lat IS NOT NULL AND d.live_lng IS NOT NULL AND r.origin_lat IS NOT NULL AND r.origin_lng IS NOT NULL
@@ -147,6 +149,17 @@ END; $$;
 DROP TRIGGER IF EXISTS ride_applications_negotiation_init ON public.ride_applications;
 CREATE TRIGGER ride_applications_negotiation_init AFTER INSERT ON public.ride_applications
     FOR EACH ROW EXECUTE FUNCTION public.ride_applications_negotiation_init();
+
+-- candidatura que sai da disputa (recusada, aceita, retirada): as propostas abertas dela se encerram
+CREATE OR REPLACE FUNCTION public.ride_applications_close_offers()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    UPDATE public.ride_price_offers SET status = 'cancelled', responded_at = now() WHERE application_id = NEW.id AND status = 'pending';
+    RETURN NEW;
+END; $$;
+DROP TRIGGER IF EXISTS ride_applications_close_offers ON public.ride_applications;
+CREATE TRIGGER ride_applications_close_offers AFTER UPDATE OF status ON public.ride_applications
+    FOR EACH ROW WHEN (NEW.status IS DISTINCT FROM OLD.status AND NEW.status <> 'pending') EXECUTE FUNCTION public.ride_applications_close_offers();
 
 -- ===== FECHAR O ACORDO (as duas partes concordaram com o MESMO valor) =====
 CREATE OR REPLACE FUNCTION public._neg_confirm(p_ride public.ride_requests, p_app public.ride_applications, p_amount numeric, p_offer uuid)

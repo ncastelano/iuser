@@ -26,6 +26,8 @@ BEGIN
     RETURN jsonb_build_object('ok', true, 'driver_id', a.applicant_id);
 END; $$;
 DROP FUNCTION IF EXISTS public._neg_confirm(public.ride_requests, public.ride_applications, numeric, uuid);
+DROP TRIGGER IF EXISTS ride_applications_close_offers ON public.ride_applications;
+DROP FUNCTION IF EXISTS public.ride_applications_close_offers();
 DROP TRIGGER IF EXISTS ride_applications_negotiation_init ON public.ride_applications;
 DROP FUNCTION IF EXISTS public.ride_applications_negotiation_init();
 DROP FUNCTION IF EXISTS public.driver_hourly_check(uuid, numeric, numeric);

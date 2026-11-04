@@ -10,6 +10,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, describeTripFare, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
+import { perHour as perHourOfMinutes } from '@/modules/negotiation/domain'
 import { kindForRideType, rideAcceptsAnyVehicle, ridesAcceptableForVehicleKind, type VehicleKind } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { watchPosition } from '@/lib/nativeGeolocation'
@@ -220,7 +221,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             let openQuery = supabase
                 .from('ride_offers')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, order_id, applicant_count, stop1_address, stop2_address')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, passenger_offer, order_id, applicant_count, stop1_address, stop2_address')
                 .eq('status', 'pending')
             const { data: rows } = await openQuery
                 .order('created_at', { ascending: false })
@@ -624,8 +625,9 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                             const pickupKm = pickup?.km
                             const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km) : 0
                             const total = suggestedPrice + pickupAmount
-                            // Ganho por hora: km até o passageiro + km da corrida, a 40 km/h
-                            const hourly = route && ride.distance_km != null ? computeHourlyEarnings(total, ride.distance_km, route.km) : null
+                            // Ganho por hora: valor ÷ tempo total (ir buscar + corrida), com os minutos que o mapa estimou
+                            const tripMin = ride.duration_min ?? (ride.distance_km != null ? (ride.distance_km / 40) * 60 : null)
+                            const hourlyValue = route && tripMin != null ? perHourOfMinutes(total, route.min + tripMin) : null
                             const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
                             return (
                             <div
@@ -646,9 +648,14 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                                 <div>
                                                     <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>{usesPlatformTariff && pickupKm == null ? 'Você ganha a partir de' : 'Você pode ganhar'}</span>
                                                     <span className="block text-xl font-black leading-tight" style={{ color: '#16a34a' }}>{brl(total)}</span>
-                                                    {hourly && (
+                                                    {hourlyValue != null && (
                                                         <span className="block text-[10px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>
-                                                            ≈ R$ {Math.round(hourly.perHour)} por hora (com o deslocamento)
+                                                            ≈ R$ {Math.round(hourlyValue)} por hora (com o deslocamento)
+                                                        </span>
+                                                    )}
+                                                    {ride.passenger_offer != null && (
+                                                        <span className="block text-[11px] font-black leading-tight mt-1" style={{ color: '#16a34a' }}>
+                                                            O passageiro ofereceu {brl(Number(ride.passenger_offer))}
                                                         </span>
                                                     )}
                                                 </div>

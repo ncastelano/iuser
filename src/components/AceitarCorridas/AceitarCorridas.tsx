@@ -57,6 +57,8 @@ import { RideOfferCard } from './RideOfferCard'
 import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from './LocationAskDialog'
 import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { submitRideApplication } from '@/lib/rideApplication'
+import { loadEarningGoal, type EarningGoal } from '@/modules/negotiation'
+import DriverNegotiation from '@/components/negotiation/DriverNegotiation'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
@@ -198,6 +200,7 @@ interface RideRow {
     stop2_lat: number | null
     stop2_lng: number | null
     offered_price: number | null
+    passenger_offer?: number | null
     order_id: string | null
     store_id: string | null
     visible_radius_km?: number | null
@@ -227,6 +230,7 @@ interface RideCardData extends RideRow {
     suggestedPrice: number
     platformPrice: number
     customPrice: number | null
+    customTariff?: DriverPricing | null
     tariff: DriverPricing
     storeName: string | null
     hasDistance: boolean
@@ -354,6 +358,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const lastAcceptedRideIdRef = useRef<string | null>(null)
     const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
     const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
+    // ganho mínimo por hora (privado do motorista): o card avisa ou, no modo "block", não deixa aceitar abaixo dele
+    const [earningGoal, setEarningGoal] = useState<EarningGoal>({ minHourly: null, protection: 'warn' })
+    useEffect(() => { if (contextUserId) void loadEarningGoal(contextUserId).then(setEarningGoal).catch(() => {}) }, [contextUserId])
     const [applyingId, setApplyingId] = useState<string | null>(null)
     const [customPriceFor, setCustomPriceFor] = useState<string | null>(null)
     const [customPriceValue, setCustomPriceValue] = useState('')
@@ -644,7 +651,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         let openRidesQuery = supabase
             .from('ride_offers')
-            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, visible_radius_km, preferred_driver_id')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, passenger_offer, order_id, store_id, visible_radius_km, preferred_driver_id')
             .eq('status', 'pending')
         // ride_offers já esconde as corridas do próprio motorista (policy) e não mostra quem pediu antes do aceite
         const { data: openRides } = await openRidesQuery
@@ -678,7 +685,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         if (myApplications.length > 0) {
             const { data } = await supabase
                 .from('ride_offers')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, passenger_offer, order_id, store_id')
                 .in('id', myApplications.map((a) => a.ride_request_id))
                 .eq('status', 'pending')
             myRideRows = data || []
@@ -736,6 +743,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 suggestedPrice,
                 platformPrice,
                 customPrice,
+                customTariff: customShape ?? null,
                 tariff: pricingShape,
                 storeName: r.store_id ? (storeNamesById.get(r.store_id) || null) : null,
                 hasDistance,
@@ -885,6 +893,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         const channel = supabase
             .channel('aceitar-corridas-new-rides')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'ride_offers' }, () => { load() })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ride_applications' }, () => { load() })   // contrapropostas do passageiro
             .subscribe()
         return () => { supabase.removeChannel(channel) }
     }, [load])
@@ -988,7 +997,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         setApplyingId(ride.id)
         try {
-            await submitRideApplication(user.id, ride.id, price)
+            const ri = routeInfoById[ride.id]
+            const minutes = ri && ri.toPickupMin != null ? ri.toPickupMin + ri.tripMin : null
+            await submitRideApplication(user.id, ride.id, price, minutes)
 
             toast.success('Candidatura enviada!')
             setCustomPriceFor(null)
@@ -1002,6 +1013,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     toast.error('Essa corrida já atingiu o limite de candidatos.')
                     setRides((prev) => prev.filter((r) => r.id !== ride.id))
                 }
+            } else if (err.hint === 'below_min_hourly') {
+                toast.error(err.message)
             } else {
                 toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
             }
@@ -1471,6 +1484,18 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 const info = routeInfoById[ride.id]
                                 // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km do veículo)
                                 const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
+                                // O valor da corrida usa o km que o mapa do card mostra (a rota de verdade), não só o km gravado no pedido: se os dois
+                                // divergem (pedido antigo, endereço corrigido), vale a rota. Frete de loja é fixo e não entra aqui.
+                                const routeKm = info?.tripKm
+                                const useRouteKm = ride.offered_price == null && routeKm != null && ride.distance_km != null && Math.abs(routeKm - ride.distance_km) > 0.3
+                                const flagsOfRide: RideConditionFlags = {
+                                    origin_needs_access: ride.origin_needs_access, destination_needs_access: ride.destination_needs_access, is_grocery_shopping: ride.has_shopping,
+                                    has_special_needs: ride.has_special_needs, special_needs_wheelchair: ride.special_needs_wheelchair, special_needs_visual_impairment: ride.special_needs_visual_impairment,
+                                    has_guide_dog: ride.has_guide_dog, pet_has_carrier: ride.pet_has_carrier, delivery_location: ride.delivery_location, wants_air_conditioning: (ride as { wants_air_conditioning?: boolean | null }).wants_air_conditioning,
+                                }
+                                const tripPlatformPrice = useRouteKm ? computeSuggestedPrice(routeKm as number, platformShape, ride.ride_type, flagsOfRide) : ride.platformPrice
+                                const tripCustomPrice = useRouteKm && ride.customPrice != null && ride.customTariff ? computeSuggestedPrice(routeKm as number, ride.customTariff, ride.ride_type, flagsOfRide) : ride.customPrice
+                                const tripKmForNote = useRouteKm ? (routeKm as number) : ride.distance_km
                                 // Sem GPS liberado, `driverCoords` já vale a última posição ao vivo ou o local salvo ("Definir local"):
                                 // a conta do deslocamento usa essa posição em vez de ficar só no valor mínimo.
                                 const pickupKm = info?.toPickupKm ?? (driverCoords && ride.origin_lat != null && ride.origin_lng != null
@@ -1496,13 +1521,15 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             ride={ride}
                                             requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
                                             storeName={ride.storeName}
-                                            platformPrice={ride.platformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
+                                            platformPrice={tripPlatformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
                                             pickup={pickup}
-                                            tripFareNote={ride.hasDistance && ride.distance_km != null ? describeTripFare(ride.distance_km, platformShape) : undefined}
-                                            customPrice={ride.customPrice}
+                                            tripFareNote={ride.hasDistance && tripKmForNote != null ? describeTripFare(tripKmForNote, platformShape) : undefined}
+                                            customPrice={tripCustomPrice}
                                             applying={applyingId === ride.id}
                                             onApply={(price) => applyToRide(ride, price)}
                                             onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
+                                            minHourly={ride.order_id ? null : earningGoal.minHourly}
+                                            protection={earningGoal.protection}
                                             toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
                                             trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
                                             onSkip={() => skipRide(ride.id)}
@@ -1574,6 +1601,17 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             valueBox={ride.myProposedPrice != null ? { label: 'Sua proposta', price: ride.myProposedPrice } : undefined}
                                             footer={(
                                                 <div className="flex flex-col gap-2">
+                                                    {!ride.order_id && (
+                                                        <DriverNegotiation
+                                                            applicationId={ride.applicationId}
+                                                            myPrice={ride.myProposedPrice}
+                                                            rideOffer={ride.passenger_offer ?? null}
+                                                            minutes={info && info.toPickupMin != null ? info.toPickupMin + info.tripMin : null}
+                                                            minHourly={earningGoal.minHourly}
+                                                            protection={earningGoal.protection}
+                                                            onChanged={() => load()}
+                                                        />
+                                                    )}
                                                     <div className="flex items-center justify-between gap-2">
                                                         <span className="text-[11px] font-black px-2 py-0.5 rounded-full" style={{ background: '#eab30815', color: '#eab308' }}>
                                                             Aguardando decisão

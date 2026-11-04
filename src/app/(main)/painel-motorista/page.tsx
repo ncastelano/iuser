@@ -29,6 +29,7 @@ import { callAdminApi } from '@/lib/callAdminApi'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useInsideShell } from '@/components/InsideShell'
 import DriverPanelHome from '@/components/v3/DriverPanelHome'
+import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 const ORANGE_V3 = '#f97316'
@@ -1192,6 +1193,8 @@ function PainelMotoristaContent() {
                                     </div>
                                 )}
                             </div>
+
+                            <DriverEarningGoalCard driverId={userId} />
 
                             <button
                                 onClick={showActivationWizard ? handleWizardPricingContinue : handleSave}

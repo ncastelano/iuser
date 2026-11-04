@@ -4,9 +4,16 @@
 // /aceitar-corridas e o toast de "Nova corrida disponível!". Lança o erro
 // do Supabase se o insert falhar (quem chama decide a mensagem).
 import { supabase } from '@/lib/supabase/client'
+import { hourlyCheck } from '@/modules/negotiation'
+import { belowMinimumText } from '@/modules/negotiation/domain'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 
-export async function submitRideApplication(userId: string, rideId: string, price: number): Promise<void> {
+export async function submitRideApplication(userId: string, rideId: string, price: number, minutes?: number | null): Promise<void> {
+    // Ganho mínimo por hora do motorista em modo "não aceitar abaixo": vale para QUALQUER forma de candidatura (card, aviso do celular...)
+    const check = await hourlyCheck(rideId, price, minutes)
+    if (check?.blocked) {
+        throw Object.assign(new Error(belowMinimumText(check.perHour as number, check.minHourly as number, 'proposta')), { hint: 'below_min_hourly' })
+    }
     const { error } = await supabase.from('ride_applications').insert({
         ride_request_id: rideId,
         applicant_id: userId,

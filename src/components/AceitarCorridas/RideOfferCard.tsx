@@ -15,6 +15,7 @@ import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
+import { belowMinimum, belowMinimumText, hourlyFloor, perHour as perHourOfMinutes, quickValues, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -54,6 +55,8 @@ export type OfferRide = RideSpecFields & {
     created_at: string
     offered_price: number | null
     order_id: string | null
+    /** o que o passageiro se propôs a pagar (opcional); vem de ride_offers */
+    passenger_offer?: number | null
 }
 
 export interface OfferRequester {
@@ -92,6 +95,9 @@ interface RideOfferCardProps {
     tripFareNote?: string
     // Prévia (home): só o trecho da corrida, sem "até buscar"/total/horário
     compact?: boolean
+    // Ganho mínimo por hora do motorista (privado dele): avisa quando um valor fica abaixo e, no modo "block", não deixa aceitar
+    minHourly?: number | null
+    protection?: 'warn' | 'block'
 }
 
 function relativeTime(iso: string): string {
@@ -112,7 +118,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, compact = false, pickup, tripFareNote }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', compact = false, pickup, tripFareNote }: RideOfferCardProps) {
     const { colors } = useTheme()
     // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
     const v3 = useInsideShell()
@@ -124,12 +130,21 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
 
-    // Ganho por hora (informativo): valor ÷ ((km até o passageiro + km da corrida) ÷ 40 km/h)
+    // Ganho por hora (informativo): valor ÷ tempo total (ir buscar + corrida). Sem os minutos do mapa, cai para a conta por km (40 km/h).
+    const minutesTotal = toPickup.min != null && trip.min != null ? (toPickup.min as number) + (trip.min as number) : null
     const perHour = (price: number) => {
+        if (minutesTotal) { const v = perHourOfMinutes(price, minutesTotal); return v != null ? Math.round(v) : null }
         if (toPickup.km == null || trip.km == null) return null
         const h = computeHourlyEarnings(price, trip.km, toPickup.km)
         return h ? Math.round(h.perHour) : null
     }
+    // Ganho mínimo do motorista: piso por tempo, sugestão e alertas (só dele; nada disso vai para o passageiro)
+    const floor = hourlyFloor(minutesTotal, minHourly)
+    const myFare = customPrice != null ? suggestedFare(customPrice, floor) : null
+    const iuserSuggestion = customPrice == null && floor != null && floor > platformPrice ? floor : null   // sugestão calculada, nunca salva como preferência
+    const below = (price: number) => belowMinimum(perHour(price), minHourly)
+    const blocked = (price: number) => protection === 'block' && below(price)
+    const [counterOpen, setCounterOpen] = useState(false)
 
     const haveTotal = toPickup.km != null && toPickup.min != null && trip.km != null && trip.min != null
     const totalKm = haveTotal ? (toPickup.km as number) + (trip.km as number) : null
@@ -283,19 +298,118 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         </>
                     )}
                 </>
+            ) : ride.passenger_offer != null ? (
+                // NEGOCIAÇÃO: o passageiro ofereceu um valor. Referência, oferta e minha tarifa lado a lado, com o ganho por hora de cada uma.
+                (() => {
+                    const offer = Number(ride.passenger_offer)
+                    const mine = myFare ?? iuserSuggestion ?? platformPrice
+                    const mineLabel = customPrice != null ? 'Minha tarifa' : iuserSuggestion != null ? 'Minha tarifa · sugestão do iUser' : 'Minha tarifa · sugestão do iUser'
+                    const offerBelow = below(offer)
+                    const offerBlocked = blocked(offer)
+                    const row = (label: string, value: number, strong = false, hour: number | null = null, warn = false) => (
+                        <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[12px] font-semibold min-w-0 truncate" style={{ color: strong ? colors.textPrimary : colors.textSecondary }}>{label}</span>
+                            <span className="text-right flex-shrink-0">
+                                <span className={`${strong ? 'text-[17px]' : 'text-[14px]'} font-black leading-tight`} style={{ color: strong ? '#16a34a' : colors.textPrimary }}>{brl(value)}</span>
+                                {hour != null && <span className="block text-[10px] font-bold leading-tight" style={{ color: warn ? '#d97706' : colors.textSecondary }}>≈ R$ {hour}/h</span>}
+                            </span>
+                        </div>
+                    )
+                    const quick = quickValues(mine, { count: 4 })
+                    const counterVal = parseMoney(value)
+                    const counterErr = counterVal != null ? validateAmount(counterVal) : null
+                    return (
+                        <>
+                            <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: v3 ? `${colors.border}25` : `${colors.border}20`, border: bd }}>
+                                {row('Tarifa iUser', platformPrice, false, perHour(platformPrice))}
+                                {row('Oferta do passageiro', offer, true, perHour(offer), offerBelow)}
+                                {row(mineLabel, mine, false, perHour(mine), below(mine))}
+                                {floor != null && myFare != null && myFare > (customPrice ?? 0) && (
+                                    <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>Sua tarifa foi ajustada ao seu ganho mínimo por hora.</p>
+                                )}
+                            </div>
+                            {offerBelow && minHourly != null && perHour(offer) != null && (
+                                <p className="text-[11px] font-bold leading-snug rounded-xl px-3 py-2" style={{ background: '#f59e0b1f', color: '#b45309' }}>
+                                    {belowMinimumText(perHour(offer) as number, minHourly)}{protection === 'block' ? ' Você ativou "não aceitar abaixo do mínimo".' : ''}
+                                </p>
+                            )}
+                            <button
+                                onClick={() => onApply(offer)}
+                                disabled={applying || offerBlocked}
+                                className="w-full py-3 rounded-full text-[13px] font-black uppercase tracking-wide transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                                style={{ background: GRADIENT, color: '#fff' }}
+                            >
+                                {applying ? <Spinner size={14} /> : `Aceitar oferta · ${brl(offer)}`}
+                            </button>
+                            <div className="flex items-stretch gap-1.5">
+                                <button
+                                    onClick={() => { setCounterOpen((o) => !o); setValue('') }}
+                                    className="flex-1 py-2.5 rounded-full text-[12px] font-black uppercase tracking-wide transition-all active:scale-95"
+                                    style={counterOpen ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textPrimary, border: bd }}
+                                >
+                                    Fazer contraproposta
+                                </button>
+                                {onSkip && (
+                                    <button onClick={onSkip} className="px-4 py-2.5 rounded-full text-[12px] font-black uppercase tracking-wide transition-all active:scale-95" style={{ background: 'transparent', color: '#dc2626', border: v3 ? 'none' : '1.5px solid #dc262655' }}>
+                                        Recusar
+                                    </button>
+                                )}
+                            </div>
+                            {counterOpen && (
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {quick.map((q) => (
+                                            <button
+                                                key={q}
+                                                onClick={() => onApply(q)}
+                                                disabled={applying || blocked(q)}
+                                                className="flex-1 min-w-[64px] rounded-xl px-2 py-2 text-center transition-all active:scale-95 disabled:opacity-40"
+                                                style={{ background: `${colors.border}30`, border: bd }}
+                                            >
+                                                <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>R$ {q}</span>
+                                                {perHour(q) != null && <span className="block text-[9px] font-bold" style={{ color: below(q) ? '#d97706' : colors.textSecondary }}>≈ R$ {perHour(q)}/h</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            inputMode="decimal"
+                                            value={value}
+                                            onChange={(e) => setValue(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))}
+                                            placeholder="Outro valor (R$)"
+                                            className={v3 ? 'flex-1 min-w-0 px-4 py-2.5 rounded-full text-sm font-semibold outline-none' : 'flex-1 min-w-0 px-3 py-2 rounded-full border text-sm'}
+                                            style={v3 ? { background: colors.background, color: colors.textPrimary } : { background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                        />
+                                        <button
+                                            onClick={() => counterVal != null && !counterErr && onApply(counterVal)}
+                                            disabled={applying || counterVal == null || !!counterErr || blocked(counterVal)}
+                                            className="px-4 py-2.5 rounded-full text-xs font-black disabled:opacity-50"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            {applying ? <Spinner size={12} /> : 'Enviar'}
+                                        </button>
+                                    </div>
+                                    {counterVal != null && blocked(counterVal) && minHourly != null && (
+                                        <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>{belowMinimumText(perHour(counterVal) as number, minHourly, 'proposta')}</p>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    )
+                })()
             ) : (
                 <>
                     <div className="flex items-stretch gap-1.5">
                         <button
                             onClick={() => onApply(platformPrice)}
-                            disabled={applying}
+                            disabled={applying || blocked(platformPrice)}
                             className="flex-1 rounded-xl px-3 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
                             style={{ background: `${colors.border}25`, border: bd }}
                         >
                             <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>{pickup && pickup.state !== 'ready' ? 'Tarifa iUser · a partir de' : 'Tarifa iUser'}</span>
                             <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{brl(platformPrice)}</span>
                             {perHour(platformPrice) != null && (
-                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: colors.textSecondary }}>≈ R$ {perHour(platformPrice)}/h</span>
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: below(platformPrice) ? '#d97706' : colors.textSecondary }}>≈ R$ {perHour(platformPrice)}/h{below(platformPrice) ? ' · abaixo do seu mínimo' : ''}</span>
                             )}
                             {pickup?.state === 'ready' && (
                                 <span className="block text-[9px] leading-tight mt-0.5" style={{ color: '#16a34a' }}>
@@ -312,17 +426,17 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             )}
                         </button>
                         <button
-                            onClick={() => customPrice != null && onApply(customPrice)}
-                            disabled={applying || customPrice == null}
+                            onClick={() => { const v = myFare ?? iuserSuggestion; if (v != null) onApply(v) }}
+                            disabled={applying || (myFare == null && iuserSuggestion == null) || blocked((myFare ?? iuserSuggestion) as number)}
                             className="flex-1 rounded-xl px-3 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
-                            style={customPrice != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
+                            style={myFare != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
                         >
-                            <span className="block text-[10px] font-semibold" style={{ color: customPrice != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>Minha tarifa</span>
-                            <span className="block text-[15px] font-black leading-tight" style={{ color: customPrice != null ? '#fff' : colors.textSecondary }}>
-                                {customPrice != null ? brl(customPrice) : 'não definida'}
+                            <span className="block text-[10px] font-semibold" style={{ color: myFare != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>{myFare != null ? 'Minha tarifa' : iuserSuggestion != null ? 'Sugestão do iUser' : 'Minha tarifa'}</span>
+                            <span className="block text-[15px] font-black leading-tight" style={{ color: myFare != null ? '#fff' : colors.textSecondary }}>
+                                {myFare != null ? brl(myFare) : iuserSuggestion != null ? brl(iuserSuggestion) : 'não definida'}
                             </span>
-                            {customPrice != null && perHour(customPrice) != null && (
-                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>≈ R$ {perHour(customPrice)}/h</span>
+                            {(myFare ?? iuserSuggestion) != null && perHour((myFare ?? iuserSuggestion) as number) != null && (
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: myFare != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>≈ R$ {perHour((myFare ?? iuserSuggestion) as number)}/h{myFare != null && customPrice != null && myFare > customPrice ? ' · no seu mínimo' : ''}</span>
                             )}
                         </button>
                         <button
@@ -353,7 +467,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             />
                             <button
                                 onClick={() => onApply(parseFloat(value) || 0)}
-                                disabled={applying}
+                                disabled={applying || blocked(parseFloat(value) || 0)}
                                 className="px-4 py-2 rounded-full text-xs font-black disabled:opacity-70"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >

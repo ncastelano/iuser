@@ -16,7 +16,11 @@ import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestinat
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
 import { fetchSavedRidePlaces, saveRidePlace } from '@/lib/savedRidePlaces'
 import { saveRideDraft, loadRideDraft, clearRideDraft } from '@/lib/rideRequestDraft'
-import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
+import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS, kindForRideType, type VehicleType } from '@/lib/rideVehicle'
+import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
+import PassengerOfferBox from '@/components/negotiation/PassengerOfferBox'
+import { setPassengerOffer } from '@/modules/negotiation'
 import { createSquareImage } from '@/lib/image'
 import {
     Car,
@@ -1500,6 +1504,36 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         paymentMethod, cashChangeFor, cardIsContactless,
     })
 
+    // ===== VALOR: Tarifa iUser de referência e a oferta (opcional) do passageiro =====
+    const [offerMode, setOfferMode] = useState<'drivers' | 'mine'>('drivers')
+    const [offerValue, setOfferValue] = useState<number | null>(null)
+    const [referencePrice, setReferencePrice] = useState<number | null>(null)
+    useEffect(() => {
+        if (!showPlateReminder || !requestFor) return
+        let alive = true
+        void (async () => {
+            await loadPlatformTariffs(supabase)
+            if (!alive) return
+            if (route?.distanceKm == null) { setReferencePrice(null); return }
+            const flags: RideConditionFlags = {
+                origin_needs_access: originNeedsAccess,
+                destination_needs_access: requestFor === 'objeto' ? deliveryLocation !== 'portaria' : destinationNeedsAccess,
+                is_grocery_shopping: requestFor === 'pessoa' && hasShopping,
+                has_special_needs: hasSpecialNeeds,
+                special_needs_wheelchair: hasSpecialNeeds && specialNeedsWheelchair,
+                special_needs_visual_impairment: hasSpecialNeeds && specialNeedsVisualImpairment,
+                has_guide_dog: hasSpecialNeeds && hasGuideDog,
+                pet_has_carrier: ((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') ? petHasCarrier : null,
+                delivery_location: requestFor === 'objeto' ? deliveryLocation : null,
+                wants_air_conditioning: isTwoWheels || requestFor === 'objeto' ? false : wantsAirConditioning,
+            }
+            const shape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(effectiveVehicleType)]
+            setReferencePrice(Math.round(computeSuggestedPrice(route.distanceKm, shape, requestFor, flags) * 100) / 100)
+        })()
+        return () => { alive = false }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showPlateReminder, requestFor, route, effectiveVehicleType, wantsAirConditioning])
+
     const handleSubmit = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -1593,6 +1627,11 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
             if (error) throw error
             clearRideDraft()
+            // Oferta do passageiro (opcional): grava antes de avisar os motoristas, para o card deles já mostrar o valor
+            if (offerMode === 'mine' && offerValue != null) {
+                try { await setPassengerOffer(insertedRide.id, offerValue) }
+                catch { toast.info('Seu pedido foi enviado, mas não conseguimos registrar a sua oferta de valor. Os motoristas vão propor o valor.') }
+            }
             notifyNewRide(insertedRide.id)
             setActiveRideId(insertedRide.id)
             // Atalho pro "Últimos acessados" da home — não é conteúdo
@@ -1805,6 +1844,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 </p>
                             ))}
                         </div>
+
+                        <PassengerOfferBox reference={referencePrice} mode={offerMode} onMode={setOfferMode} value={offerValue} onValue={setOfferValue} />
 
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.

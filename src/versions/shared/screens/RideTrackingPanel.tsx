@@ -19,6 +19,8 @@ import { playNotificationSound } from '@/lib/rideAlertSound'
 import { handleShareLink } from '@/lib/share'
 import { speak } from '@/lib/voiceNavigation'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import CandidateNegotiation from '@/components/negotiation/CandidateNegotiation'
+import { loadOffers, type PriceOffer } from '@/modules/negotiation'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
@@ -59,6 +61,8 @@ interface RideRow {
     extra_task_fee: number | null
     extra_task_description: string | null
     share_token: string
+    passenger_offer: number | null
+    agreed_price: number | null
 }
 
 interface CandidateStore {
@@ -119,6 +123,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     const rideStatusForPage = ride?.status ?? null
     useEffect(() => { onRideStatus?.(rideStatusForPage); return () => onRideStatus?.(null) }, [rideStatusForPage, onRideStatus])
     const [candidates, setCandidates] = useState<Candidate[]>([])
+    // propostas de cada motorista (histórico da negociação); as de agora definem o que a tela mostra
+    const [offers, setOffers] = useState<PriceOffer[]>([])
     const [tripRouteCoords, setTripRouteCoords] = useState<[number, number][] | null>(null)
     const [driver, setDriver] = useState<DriverInfo | null>(null)
     const [decidingId, setDecidingId] = useState<string | null>(null)
@@ -131,7 +137,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, vehicle_type, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token')
+            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, vehicle_type, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token, passenger_offer, agreed_price')
             .eq('id', rideId)
             .single()
 
@@ -306,6 +312,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         firstLoad.current = false
 
         setCandidates(nextCandidates)
+        void loadOffers(nextCandidates.map((c) => c.applicationId)).then(setOffers)
 
         if (rideRow.driver_id) {
             // O motorista aceito é sempre um dos candidatos (aceitar exige
@@ -762,9 +769,9 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         {'★'.repeat(roundedDriverRating)}{'☆'.repeat(5 - roundedDriverRating)} {(driver.ratingAvg || 0).toFixed(1)}
                     </span>
                 )}
-                {ride.status === 'accepted' && driver?.proposedPrice != null && (
-                    <span className="px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#22c55e15', color: '#16a34a' }}>
-                        R$ {driver.proposedPrice.toFixed(2)}
+                {ride.status === 'accepted' && (ride.agreed_price ?? driver?.proposedPrice) != null && (
+                    <span className="px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#22c55e15', color: '#16a34a' }} title="Valor combinado: o que as duas partes aceitaram">
+                        Valor combinado · R$ {Number(ride.agreed_price ?? driver?.proposedPrice).toFixed(2)}
                     </span>
                 )}
             </div>
@@ -868,6 +875,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
             {/* Candidatos, enquanto pendente */}
             {ride.status === 'pending' && (
                 <div>
+                    {ride.passenger_offer != null && (
+                        <p className="text-[11px] font-bold mb-2 px-2.5 py-1.5 rounded-lg w-fit" style={{ background: '#16a34a1a', color: '#15803d' }}>
+                            Sua oferta aos motoristas: R$ {Number(ride.passenger_offer).toFixed(2).replace('.', ',')}
+                        </p>
+                    )}
                     <h3 className="text-xs font-black mb-2" style={{ color: colors.textPrimary }}>
                         {candidates.length === 0 ? 'Aguardando candidatos...' : `${candidates.length} motorista${candidates.length > 1 ? 's' : ''} se candidataram`}
                     </h3>
@@ -886,7 +898,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                     const rating = c.ratingCount > 0 ? (c.ratingAvg || 0).toFixed(1) : null
                                     const vehicle = [c.carModel, c.carColor].filter(Boolean).join(' · ')
                                     return (
-                                        <div key={c.applicationId} className="flex items-center gap-2.5 rounded-2xl px-2.5 py-2 min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                        <div key={c.applicationId} className="flex flex-col gap-1.5 rounded-2xl px-2.5 py-2 min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                        <div className="flex items-center gap-2.5 min-w-0">
                                             <PlanAvatarRing userId={c.applicantId}>
                                                 {c.avatarUrl ? (
                                                     <img src={c.avatarUrl} className="w-9 h-9 rounded-full object-cover" style={{ border: `2px solid ${color}` }} alt="" />
@@ -921,6 +934,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                             ) : (
                                                 <span className="text-[10px] font-black uppercase flex-shrink-0" style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}>{c.status === 'accepted' ? 'Aceito' : 'Recusado'}</span>
                                             )}
+                                        </div>
+                                        {c.status === 'pending' && <CandidateNegotiation applicationId={c.applicationId} proposedPrice={c.proposedPrice} offers={offers} rideOffer={ride.passenger_offer} onChanged={load} />}
                                         </div>
                                     )
                                 })}
@@ -1085,6 +1100,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                             {c.status === 'accepted' ? 'Aceito' : 'Recusado'}
                                         </span>
                                     )}
+                                    {c.status === 'pending' && <CandidateNegotiation applicationId={c.applicationId} proposedPrice={c.proposedPrice} offers={offers} rideOffer={ride.passenger_offer} onChanged={load} />}
                                 </div>
                                 )
                             })}
