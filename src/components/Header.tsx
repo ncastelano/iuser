@@ -254,6 +254,8 @@ export default function Header({
                 className={`flex items-center gap-2 ${pinned ? '' : 'sticky z-30 pt-5 pb-2.5 -mt-4 -mx-4 px-4'}`}
                 style={{ color: colors.textPrimary, ...(pinned ? {} : stickStyle) }}
             >
+                {/* cobre a faixa entre o topo da tela e a linha fixa: sem isto o conteúdo que rola aparece por cima do título */}
+                <span aria-hidden className="absolute left-0 right-0 bottom-full pointer-events-none" style={{ height: 'var(--shell-top, 0px)', background: colors.background }} />
                 {showBack && (
                     <button
                         onClick={handleBack}

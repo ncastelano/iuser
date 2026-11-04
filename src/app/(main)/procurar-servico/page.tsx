@@ -12,7 +12,7 @@ import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from '@/lib/toast'
-import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
+import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, History, HeartCrack } from 'lucide-react'
 import { useMyOrigin } from '@/hooks/useMyOrigin'
 import ListFilters, { type SortOption, type CategoryOption } from '@/components/ListFilters'
 import PhotoCollage from '@/components/PhotoCollage'
@@ -281,10 +281,11 @@ function SerParceiroContent() {
 
     // Filtros de UMA linha: tipo do serviço + ordenação. O tipo é o próprio nome do serviço pedido (pintor, cabeleireiro...)
     const [typeFilter, setTypeFilter] = useState('todas')
-    const [sort, setSort] = useState<'recentes' | 'perto' | 'vistos'>('recentes')
+    const [sort, setSort] = useState<'recentes' | 'antigos' | 'perto' | 'vistos'>('recentes')
     const sorts: SortOption[] = [
-        { id: 'recentes', label: 'Mais recentes', short: 'Recentes', icon: Clock },
         { id: 'perto', label: origin ? 'Mais perto de mim' : 'Mais perto (defina seu local)', short: 'Perto', icon: MapPin },
+        { id: 'recentes', label: 'Mais recentes', short: 'Recentes', icon: Clock },
+        { id: 'antigos', label: 'Mais antigos', short: 'Antigos', icon: History },
         { id: 'vistos', label: 'Mais vistos', short: 'Vistos', icon: Eye },
     ]
     const typeOptions = useMemo<CategoryOption[]>(() => {
@@ -310,6 +311,7 @@ function SerParceiroContent() {
         const by = [...list]
         if (sort === 'perto') by.sort((a, b) => distOf(a) - distOf(b))
         else if (sort === 'vistos') by.sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+        else if (sort === 'antigos') by.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
         else by.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         return by
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -406,7 +408,7 @@ function SerParceiroContent() {
                         <div className="mb-3">
                             <ListFilters
                                 sorts={sorts} sort={sort} onSort={(id) => setSort(id as typeof sort)}
-                                options={typeOptions} counts={typeCounts} category={typeFilter} onCategory={setTypeFilter} allLabel="Todos os serviços"
+                                sortFirst options={typeOptions} counts={typeCounts} category={typeFilter} onCategory={setTypeFilter} allLabel="Todos os serviços"
                             />
                         </div>
                     )}

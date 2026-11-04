@@ -17,7 +17,7 @@ const catName = (slug: string) => (slug === 'transporte' ? 'Frete' : catList.fin
 /** Categoria própria da lista (quando não é a categoria de loja do iUser), ex.: o tipo de serviço de um pedido */
 export interface CategoryOption { slug: string; label: string; icon: LucideIcon; color: string }
 
-export default function ListFilters({ sorts, sort, onSort, counts, category = 'todas', onCategory, toggle, options, allLabel = 'Todas' }: {
+export default function ListFilters({ sorts, sort, onSort, counts, category = 'todas', onCategory, toggle, options, allLabel = 'Todas', sortFirst = false }: {
     sorts: SortOption[]
     sort: string
     onSort: (id: string) => void
@@ -29,6 +29,8 @@ export default function ListFilters({ sorts, sort, onSort, counts, category = 't
     /** lista de categorias própria; sem ela vale a de categorias de loja */
     options?: CategoryOption[]
     allLabel?: string
+    /** a ordenação vem antes (à esquerda) da categoria */
+    sortFirst?: boolean
 }) {
     const { colors } = useTheme()
     const [menu, setMenu] = useState<'cat' | 'sort' | null>(null)
@@ -42,10 +44,7 @@ export default function ListFilters({ sorts, sort, onSort, counts, category = 't
     const curSort = sorts.find((x) => x.id === sort) || sorts[0]
     const SortIcon = curSort.icon
 
-    return (
-        <div className="relative">
-            <div className="flex items-center gap-2">
-                {hasCats && (
+    const CAT = hasCats ? (
                     <button
                         onClick={() => setMenu(menu === 'cat' ? null : 'cat')}
                         aria-expanded={menu === 'cat'}
@@ -56,7 +55,8 @@ export default function ListFilters({ sorts, sort, onSort, counts, category = 't
                         <span className="truncate">{cur ? cur.label : allLabel}</span>
                         <ChevronDown size={14} className="flex-shrink-0 ml-auto" style={{ color: colors.textSecondary }} />
                     </button>
-                )}
+    ) : null
+    const SORT = (
                 <button
                     onClick={() => setMenu(menu === 'sort' ? null : 'sort')}
                     aria-expanded={menu === 'sort'}
@@ -67,6 +67,12 @@ export default function ListFilters({ sorts, sort, onSort, counts, category = 't
                     <span className="truncate">{curSort.short}</span>
                     <ChevronDown size={14} className="flex-shrink-0 ml-auto" style={{ color: colors.textSecondary }} />
                 </button>
+    )
+
+    return (
+        <div className="relative">
+            <div className="flex items-center gap-2">
+                {sortFirst ? <>{SORT}{CAT}</> : <>{CAT}{SORT}</>}
                 {toggle && (
                     <button
                         onClick={toggle.onToggle}
