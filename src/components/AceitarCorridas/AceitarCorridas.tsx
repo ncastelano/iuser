@@ -1530,6 +1530,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
                                             minHourly={ride.order_id ? null : earningGoal.minHourly}
                                             protection={earningGoal.protection}
+                                            onEditTariff={ride.order_id ? undefined : () => router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}`)}
                                             toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
                                             trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
                                             onSkip={() => skipRide(ride.id)}

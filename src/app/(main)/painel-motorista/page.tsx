@@ -154,7 +154,7 @@ function PainelMotoristaContent() {
     type PainelTab = 'painel' | 'veiculo' | 'plano' | 'avaliacoes' | 'solicitacoes' | 'candidaturas' | 'aceita'
     const [activeTab, setActiveTab] = useState<PainelTab>(() => {
         const aba = searchParams.get('aba')
-        return aba === 'solicitacoes' || aba === 'candidaturas' ? aba : 'painel'
+        return aba === 'solicitacoes' || aba === 'candidaturas' || aba === 'plano' ? aba : 'painel'
     })
 
     // Abas que eram do /aceitar-corridas (Solicitações de motorista / Me candidatei /
@@ -319,6 +319,8 @@ function PainelMotoristaContent() {
             setActiveTab('veiculo')
         } else if (searchParams.get('aba') === 'veiculo') {
             setActiveTab('veiculo')
+        } else if (searchParams.get('aba') === 'plano') {
+            setActiveTab('plano')   // /painel-motorista?aba=plano&veiculo=carro: a aba da tarifa (tarifa personalizada) daquele veículo
         }
 
         const { data: reviewRows } = await supabase

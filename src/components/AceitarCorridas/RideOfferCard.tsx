@@ -98,6 +98,8 @@ interface RideOfferCardProps {
     // Ganho mínimo por hora do motorista (privado dele): avisa quando um valor fica abaixo e, no modo "block", não deixa aceitar
     minHourly?: number | null
     protection?: 'warn' | 'block'
+    // Tocar em "Minha tarifa" abre a tarifa personalizada do motorista (onde ele muda os valores); mandar a proposta por ela é pelo "outro" ou pelo botão da sugestão
+    onEditTariff?: () => void
 }
 
 function relativeTime(iso: string): string {
@@ -118,7 +120,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', compact = false, pickup, tripFareNote }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, compact = false, pickup, tripFareNote }: RideOfferCardProps) {
     const { colors } = useTheme()
     // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
     const v3 = useInsideShell()
@@ -426,8 +428,12 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             )}
                         </button>
                         <button
-                            onClick={() => { const v = myFare ?? iuserSuggestion; if (v != null) onApply(v) }}
-                            disabled={applying || (myFare == null && iuserSuggestion == null) || blocked((myFare ?? iuserSuggestion) as number)}
+                            onClick={() => {
+                                // "Minha tarifa" (definida ou não) leva à tarifa personalizada; só a SUGESTÃO do iUser (ainda não é tarifa dele) manda a proposta
+                                if (iuserSuggestion != null && myFare == null) onApply(iuserSuggestion)
+                                else onEditTariff?.()
+                            }}
+                            disabled={applying || (iuserSuggestion != null && myFare == null && blocked(iuserSuggestion)) || (iuserSuggestion == null && myFare == null && !onEditTariff)}
                             className="flex-1 rounded-xl px-3 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
                             style={myFare != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
                         >
@@ -438,11 +444,17 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             {(myFare ?? iuserSuggestion) != null && perHour((myFare ?? iuserSuggestion) as number) != null && (
                                 <span className="block text-[9px] leading-tight font-semibold" style={{ color: myFare != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>≈ R$ {perHour((myFare ?? iuserSuggestion) as number)}/h{myFare != null && customPrice != null && myFare > customPrice ? ' · no seu mínimo' : ''}</span>
                             )}
+                            {onEditTariff && myFare != null && (
+                                <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: 'rgba(255,255,255,0.9)' }}>toque para editar</span>
+                            )}
+                            {onEditTariff && myFare == null && iuserSuggestion == null && (
+                                <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: colors.textSecondary }}>toque para definir</span>
+                            )}
                         </button>
                         <button
                             onClick={() => {
                                 if (editing) { setEditing(false); setValue('') }
-                                else { setEditing(true); setValue((customPrice ?? platformPrice).toFixed(2)) }
+                                else { setEditing(true); setValue((myFare ?? iuserSuggestion ?? platformPrice).toFixed(2)) }
                             }}
                             className="w-11 rounded-xl flex flex-col items-center justify-center flex-shrink-0 transition-all active:scale-95"
                             style={editing ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: bd }}
