@@ -59,6 +59,6 @@ export default function DigitalCards({ items, layout }: { items: ShowcaseItem[];
             className={layout === 'strip' ? 'snap-start flex-shrink-0 w-[272px] sm:w-[300px]' : 'w-full'} />
     ))
     return layout === 'strip'
-        ? <div ref={strip} onPointerDown={touch} onWheel={touch} onTouchMove={touch} className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-pl-6 scroll-pr-6 -mx-6 px-6 -mt-3 pt-4 -mb-10 pb-14" style={{ scrollbarWidth: 'none' }}>{cards}</div>
+        ? <div ref={strip} onPointerDown={touch} onWheel={touch} onTouchMove={touch} className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-pl-4 scroll-pr-4 -mx-4 px-4 -mt-3 pt-4 -mb-10 pb-14" style={{ scrollbarWidth: 'none' }}>{cards}</div>
         : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{cards}</div>
 }

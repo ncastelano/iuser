@@ -13,12 +13,12 @@ import { usesCollage, type PromotionShowcaseItem } from '@/modules/promotions'
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
 
-export default function PromoCards({ items, bleed = '-mx-6 px-6' }: { items: PromotionShowcaseItem[]; bleed?: string }) {
+export default function PromoCards({ items, bleed = '-mx-4 px-4' }: { items: PromotionShowcaseItem[]; bleed?: string }) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const open = (p: PromotionShowcaseItem) => { startNavProgress(); router.push(`/${p.store_slug}/${p.slug}`) }
     return (
-        <div className={`flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide ${bleed} pb-2 scroll-pl-6`}>
+        <div className={`flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide ${bleed} pb-2 scroll-pl-4 scroll-pr-4`}>
             {items.map((p) => {
                 // combo sem foto enviada pela loja: as fotos dos itens juntas; com foto enviada, a foto de fundo
                 const collage = usesCollage(p, p.items.length)

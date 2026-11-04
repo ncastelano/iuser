@@ -37,7 +37,7 @@ export default function DigitalStrip({ className = 'mt-8' }: { className?: strin
                 </button>
             </div>
             {items === null
-                ? <div className="flex gap-3 overflow-hidden -mx-6 px-6">{[0, 1, 2].map((i) => <div key={i} className="h-[250px] w-[272px] flex-shrink-0 rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />)}</div>
+                ? <div className="flex gap-3 overflow-hidden -mx-4 px-4">{[0, 1, 2].map((i) => <div key={i} className="h-[250px] w-[272px] flex-shrink-0 rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />)}</div>
                 : <DigitalCards items={items} layout="strip" />}
         </section>
     )

@@ -195,3 +195,11 @@ test('limites do digital: um bucket por tipo, com os MESMOS tamanhos do banco', 
     assert.match(sqlLimits, /kind = 'audio' AND bucket = 'digital-music'/)
     assert.match(sqlLimits, /kind = 'app' AND bucket = 'digital-apps'/)
 })
+
+// A home (2.0 e 3.0) tem margem de 16 px (px-4). Fileira que "sangra" até a borda com -mx-6 passa 8 px da tela e cria rolagem lateral na página inteira.
+test('home: as fileiras de promoções e digitais sangram com -mx-4 px-4 (a margem da home), nunca -mx-6', () => {
+    for (const f of ['src/components/promotions/PromoCards.tsx', 'src/components/digital/DigitalCards.tsx', 'src/components/v3/PromoStrip.tsx', 'src/components/v3/DigitalStrip.tsx']) {
+        const src = readFileSync(new URL('../' + f, import.meta.url), 'utf8')
+        assert.ok(!/-mx-6/.test(src), `${f} usa -mx-6 (estoura a largura da tela da home)`)
+    }
+})

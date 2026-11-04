@@ -28,7 +28,7 @@ export default function PromoStrip({ className = 'mt-7' }: { className?: string 
                 <p className="text-xs" style={{ color: colors.textSecondary }}>Combos com desconto montados pelas lojas</p>
             </div>
             {items === null
-                ? <div className="flex gap-3 overflow-hidden -mx-6 px-6">{[0, 1, 2].map((i) => <div key={i} className="h-[250px] w-[156px] flex-shrink-0 rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />)}</div>
+                ? <div className="flex gap-3 overflow-hidden -mx-4 px-4">{[0, 1, 2].map((i) => <div key={i} className="h-[250px] w-[156px] flex-shrink-0 rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />)}</div>
                 : <PromoCards items={items} />}
         </section>
     )
