@@ -102,6 +102,10 @@ interface RideOfferCardProps {
     onEditTariff?: () => void
     // Valor mínimo da plataforma por minuto de trabalho (Admin → Tarifas): nenhum valor sai abaixo de minutos × isto (0/undefined = sem regra)
     minPerMinute?: number
+    // Só LEITURA (a prévia da home): mostra os mesmos valores, mas não manda proposta daqui; quem decide é a página da corrida (use `after` para o botão que leva até lá)
+    viewOnly?: boolean
+    // Conteúdo depois dos valores (ex.: o botão "Ver corrida" da home)
+    after?: ReactNode
 }
 
 function relativeTime(iso: string): string {
@@ -122,7 +126,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, minPerMinute = 0, compact = false, pickup, tripFareNote }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, minPerMinute = 0, compact = false, pickup, tripFareNote, viewOnly = false, after }: RideOfferCardProps) {
     const { colors } = useTheme()
     // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
     const v3 = useInsideShell()
@@ -278,7 +282,13 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
             {/* Valores: Tarifa iUser · Minha tarifa · outro valor (ou o frete da loja) */}
             {footer}
 
-            {!footer && onApply && (ride.offered_price != null ? (
+            {!footer && onApply && (ride.offered_price != null ? (viewOnly ? (
+                <div className="rounded-xl px-3 py-2" style={{ background: '#22c55e14', border: '1px solid #22c55e40' }}>
+                    <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>Frete desta entrega</span>
+                    <span className="block text-[17px] font-black leading-tight" style={{ color: '#16a34a' }}>{brl(Number(ride.offered_price))}</span>
+                    {perHour(Number(ride.offered_price)) != null && <span className="block text-[10px] font-semibold leading-tight" style={{ color: colors.textSecondary }}>≈ R$ {perHour(Number(ride.offered_price))}/h</span>}
+                </div>
+            ) : (
                 <>
                 <button
                     onClick={() => onApply(Number(ride.offered_price))}
@@ -308,7 +318,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         </>
                     )}
                 </>
-            ) : ride.passenger_offer != null ? (
+            )) : ride.passenger_offer != null ? (
                 // NEGOCIAÇÃO: o passageiro ofereceu um valor. Referência, oferta e minha tarifa lado a lado, com o ganho por hora de cada uma.
                 (() => {
                     const offer = Number(ride.passenger_offer)
@@ -338,7 +348,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                     <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>Sua tarifa foi ajustada ao seu ganho mínimo por hora.</p>
                                 )}
                             </div>
-                            {belowPlatformFloor(offer, platFloor) && (
+                            {!viewOnly && belowPlatformFloor(offer, platFloor) && (
                                 <p className="text-[11px] font-bold leading-snug rounded-xl px-3 py-2" style={{ background: '#ef44441a', color: '#b91c1c' }}>{platformFloorText(platFloor, minPerMinute)} Essa oferta não pode ser aceita; faça uma contraproposta.</p>
                             )}
                             {offerBelow && minHourly != null && perHour(offer) != null && (
@@ -346,6 +356,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                     {belowMinimumText(perHour(offer) as number, minHourly)}{protection === 'block' ? ' Você ativou "não aceitar abaixo do mínimo".' : ''}
                                 </p>
                             )}
+                            {!viewOnly && (<>
                             <button
                                 onClick={() => onApply(offer)}
                                 disabled={applying || offerBlocked}
@@ -407,6 +418,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                     )}
                                 </div>
                             )}
+                            </>)}
                         </>
                     )
                 })()
@@ -462,7 +474,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                 <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: colors.textSecondary }}>toque para definir</span>
                             )}
                         </button>
-                        <button
+                        {!viewOnly && <button
                             onClick={() => {
                                 if (editing) { setEditing(false); setValue('') }
                                 else { setEditing(true); setValue((myFare ?? iuserSuggestion ?? platformPrice).toFixed(2)) }
@@ -473,7 +485,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         >
                             <Pencil size={14} />
                             <span className="text-[9px] font-semibold mt-0.5">outro</span>
-                        </button>
+                        </button>}
                     </div>
 
                     {platFloor > 0 && (
@@ -516,6 +528,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                     )}
                 </>
             ))}
+
+            {after}
 
             {onSkip ? (
                 <button onClick={onSkip} className="w-full py-1 text-xs font-semibold" style={{ color: colors.textSecondary }}>

@@ -24,6 +24,7 @@ import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyVehicles } from '@/lib/vehicleHeaderTabs'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
+import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from '@/components/AceitarCorridas/LocationAskDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
@@ -235,7 +236,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             let openQuery = supabase
                 .from('ride_offers')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, passenger_offer, order_id, applicant_count, stop1_address, stop2_address')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, passenger_offer, order_id, applicant_count, stop1_address, stop2_address, stop1_lat, stop1_lng, stop2_lat, stop2_lng')
                 .eq('status', 'pending')
             const { data: rows } = await openQuery
                 .order('created_at', { ascending: false })
@@ -667,65 +668,63 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                 pickupFee: (shape, km) => computePickupFee(shape, km),
                             })
                             const usesPlatformTariff = q.shownKind === 'platform'
-                            const pickup = usesPlatformTariff ? route : undefined
-                            const pickupKm = pickup?.km
-                            const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km) : 0
-                            const total = q.shown
-                            const hourlyValue = q.perHour
-                            const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+                            // Deslocamento até a partida: só a Tarifa iUser soma (igual a /aceitar-corridas)
+                            const pickup: React.ComponentProps<typeof RideOfferCard>['pickup'] = usesPlatformTariff
+                                ? (route ? { state: 'ready', km: route.km, amount: computePickupFee(platformShape, route.km), from: gps ? 'gps' : 'saved' } : { state: gpsStatus === 'asking' || gpsStatus === 'idle' ? 'waiting' : 'missing' })
+                                : undefined
+                            const tripFare = (shape: DriverPricing, km: number | null) => km != null
+                                ? computeSuggestedPrice(km, shape, rideType, flags)
+                                : shape.baseFee + shape.extraFees[rideType] + computeConditionExtras(flags, shape.conditionExtraFees)
+                            const stops: { lat: number; lng: number }[] = []
+                            const rr = ride as unknown as { stop1_lat: number | null; stop1_lng: number | null; stop2_lat: number | null; stop2_lng: number | null }
+                            if (rr.stop1_lat != null && rr.stop1_lng != null) stops.push({ lat: rr.stop1_lat, lng: rr.stop1_lng })
+                            if (rr.stop2_lat != null && rr.stop2_lng != null) stops.push({ lat: rr.stop2_lat, lng: rr.stop2_lng })
                             return (
                             <div
                                 key={ride.id}
                                 className="rounded-2xl p-3.5"
                                 style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                             >
+                                {/* O MESMO card de /aceitar-corridas (quem pediu, o que leva, mapa, trajeto, tempos e valores); aqui só leitura: candidatar-se é na página da corrida */}
                                 <RideOfferCard
-                                    compact
+                                    viewOnly
                                     ride={ride}
                                     requester={requester}
                                     storeName={null}
-                                    toPickup={{ km: null, min: null, hasGps: true }}
+                                    platformPrice={q.platform}
+                                    pickup={pickup}
+                                    tripFareNote={usesPlatformTariff && !route && q.tripKm != null ? describeTripFare(q.tripKm, platformShape) : undefined}
+                                    customPrice={customShape ? tripFare(customShape, q.tripKm) : null}
+                                    onApply={() => goToRide(ride.id)}
+                                    minHourly={ride.offered_price != null ? null : minHourly}
+                                    minPerMinute={ride.offered_price != null ? 0 : minPerMinute}
+                                    onEditTariff={ride.offered_price != null ? undefined : () => { startNavProgress(); router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}`) }}
+                                    toPickup={{ km: route?.km ?? null, min: route?.min ?? null, hasGps: pos != null }}
                                     trip={{ km: q.tripKm, min: trip?.min ?? ride.duration_min }}
-                                    footer={
-                                        <div className="flex flex-col gap-2">
-                                            <div className="flex items-end justify-between gap-3 rounded-xl px-3 py-2" style={{ background: '#22c55e14', border: '1px solid #22c55e40' }}>
-                                                <div>
-                                                    <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>{q.shownKind === 'custom' ? 'Você pode ganhar (sua tarifa)' : usesPlatformTariff && pickupKm == null ? 'Você ganha a partir de' : 'Você pode ganhar'}</span>
-                                                    <span className="block text-xl font-black leading-tight" style={{ color: '#16a34a' }}>{brl(total)}</span>
-                                                    {hourlyValue != null && (
-                                                        <span className="block text-[10px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>
-                                                            ≈ R$ {Math.round(hourlyValue)} por hora (com o deslocamento)
-                                                        </span>
-                                                    )}
-                                                    {ride.passenger_offer != null && (
-                                                        <span className="block text-[11px] font-black leading-tight mt-1" style={{ color: '#16a34a' }}>
-                                                            O passageiro ofereceu {brl(Number(ride.passenger_offer))}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {usesPlatformTariff && (
-                                                    <span className="text-[10px] leading-tight text-right font-semibold" style={{ color: pickupKm != null ? '#16a34a' : '#d97706' }}>
-                                                        {pickupKm != null
-                                                            ? `inclui ${brl(pickupAmount)} · ${pickupKm.toFixed(1).replace('.', ',')} km até a partida${gps ? '' : ' (pela sua última posição salva)'}`
-                                                            : gpsStatus === 'asking' || gpsStatus === 'idle'
-                                                                ? 'Localizando... falta somar a distância até a partida'
-                                                                : 'falta somar a distância até a partida'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {usesPlatformTariff && pickupKm == null && q.tripKm != null && (
-                                                <p className="text-[10px] leading-snug -mt-1" style={{ color: colors.textSecondary }}>{describeTripFare(q.tripKm, platformShape)}</p>
-                                            )}
-                                            <button
-                                                onClick={() => goToRide(ride.id)}
-                                                className="w-full py-3 rounded-full text-sm font-black flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
-                                                style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
-                                            >
-                                                Ver corrida
-                                                <ArrowRight size={16} />
-                                            </button>
-                                        </div>
-                                    }
+                                    miniMap={requester && (ride as unknown as { origin_lat: number | null }).origin_lat != null && (ride as unknown as { destination_lat: number | null }).destination_lat != null ? (
+                                        <RideMiniMap
+                                            compact
+                                            transition={false}
+                                            originLat={(ride as unknown as { origin_lat: number }).origin_lat}
+                                            originLng={(ride as unknown as { origin_lng: number }).origin_lng}
+                                            destLat={(ride as unknown as { destination_lat: number }).destination_lat}
+                                            destLng={(ride as unknown as { destination_lng: number }).destination_lng}
+                                            stops={stops}
+                                            driverLat={pos ? pos[1] : null}
+                                            driverLng={pos ? pos[0] : null}
+                                            onExpand={() => { startNavProgress(); router.push(`/aceitar-corridas/mapa?ride=${ride.id}`) }}
+                                        />
+                                    ) : null}
+                                    after={(
+                                        <button
+                                            onClick={() => goToRide(ride.id)}
+                                            className="w-full py-3 rounded-full text-sm font-black flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+                                            style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                                        >
+                                            Ver corrida e me candidatar
+                                            <ArrowRight size={16} />
+                                        </button>
+                                    )}
                                 />
                             </div>
                             )
