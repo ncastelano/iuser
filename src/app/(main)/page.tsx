@@ -599,8 +599,8 @@ function HomePageContent() {
                 return <ProductShowcase />
             case 'publicationShowcase':
                 return <FeaturedPublications maxItems={6} />
-            case 'outdoorLojas':
-                return <Outdoor kind="lojas" />
+            case 'outdoorLojas':   // (o id antigo fica, para não perder a ordem que as pessoas já salvaram) agora é o OUTDOOR iUSER: os perfis com mais pontos
+                return <Outdoor kind="pessoas" />
             case 'promoShowcase':
                 return <PromoShowcase />
             case 'digitalShowcase':

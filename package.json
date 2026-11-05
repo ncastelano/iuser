@@ -70,7 +70,8 @@
     "test:manual-crypto": "node --test scripts/test-manual-crypto.mjs",
     "test:atividade": "node --test scripts/test-atividade.mjs",
     "test:bar": "node --test scripts/test-bar.mjs",
-    "test:earnings": "node --test scripts/test-earnings.mjs"
+    "test:earnings": "node --test scripts/test-earnings.mjs",
+    "test:player": "node --test scripts/test-player.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

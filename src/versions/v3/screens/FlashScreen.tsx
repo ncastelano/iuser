@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { handleShareLink } from '@/lib/share'
+import { usePlayerStore } from '@/store/usePlayerStore'
 import {
     addComment, authorAvatarUrl, countShare, deleteComment, deleteFlash, fetchComments, fetchFeed, fitFontSize, flashGradient, mediaSrc, PAGE_SIZE, postFlash,
     setFollowing, setLiked, shortCount, timeAgo, FLASH_COMMENT_MAX_CHARS, FLASH_MAX_CHARS, validateFlash,
@@ -334,6 +335,17 @@ function StackedFeed({ items, me, scrollerRef, onNearEnd, onLike, onFollow, onCo
 
     // sempre que o que está montado muda, posiciona os cards na hora (antes de pintar)
     useLayoutEffect(() => { apply() })
+
+    // o mini-player da barra lembra do flash que está na frente (foto, ou o rosto de quem postou) e leva de volta a ele; ao sair do feed fica à espera
+    const front = items[view.active]
+    useEffect(() => {
+        if (!front || front.kind !== 'flash') return
+        usePlayerStore.getState().reportMedia(
+            { kind: 'flash', id: front.id, title: front.content?.trim() || `Flash de @${front.authorSlug}`, sub: `Flash · @${front.authorSlug}`, cover: (front.mediaType === 'image' ? mediaSrc(front) : null) || authorAvatarUrl(front.authorAvatar) || null, href: `/flash?de=${front.id}` },
+            { pos: 0, dur: 0, playing: true },
+        )
+    }, [front?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => () => usePlayerStore.getState().pauseMedia(), [])
 
     const lo = Math.max(0, view.base - STACK_DEPTH), hi = Math.min(n - 1, view.base + 2)
     return (

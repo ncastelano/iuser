@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Maximize, Minimize, Pause, PictureInPicture2, Play, RotateCcw, SkipForward, Volume2, VolumeX } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { openItem } from '@/modules/digital'
+import { usePlayerStore } from '@/store/usePlayerStore'
 
 const ORANGE = '#f97316'
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -23,9 +24,11 @@ interface Props {
     nextTitle?: string | null
     onEnded: () => void        // acabou de verdade: marca como concluída
     onNext?: (() => void) | null
+    /** para o mini-player da barra lembrar desta aula (e levar de volta a ela): o que escrever embaixo do título, a capa e a página */
+    track?: { sub: string; cover: string | null; href: string }
 }
 
-export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext }: Props) {
+export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext, track }: Props) {
     const { colors } = useTheme()
     const wrap = useRef<HTMLDivElement>(null)
     const video = useRef<HTMLVideoElement>(null)
@@ -106,6 +109,13 @@ export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext }:
         return () => clearTimeout(t)
     }, [countdown, onNext])
 
+    // deixa o rastro desta aula no mini-player da barra (a página guarda o ponto onde parou; a música que estiver tocando para)
+    const report = (isPlaying: boolean) => {
+        const v = video.current
+        if (!track || !v) return
+        usePlayerStore.getState().reportMedia({ kind: 'aula', id: itemId, title, sub: track.sub, cover: track.cover, href: track.href }, { pos: v.currentTime || 0, dur: Number.isFinite(v.duration) ? v.duration : 0, playing: isPlaying })
+    }
+    useEffect(() => () => usePlayerStore.getState().pauseMedia(), [])   // saiu da aula: o mini-player fica à espera (continuar)
     const onLoaded = () => {
         const v = video.current; if (!v) return
         setDuration(v.duration || 0)
@@ -120,7 +130,7 @@ export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext }:
         setTime(v.currentTime)
         if (v.buffered.length) setBuffered(v.buffered.end(v.buffered.length - 1))
         const now = Date.now()
-        if (now - lastSave.current > 3000) { lastSave.current = now; try { localStorage.setItem(posKey(itemId), String(Math.floor(v.currentTime))) } catch { /* ok */ } }
+        if (now - lastSave.current > 3000) { lastSave.current = now; try { localStorage.setItem(posKey(itemId), String(Math.floor(v.currentTime))) } catch { /* ok */ } report(!v.paused) }
     }
     const finished = () => {
         setPlaying(false); setEnded(true); setShowControls(true)
@@ -142,7 +152,7 @@ export default function ProPlayer({ itemId, title, nextTitle, onEnded, onNext }:
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center"><p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{error}</p></div>
             ) : (
                 <video ref={video} src={src || undefined} playsInline preload="metadata" className="absolute inset-0 w-full h-full object-contain" onClick={toggle} onDoubleClick={fullscreen}
-                    onLoadedMetadata={onLoaded} onTimeUpdate={onTime} onProgress={onTime} onPlay={() => { setPlaying(true); setEnded(false); poke() }} onPause={() => { setPlaying(false); setShowControls(true) }}
+                    onLoadedMetadata={onLoaded} onTimeUpdate={onTime} onProgress={onTime} onPlay={() => { setPlaying(true); setEnded(false); poke(); report(true) }} onPause={() => { setPlaying(false); setShowControls(true); report(false) }}
                     onEnded={finished} onVolumeChange={(e) => { setMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }} />
             )}
             {!src && !error && <div className="absolute inset-0 flex items-center justify-center"><div className="w-10 h-10 rounded-full border-4 animate-spin" style={{ borderColor: `${colors.border}`, borderTopColor: ORANGE }} /></div>}

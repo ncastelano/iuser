@@ -24,9 +24,9 @@ function Logo({ kind, item, size, medal, index }: { kind: OutdoorKind; item: Out
     const radius = info.shape === 'circle' ? '9999px' : `${Math.round(size * 0.26)}px`
     return (
         <span
-            className="iuser-outdoor-float relative block flex-shrink-0 overflow-hidden"
+            className="relative block flex-shrink-0 overflow-hidden"
             style={{
-                width: size, height: size, borderRadius: radius, background: '#fff', animationDelay: `${(index % 6) * -0.55}s`,
+                width: size, height: size, borderRadius: radius, background: '#fff',
                 border: `${medal ? 3 : 2.5}px solid ${medal ? MEDAL[medal].ring : '#fff'}`,
                 boxShadow: medal ? `0 0 0 3px ${MEDAL[medal].glow}, 0 8px 18px rgba(0,0,0,0.25)` : '0 6px 14px rgba(0,0,0,0.2)',
             }}

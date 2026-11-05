@@ -42,6 +42,8 @@ import SearchSuggestions from '@/components/search/SearchSuggestions'
 import { recordSearch, isRecordable } from '@/modules/search'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
+import AcceptARider from '../../inicio/sections/AcceptARider'
+import CareerPlans from '../../inicio/sections/CareerPlans'
 import { rankStyle } from '@/components/social/SocialProfileCard'
 import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
@@ -218,7 +220,6 @@ interface ServiceItem {
     ownerOnline?: boolean | null
     ownerId?: string | null
 }
-interface PersonItem { id: string; slug: string; avatar: string | null; points: number; rank: number }
 interface CommunityTalk { id: string; author: string; avatar: string | null; text: string; at: number }
 interface CommunityItem { id: string; slug: string; name: string; city: string; members: number; image: string | null; activity: CommunityActivity | null; last: { author: string; text: string } | null; /** As últimas mensagens da sala (a mais nova por último) */ talk: CommunityTalk[]; /** Gente diferente que falou nas últimas mensagens */ talkers: number }
 
@@ -427,7 +428,6 @@ export default function ModeloInicialPage() {
     const [products, setProducts] = useState<(ProductCard & { storeOpen: boolean | null })[] | null>(null)
     const [services, setServices] = useState<ServiceItem[] | null>(null)
     const [requests, setRequests] = useState<BoardItem[] | null>(null)
-    const [people, setPeople] = useState<PersonItem[] | null>(null)
     const [communities, setCommunities] = useState<CommunityItem[] | null>(null)
     // Pedidos de serviço em que eu já me inscrevi (para o botão "Inscrever-se" das vitrines)
     const [applied, setApplied] = useState<Set<string>>(new Set())
@@ -549,20 +549,6 @@ export default function ModeloInicialPage() {
         })) as ServiceItem[], setServices, [])
 
         safe(() => fetchOpenBoardItems(10), setRequests, [])
-
-        safe(async () => {
-            const { data: ranked } = await supabase.rpc('get_best_profiles', { p_limit: 10 })
-            const rows = (ranked as { id: string; points: number }[]) || []
-            if (rows.length === 0) return []
-            const { data: profs } = await supabase.from('profiles').select('id, "profileSlug", avatar_url').in('id', rows.map((r) => r.id))
-            const byId = new Map((profs || []).map((p: any) => [p.id, p]))
-            return rows
-                .map((r, i) => {
-                    const p: any = byId.get(r.id)
-                    return p?.profileSlug ? { id: r.id, slug: p.profileSlug, avatar: getAvatarUrl(supabase, p.avatar_url) || null, points: Number(r.points) || 0, rank: i } : null
-                })
-                .filter(Boolean) as PersonItem[]
-        }, setPeople, [])
 
         safe(async () => {
             const { data } = await supabase
@@ -691,8 +677,8 @@ export default function ModeloInicialPage() {
                     text={`@${profileSlug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:`}
                 />
 
-                {/* Outdoor de lojas: as de mais pontos, em cima da busca */}
-                <Outdoor kind="lojas" className="mt-2" />
+                {/* OUTDOOR iUSER: os perfis com mais pontos, em cima da busca */}
+                <Outdoor kind="pessoas" className="mt-2" />
 
                 {/* Busca sempre à mão, em cima de Comprar / Contratar serviço (a lupa da barra leva o foco pra cá) */}
                 <div className="mt-3 mb-3 flex items-center gap-2 px-4 rounded-full" style={{ height: 48, background: colors.surface, border: `1.5px solid ${colors.border}` }}>
@@ -886,6 +872,11 @@ export default function ModeloInicialPage() {
 
                         </section>
 
+                        {/* Canal do Motorista: as corridas abertas e quanto cada uma paga (a mesma seção da home 2.0) — é por aqui que quem quer dirigir vê o que pode ganhar */}
+                        <div className="mt-8">
+                            <AcceptARider />
+                        </div>
+
                         {/* ===== 2. CATEGORIAS — as que já têm loja em destaque; as vazias convidam a abrir a primeira ===== */}
                         {(() => {
                             const list = categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social')
@@ -999,38 +990,6 @@ export default function ModeloInicialPage() {
                         <DigitalStrip />
 
                         <section className="mt-8">
-                            <SectionHeader type="pessoa" title="OUTDOOR iUSER" subtitle="Os perfis com mais pontos do iUser" onSeeAll={() => go('/social')} colors={colors} />
-                            {people === null ? <Skeleton colors={colors} /> : people.length === 0 ? null : (
-                                <Strip>
-                                    {people.map((p) => (
-                                        <button
-                                            key={p.id}
-                                            onClick={() => go(`/${p.slug}`)}
-                                            className="relative snap-start flex-shrink-0 w-[132px] sm:w-[148px] rounded-3xl border p-3 flex flex-col items-center gap-2 text-center transition hover:-translate-y-0.5 hover:shadow-xl"
-                                            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
-                                        >
-                                            <PlanAvatarRing userId={p.id} width={3} linkToProfile={false}>
-                                                {p.avatar ? (
-                                                    <img src={p.avatar} alt="" className="w-[76px] h-[76px] rounded-full object-cover" loading="lazy" />
-                                                ) : (
-                                                    <span className="w-[76px] h-[76px] rounded-full flex items-center justify-center text-white text-2xl font-black" style={{ background: GRADIENT }}>
-                                                        {p.slug.charAt(0).toUpperCase()}
-                                                    </span>
-                                                )}
-                                            </PlanAvatarRing>
-                                            {/* Colocação em Melhores perfis, no canto: 1º dourado, 2º prata, 3º bronze; o resto, degradê do iUser */}
-                                            <span className="absolute left-2 top-2 px-2 py-0.5 rounded-full text-[11px] font-black" style={rankStyle(p.rank)} title={`${p.rank + 1}º lugar em Melhores perfis`}>
-                                                #{p.rank + 1}
-                                            </span>
-                                            <span className="block w-full text-sm font-black truncate" style={{ color: colors.textPrimary }}>@{p.slug}</span>
-                                            <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>⭐ {p.points} pts</span>
-                                        </button>
-                                    ))}
-                                </Strip>
-                            )}
-                        </section>
-
-                        <section className="mt-8">
                             <SectionHeader type="comunidade" title="Comunidades" subtitle="Veja o que estão falando na sua região" onSeeAll={() => go('/comunidade')} colors={colors} />
                             {communities === null ? <Skeleton colors={colors} /> : communities.length === 0 ? null : (
                                 <Strip>
@@ -1040,6 +999,11 @@ export default function ModeloInicialPage() {
                                 </Strip>
                             )}
                         </section>
+
+                        {/* Planos (a mesma seção da home 2.0) */}
+                        <div className="mt-8">
+                            <CareerPlans />
+                        </div>
 
                         {/* ===== 4. CONVITE FINAL ===== */}
                         <SellCta

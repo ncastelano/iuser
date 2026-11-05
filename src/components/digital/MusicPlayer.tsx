@@ -1,53 +1,49 @@
 // src/components/digital/MusicPlayer.tsx — o player de MÚSICA da sala (produto digital só com áudio): capa grande, nome da faixa e do artista, play/pausa, faixa anterior/próxima,
-// barra de progresso que se arrasta, tempo e passagem automática para a faixa seguinte. Avisa o aparelho (Media Session) do que está tocando: tela de bloqueio e fone
-// mostram título, artista e capa e respondem a play/pausa/anterior/próxima — e a música segue tocando com a tela apagada. O link do arquivo é pedido ao servidor a cada faixa.
+// barra de progresso que se arrasta, tempo e passagem automática para a faixa seguinte. O ÁUDIO em si mora na casca (components/player/GlobalPlayerHost + store do player):
+// por isso a música continua tocando quando a pessoa sai da sala e aparece no mini-player da barra; aqui só fica o desenho e os botões. O link do arquivo é pedido ao servidor a cada faixa.
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pause, Play, SkipBack, SkipForward, Lock } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
-import { formatDuration, openItem } from '@/modules/digital'
+import { formatDuration } from '@/modules/digital'
+import { usePlayerStore } from '@/store/usePlayerStore'
+import type { QueueTrack } from '@/modules/player'
 
-export default function MusicPlayer({ itemId, title, artist, cover, trackLabel, onEnded, onNext, onPrev }: {
+export default function MusicPlayer({ itemId, title, artist, cover, trackLabel, queue, index, href }: {
     itemId: string; title: string; artist?: string | null; cover?: string | null
     /** "Faixa 2 de 8" */
     trackLabel?: string
-    onEnded?: () => void; onNext?: (() => void) | null; onPrev?: (() => void) | null
+    /** as faixas do produto, na ordem, e qual é esta; o player da casca passa de uma para a outra sozinho */
+    queue: QueueTrack[]; index: number
+    /** a página desta sala (para onde o mini-player leva de volta) */
+    href: string
 }) {
     const { colors } = useTheme()
-    const audioRef = useRef<HTMLAudioElement>(null)
-    const [url, setUrl] = useState<string | null>(null)
-    const [error, setError] = useState<string | null>(null)
-    const [playing, setPlaying] = useState(false)
-    const [pos, setPos] = useState(0)
-    const [dur, setDur] = useState(0)
-    const [seeking, setSeeking] = useState(false)
+    const store = usePlayerStore()
+    const mine = store.item?.kind === 'musica' && store.item.id === itemId
+    const playing = mine && store.playing
+    const pos = mine ? store.pos : 0
+    const dur = mine ? store.dur : 0
+    const error = mine ? store.error : null
+    const [scrub, setScrub] = useState<number | null>(null)
 
+    // abrir a sala (ou escolher outra faixa) toca esta faixa; se ela já está tocando (veio do mini-player), não recomeça
     useEffect(() => {
-        let alive = true
-        setUrl(null); setError(null); setPos(0); setDur(0); setPlaying(false)
-        openItem(itemId).then((d) => { if (alive) setUrl(d.url) }).catch((e) => { if (alive) setError(e.message) })
-        return () => { alive = false }
-    }, [itemId])
+        const s = usePlayerStore.getState()
+        if (s.item?.kind === 'musica' && s.item.id === itemId) return
+        s.startMusic({ queue, index, artist, cover, href })
+    }, [itemId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // O aparelho mostra o que está tocando e entende os botões do fone / da tela de bloqueio
-    useEffect(() => {
-        if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
-        const ms = navigator.mediaSession
-        try {
-            ms.metadata = new MediaMetadata({ title, artist: artist || 'iUser', artwork: cover ? [{ src: cover, sizes: '512x512' }] : [] })
-            ms.setActionHandler('play', () => { audioRef.current?.play().catch(() => {}) })
-            ms.setActionHandler('pause', () => { audioRef.current?.pause() })
-            ms.setActionHandler('previoustrack', onPrev || null)
-            ms.setActionHandler('nexttrack', onNext || null)
-            ms.setActionHandler('seekto', (d) => { if (audioRef.current && d.seekTime != null) audioRef.current.currentTime = d.seekTime })
-        } catch { /* navegador sem suporte completo */ }
-        return () => { try { ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto'].forEach((a) => ms.setActionHandler(a as MediaSessionAction, null)) } catch { /* ok */ } }
-    }, [title, artist, cover, onNext, onPrev])
+    // o artista (nome da loja) e a capa chegam depois da faixa começar: a faixa de cima da barra passa a mostrá-los
+    useEffect(() => { if (mine) usePlayerStore.getState().updateMeta({ artist: artist ?? null, cover: cover ?? null }) }, [mine, artist, cover])
 
-    const toggle = () => { const a = audioRef.current; if (!a) return; if (a.paused) a.play().catch(() => {}); else a.pause() }
-    const pct = dur > 0 ? Math.min(100, (pos / dur) * 100) : 0
+    const toggle = () => store.toggle()
+    const hasNext = index + 1 < queue.length
+    const hasPrev = index > 0
+    const shown = scrub ?? pos
+    const pct = dur > 0 ? Math.min(100, (shown / dur) * 100) : 0
 
     if (error) {
         return (
@@ -69,31 +65,24 @@ export default function MusicPlayer({ itemId, title, artist, cover, trackLabel, 
             </div>
 
             <div className="w-full flex flex-col gap-1">
-                <input type="range" min={0} max={Math.max(1, dur)} step={0.1} value={pos} onChange={(e) => { setSeeking(true); setPos(Number(e.target.value)) }}
-                    onPointerUp={(e) => { const a = audioRef.current; if (a) a.currentTime = Number((e.target as HTMLInputElement).value); setSeeking(false) }}
-                    onKeyUp={(e) => { const a = audioRef.current; if (a) a.currentTime = Number((e.target as HTMLInputElement).value) }}
-                    aria-label="Posição da música" disabled={!url || dur <= 0} className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                <input type="range" min={0} max={Math.max(1, dur)} step={0.1} value={shown} onChange={(e) => setScrub(Number(e.target.value))}
+                    onPointerUp={(e) => { store.seek(Number((e.target as HTMLInputElement).value)); setScrub(null) }}
+                    onKeyUp={(e) => { store.seek(Number((e.target as HTMLInputElement).value)); setScrub(null) }}
+                    aria-label="Posição da música" disabled={dur <= 0} className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
                     style={{ background: `linear-gradient(to right, #f97316 ${pct}%, ${colors.border} ${pct}%)`, accentColor: '#f97316' }} />
                 <div className="flex justify-between text-[11px] font-bold tabular-nums" style={{ color: colors.textSecondary }}>
-                    <span>{formatDuration(Math.floor(pos)) || '0:00'}</span><span>{formatDuration(Math.floor(dur)) || '--:--'}</span>
+                    <span>{formatDuration(Math.floor(shown)) || '0:00'}</span><span>{formatDuration(Math.floor(dur)) || '--:--'}</span>
                 </div>
             </div>
 
             <div className="flex items-center gap-5">
-                <button type="button" onClick={() => onPrev?.()} disabled={!onPrev} aria-label="Faixa anterior" className="w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30 transition active:scale-90" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><SkipBack size={20} /></button>
-                <button type="button" onClick={toggle} disabled={!url} aria-label={playing ? 'Pausar' : 'Tocar'} className="w-16 h-16 rounded-full flex items-center justify-center text-white transition active:scale-90 disabled:opacity-50" style={{ background: '#f97316', boxShadow: '0 8px 22px rgba(249,115,22,0.45)' }}>
-                    {!url ? <Spinner size={22} color="#fff" /> : playing ? <Pause size={26} fill="#fff" /> : <Play size={26} fill="#fff" className="ml-0.5" />}
+                <button type="button" onClick={() => store.prev()} disabled={!mine || (!hasPrev && pos <= 3)} aria-label="Faixa anterior" className="w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30 transition active:scale-90" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><SkipBack size={20} /></button>
+                <button type="button" onClick={toggle} disabled={!mine} aria-label={playing ? 'Pausar' : 'Tocar'} className="w-16 h-16 rounded-full flex items-center justify-center text-white transition active:scale-90 disabled:opacity-50" style={{ background: '#f97316', boxShadow: '0 8px 22px rgba(249,115,22,0.45)' }}>
+                    {mine && store.playing && dur === 0 ? <Spinner size={22} color="#fff" /> : playing ? <Pause size={26} fill="#fff" /> : <Play size={26} fill="#fff" className="ml-0.5" />}
                 </button>
-                <button type="button" onClick={() => onNext?.()} disabled={!onNext} aria-label="Próxima faixa" className="w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30 transition active:scale-90" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><SkipForward size={20} /></button>
+                <button type="button" onClick={() => store.next()} disabled={!mine || !hasNext} aria-label="Próxima faixa" className="w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30 transition active:scale-90" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><SkipForward size={20} /></button>
             </div>
 
-            {url && (
-                <audio key={url} ref={audioRef} src={url} autoPlay preload="auto"
-                    onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
-                    onLoadedMetadata={(e) => setDur(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
-                    onTimeUpdate={(e) => { if (!seeking) setPos(e.currentTarget.currentTime) }}
-                    onEnded={() => { setPlaying(false); onEnded?.() }} />
-            )}
         </div>
     )
 }

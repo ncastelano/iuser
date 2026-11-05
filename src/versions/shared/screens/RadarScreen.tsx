@@ -1707,7 +1707,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                         ) : null
                                     })()}
                                     <div
-                                        className={`${rankKey.startsWith('outdoor') && mode !== 'motoristas' ? 'iuser-outdoor-float ' : ''}w-full h-full ${item.isPerson || item.isDriver ? 'rounded-full' : 'rounded-2xl'} overflow-hidden shadow-md bg-white ${rank ? '' : `border-2 ${mode === 'lojas'
+                                        className={`w-full h-full ${item.isPerson || item.isDriver ? 'rounded-full' : 'rounded-2xl'} overflow-hidden shadow-md bg-white ${rank ? '' : `border-2 ${mode === 'lojas'
                                             ? (item.is_open ? 'border-green-500' : 'border-red-500')
                                             : 'border-orange-200'}`}`}
                                         style={rank ? { border: `3px solid ${RANK_COLORS[rank].fill}`, boxShadow: `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 16px rgba(0,0,0,0.35)` } : undefined}

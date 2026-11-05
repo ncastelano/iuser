@@ -10,14 +10,35 @@
 'use client'
 
 import { CSSProperties, ReactNode, useEffect, useState } from 'react'
-import { Car, ChevronRight, ShoppingCart, Store, User } from 'lucide-react'
+import { Car, ChevronDown, ChevronRight, GraduationCap, Music, Pause, Play, ShoppingCart, SkipBack, SkipForward, Store, User, X, Zap } from 'lucide-react'
+import { clock } from '@/modules/player/domain'
 
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 export const BAR_BOTTOM = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
 export const BAR_H = 64
 export const STRIP_H = 36
+/** A altura do mini-player (a linha de cima da barra quando há algo para continuar) */
+export const PLAYER_H = 57
 // Espaço que a barra ocupa (sem a faixa)
 export const BAR_SPACE = 'calc(84px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
+
+/** O mini-player: a ÚLTIMA coisa que a pessoa estava vendo ou ouvindo (música, aula em vídeo ou flash). Só a música toca aqui de verdade; aula e flash ficam à espera e "tocar" leva de volta à página. */
+export interface BarPlayer {
+    kind: 'musica' | 'aula' | 'flash'
+    title: string; sub: string; cover: string | null
+    playing: boolean; pos: number; dur: number
+    /** a barra de tempo se arrasta (só a música) */
+    seekable: boolean; hasNext: boolean; hasPrev: boolean
+    /** o texto do botão que abre a página dele ("Abrir a página da música") */
+    openLabel: string
+    onToggle: () => void; onNext: () => void; onPrev: () => void; onSeek: (sec: number) => void; onOpenPage: () => void; onClose: () => void
+    /** o player completo está aberto */
+    full: boolean; onFull: (open: boolean) => void
+}
+const PLAYER_BG: Record<BarPlayer['kind'], string> = {
+    musica: 'linear-gradient(135deg,#a855f7,#6d28d9)', aula: 'linear-gradient(135deg,#38bdf8,#2563eb)', flash: 'linear-gradient(135deg,#fb7185,#e11d48)',
+}
+const PlayerGlyph = ({ kind, size }: { kind: BarPlayer['kind']; size: number }) => (kind === 'musica' ? <Music size={size} color="#fff" /> : kind === 'aula' ? <GraduationCap size={size} color="#fff" /> : <Zap size={size} color="#fff" />)
 
 /** O menu de modos (hub): vive DENTRO da barra e cresce para cima a partir dela — a barra vira o cartão, não aparece outro por cima. */
 export interface BarHub { open: boolean; label: string; /** variáveis de tema do conteúdo (--hub-*) */ vars: CSSProperties; children: ReactNode }
@@ -76,7 +97,7 @@ function ModeButton({ mode, open, colors }: { mode: ModeButtonProps; open: boole
     )
 }
 
-export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartExpanded = false, onCartPage = false, mode, hub, message = null, extras = [], customCard = null, onDismiss, onGo, onCart }: {
+export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartExpanded = false, onCartPage = false, mode, hub, player = null, message = null, extras = [], customCard = null, onDismiss, onGo, onCart }: {
     colors: any
     /** As quatro abas que acompanham o modo (Explorar + três); a quinta, Eu, é o botão do modo */
     tabs: BarTab[]
@@ -90,6 +111,8 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
     mode?: ModeButtonProps
     /** O menu de modos, que cresce para cima de dentro da barra */
     hub?: BarHub
+    /** O mini-player (a última coisa vista/ouvida); some com o menu de modos aberto */
+    player?: BarPlayer | null
     /** O aviso do sistema da vez (a faixa vira o mensageiro) */
     message?: BarMessage | null
     extras?: BarExtra[]
@@ -101,21 +124,23 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
 }) {
     const showCart = cartExpanded && cartCount > 0 && !onCartPage
     const hubOpen = !!hub?.open
+    const playerFull = !!player?.full && !hubOpen
+    const miniOn = !!player && !hubOpen && !playerFull
     // com o menu aberto a faixa de cima fica recolhida (o menu ocupa o lugar dela); a barra sobe acima do escurecimento enquanto abre e fecha
-    const strip = !hubOpen && (!!message || stripVisible({ onCartPage, cartExpanded, cartCount, extras: extras.length }))
+    const strip = !hubOpen && !playerFull && (!!message || stripVisible({ onCartPage, cartExpanded, cartCount, extras: extras.length }))
     const [raised, setRaised] = useState(false)
     useEffect(() => {
-        if (hubOpen) { setRaised(true); return }
+        if (hubOpen || playerFull) { setRaised(true); return }
         const t = setTimeout(() => setRaised(false), 500)
         return () => clearTimeout(t)
-    }, [hubOpen])
+    }, [hubOpen, playerFull])
     const money = cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
     return (
-        <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM, zIndex: raised || hubOpen ? 75 : 40 }}>
+        <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM, zIndex: raised || hubOpen || playerFull ? 75 : 40 }}>
             {customCard && <div className="max-w-md w-full mx-auto px-3 pointer-events-auto">{customCard}</div>}
             <div className="max-w-md w-full mx-auto px-3">
                 {/* Uma peça só e sólida: a faixa de cima é só uma área da própria barra, sem divisória */}
-                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : `1px solid ${colors.border}`, boxShadow: hubOpen ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease, box-shadow 480ms ease' }}>
+                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : `1px solid ${colors.border}`, boxShadow: hubOpen || playerFull ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease, box-shadow 480ms ease' }}>
                     {/* MENU DE MODOS: cresce para cima de dentro da própria barra (mesma peça, mesma cor, mesmas bordas) */}
                     {hub && (
                         <div role="dialog" aria-label={hub.label} aria-hidden={!hubOpen}
@@ -127,6 +152,58 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                             </div>
                         </div>
                     )}
+                    {/* PLAYER COMPLETO: cresce de dentro da barra, como o menu de modos */}
+                    {player && (
+                        <div aria-hidden={!playerFull} style={{ display: 'grid', gridTemplateRows: playerFull ? '1fr' : '0fr', transition: 'grid-template-rows 420ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear ' + (playerFull ? 0 : 420) + 'ms', visibility: playerFull ? 'visible' : 'hidden', color: colors.textPrimary }}>
+                            <div style={{ minHeight: 0, overflow: 'hidden' }}>
+                                <div className="p-4" style={{ opacity: playerFull ? 1 : 0, transition: 'opacity 250ms ease' }}>
+                                    <div className="flex items-center mb-3">
+                                        <button onClick={() => player.onFull(false)} aria-label="Minimizar" className="w-8 h-8 rounded-full flex items-center justify-center" style={{ border: `1px solid ${colors.border}` }}><ChevronDown size={17} /></button>
+                                        <p className="flex-1 text-center text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>{player.kind === 'musica' ? 'Música' : player.kind === 'aula' ? 'Aula' : 'Flash'}</p>
+                                        <button onClick={player.onClose} aria-label="Fechar o player" className="w-8 h-8 rounded-full flex items-center justify-center" style={{ border: `1px solid ${colors.border}` }}><X size={15} /></button>
+                                    </div>
+                                    <div className="mx-auto rounded-3xl overflow-hidden flex items-center justify-center" style={{ background: PLAYER_BG[player.kind], width: player.kind === 'aula' ? '100%' : 150, aspectRatio: player.kind === 'aula' ? '16 / 9' : player.kind === 'flash' ? '9 / 16' : '1 / 1', maxHeight: 220, boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
+                                        {player.cover ? <img src={player.cover} alt="" className="w-full h-full object-cover" /> : <span style={{ transform: 'scale(2.2)' }}><PlayerGlyph kind={player.kind} size={18} /></span>}
+                                    </div>
+                                    <p className="text-[16px] font-black mt-3 leading-tight line-clamp-2">{player.title}</p>
+                                    <p className="text-[12px] truncate" style={{ color: colors.textSecondary }}>{player.sub}</p>
+                                    {player.seekable && player.dur > 0 && (
+                                        <div className="mt-3">
+                                            <input type="range" min={0} max={Math.max(1, player.dur)} step={0.5} value={Math.min(player.pos, player.dur)} onChange={(e) => player.onSeek(Number(e.target.value))} aria-label="Posição" className="w-full" style={{ accentColor: '#f97316' }} />
+                                            <div className="flex justify-between text-[10.5px] font-bold" style={{ color: colors.textSecondary }}><span>{clock(player.pos)}</span><span>{clock(player.dur)}</span></div>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center justify-center gap-5 mt-2">
+                                        {player.kind === 'musica' && <button onClick={player.onPrev} disabled={!player.hasPrev && player.pos <= 3} aria-label="Anterior" className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 disabled:opacity-30"><SkipBack size={20} /></button>}
+                                        <button onClick={player.onToggle} aria-label={player.playing ? 'Pausar' : player.kind === 'musica' ? 'Tocar' : 'Continuar'} className="w-14 h-14 rounded-full flex items-center justify-center text-white active:scale-90" style={{ background: '#f97316' }}>{player.playing && player.kind === 'musica' ? <Pause size={24} fill="#fff" /> : <Play size={24} fill="#fff" className="ml-0.5" />}</button>
+                                        {player.kind === 'musica' && <button onClick={player.onNext} disabled={!player.hasNext} aria-label="Próxima" className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 disabled:opacity-30"><SkipForward size={20} /></button>}
+                                    </div>
+                                    <button onClick={player.onOpenPage} className="w-full h-10 rounded-full text-[12px] font-black mt-3 active:scale-[0.98]" style={{ border: `1px solid ${colors.border}` }}>{player.openLabel}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MINI-PLAYER: a última coisa que a pessoa estava fazendo; o X fecha e esquece */}
+                    <div aria-hidden={!miniOn} className="relative flex items-center gap-2.5 px-3 overflow-hidden" style={{ height: miniOn ? 56 : 0, opacity: miniOn ? 1 : 0, borderBottom: miniOn ? `1px solid ${colors.border}` : '0 solid transparent', transition: 'height 300ms ease, opacity 250ms ease' }}>
+                        {player && (
+                            <>
+                                <button onClick={() => player.onFull(true)} tabIndex={miniOn ? 0 : -1} className="flex items-center gap-2.5 min-w-0 flex-1 text-left active:opacity-70" aria-label={`Abrir o player: ${player.title}`}>
+                                    <span className="rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: PLAYER_BG[player.kind], width: player.kind === 'flash' ? 30 : 40, height: 40 }}>
+                                        {player.cover ? <img src={player.cover} alt="" className="w-full h-full object-cover" /> : <PlayerGlyph kind={player.kind} size={16} />}
+                                    </span>
+                                    <span className="min-w-0">
+                                        <span className="block text-[12.5px] font-black truncate leading-tight">{player.title}</span>
+                                        <span className="block text-[11px] truncate leading-tight" style={{ color: colors.textSecondary }}>{player.sub}</span>
+                                    </span>
+                                </button>
+                                <button onClick={player.onToggle} tabIndex={miniOn ? 0 : -1} aria-label={player.playing ? 'Pausar' : player.kind === 'musica' ? 'Tocar' : 'Continuar'} className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90" style={{ background: '#f9731624', color: '#f97316' }}>{player.playing && player.kind === 'musica' ? <Pause size={17} fill="#f97316" /> : <Play size={17} fill="#f97316" className="ml-0.5" />}</button>
+                                <button onClick={player.onClose} tabIndex={miniOn ? 0 : -1} aria-label="Fechar o player" className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90" style={{ color: colors.textSecondary }}><X size={16} /></button>
+                                {player.dur > 0 && <span aria-hidden className="absolute left-0 bottom-0 h-[2.5px]" style={{ width: `${Math.min(100, (player.pos / player.dur) * 100)}%`, background: '#f97316', transition: 'width 250ms linear' }} />}
+                            </>
+                        )}
+                    </div>
+
                     <div aria-hidden={!strip} className="flex items-center gap-2 px-3.5 overflow-hidden" style={{ minHeight: strip ? STRIP_H : 0, height: strip ? undefined : 0, opacity: strip ? 1 : 0, background: message ? `${message.color}14` : `${colors.border}30`, transition: 'min-height 300ms ease, opacity 250ms ease, background 250ms ease' }}>
                         {message ? (
                             <div className="flex items-center gap-2.5 w-full py-1.5" role="status" aria-live="polite">
@@ -157,7 +234,7 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                             </div>
                         )}
                     </div>
-                    <div className="flex items-stretch px-1.5" style={{ height: BAR_H, borderTop: `1px solid ${hubOpen ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
+                    <div className="flex items-stretch px-1.5" style={{ height: BAR_H, borderTop: `1px solid ${hubOpen || playerFull ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
                         {tabs.map((t) => (
                             <BarButton key={t.key} colors={colors} active={t.active} label={t.label} onClick={t.onClick} badge={t.badge} badgeColor={t.badgeColor} pulse={t.pulse}>
                                 {t.icon}

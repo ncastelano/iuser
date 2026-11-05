@@ -24,7 +24,10 @@ import { useShellLive } from '@/hooks/useShellLive'
 import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
 import { useShellCompact } from '@/lib/shellCompact'
 import { toastStyle } from '@/lib/toastStyle'
-import BottomNavBar, { BAR_SPACE, STRIP_H, stripVisible, type BarTab } from '@/components/BottomNavBar'
+import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarPlayer, type BarTab } from '@/components/BottomNavBar'
+import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
+import { usePlayerStore } from '@/store/usePlayerStore'
+import { miniHidden, subtitleOf } from '@/modules/player'
 import { switchVersion, versionLabel } from '@/versions/client'
 import { activityBadge, isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
 import { BarKindProvider } from '@/versions/v3/bar/kind'
@@ -327,6 +330,8 @@ export default function ModeShell({ children }: {
 
     // Hub: abre pela ilha do topo ou pela foto da barra de baixo. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
+    // o player completo (cresce da barra) está aberto?
+    const [playerFull, setPlayerFull] = useState(false)
     // Conversa aberta (?c=): a barra de baixo sai da frente
     const [threadOpen, setThreadOpen] = useState(false)
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
@@ -507,7 +512,7 @@ export default function ModeShell({ children }: {
     }, [islandMsg?.id, msgWaiting > 0])   // eslint-disable-line react-hooks/exhaustive-deps
     const msgStyle = islandMsg ? toastStyle(islandMsg.kind) : null
     const live = useShellLive(userId, orderCounts, topUnread, chatPath, storeNew, { count: topCart, total: cartTotal })
-    const openHub = () => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }
+    const openHub = () => { window.scrollTo({ top: 0 }); setPlayerFull(false); setDrawerOpen(true) }
     // Escolher um modo: marca como selecionado e abre a página dele (cada modo tem a sua)
     const selectMode = (mode: string) => {
         if (mode !== activeMode) {
@@ -542,6 +547,32 @@ export default function ModeShell({ children }: {
     const barExtras = (live?.parts || []).filter((x) => x.key === 'ride' || x.key === 'store-p' || x.key === 'store-s').map((x) => ({ key: x.key as string, text: x.text, color: x.color, path: x.path || live!.path }))
     // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
     const stripShown = barShown && stripVisible({ onCartPage, cartExpanded: cartStrip, cartCount: topCart, extras: barExtras.length })
+
+    // MINI-PLAYER: a última coisa vista/ouvida (música toca aqui de verdade; aula e flash levam de volta à página, que retoma de onde parou)
+    const pItem = usePlayerStore((st) => st.item)
+    const pPlaying = usePlayerStore((st) => st.playing)
+    const pPos = usePlayerStore((st) => st.pos)
+    const pDur = usePlayerStore((st) => st.dur)
+    const pIndex = usePlayerStore((st) => st.qIndex)
+    const pQueue = usePlayerStore((st) => st.queue)
+    useEffect(() => { if (!pItem) setPlayerFull(false) }, [pItem])
+    const barPlayer: BarPlayer | null = pItem && barShown && !miniHidden(pItem, shellPath) ? {
+        kind: pItem.kind, title: pItem.title, sub: subtitleOf(pItem, pPlaying), cover: pItem.cover,
+        playing: pPlaying, pos: pPos, dur: pDur,
+        seekable: pItem.kind === 'musica', hasNext: pIndex + 1 < pQueue.length, hasPrev: pIndex > 0,
+        openLabel: pItem.kind === 'musica' ? (pQueue.length > 1 ? 'Abrir o álbum' : 'Abrir a página da música') : pItem.kind === 'aula' ? 'Abrir a sala de aula' : 'Abrir o feed do Flash',
+        onToggle: () => {
+            if (pItem.kind === 'musica') usePlayerStore.getState().toggle()
+            else { setPlayerFull(false); go(pItem.href) }   // aula e flash: a página retoma de onde parou
+        },
+        onNext: () => usePlayerStore.getState().next(),
+        onPrev: () => usePlayerStore.getState().prev(),
+        onSeek: (sec) => usePlayerStore.getState().seek(sec),
+        onOpenPage: () => { setPlayerFull(false); go(pItem.href) },
+        onClose: () => { usePlayerStore.getState().close(); setPlayerFull(false) },
+        full: playerFull, onFull: setPlayerFull,
+    } : null
+    const playerShown = !!barPlayer
 
     const idle = headerView
     // O conteúdo do menu de modos (vive dentro da barra: BottomNavBar o faz crescer para cima)
@@ -626,8 +657,8 @@ export default function ModeShell({ children }: {
                 marginTop: navH,
                 minHeight: `calc(100dvh - ${navH})`,
                 ['--shell-top' as string]: navH,
-                paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px)` : 40,
-                ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px)` : '0px',
+                paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : 40,
+                ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : '0px',
                 animation: rising ? 'shellRise 700ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
             }}
         >
@@ -649,6 +680,7 @@ export default function ModeShell({ children }: {
                 onCartPage={onCartPage}
                 mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: drawerOpen ? () => setDrawerOpen(false) : openHub }}
                 hub={{ open: drawerOpen, label: 'Menu do iUser', vars: hubVars, children: hubInner }}
+                player={barPlayer}
                 onCart={() => go('/carrinho')}
                 message={islandMsg && msgStyle ? { id: islandMsg.id, text: islandMsg.text, description: islandMsg.description, icon: islandMsg.icon, glyph: msgStyle.glyph, color: msgStyle.color, action: islandMsg.action ? { label: islandMsg.action.label, onClick: islandMsg.action.onClick } : undefined } : null}
                 extras={barExtras}
@@ -658,8 +690,11 @@ export default function ModeShell({ children }: {
             />
         )}
 
+        {/* o ÚNICO <audio> do app: a música continua tocando quando a pessoa troca de página */}
+        <GlobalPlayerHost />
+
         {/* HUB: o menu de modos é a PRÓPRIA barra crescendo para cima (o conteúdo vive dentro dela, em BottomNavBar); aqui só fica o fundo escurecido, que fecha ao tocar */}
-        <button aria-label="Fechar menu" aria-hidden={!drawerOpen} tabIndex={drawerOpen ? 0 : -1} onClick={() => setDrawerOpen(false)} className="fixed inset-0 z-[70] w-full h-full cursor-default" style={{ background: 'rgba(0,0,0,0.5)', opacity: drawerOpen ? 1 : 0, pointerEvents: drawerOpen ? 'auto' : 'none', visibility: drawerOpen ? 'visible' : 'hidden', transition: `opacity 350ms ease, visibility 0s linear ${drawerOpen ? 0 : 350}ms` }} />
+        <button aria-label="Fechar menu" aria-hidden={!drawerOpen} tabIndex={drawerOpen ? 0 : -1} onClick={() => { setDrawerOpen(false); setPlayerFull(false) }} className="fixed inset-0 z-[70] w-full h-full cursor-default" style={{ background: 'rgba(0,0,0,0.5)', opacity: drawerOpen || (playerFull && playerShown) ? 1 : 0, pointerEvents: drawerOpen || (playerFull && playerShown) ? 'auto' : 'none', visibility: drawerOpen || (playerFull && playerShown) ? 'visible' : 'hidden', transition: `opacity 350ms ease, visibility 0s linear ${drawerOpen || (playerFull && playerShown) ? 0 : 350}ms` }} />
         </>
     )
 }

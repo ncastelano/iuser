@@ -35,7 +35,7 @@ export interface OutdoorKindInfo {
 
 export const OUTDOOR_INFO: Record<OutdoorKind, OutdoorKindInfo> = {
     lojas:    { title: 'Outdoor Lojas',    subtitle: 'As lojas com mais pontos do iUser',   color: '#f97316', bucket: 'store-logos',    seeAll: '/lojas',     shape: 'circle' },
-    pessoas:  { title: 'Outdoor Pessoas',  subtitle: 'As pessoas com mais pontos do iUser', color: '#8b5cf6', bucket: 'avatars',        seeAll: null,         shape: 'circle' },
+    pessoas:  { title: 'Outdoor iUser',    subtitle: 'Os perfis com mais pontos do iUser',  color: '#8b5cf6', bucket: 'avatars',        seeAll: '/social',    shape: 'circle' },
     servicos: { title: 'Outdoor Serviços', subtitle: 'Os serviços mais bem pontuados',      color: '#0d9488', bucket: 'product-images', seeAll: '/servicos-disponiveis', shape: 'square' },
     produtos: { title: 'Outdoor Produtos', subtitle: 'Os produtos mais bem pontuados',      color: '#ef4444', bucket: 'product-images', seeAll: '/produtos',  shape: 'square' },
     imoveis:  { title: 'Outdoor Imóveis',  subtitle: 'Os imóveis mais bem pontuados',       color: '#2563eb', bucket: 'product-images', seeAll: null,         shape: 'square' },

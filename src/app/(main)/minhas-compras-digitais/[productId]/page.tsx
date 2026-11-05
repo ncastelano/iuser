@@ -13,6 +13,7 @@ import { fetchCurriculum, formatDuration, formatSize, groupByModule, curriculumS
 import DigitalViewer from '@/components/digital/DigitalViewer'
 import ProPlayer from '@/components/digital/ProPlayer'
 import MusicPlayer from '@/components/digital/MusicPlayer'
+import { usePlayerStore } from '@/store/usePlayerStore'
 import AppDownloads from '@/components/digital/AppDownloads'
 import ReportButton from '@/components/moderation/ReportButton'
 import TipButton from '@/components/tips/TipButton'
@@ -53,13 +54,25 @@ export default function SalaDeAulaPage() {
         fetchCurriculum(productId).then((d) => {
             setItems(d)
             const firstOpen = d.find((i) => i.unlocked && isPlayable(i)) || d.find((i) => i.unlocked && i.kind !== 'app')
-            setCurrent((c) => c || firstOpen?.id || null)
+            // ?aula=<id> (o "continuar" do mini-player) abre direto nessa aula
+            let wanted: string | null = null
+            try { wanted = new URLSearchParams(window.location.search).get('aula') } catch { /* sem window */ }
+            const target = wanted && d.find((i) => i.id === wanted && i.unlocked) ? wanted : null
+            // se a música deste produto já está tocando (veio do mini-player), a sala ADOTA essa faixa em vez de recomeçar pela primeira
+            const pl = usePlayerStore.getState().item
+            const playing = pl && pl.kind === 'musica' && d.some((i) => i.id === pl.id && i.kind === 'audio' && i.unlocked) ? pl.id : null
+            setCurrent((c) => c || playing || target || firstOpen?.id || null)
         }).catch(() => setItems([]))
     }, [userId, productId])
 
+    // O player da casca passa de faixa sozinho (e segue tocando fora da sala): a sala acompanha a faixa que está tocando e marca a que acabou
+    const playingId = usePlayerStore((st) => (st.item?.kind === 'musica' ? st.item.id : null))
+    const endedTick = usePlayerStore((st) => st.ended)
     const mark = (id: string) => setDone((d) => { if (d[id]) return d; const n = { ...d, [id]: true as const }; try { localStorage.setItem(key, JSON.stringify(n)) } catch { /* ok */ } return n })
     const open = useMemo(() => (items || []).filter((i) => i.unlocked), [items])
     const lessons = useMemo(() => open.filter(isPlayable), [open])
+    useEffect(() => { if (playingId && playingId !== current && items?.some((i) => i.id === playingId && i.kind === 'audio')) setCurrent(playingId) }, [playingId, items]) // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { if (endedTick && items?.some((i) => i.id === endedTick.id)) mark(endedTick.id) }, [endedTick?.n]) // eslint-disable-line react-hooks/exhaustive-deps
     const cur = items?.find((i) => i.id === current) || null
     const lessonIdx = cur ? lessons.findIndex((l) => l.id === cur.id) : -1
     const prev = lessonIdx > 0 ? lessons[lessonIdx - 1] : null
@@ -109,9 +122,11 @@ export default function SalaDeAulaPage() {
                         {cur && cur.kind === 'audio' ? (
                             <MusicPlayer key={cur.id} itemId={cur.id} title={cur.title} artist={artist} cover={cover}
                                 trackLabel={lessonIdx >= 0 ? `Faixa ${lessonIdx + 1} de ${lessons.length}` : undefined}
-                                onEnded={() => { mark(cur.id); if (next) go(next.id) }} onNext={next ? () => go(next.id) : null} onPrev={prev ? () => go(prev.id) : null} />
+                                queue={lessons.filter((l) => l.kind === 'audio').map((l) => ({ itemId: l.id, title: l.title }))}
+                                index={Math.max(0, lessons.filter((l) => l.kind === 'audio').findIndex((l) => l.id === cur.id))}
+                                href={`/minhas-compras-digitais/${productId}`} />
                         ) : cur && isPlayable(cur) ? (
-                            <ProPlayer key={cur.id} itemId={cur.id} title={cur.title} nextTitle={next?.title} onEnded={() => mark(cur.id)} onNext={next ? () => go(next.id) : null} />
+                            <ProPlayer key={cur.id} itemId={cur.id} title={cur.title} nextTitle={next?.title} onEnded={() => mark(cur.id)} onNext={next ? () => go(next.id) : null} track={{ sub: `${name || 'Curso'} · Aula`, cover, href: `/minhas-compras-digitais/${productId}?aula=${cur.id}` }} />
                         ) : cur ? (
                             <DigitalViewer itemId={cur.id} title={cur.title} />
                         ) : !hasApps ? (
