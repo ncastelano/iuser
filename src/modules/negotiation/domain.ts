@@ -82,6 +82,25 @@ export function platformFloor(minutes: number | null | undefined, minPerMinute: 
     return Math.ceil(minutes * minPerMinute * 100 - 1e-9) / 100
 }
 
+/** O que decidiu o valor da "Minha tarifa": a conta por km dela mesma, o ganho mínimo por hora do motorista ou o mínimo da plataforma (o MAIOR dos três vale; empate fica com o km). */
+export type FareDriver = 'km' | 'hourly' | 'platform'
+export function fareDriver(distanceFare: number, hourlyFloorValue: number | null, platformFloorValue: number): FareDriver {
+    const km = round2(distanceFare)
+    const hourly = hourlyFloorValue != null ? round2(hourlyFloorValue) : 0
+    const platform = round2(platformFloorValue)
+    if (platform > km && platform >= hourly) return 'platform'
+    if (hourly > km) return 'hourly'
+    return 'km'
+}
+
+/** Frase curta do que segurou a Minha tarifa (vazia quando foi a conta por km, que é a tarifa dele mesmo). */
+export function fareDriverText(driver: FareDriver, distanceFare: number, minHourly: number | null, perMinute: number): string {
+    const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+    if (driver === 'platform') return `Sua tarifa por km daria ${brl(round2(distanceFare))}, mas o mínimo da plataforma (${brl(perMinute)} por minuto de trabalho) é maior e vale para toda corrida de passageiro.`
+    if (driver === 'hourly') return `Sua tarifa por km daria ${brl(round2(distanceFare))}, mas o seu ganho mínimo de ${brl(minHourly ?? 0)} por hora pede mais para esta corrida.`
+    return ''
+}
+
 /** Nenhuma corrida abaixo do piso da plataforma (piso 0 = sem regra) */
 export const belowPlatformFloor = (amount: number | null | undefined, floor: number): boolean => floor > 0 && amount != null && amount < floor
 

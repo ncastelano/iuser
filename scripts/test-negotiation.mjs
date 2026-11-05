@@ -1,7 +1,7 @@
 // Testes das regras puras da negociação de corridas (src/modules/negotiation/domain.ts). Rodar: npm run test:negotiation
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem } from '../src/modules/negotiation/domain.ts'
+import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText } from '../src/modules/negotiation/domain.ts'
 
 test('valor válido: positivo e até R$ 100.000', () => {
     assert.equal(validateAmount(12.5), null)
@@ -126,4 +126,17 @@ test('mínimo padrão R$ 0,80 por minuto, teto R$ 1,00; só o admin eleva o teto
     assert.match(capProblem(0.7, 0.8), /abaixo do mínimo/)
     assert.ok(capProblem(25, 0.8))
     assert.ok(capProblem(0, 0))
+})
+
+test('o que decidiu a Minha tarifa: km, ganho mínimo por hora ou mínimo da plataforma', () => {
+    assert.equal(fareDriver(30, null, 0), 'km')
+    assert.equal(fareDriver(30, 25, 20), 'km')
+    assert.equal(fareDriver(7, 5, 9), 'platform')
+    assert.equal(fareDriver(7, 12, 6.37), 'hourly')
+    assert.equal(fareDriver(7, 5, 6.37), 'km')            // o piso não subiu nada
+    assert.equal(fareDriver(7, 12, 12), 'platform')      // empate com o da plataforma: é regra da plataforma
+    assert.equal(fareDriver(7, 7, 7), 'km')                // nada subiu a tarifa
+    assert.equal(fareDriverText('km', 7, null, 0.8), '')
+    assert.match(fareDriverText('platform', 7, null, 0.8), /mínimo da plataforma \(R\$ 0,80 por minuto/)
+    assert.match(fareDriverText('hourly', 7, 60, 0.8), /ganho mínimo de R\$ 60,00 por hora/)
 })
