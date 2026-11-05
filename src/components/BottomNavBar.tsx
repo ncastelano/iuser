@@ -1,32 +1,29 @@
 // src/components/BottomNavBar.tsx
 //
-// A NAVBAR COMPLETA (a antiga ilha do topo foi mesclada aqui) — UMA peça sólida só, embaixo:
+// A NAVBAR COMPLETA da 3.0 — UMA peça sólida só, embaixo (a antiga ilha do topo foi mesclada aqui):
 //   · em cima, quando há o que mostrar, a FAIXA (a "ilha" embutida), colada à barra, sem divisória, numa cor neutra suave:
 //       - os AVISOS do sistema (lib/toast): a faixa vira o MENSAGEIRO por um momento (cor e símbolo do tipo, texto, botão de ação; tocar dispensa);
 //       - senão, o que está vivo: o carrinho (itens · total, nas páginas de compra), a corrida pedida e os pedidos novos da loja;
-//   · os STATUS dos pedidos (novos, em preparo, prontos) ficam nas BOLINHAS coloridas embaixo do botão do carrinho;
-//       - cada chip é um botão que leva ao seu lugar;
-//   · embaixo, seis botões IGUAIS (mesmo tamanho): Carrinho, Conversas, MODO (a foto do modo ativo, com o selinho do tipo; abre o hub) · Radar, Social, Lupa (procurar e explorar).
+//   · embaixo, CINCO abas com nome (desenho aprovado no laboratório /paginateste): Explorar (lupa) · Perto (localização, o radar) · Social ·
+//     Atividade (conversas + pedidos + carrinho + biblioteca + avisos, com o selo do que pede atenção) · Eu (a foto do modo ativo; abre o menu de modos, o hub).
 // Só apresentação: quem usa (a casca da 3.0) passa as contagens, a foto e o que cada toque faz. Constantes de medida exportadas para quem reserva espaço embaixo.
 'use client'
 
 import { CSSProperties, ReactNode, useEffect, useState } from 'react'
-import { Car, ChevronRight, MessageCircle, Radar, Search, ShoppingCart, Store, User, Users } from 'lucide-react'
+import { Car, ChevronRight, MapPin, MessagesSquare, Search, ShoppingCart, Store, User, Users } from 'lucide-react'
 import type { OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 export const BAR_BOTTOM = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
-export const BAR_H = 58
+export const BAR_H = 64
 export const STRIP_H = 36
 // Espaço que a barra ocupa (sem a faixa)
-export const BAR_SPACE = 'calc(78px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
+export const BAR_SPACE = 'calc(84px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
 
 /** O menu de modos (hub): vive DENTRO da barra e cresce para cima a partir dela — a barra vira o cartão, não aparece outro por cima. */
 export interface BarHub { open: boolean; label: string; /** variáveis de tema do conteúdo (--hub-*) */ vars: CSSProperties; children: ReactNode }
 
-export type BarKey = 'cart' | 'chat' | 'home' | 'radar' | 'people'
-
-const ORDER_COLORS = [['pending', '#22c55e', 'novos'], ['preparing', '#eab308', 'em preparo'], ['ready', '#a855f7', 'prontos']] as const
+export type BarKey = 'home' | 'radar' | 'people' | 'activity'
 
 /** Um aviso do sistema (toast) mostrado na faixa */
 export interface BarMessage { id: string | number; text: string; description?: string; icon?: string; glyph: string; color: string; action?: { label: string; onClick: () => void } }
@@ -34,37 +31,28 @@ export interface BarMessage { id: string | number; text: string; description?: s
 export interface BarExtra { key: string; text: string; color: string; path: string }
 
 /** A faixa de cima (fixa, sem contar o aviso passageiro) aparece quando há carrinho (páginas de compra) ou chips extras (corrida, pedidos da loja) — e o carrinho some dela na página do carrinho */
-export function stripVisible({ active, cartExpanded, cartCount, extras = 0 }: { active: BarKey | null; cartExpanded: boolean; cartCount: number; extras?: number }): boolean {
+export function stripVisible({ onCartPage, cartExpanded, cartCount, extras = 0 }: { onCartPage: boolean; cartExpanded: boolean; cartCount: number; extras?: number }): boolean {
     if (extras > 0) return true
-    if (active === 'cart') return false
+    if (onCartPage) return false
     return cartExpanded && cartCount > 0
 }
 
-// Botão da barra: ícone (tamanho único) + (selo de quantidade) + (bolinhas de status dos pedidos embaixo, só no carrinho) + traço laranja quando é a página atual
-function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, orders, colors, children }: {
-    active: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; orders?: OrderStatusCounts; colors: any; children: ReactNode
+// Botão da barra: ícone dentro de uma pílula (laranja quando é a página atual) + nome embaixo + (selo de quantidade)
+function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, colors, children }: {
+    active: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; colors: any; children: ReactNode
 }) {
-    const ordersOn = !!orders && (orders.pending > 0 || orders.preparing > 0 || orders.ready > 0)
     return (
-        <button onClick={onClick} aria-label={label} aria-current={active ? 'page' : undefined} className="relative flex-1 min-w-0 h-full flex items-center justify-center transition active:scale-90" style={{ color: active ? '#f97316' : colors.textPrimary }}>
-            {/* com bolinhas de pedidos a linha do ícone sobe um pouco para elas caberem embaixo */}
-            <span className="relative flex items-center justify-center w-10 h-10" style={{ transform: ordersOn ? 'translateY(-6px)' : undefined, transition: 'transform 200ms ease' }}>
+        <button onClick={onClick} aria-label={label} aria-current={active ? 'page' : undefined} className="relative flex-1 min-w-0 h-full flex flex-col items-center justify-center gap-[3px] transition active:scale-90">
+            <span className="relative flex items-center justify-center h-8 rounded-full transition-all duration-300" style={{ width: active ? 52 : 36, background: active ? '#f9731624' : 'transparent', color: active ? '#f97316' : colors.textPrimary }}>
                 {children}
-                {badge > 0 && pulse && !active && <span aria-hidden className="absolute top-0 right-0 min-w-[18px] h-[18px] rounded-full animate-ping pointer-events-none" style={{ background: badgeColor, opacity: 0.55 }} />}
+                {badge > 0 && pulse && !active && <span aria-hidden className="absolute -top-0.5 -right-1.5 min-w-[17px] h-[17px] rounded-full animate-ping pointer-events-none" style={{ background: badgeColor, opacity: 0.55 }} />}
                 {badge > 0 && (
-                    <span className="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: `0 0 0 2px ${colors.background}` }}>
+                    <span className="absolute -top-0.5 -right-1.5 min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: `0 0 0 2px ${colors.background}` }}>
                         {badge > 99 ? '99+' : badge}
                     </span>
                 )}
             </span>
-            {ordersOn && orders && (
-                <span className="absolute left-1/2 -translate-x-1/2 flex items-center gap-[3px] pointer-events-none" style={{ bottom: 5 }} aria-label="Pedidos em andamento">
-                    {ORDER_COLORS.map(([k, color]) => (
-                        orders[k] > 0 ? <span key={k} className="min-w-[14px] h-[14px] px-[3px] rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: color, boxShadow: `0 0 0 1.5px ${colors.background}` }}>{orders[k] > 9 ? '9+' : orders[k]}</span> : null
-                    ))}
-                </span>
-            )}
-            <span aria-hidden className="absolute left-1/2 -translate-x-1/2 rounded-full transition-all" style={{ bottom: 4, width: active ? 16 : 0, height: 3, background: '#f97316', opacity: active && !ordersOn ? 1 : 0 }} />
+            <span className="text-[10.5px] leading-none truncate max-w-full px-0.5" style={{ fontWeight: active ? 900 : 700, color: active ? '#f97316' : colors.textSecondary }}>{label}</span>
         </button>
     )
 }
@@ -72,22 +60,23 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
 /** O modo ativo: a foto do modo (perfil, loja ou motorista) e, no canto, o selinho do tipo */
 export interface ModeButtonProps { avatar: ReactNode; kind: 'user' | 'store' | 'car'; label: string; onOpen: () => void }
 
-// Mesmo tamanho dos outros botões: a foto cabe numa área de 28 px (os ícones têm 21 px)
-function ModeButton({ mode, colors }: { mode: ModeButtonProps; colors: any }) {
+// A aba "Eu": a foto do modo (28 px) com o selinho do tipo; tocar abre o menu de modos
+function ModeButton({ mode, open, colors }: { mode: ModeButtonProps; open: boolean; colors: any }) {
     const Glyph = mode.kind === 'store' ? Store : mode.kind === 'car' ? Car : User
     return (
-        <button onClick={mode.onOpen} aria-label={`${mode.label}: trocar de modo`} aria-haspopup="dialog" className="relative flex-1 min-w-0 h-full flex items-center justify-center transition active:scale-90">
-            <span className="relative flex items-center justify-center w-10 h-10">
-                <span className="rounded-full flex items-center justify-center" style={{ boxShadow: `0 0 0 1.5px ${colors.border}` }}>{mode.avatar}</span>
-                <span aria-hidden className="absolute bottom-[3px] right-[3px] w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: colors.textPrimary, color: colors.background, boxShadow: `0 0 0 2px ${colors.background}` }}>
+        <button onClick={mode.onOpen} aria-label={`${mode.label}: trocar de modo`} aria-haspopup="dialog" aria-expanded={open} className="relative flex-1 min-w-0 h-full flex flex-col items-center justify-center gap-[3px] transition active:scale-90">
+            <span className="relative flex items-center justify-center h-8 w-9">
+                <span className="rounded-full flex items-center justify-center" style={{ boxShadow: `0 0 0 ${open ? 2 : 1.5}px ${open ? '#f97316' : colors.border}` }}>{mode.avatar}</span>
+                <span aria-hidden className="absolute bottom-[-1px] right-[1px] w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: colors.textPrimary, color: colors.background, boxShadow: `0 0 0 2px ${colors.background}` }}>
                     <Glyph size={9} strokeWidth={2.8} />
                 </span>
             </span>
+            <span className="text-[10.5px] leading-none truncate max-w-full px-0.5" style={{ fontWeight: open ? 900 : 700, color: open ? '#f97316' : colors.textSecondary }}>Eu</span>
         </button>
     )
 }
 
-export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, cartExpanded = false, mode, hub, message = null, extras = [], customCard = null, onDismiss, onGo, onCart, onChat, onHome, onRadar, onPeople }: {
+export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, cartExpanded = false, onCartPage = false, mode, hub, message = null, extras = [], customCard = null, onDismiss, onGo, onCart, onActivity, onHome, onRadar, onPeople }: {
     colors: any
     active: BarKey | null
     cartCount: number
@@ -96,6 +85,8 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     unread: number
     /** Páginas de compra: a faixa de cima mostra o carrinho (itens · total) quando há itens */
     cartExpanded?: boolean
+    /** Está na página do carrinho (a faixa não repete o carrinho) */
+    onCartPage?: boolean
     /** O botão do modo ativo (foto + selinho); abre o menu de modos */
     mode?: ModeButtonProps
     /** O menu de modos, que cresce para cima de dentro da barra */
@@ -108,21 +99,23 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     onDismiss: () => void
     onGo: (path: string) => void
     onCart: () => void
-    onChat: () => void
+    onActivity: () => void
     onHome: () => void
     onRadar: () => void
     onPeople: () => void
 }) {
-    const showCart = cartExpanded && cartCount > 0 && active !== 'cart'
+    const showCart = cartExpanded && cartCount > 0 && !onCartPage
     const hubOpen = !!hub?.open
     // com o menu aberto a faixa de cima fica recolhida (o menu ocupa o lugar dela); a barra sobe acima do escurecimento enquanto abre e fecha
-    const strip = !hubOpen && (!!message || stripVisible({ active, cartExpanded, cartCount, extras: extras.length }))
+    const strip = !hubOpen && (!!message || stripVisible({ onCartPage, cartExpanded, cartCount, extras: extras.length }))
     const [raised, setRaised] = useState(false)
     useEffect(() => {
         if (hubOpen) { setRaised(true); return }
         const t = setTimeout(() => setRaised(false), 500)
         return () => clearTimeout(t)
     }, [hubOpen])
+    // O selo de Atividade: mensagens não lidas + pedidos em andamento (roxo quando há pedido pronto)
+    const ordersActive = orderCounts.pending + orderCounts.preparing + orderCounts.ready
     const money = cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
     return (
         <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM, zIndex: raised || hubOpen ? 75 : 40 }}>
@@ -171,23 +164,20 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
                             </div>
                         )}
                     </div>
-                    <div className="flex items-center px-1.5" style={{ height: BAR_H, borderTop: `1px solid ${hubOpen ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
-                        <BarButton colors={colors} active={active === 'cart'} label="Carrinho" onClick={onCart} badge={active === 'cart' ? 0 : cartCount} orders={active === 'cart' ? undefined : orderCounts}>
-                            <ShoppingCart size={21} />
+                    <div className="flex items-stretch px-1.5" style={{ height: BAR_H, borderTop: `1px solid ${hubOpen ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
+                        <BarButton colors={colors} active={active === 'home'} label="Explorar" onClick={onHome}>
+                            <Search size={22} />
                         </BarButton>
-                        <BarButton colors={colors} active={active === 'chat'} label="Conversas" onClick={onChat} badge={unread} badgeColor="#16a34a" pulse={unread > 0}>
-                            <MessageCircle size={21} />
-                        </BarButton>
-                        {mode && <ModeButton mode={mode} colors={colors} />}
-                        <BarButton colors={colors} active={active === 'radar'} label="Radar" onClick={onRadar}>
-                            <Radar size={21} />
+                        <BarButton colors={colors} active={active === 'radar'} label="Perto" onClick={onRadar}>
+                            <MapPin size={22} />
                         </BarButton>
                         <BarButton colors={colors} active={active === 'people'} label="Social" onClick={onPeople}>
-                            <Users size={21} />
+                            <Users size={22} />
                         </BarButton>
-                        <BarButton colors={colors} active={active === 'home'} label="Procurar e explorar" onClick={onHome}>
-                            <Search size={21} />
+                        <BarButton colors={colors} active={active === 'activity'} label="Atividade" onClick={onActivity} badge={unread + ordersActive} badgeColor={orderCounts.ready > 0 ? '#a855f7' : '#16a34a'} pulse={unread + ordersActive > 0}>
+                            <MessagesSquare size={22} />
                         </BarButton>
+                        {mode && <ModeButton mode={mode} open={hubOpen} colors={colors} />}
                     </div>
                 </div>
             </div>

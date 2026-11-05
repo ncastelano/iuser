@@ -347,7 +347,7 @@ function Avatar({ url, name, isStore, userId, size, round = false }: { url: stri
 }
 
 // ====================== PÁGINA ======================
-function ConversasInner({ ui }: { ui: UiVersion }) {
+function ConversasInner({ ui, embedded = false }: { ui: UiVersion; embedded?: boolean }) {
     const v3 = ui === 'v3'
     const router = useRouter()
     const search = useSearchParams()
@@ -466,7 +466,8 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
 
             <main className={v3 ? 'relative pb-8' : 'relative z-10 min-h-dvh pb-8'}>
                 {v3 ? (
-                    <PageTabs tabs={tabs} />
+                    // dentro da Atividade a fileira de cima é a da Atividade: as salas só aparecem quando há mais de uma (perfil + lojas)
+                    !embedded || tabs.length > 1 ? <PageTabs tabs={tabs} /> : null
                 ) : (
                     <Header
                         title="Conversas"
@@ -695,10 +696,10 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
 }
 
 /** Sala de conversas. Uma implementação só para as duas versões (muda só a moldura, ver CarrinhoScreen). */
-export default function ConversasScreen({ ui = 'v3' }: { ui?: UiVersion }) {
+export default function ConversasScreen({ ui = 'v3', embedded = false }: { ui?: UiVersion; embedded?: boolean }) {
     return (
         <Suspense fallback={null}>
-            <ConversasInner ui={ui} />
+            <ConversasInner ui={ui} embedded={embedded} />
         </Suspense>
     )
 }

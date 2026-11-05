@@ -109,7 +109,8 @@ async function geocodeAddress(query: string): Promise<{ lat: number; lng: number
  * Carrinho / pedidos. UMA implementação para as duas versões: o conteúdo (carrinho, pedidos, avaliações) é o mesmo,
  * só a moldura muda — v2: Header + fundo animado próprios; v3: o cartão do app já vem do layout (ShellFrame).
  */
-export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
+/** `hideTabs` + `tab`: dentro da Atividade (3.0) a fileira de abas é a da Atividade (Pedidos, Carrinho, Biblioteca) e a aba aberta vem de fora */
+export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { ui?: UiVersion; hideTabs?: boolean; tab?: 'carrinho' | 'pedidos' | 'digital' | 'avaliacoes' }) {
     const v3 = ui === 'v3'
     const {
         itemsByStore,
@@ -283,7 +284,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     }, [currentUserId])
 
     // ===== ESTADO DA TAB ATIVA =====
-    const [activeTab, setActiveTab] = useState<string>('carrinho')
+    const [activeTab, setActiveTab] = useState<string>(tab || 'carrinho')
     // ?aba=pedidos|avaliacoes|digital abre direto nessa aba (a barra do topo leva pros pedidos quando o carrinho está vazio)
     useEffect(() => {
         try {
@@ -291,6 +292,8 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             if (aba === 'pedidos' || aba === 'avaliacoes' || aba === 'digital') setActiveTab(aba)
         } catch { /* sem window */ }
     }, [])
+    // aba escolhida de fora (a fileira da Atividade)
+    useEffect(() => { if (tab) setActiveTab(tab) }, [tab])
 
     // ===== FUNÇÃO PARA SALVAR LOCALIZAÇÃO NO LOCALSTORAGE =====
     const saveDeliveryLocationToStorage = useCallback((slug: string, location: {
@@ -1668,7 +1671,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             <main className={v3 ? 'relative' : 'relative z-10 min-h-dvh'} style={{ overscrollBehavior: 'none' }}>
                 {v3 ? (
                     <>
-                        <PageTabs tabs={tabs} />
+                        {!hideTabs && <PageTabs tabs={tabs} />}
                         {activeTab === 'carrinho' && storeSlugs.length > 0 && (
                             <div className="mt-3 flex items-center justify-between gap-3 pl-4 pr-1.5 h-12 rounded-full" style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: '0 6px 20px rgba(0,0,0,0.08)' }}>
                                 <p className="text-xs font-bold min-w-0 truncate" style={{ color: colors.textSecondary }}>
@@ -2496,6 +2499,16 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                 </span>
                             </div>
                             <DeliveryIncreasePrompt userId={currentUserId} className="mb-4" />
+                            {hideTabs && pendingReviews.length > 0 && (
+                                <button onClick={() => setActiveTab('avaliacoes')} className="w-full flex items-center gap-3 p-3.5 mb-4 rounded-2xl text-left active:scale-[0.99] transition" style={{ ...cardStyle, border: '1.5px solid #f97316' }}>
+                                    <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#f9731620', color: '#f97316' }}><Star size={17} /></span>
+                                    <span className="flex-1 min-w-0">
+                                        <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{pendingReviews.length === 1 ? '1 compra para avaliar' : `${pendingReviews.length} compras para avaliar`}</span>
+                                        <span className="block text-xs" style={{ color: colors.textSecondary }}>Sua avaliação ajuda quem compra depois de você</span>
+                                    </span>
+                                    <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>Avaliar</span>
+                                </button>
+                            )}
                             {filteredGroupedOrders.length === 0 ? (
                                 <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
                                     <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: '#f9731620' }}>
@@ -2530,6 +2543,9 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     {/* Seção Avaliações - visível apenas quando activeTab === 'avaliacoes' */}
                     {currentUserId && activeTab === 'avaliacoes' && (
                         <section id="section-avaliar" className="scroll-mt-24">
+                            {hideTabs && (
+                                <button onClick={() => setActiveTab('pedidos')} className="mb-3 h-9 px-3.5 rounded-full text-xs font-black active:scale-95" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>‹ Voltar aos pedidos</button>
+                            )}
                             <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <Star size={16} />

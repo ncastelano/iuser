@@ -26,6 +26,8 @@ import { toastStyle } from '@/lib/toastStyle'
 import BottomNavBar, { BAR_SPACE, STRIP_H, stripVisible } from '@/components/BottomNavBar'
 import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
 import { switchVersion, versionLabel } from '@/versions/client'
+import { isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
+import { LAST_ABA_KEY } from '@/versions/v3/screens/AtividadeTabs'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -350,7 +352,7 @@ const LOGO_IMG_SCALE = 1.15
 // Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
 // Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
 const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos']
-const BAR_PATHS = ['/', '/social', '/flash', '/entregas', '/comprar', '/lojas', '/produtos', '/digitais', '/servicos-disponiveis', '/carrinho', '/conversas', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
+const BAR_PATHS = ['/', '/social', '/flash', '/entregas', '/comprar', '/lojas', '/produtos', '/digitais', '/servicos-disponiveis', '/atividade', '/carrinho', '/conversas', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
 
 // Foto do modo (perfil, logo da loja, foto do carro) — ou o ícone do modo quando não há imagem. Troca de modo = pequeno "estouro".
 function ModeAvatar({ userId, image, noRing, modeIcon, popToken, colors, size = 40 }: {
@@ -596,13 +598,15 @@ export default function ModeShell({ children }: {
     useLayoutEffect(() => { // antes da pintura: a página nova nunca aparece inteira por um instante
         const prev = prevShellPath.current
         prevShellPath.current = shellPath
-        if (prev === null || prev.startsWith('/carrinho') || !shellPath.startsWith('/carrinho')) return
+        // sobe da barra só ao ENTRAR na Atividade vindo de fora (trocar de subaba — conversas, pedidos, carrinho — não repete a animação)
+        if (prev === null || isActivityPath(prev) || !isActivityPath(shellPath)) return
         setRising(true)
         const t = setTimeout(() => setRising(false), 750)
         return () => clearTimeout(t)
     }, [shellPath])
-    const activeKey: 'cart' | 'chat' | 'home' | 'radar' | 'people' | null =
-        shellPath.startsWith('/carrinho') ? 'cart' : shellPath.startsWith('/conversas') ? 'chat' : shellPath === '/' ? 'home' : shellPath.startsWith('/radar') ? 'radar' : shellPath.startsWith('/flash') || shellPath.startsWith('/social') ? 'people' : null
+    const activeKey: 'home' | 'radar' | 'people' | 'activity' | null =
+        isActivityPath(shellPath) ? 'activity' : shellPath === '/' ? 'home' : shellPath.startsWith('/radar') ? 'radar' : shellPath.startsWith('/flash') || shellPath.startsWith('/social') ? 'people' : null
+    const onCartPage = shellPath.startsWith('/carrinho')
     // A barra de baixo só nas páginas "raiz"
     const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/')) && !(shellPath === '/conversas' && threadOpen)
     const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
@@ -656,7 +660,7 @@ export default function ModeShell({ children }: {
     // A faixa da barra: o que está vivo além do carrinho e dos status (a corrida e os pedidos novos da loja)
     const barExtras = (live?.parts || []).filter((x) => x.key === 'ride' || x.key === 'store-p' || x.key === 'store-s').map((x) => ({ key: x.key as string, text: x.text, color: x.color, path: x.path || live!.path }))
     // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
-    const stripShown = barShown && stripVisible({ active: activeKey, cartExpanded: cartStrip, cartCount: topCart, extras: barExtras.length })
+    const stripShown = barShown && stripVisible({ onCartPage, cartExpanded: cartStrip, cartCount: topCart, extras: barExtras.length })
 
     const idle = headerView
     // O conteúdo do menu de modos (vive dentro da barra: BottomNavBar o faz crescer para cima)
@@ -754,15 +758,24 @@ export default function ModeShell({ children }: {
                 orderCounts={orderCounts}
                 unread={topUnread}
                 cartExpanded={cartStrip}
+                onCartPage={onCartPage}
                 mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: drawerOpen ? () => setDrawerOpen(false) : openHub }}
                 hub={{ open: drawerOpen, label: 'Menu do iUser', vars: hubVars, children: hubInner }}
-                onCart={() => go(cartStrip || !(topCart === 0 && ordersActive > 0) ? '/carrinho' : '/carrinho?aba=pedidos')}
+                onCart={() => go('/carrinho')}
+                onActivity={() => {
+                    // a aba Atividade leva ao que pede atenção (pedido pronto, mensagem, pedido em andamento, carrinho); senão, à última subaba usada
+                    let last: AtividadeAba | null = null
+                    try { last = localStorage.getItem(LAST_ABA_KEY) as AtividadeAba | null } catch { /* sem armazenamento */ }
+                    if (activeKey === 'activity') { window.scrollTo({ top: 0, behavior: 'smooth' }); return }
+                    if (!userId) { go(topCart > 0 ? '/carrinho' : '/login'); return }   // visitante: só o carrinho existe sem conta
+                    const aba = smartAba({ unread: topUnread, orders: orderCounts, cart: topCart, last })
+                    go(aba === 'conversas' ? chatPath : pathOfAba(aba))   // no modo loja, as conversas abrem na sala da loja
+                }}
                 message={islandMsg && msgStyle ? { id: islandMsg.id, text: islandMsg.text, description: islandMsg.description, icon: islandMsg.icon, glyph: msgStyle.glyph, color: msgStyle.color, action: islandMsg.action ? { label: islandMsg.action.label, onClick: islandMsg.action.onClick } : undefined } : null}
                 extras={barExtras}
                 customCard={islandMsg?.custom ? islandMsg.custom(islandMsg.id) : null}
                 onDismiss={() => { if (islandMsg) toast.dismiss(islandMsg.id) }}
                 onGo={(path) => go(path)}
-                onChat={() => go(userId ? chatPath : '/login')}
                 onHome={() => (shellPath === '/' ? window.scrollTo({ top: 0, behavior: 'smooth' }) : go('/'))}
                 onRadar={() => go('/radar')}
                 onPeople={() => go('/social')}
