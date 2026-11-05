@@ -300,10 +300,11 @@ function ModeAvatar({ userId, image, noRing, modeIcon, popToken, colors, size = 
 
 // Avisa a casca quando há uma conversa aberta (?c=): a barra de baixo sai da frente do campo de digitar. Fica à parte porque
 // useSearchParams precisa de um Suspense em volta.
-function ChatThreadWatcher({ onChange }: { onChange: (open: boolean) => void }) {
+function ChatThreadWatcher({ onChange }: { onChange: (open: boolean, aba: string | null) => void }) {
     const sp = useSearchParams()
     const open = !!sp.get('c')
-    useEffect(() => { onChange(open) }, [open, onChange])
+    const aba = sp.get('aba')
+    useEffect(() => { onChange(open, aba) }, [open, aba, onChange])
     return null
 }
 
@@ -334,6 +335,8 @@ export default function ModeShell({ children }: {
     const [playerFull, setPlayerFull] = useState(false)
     // Conversa aberta (?c=): a barra de baixo sai da frente
     const [threadOpen, setThreadOpen] = useState(false)
+    // o ?aba= da página Atividade (a barra da loja marca Conversas quando a Atividade está nas conversas)
+    const [abaParam, setAbaParam] = useState<string | null>(null)
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
     const [dataLoaded, setDataLoaded] = useState(false)
     // Pedidos de cada loja da pessoa (novos, em preparo, prontos): aparecem no cartão da loja do menu
@@ -341,7 +344,7 @@ export default function ModeShell({ children }: {
     // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>'
     const [activeMode, setActiveMode] = useState('perfil')
     // Com uma loja escolhida no menu, as conversas já abrem na sala dessa loja (?sala=<slug>)
-    const chatPath = activeMode.startsWith('loja:') ? `/conversas?sala=${encodeURIComponent(activeMode.slice(5))}` : '/conversas'
+    const chatPath = activeMode.startsWith('loja:') ? `/atividade?aba=conversas&sala=${encodeURIComponent(activeMode.slice(5))}` : '/atividade?aba=conversas'
     const [modeTick, setModeTick] = useState(0)
     // Resumo do topo da última visita: desenha o cabeçalho na hora (sem esperar o banco) e depois confere
     const [snap, setSnap] = useState<HeaderSnap | null>(null)
@@ -491,10 +494,10 @@ export default function ModeShell({ children }: {
     }, [shellPath])
     // A barra acompanha o MODO: pessoa (Perto · Social · Atividade), loja (Painel · Pedidos · Conversas) ou motorista (Corridas · Entregas · Ganhos)
     const { kind: barKind, storeSlug: barStore } = barKindOf(activeMode, drawerData.stores.map((st) => st.slug))
-    const barActive = activeBarKey(barKind, shellPath, barStore)
-    const onCartPage = shellPath.startsWith('/carrinho')
+    const barActive = activeBarKey(barKind, shellPath, barStore, abaParam)
+    const onCartPage = shellPath.startsWith('/carrinho') || (shellPath === '/atividade' && abaParam === 'carrinho')   // a faixa não repete o carrinho na própria aba do carrinho
     // A barra de baixo só nas páginas "raiz"
-    const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/')) && !(shellPath === '/conversas' && threadOpen)
+    const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/')) && !((shellPath === '/conversas' || (shellPath === '/atividade' && abaParam === 'conversas')) && threadOpen)
     const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
     // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha
     const storeNew = (() => {
@@ -647,7 +650,7 @@ export default function ModeShell({ children }: {
             @keyframes shellRise { 0% { clip-path: inset(100% 0 0 0 round 36px); transform: translateY(46px); } 100% { clip-path: inset(0% 0 0 0 round 0px); transform: translateY(0); } }
             @media (prefers-reduced-motion: reduce) { .shell-rise-off { animation: none } }
         `}</style>
-        <Suspense fallback={null}><ChatThreadWatcher onChange={setThreadOpen} /></Suspense>
+        <Suspense fallback={null}><ChatThreadWatcher onChange={(open, aba) => { setThreadOpen(open); setAbaParam(aba) }} /></Suspense>
 
         {/* A página: começa logo abaixo da área segura (a ilha do topo foi mesclada à barra de baixo); sem cartão deslizando (o menu virou o hub) */}
         <div
@@ -662,7 +665,7 @@ export default function ModeShell({ children }: {
                 animation: rising ? 'shellRise 700ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
             }}
         >
-            <BarKindProvider kind={barKind}>
+            <BarKindProvider kind={barKind} storeSlug={barStore}>
             <div className="max-w-5xl mx-auto px-4 pt-2">
                 {children}
             </div>

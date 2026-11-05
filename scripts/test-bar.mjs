@@ -27,7 +27,8 @@ test('para onde cada aba leva', () => {
     assert.equal(barPathOf('people', null), '/social')
     assert.equal(barPathOf('panel', 'pizzaria'), '/painel-loja/pizzaria')
     assert.equal(barPathOf('orders', 'pizzaria'), '/painel-loja/pizzaria/pedidos')
-    assert.equal(barPathOf('chat', 'pizzaria'), '/conversas?sala=pizzaria')
+    assert.equal(barPathOf('chat', 'pizzaria'), '/atividade?aba=conversas&sala=pizzaria')
+    assert.equal(barPathOf('chat', null), '/atividade?aba=conversas')
     assert.equal(barPathOf('panel', null), null)
     assert.equal(barPathOf('rides', null), '/aceitar-corridas')
     assert.equal(barPathOf('deliveries', null), '/entregas')
@@ -49,6 +50,8 @@ test('qual aba está marcada: loja', () => {
     assert.equal(activeBarKey('loja', '/editar-loja/pizzaria', 'pizzaria'), 'panel')
     assert.equal(activeBarKey('loja', '/painel-loja/pizzaria/pedidos', 'pizzaria'), 'orders')
     assert.equal(activeBarKey('loja', '/conversas', 'pizzaria'), 'chat')
+    assert.equal(activeBarKey('loja', '/atividade', 'pizzaria', 'conversas'), 'chat')   // a Atividade nas conversas
+    assert.equal(activeBarKey('loja', '/atividade', 'pizzaria', 'avisos'), null)
     assert.equal(activeBarKey('loja', '/', 'pizzaria'), 'home')
     assert.equal(activeBarKey('loja', '/carrinho', 'pizzaria'), null)
     assert.equal(activeBarKey('loja', '/radar', 'pizzaria'), null)

@@ -46,7 +46,7 @@ export function barPathOf(key: BarKey, storeSlug: string | null): string | null 
         case 'people': return '/social'
         case 'panel': return s ? `/painel-loja/${s}` : null
         case 'orders': return s ? `/painel-loja/${s}/pedidos` : null
-        case 'chat': return s ? `/conversas?sala=${s}` : '/conversas'
+        case 'chat': return s ? `/atividade?aba=conversas&sala=${s}` : '/atividade?aba=conversas'
         case 'rides': return '/aceitar-corridas'
         case 'deliveries': return '/entregas'
         case 'earnings': return '/ganhos'
@@ -54,8 +54,8 @@ export function barPathOf(key: BarKey, storeSlug: string | null): string | null 
     }
 }
 
-/** Qual aba está marcada neste endereço (null = nenhuma das quatro) */
-export function activeBarKey(kind: BarKind, shellPath: string, storeSlug: string | null): BarKey | null {
+/** Qual aba está marcada neste endereço (null = nenhuma das quatro). `aba` é o `?aba=` da página Atividade (a loja marca Conversas quando a Atividade está nas conversas) */
+export function activeBarKey(kind: BarKind, shellPath: string, storeSlug: string | null, aba: string | null = null): BarKey | null {
     const p = clean(shellPath)
     if (p === '/') return 'home'
     if (kind === 'pessoa') {
@@ -68,7 +68,7 @@ export function activeBarKey(kind: BarKind, shellPath: string, storeSlug: string
         const s = storeSlug ? encodeURIComponent(storeSlug) : null
         if (s && (p === `/painel-loja/${s}/pedidos` || p.startsWith(`/painel-loja/${s}/pedidos/`))) return 'orders'
         if (p.startsWith('/painel-loja/') || p.startsWith('/editar-loja/')) return 'panel'
-        if (p === '/conversas') return 'chat'
+        if (p === '/conversas' || (p === '/atividade' && aba === 'conversas')) return 'chat'
         return null
     }
     if (p === '/aceitar-corridas' || p.startsWith('/aceitar-corridas/')) return 'rides'
