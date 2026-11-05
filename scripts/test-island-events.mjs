@@ -57,3 +57,11 @@ test('negociação do valor da corrida: a proposta do outro lado aparece na ilha
   for (const k of ['ride_offer_declined', 'ride_offer_agreed', 'ride_offer_expired']) assert.ok(islandEventFor({ kind: k, meta: { title: 't', text: 'x', path: '/pedir-motorista' } }), k)
   assert.equal(islandEventFor({ kind: 'ride_offer_new', meta: {} }), null)
 })
+
+test('pedido digital: a loja é avisada para liberar o acesso e o cliente quando abre', () => {
+  const nw = islandEventFor({ kind: 'digital_order_new', meta: { title: 'Pedido digital novo', text: 'Ana quer "Curso de Pizza" · R$ 49,90 · libere o acesso quando receber o Pix', path: '/painel-loja/x/pedidos' } })
+  assert.equal(nw?.level, 'message'); assert.equal(nw?.actionLabel, 'Liberar acesso'); assert.equal(nw?.path, '/painel-loja/x/pedidos'); assert.match(nw.text, /libere o acesso/)
+  const ok = islandEventFor({ kind: 'digital_access_released', meta: { title: 'Acesso liberado', text: 'Pizzaria liberou "Curso de Pizza" — toque para começar', path: '/minhas-compras-digitais/p1' } })
+  assert.equal(ok?.level, 'success'); assert.equal(ok?.path, '/minhas-compras-digitais/p1'); assert.equal(ok?.actionLabel, 'Começar')
+  assert.equal(islandEventFor({ kind: 'digital_order_new', meta: {} }), null)
+})

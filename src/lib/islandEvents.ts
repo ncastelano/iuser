@@ -22,6 +22,9 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     delivery_issue: { level: 'error', icon: '⚠️', label: 'Ver', duration: 12000 },        // a loja: o motorista não acha o endereço / ninguém atende   // o entregador avisou "Estou no local": o cliente precisa ir receber
     // loja
     order_new: { level: 'message', icon: '🛎️', label: 'Abrir', duration: 7000 },
+    // produto digital (curso, música, programa): a loja confere o Pix e libera o acesso; o cliente é avisado quando abre
+    digital_order_new: { level: 'message', icon: '🎓', label: 'Liberar acesso', duration: 9000 },
+    digital_access_released: { level: 'success', icon: '🔓', label: 'Começar', duration: 8000 },
     delivery_driver_accepted: { level: 'info', icon: '🛵', label: 'Ver' },
     delivery_driver_arrived: { level: 'message', icon: '🔑', label: 'Ver código', duration: 20000 },
     delivery_done: { level: 'success', icon: '✅', label: 'Ver' },

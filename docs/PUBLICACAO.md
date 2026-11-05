@@ -7,7 +7,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **41 migrations**: `20261130000000` até `20261130000040` (lista no Anexo A). |
+| **Faltam na produção** | **42 migrations**: `20261130000000` até `20261130000041` (lista no Anexo A). |
 | **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
@@ -176,6 +176,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 38 | `ride_negotiation` | Negociação de corridas e ganho mínimo por hora: `ride_price_offers`, `driver_earning_goals` (privada), `ride_negotiation_settings`, colunas `passenger_offer`/`agreed_price`, funções de oferta/contraproposta/aceite e o `select_ride_driver` que congela o preço. Só adiciona (o `select_ride_driver` é substituído, mesma assinatura); o app novo chama as funções: aplique ANTES do código. Rollback `ride_negotiation_rollback.sql` (apaga o histórico de propostas e os mínimos). |
 | 39 | `ride_negotiation_notices` | Avisos da negociação na ilha e no push: 4 tipos novos em `profile_notifications` (o CHECK é refeito com a lista completa) e o gatilho `trg_ping_live_push` ganha os tipos. Depende da `...38`; aplique ANTES do código. Rollback `ride_negotiation_notices_rollback.sql`. |
 | 40 | `store_digital_summary` | Resumo do digital no Painel da loja: a função de leitura `get_store_digital_summary` (só o dono; só números). Só LEITURA, nada novo é gravado; sem ela o bloco Digital do painel simplesmente não aparece. Aplique ANTES do código. Rollback `store_digital_summary_rollback.sql`. |
+| 41 | `digital_order_notices` | Avisos da ilha para pedido digital: a loja recebe "Pedido digital novo" (libere o acesso) e o cliente "Acesso liberado" no lugar de "Pedido novo"/"Pedido entregue". Refaz o CHECK dos tipos de `profile_notifications` e o gatilho dos pedidos (`trg_notify_order_events`, só ganha o ramo digital). Depende da `...04`; aplique ANTES do código. Rollback `digital_order_notices_rollback.sql` (volta o gatilho ao da `...04`). |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 
