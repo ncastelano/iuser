@@ -52,7 +52,7 @@ export const INTERNAL_PREFIX: Partial<Record<UiVersion, string>> = { v3: '/v3' }
  * Mantêm a moldura própria mesmo na 3.0: só o link público do entregador (quem abre não é usuário do app). Os mapas
  * em tela cheia abrem na casca e começam abaixo da navbar (`--shell-top`, definido em ShellFrame).
  */
-export const SHELL_EXCLUDED = ['/entregador']
+export const SHELL_EXCLUDED = ['/entregador', '/paginateste']
 
 /** Páginas que só existem na v3 (não há equivalente na v2: voltar para a v2 leva à home da v2) */
 export const V3_ONLY_ROUTES = ['/painel-perfil', '/modoprestador', '/comprar', '/imoveis', '/anunciar-imovel', '/meus-imoveis', '/flash', '/social', '/entregas']

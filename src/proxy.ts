@@ -61,6 +61,7 @@ const IGNORED_ROUTES = [
     '/flash', // feed de pessoas em tela cheia (3.0)
     '/entregas', // central de entregas do motorista (3.0)
     '/tres-telas', // ferramenta de desenvolvimento (só local): observação em 3 telas
+    '/paginateste', // laboratório da navbar (página de teste, sem link no app)
     '/dev-login', // ferramenta de desenvolvimento (só local): entra com a conta de teste
 ]
 
