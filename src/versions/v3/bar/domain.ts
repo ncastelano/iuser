@@ -76,3 +76,15 @@ export function activeBarKey(kind: BarKind, shellPath: string, storeSlug: string
     if (p === '/ganhos') return 'earnings'
     return null
 }
+
+/**
+ * A página DE UM MODO da própria pessoa também leva a barra, como o painel do perfil (/painel-perfil) e o da loja (/painel-loja/<slug>): a do modo MOTORISTA é a página pública do
+ * veículo dela (/<vehicle_slug>), que é um endereço dinâmico e por isso não entra na lista de páginas com barra. Só os veículos DA PESSOA contam (o de outra pessoa abre sem barra).
+ */
+export function isOwnVehiclePage(shellPath: string, myVehicleSlugs: string[]): boolean {
+    const p = clean(shellPath)
+    if (!p.startsWith('/') || p.indexOf('/', 1) !== -1) return false   // só um segmento: /<slug>
+    let slug = p.slice(1)
+    try { slug = decodeURIComponent(slug) } catch { /* mantém */ }
+    return !!slug && myVehicleSlugs.includes(slug)
+}

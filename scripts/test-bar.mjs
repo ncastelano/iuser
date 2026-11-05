@@ -1,7 +1,7 @@
 // Testes das regras puras da barra de baixo por modo (src/versions/v3/bar/domain.ts). Rodar: npm run test:bar
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { activeBarKey, barKindOf, barPathOf, barTabsFor } from '../src/versions/v3/bar/domain.ts'
+import { activeBarKey, barKindOf, barPathOf, barTabsFor, isOwnVehiclePage } from '../src/versions/v3/bar/domain.ts'
 
 test('o modo vira o tipo da barra; loja que não existe cai na barra de pessoa', () => {
     assert.deepEqual(barKindOf('perfil'), { kind: 'pessoa', storeSlug: null })
@@ -64,4 +64,15 @@ test('qual aba está marcada: motorista', () => {
     assert.equal(activeBarKey('motorista', '/ganhos', null), 'earnings')
     assert.equal(activeBarKey('motorista', '/', null), 'home')
     assert.equal(activeBarKey('motorista', '/social', null), null)
+})
+
+test('a página do veículo da própria pessoa leva a barra (a do veículo de outra, não)', () => {
+    const mine = ['honda-fit-brasil', 'moto-do-leo']
+    assert.equal(isOwnVehiclePage('/honda-fit-brasil', mine), true)
+    assert.equal(isOwnVehiclePage('/honda-fit-brasil/', mine), true)
+    assert.equal(isOwnVehiclePage('/honda-fit-brasil?x=1', mine), true)
+    assert.equal(isOwnVehiclePage('/carro-de-outro', mine), false)
+    assert.equal(isOwnVehiclePage('/honda-fit-brasil/aceitar', mine), false)   // só a página do veículo, não as de dentro
+    assert.equal(isOwnVehiclePage('/', mine), false)
+    assert.equal(isOwnVehiclePage('/honda-fit-brasil', []), false)
 })

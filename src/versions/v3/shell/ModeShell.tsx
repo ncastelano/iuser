@@ -31,7 +31,7 @@ import { miniHidden, subtitleOf } from '@/modules/player'
 import { switchVersion, versionLabel } from '@/versions/client'
 import { activityBadge, isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
 import { BarKindProvider } from '@/versions/v3/bar/kind'
-import { activeBarKey, barKindOf, barPathOf, barTabsFor, type BarKey } from '@/versions/v3/bar/domain'
+import { activeBarKey, barKindOf, isOwnVehiclePage, barPathOf, barTabsFor, type BarKey } from '@/versions/v3/bar/domain'
 import { LAST_ABA_KEY } from '@/versions/v3/screens/AtividadeTabs'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -497,7 +497,7 @@ export default function ModeShell({ children }: {
     const barActive = activeBarKey(barKind, shellPath, barStore, abaParam)
     const onCartPage = shellPath.startsWith('/carrinho') || (shellPath === '/atividade' && abaParam === 'carrinho')   // a faixa não repete o carrinho na própria aba do carrinho
     // A barra de baixo só nas páginas "raiz"
-    const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/')) && !((shellPath === '/conversas' || (shellPath === '/atividade' && abaParam === 'conversas')) && threadOpen)
+    const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/') || isOwnVehiclePage(shellPath, drawerData.vehicles.map((v) => v.slug))) && !((shellPath === '/conversas' || (shellPath === '/atividade' && abaParam === 'conversas')) && threadOpen)
     const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
     // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha
     const storeNew = (() => {
