@@ -7,7 +7,7 @@
 
 import { ReactNode, useEffect, useMemo, useState } from 'react'
 import {
-    Bike, Car, ClipboardList, Compass, GraduationCap, LayoutDashboard, MessageCircle, MessagesSquare, Music, Pause, Play, Radar, Search, Settings,
+    Bike, Car, ClipboardList, GraduationCap, LayoutDashboard, MessageCircle, MapPin, MessagesSquare, Music, Pause, Play, Radar, Search, Settings,
     ShoppingCart, SkipBack, SkipForward, Sparkles, Store, User, Users, Wallet, X, Zap, ChevronDown, ChevronRight, Check,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
@@ -23,7 +23,7 @@ const ORANGE = '#f97316'
 // ===== As abas da PROPOSTA, por modo: Início sempre à esquerda (explorar e buscar é de todos) e Eu sempre à direita (quem sou, meus modos) =====
 function tabsFor(mode: Mode, n: { orders: number; chats: number; cart: number; newOrders: number }): Tab[] {
     const home: Tab = {
-        key: 'inicio', label: 'Explorar', icon: <Compass size={22} />,
+        key: 'inicio', label: 'Explorar', icon: <Search size={22} />,
         what: ['Busca no topo (a lupa deixou de ser um botão)', 'Preciso de… / Quero ganhar…', 'Promoções, lojas, serviços, imóveis', 'Cursos, músicas e programas (vitrine digital)', 'Outdoor por pontuação'],
         why: 'A vitrine do iUser, igual em todos os modos. O nome diz o que é: o "início do trabalho" de cada modo está nas outras abas. Tocar de novo volta ao topo.',
     }
@@ -48,7 +48,7 @@ function tabsFor(mode: Mode, n: { orders: number; chats: number; cart: number; n
     ]
     return [
         home,
-        { key: 'perto', label: 'Perto', icon: <Radar size={22} />, what: ['Mapa: lojas, serviços, pessoas, imóveis', 'Motoristas disponíveis', 'Outdoor por tipo'], why: '"Ver ao redor" é a cara do iUser. Com nome e no lugar certo, deixa de ser um ícone de radar solto.' },
+        { key: 'perto', label: 'Perto', icon: <MapPin size={22} />, what: ['Mapa: lojas, serviços, pessoas, imóveis (o radar)', 'Motoristas disponíveis', 'Outdoor por tipo'], why: '"Ver ao redor" é a cara do iUser. Com nome e no lugar certo, deixa de ser um ícone de radar solto.' },
         { key: 'social', label: 'Social', icon: <Users size={22} />, sub: ['Agora', 'Quem eu sigo', 'Me seguem'], what: ['Flash em tela cheia', 'Publicações e pessoas', 'Comunidades'], why: 'Tudo que é "gente" junto: Flash, pessoas, comunidades.' },
         {
             key: 'atividade', label: 'Atividade', icon: <MessagesSquare size={22} />, badge: n.chats + n.orders, badgeColor: '#16a34a', sub: ['Conversas', 'Pedidos', 'Carrinho', 'Biblioteca', 'Avisos'],
