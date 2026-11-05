@@ -7,8 +7,8 @@
 
 import { ReactNode, useEffect, useMemo, useState } from 'react'
 import {
-    Bike, Car, ClipboardList, Home, LayoutDashboard, MessageCircle, MessagesSquare, Radar, Search, Settings,
-    ShoppingCart, Sparkles, Store, User, Users, Wallet, X, ChevronRight, Check,
+    Bike, Car, ClipboardList, Compass, GraduationCap, LayoutDashboard, MessageCircle, MessagesSquare, Music, Pause, Play, Radar, Search, Settings,
+    ShoppingCart, SkipBack, SkipForward, Sparkles, Store, User, Users, Wallet, X, Zap, ChevronDown, ChevronRight, Check,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { BAR_BOTTOM } from '@/components/BottomNavBar'
@@ -23,9 +23,9 @@ const ORANGE = '#f97316'
 // ===== As abas da PROPOSTA, por modo: Início sempre à esquerda (explorar e buscar é de todos) e Eu sempre à direita (quem sou, meus modos) =====
 function tabsFor(mode: Mode, n: { orders: number; chats: number; cart: number; newOrders: number }): Tab[] {
     const home: Tab = {
-        key: 'inicio', label: 'Início', icon: <Home size={22} />,
-        what: ['Busca no topo (a lupa deixou de ser um botão)', 'Preciso de… / Quero ganhar…', 'Promoções, lojas, serviços, imóveis', 'Outdoor por pontuação'],
-        why: 'Descobrir e procurar é a porta de entrada de tudo. A busca é um campo, não um ícone: tocar de novo em Início volta ao topo.',
+        key: 'inicio', label: 'Explorar', icon: <Compass size={22} />,
+        what: ['Busca no topo (a lupa deixou de ser um botão)', 'Preciso de… / Quero ganhar…', 'Promoções, lojas, serviços, imóveis', 'Cursos, músicas e programas (vitrine digital)', 'Outdoor por pontuação'],
+        why: 'A vitrine do iUser, igual em todos os modos. O nome diz o que é: o "início do trabalho" de cada modo está nas outras abas. Tocar de novo volta ao topo.',
     }
     const eu = (label: string, icon: ReactNode): Tab => ({
         key: 'eu', label, icon,
@@ -34,7 +34,7 @@ function tabsFor(mode: Mode, n: { orders: number; chats: number; cart: number; n
     })
     if (mode === 'loja') return [
         home,
-        { key: 'painel', label: 'Painel', icon: <LayoutDashboard size={22} />, what: ['Resumo do dia e vendas', 'Agenda da loja', 'Avaliações e comentários', 'Editar loja'], why: 'O feedback do que acontece na loja, no lugar de ficar atrás de um menu.' },
+        { key: 'painel', label: 'Painel', icon: <LayoutDashboard size={22} />, what: ['Resumo do dia e vendas', 'Agenda da loja', 'Avaliações e comentários', 'Digital: conteúdo, vendas, apoios e Clube', 'Editar loja'], why: 'O feedback do que acontece na loja, no lugar de ficar atrás de um menu.' },
         { key: 'pedidos', label: 'Pedidos', icon: <ClipboardList size={22} />, badge: n.newOrders, badgeColor: '#22c55e', sub: ['Novos', 'Preparando', 'Prontos', 'Serviços'], what: ['Novos · Preparando · Prontos · Finalizados', 'Pedidos de serviço a aceitar', 'Entregas e motoristas'], why: 'Quem tem loja abre o app para atender pedido: é a aba que mais pesa, com o contador de novos.' },
         { key: 'conversas', label: 'Conversas', icon: <MessageCircle size={22} />, badge: n.chats, badgeColor: '#16a34a', what: ['Clientes da loja', 'Pedidos viram conversa'], why: 'Atendimento é falar com cliente; fica a um toque.' },
         eu('Pizzaria', <Store size={20} />),
@@ -51,8 +51,8 @@ function tabsFor(mode: Mode, n: { orders: number; chats: number; cart: number; n
         { key: 'perto', label: 'Perto', icon: <Radar size={22} />, what: ['Mapa: lojas, serviços, pessoas, imóveis', 'Motoristas disponíveis', 'Outdoor por tipo'], why: '"Ver ao redor" é a cara do iUser. Com nome e no lugar certo, deixa de ser um ícone de radar solto.' },
         { key: 'social', label: 'Social', icon: <Users size={22} />, sub: ['Agora', 'Quem eu sigo', 'Me seguem'], what: ['Flash em tela cheia', 'Publicações e pessoas', 'Comunidades'], why: 'Tudo que é "gente" junto: Flash, pessoas, comunidades.' },
         {
-            key: 'atividade', label: 'Atividade', icon: <MessagesSquare size={22} />, badge: n.chats + n.orders, badgeColor: '#16a34a', sub: ['Conversas', 'Pedidos', 'Carrinho', 'Avisos'],
-            what: ['Conversas', 'Meus pedidos e entregas', 'Carrinho e agenda', 'Avisos (a ilha guarda o histórico)'], why: 'Carrinho, conversas e pedidos eram três botões; para a pessoa é UMA pergunta: "o que está acontecendo comigo?".',
+            key: 'atividade', label: 'Atividade', icon: <MessagesSquare size={22} />, badge: n.chats + n.orders, badgeColor: '#16a34a', sub: ['Conversas', 'Pedidos', 'Carrinho', 'Biblioteca', 'Avisos'],
+            what: ['Conversas', 'Meus pedidos e entregas', 'Carrinho e agenda', 'Biblioteca: músicas, cursos, programas e o que o Clube libera', 'Avisos (a ilha guarda o histórico)'], why: 'Carrinho, conversas e pedidos eram três botões; para a pessoa é UMA pergunta: "o que está acontecendo comigo?".',
         },
         eu('Eu', <User size={20} />),
     ]
@@ -67,6 +67,17 @@ const CURRENT: Tab[] = [
     { key: 'social', label: 'Social', icon: <Users size={21} />, what: ['Flash, pessoas, comunidades'], why: 'Hoje: só ícone.' },
     { key: 'lupa', label: 'Procurar', icon: <Search size={21} />, what: ['Leva à home (busca)'], why: 'Hoje: a lupa leva à home.' },
 ]
+
+// ===== MINI-PLAYER: sempre mostra a ÚLTIMA coisa que a pessoa estava vendo/ouvindo (música, aula em vídeo ou flash); dá para fechar =====
+type PlayerKind = 'musica' | 'aula' | 'flash'
+interface Source { kind: PlayerKind; label: string; title: string; sub: string; len: number; bg: string; icon: ReactNode; wide: boolean }
+const SOURCES: Record<PlayerKind, Source> = {
+    musica: { kind: 'musica', label: 'Música', title: 'Noites de Porto Velho', sub: 'Banda do Forno · Música', len: 200, bg: 'linear-gradient(135deg,#a855f7,#6d28d9)', icon: <Music size={18} color="#fff" />, wide: false },
+    aula: { kind: 'aula', label: 'Aula', title: 'Aula 3 · Massa que cresce', sub: 'Curso de Pizzaiolo · Aula', len: 600, bg: 'linear-gradient(135deg,#38bdf8,#2563eb)', icon: <GraduationCap size={18} color="#fff" />, wide: true },
+    flash: { kind: 'flash', label: 'Flash', title: 'Entrega feita em 12 minutos', sub: 'Flash · @dani.moto', len: 0, bg: 'linear-gradient(135deg,#fb7185,#e11d48)', icon: <Zap size={18} color="#fff" />, wide: false },
+}
+interface Player { kind: PlayerKind; playing: boolean; pos: number }
+const clock = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
 
 const MODES: { key: Mode; title: string; sub: string; icon: ReactNode; color: string }[] = [
     { key: 'pessoa', title: 'Pessoa', sub: '@nilton · comprar, contratar, publicar', icon: <User size={18} />, color: '#3b82f6' },
@@ -95,6 +106,9 @@ export default function NavLab() {
     const [seen, setSeen] = useState<Record<string, boolean>>({})
     const [subTab, setSubTab] = useState<Record<string, number>>({})
     const [bump, setBump] = useState(0)
+    const [player, setPlayer] = useState<Player | null>(null)
+    const [full, setFull] = useState(false)
+    const src = player ? SOURCES[player.kind] : null
 
     const counts = { orders: seen.atividade ? 0 : 2, chats: seen.atividade ? 0 : 3, cart: 4, newOrders: seen.pedidos ? 0 : 3 }
     const tabs = useMemo(() => tabsFor(mode, counts), [mode, seen.atividade, seen.pedidos]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -103,15 +117,30 @@ export default function NavLab() {
 
     useEffect(() => { if (!live.toast) return; const t = setTimeout(() => setLive((l) => ({ ...l, toast: false })), 4000); return () => clearTimeout(t) }, [live.toast])
     useEffect(() => { setTab(variant === 'nova' ? 'inicio' : 'modo') }, [variant])
+    // o tempo anda enquanto toca (música e aula; o flash é um laço sem fim)
+    useEffect(() => {
+        if (!player?.playing || !src || src.len <= 0) return
+        const t = setInterval(() => setPlayer((p) => {
+            if (!p || !p.playing) return p
+            const pos = p.pos + 0.25 / SOURCES[p.kind].len
+            return pos >= 1 ? { ...p, pos: 0, playing: false } : { ...p, pos }
+        }), 250)
+        return () => clearInterval(t)
+    }, [player?.playing, player?.kind]) // eslint-disable-line react-hooks/exhaustive-deps
+    // só a MÚSICA continua tocando ao sair da tela dela; aula e flash pausam (e ficam à espera, prontos para retomar)
+    const leaveScreen = () => setPlayer((p) => (p && p.kind !== 'musica' ? { ...p, playing: false } : p))
+    const play = (kind: PlayerKind) => { setPlayer({ kind, playing: true, pos: player?.kind === kind ? player.pos : 0 }); setFull(false) }
+    const toggle = () => setPlayer((p) => (p ? { ...p, playing: !p.playing } : p))
 
     const pick = (key: string) => {
-        if (variant === 'nova' && key === 'eu') { setHub(true); return }
-        if (variant === 'atual' && key === 'modo') { setHub(true); return }
+        if (key !== tab) leaveScreen()
+        if (variant === 'nova' && key === 'eu') { setFull(false); setHub(true); return }
+        if (variant === 'atual' && key === 'modo') { setFull(false); setHub(true); return }
         if (key === tab) { setBump((b) => b + 1); return }   // tocar na aba atual volta ao topo
         setTab(key)
         if (key === 'atividade' || key === 'pedidos') setSeen((s) => ({ ...s, [key]: true }))
     }
-    const changeMode = (m: Mode) => { setMode(m); setHub(false); setTab('inicio') }
+    const changeMode = (m: Mode) => { setMode(m); setHub(false); setTab('inicio'); leaveScreen() }
 
     const stripItems: { text: string; color: string }[] = []
     if (live.cart && !(variant === 'nova' && tab === 'atividade')) stripItems.push({ text: '4 itens · R$ 121,60', color: ORANGE })
@@ -148,10 +177,17 @@ export default function NavLab() {
                                 style={{ border: `1px solid ${live[k] ? ORANGE : colors.border}`, color: live[k] ? ORANGE : colors.textPrimary }}>{l}</button>
                         ))}
                     </div>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                        <span className="text-[10.5px] font-bold self-center mr-1" style={{ color: colors.textSecondary }}>Tocar / ver:</span>
+                        {(['musica', 'aula', 'flash'] as PlayerKind[]).map((k) => (
+                            <button key={k} onClick={() => play(k)} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95"
+                                style={{ border: `1px solid ${player?.kind === k ? ORANGE : colors.border}`, color: player?.kind === k ? ORANGE : colors.textPrimary }}>{SOURCES[k].label}</button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* ===== o conteúdo da aba (mostra o que mora em cada uma) ===== */}
-                <div key={`${variant}-${mode}-${current.key}-${bump}`} className="flex-1 px-4 pt-4 animate-[labIn_260ms_ease]" style={{ paddingBottom: 'calc(150px + env(safe-area-inset-bottom))' }}>
+                <div key={`${variant}-${mode}-${current.key}-${bump}`} className="flex-1 px-4 pt-4 animate-[labIn_260ms_ease]" style={{ paddingBottom: `calc(${player ? 220 : 150}px + env(safe-area-inset-bottom))` }}>
                     <div className="flex items-center gap-2.5 mb-1">
                         <span className="w-9 h-9 rounded-2xl flex items-center justify-center" style={{ background: `${ORANGE}1f`, color: ORANGE }}>{current.icon}</span>
                         <div className="min-w-0">
@@ -184,6 +220,18 @@ export default function NavLab() {
                         <p className="text-[13px] leading-snug font-semibold">{current.why}</p>
                     </div>
 
+                    {variant === 'nova' && (
+                        <div className="mt-3 rounded-3xl p-4" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                            <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: colors.textSecondary }}>Como o mini-player se comporta</p>
+                            <ul className="space-y-1.5">
+                                {['Mostra sempre a ÚLTIMA coisa: música, aula em vídeo ou flash', 'Música continua tocando em qualquer aba (e com a tela apagada)', 'Aula e flash pausam ao sair da tela e ficam à espera: tocar retoma', 'Tocar na faixa abre o player completo; o X fecha e esquece', 'Fica em cima da barra, abaixo do menu de modos; avisos e carrinho ficam logo abaixo'].map((w) => (
+                                    <li key={w} className="flex items-start gap-2 text-[12.5px] font-semibold"><Check size={14} className="mt-[3px] flex-shrink-0" style={{ color: '#16a34a' }} />{w}</li>
+                                ))}
+                            </ul>
+                            <p className="text-[11.5px] mt-2.5" style={{ color: colors.textSecondary }}>Use os botões "Tocar / ver" lá em cima e troque de aba para conferir.</p>
+                        </div>
+                    )}
+
                     {variant === 'nova' && mode === 'pessoa' && (
                         <div className="mt-5">
                             <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: colors.textSecondary }}>Para onde foi cada botão de hoje</p>
@@ -194,7 +242,9 @@ export default function NavLab() {
                                     ['Modo (foto)', 'Eu — a barra muda com o modo'],
                                     ['Radar', 'Perto'],
                                     ['Social', 'Social'],
-                                    ['Lupa', 'Campo de busca no topo do Início'],
+                                    ['Lupa', 'Campo de busca no topo do Explorar'],
+                                    ['Digital comprado', 'Atividade ▸ Biblioteca'],
+                                    ['Player (novo)', 'Mini-player em cima da barra, em qualquer aba'],
                                 ].map(([a, b], i) => (
                                     <div key={a} className="flex items-center gap-2 px-3.5 py-2.5 text-[12px]" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
                                         <span className="font-black w-[88px] flex-shrink-0">{a}</span><ChevronRight size={13} style={{ color: colors.textSecondary }} /><span className="font-semibold">{b}</span>
@@ -209,12 +259,12 @@ export default function NavLab() {
                 </div>
 
                 {/* ===== escurecimento do menu de modos ===== */}
-                {hub && <button aria-label="Fechar" onClick={() => setHub(false)} className="fixed inset-0 z-[70] bg-black/45 animate-[labFade_200ms_ease]" />}
+                {(hub || full) && <button aria-label="Fechar" onClick={() => { setHub(false); setFull(false) }} className="fixed inset-0 z-[70] bg-black/45 animate-[labFade_200ms_ease]" />}
 
                 {/* ===== A BARRA ===== */}
-                <nav aria-label="Navegação" className="fixed left-0 right-0 pointer-events-none" style={{ bottom: BAR_BOTTOM, zIndex: hub ? 75 : 40 }}>
+                <nav aria-label="Navegação" className="fixed left-0 right-0 pointer-events-none" style={{ bottom: BAR_BOTTOM, zIndex: hub || full ? 75 : 40 }}>
                     <div className="max-w-md w-full mx-auto px-3">
-                        <div className="pointer-events-auto relative overflow-hidden" style={{ background: barBg, border: `1px solid ${colors.border}`, borderRadius: 28, boxShadow: hub ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)' }}>
+                        <div className="pointer-events-auto relative overflow-hidden" style={{ background: barBg, border: `1px solid ${colors.border}`, borderRadius: 28, boxShadow: hub || full ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)' }}>
                             {/* menu de modos: cresce de dentro da barra */}
                             <div style={{ display: 'grid', gridTemplateRows: hub ? '1fr' : '0fr', transition: 'grid-template-rows 420ms cubic-bezier(0.22,1,0.36,1)' }}>
                                 <div style={{ minHeight: 0, overflow: 'hidden' }}>
@@ -242,8 +292,58 @@ export default function NavLab() {
                                 </div>
                             </div>
 
+                            {/* PLAYER COMPLETO: cresce de dentro da barra, como o menu de modos */}
+                            <div style={{ display: 'grid', gridTemplateRows: full && src ? '1fr' : '0fr', transition: 'grid-template-rows 420ms cubic-bezier(0.22,1,0.36,1)' }}>
+                                <div style={{ minHeight: 0, overflow: 'hidden' }}>
+                                    {src && player && (
+                                        <div className="p-4" style={{ opacity: full ? 1 : 0, transition: 'opacity 250ms ease' }}>
+                                            <div className="flex items-center mb-3">
+                                                <button onClick={() => setFull(false)} aria-label="Minimizar" className="w-8 h-8 rounded-full flex items-center justify-center" style={{ border: `1px solid ${colors.border}` }}><ChevronDown size={17} /></button>
+                                                <p className="flex-1 text-center text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>{src.label}</p>
+                                                <button onClick={() => { setPlayer(null); setFull(false) }} aria-label="Fechar player" className="w-8 h-8 rounded-full flex items-center justify-center" style={{ border: `1px solid ${colors.border}` }}><X size={15} /></button>
+                                            </div>
+                                            <div className="mx-auto rounded-3xl flex items-center justify-center" style={{ background: src.bg, width: src.wide ? '100%' : 150, aspectRatio: src.wide ? '16 / 9' : src.kind === 'flash' ? '9 / 16' : '1 / 1', maxHeight: 220, boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
+                                                <span style={{ transform: 'scale(2.2)' }}>{src.icon}</span>
+                                            </div>
+                                            <p className="text-[16px] font-black mt-3 leading-tight">{src.title}</p>
+                                            <p className="text-[12px]" style={{ color: colors.textSecondary }}>{src.sub}</p>
+                                            {src.len > 0 && (
+                                                <div className="mt-3">
+                                                    <input type="range" min={0} max={1000} value={Math.round(player.pos * 1000)} onChange={(e) => setPlayer({ ...player, pos: Number(e.target.value) / 1000 })} aria-label="Posição" className="w-full" style={{ accentColor: ORANGE }} />
+                                                    <div className="flex justify-between text-[10.5px] font-bold" style={{ color: colors.textSecondary }}><span>{clock(player.pos * src.len)}</span><span>{clock(src.len)}</span></div>
+                                                </div>
+                                            )}
+                                            <div className="flex items-center justify-center gap-5 mt-2">
+                                                <button onClick={() => setPlayer({ ...player, pos: Math.max(0, player.pos - 10 / Math.max(src.len, 1)) })} aria-label="Voltar" className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90"><SkipBack size={20} /></button>
+                                                <button onClick={toggle} aria-label={player.playing ? 'Pausar' : 'Tocar'} className="w-14 h-14 rounded-full flex items-center justify-center text-white active:scale-90" style={{ background: ORANGE }}>{player.playing ? <Pause size={24} fill="#fff" /> : <Play size={24} fill="#fff" />}</button>
+                                                <button onClick={() => setPlayer({ ...player, pos: Math.min(0.999, player.pos + 10 / Math.max(src.len, 1)) })} aria-label="Avançar" className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90"><SkipForward size={20} /></button>
+                                            </div>
+                                            <button className="w-full h-10 rounded-full text-[12px] font-black mt-3" style={{ border: `1px solid ${colors.border}` }}>{src.kind === 'flash' ? 'Abrir o feed do Flash' : src.kind === 'aula' ? 'Abrir a sala de aula' : 'Abrir a página da música'}</button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* MINI-PLAYER: a última coisa que a pessoa estava fazendo; o X fecha */}
+                            <div aria-hidden={!src || hub || full} className="relative flex items-center gap-2.5 px-3 overflow-hidden" style={{ height: src && !hub && !full ? 56 : 0, opacity: src && !hub && !full ? 1 : 0, borderBottom: src && !hub && !full ? `1px solid ${colors.border}` : '0 solid transparent', transition: 'height 300ms ease, opacity 250ms ease' }}>
+                                {src && player && (
+                                    <>
+                                        <button onClick={() => setFull(true)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left active:opacity-70" aria-label={`Abrir o player: ${src.title}`}>
+                                            <span className="rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: src.bg, width: src.wide ? 56 : src.kind === 'flash' ? 28 : 40, height: src.kind === 'flash' ? 40 : src.wide ? 32 : 40 }}>{src.kind === 'flash' ? <Zap size={14} color="#fff" /> : src.icon}</span>
+                                            <span className="min-w-0">
+                                                <span className="block text-[12.5px] font-black truncate leading-tight">{src.title}</span>
+                                                <span className="block text-[11px] truncate leading-tight" style={{ color: colors.textSecondary }}>{src.sub}{!player.playing && player.kind !== 'musica' ? ' · pausado' : ''}</span>
+                                            </span>
+                                        </button>
+                                        <button onClick={toggle} aria-label={player.playing ? 'Pausar' : 'Tocar'} className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90" style={{ background: `${ORANGE}1f`, color: ORANGE }}>{player.playing ? <Pause size={17} fill={ORANGE} /> : <Play size={17} fill={ORANGE} />}</button>
+                                        <button onClick={() => setPlayer(null)} aria-label="Fechar o player" className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90" style={{ color: colors.textSecondary }}><X size={16} /></button>
+                                        {src.len > 0 && <span aria-hidden className="absolute left-0 bottom-0 h-[2.5px]" style={{ width: `${player.pos * 100}%`, background: ORANGE, transition: 'width 250ms linear' }} />}
+                                    </>
+                                )}
+                            </div>
+
                             {/* faixa viva (a antiga ilha): avisos e o que está acontecendo */}
-                            <div aria-hidden={!stripOn || hub} style={{ minHeight: stripOn && !hub ? 36 : 0, height: stripOn && !hub ? undefined : 0, opacity: stripOn && !hub ? 1 : 0, overflow: 'hidden', background: live.toast ? '#16a34a14' : `${colors.border}30`, transition: 'min-height 300ms ease, opacity 250ms ease' }} className="px-3.5 flex items-center gap-3">
+                            <div aria-hidden={!stripOn || hub} style={{ minHeight: stripOn && !hub && !full ? 36 : 0, height: stripOn && !hub && !full ? undefined : 0, opacity: stripOn && !hub && !full ? 1 : 0, overflow: 'hidden', background: live.toast ? '#16a34a14' : `${colors.border}30`, transition: 'min-height 300ms ease, opacity 250ms ease' }} className="px-3.5 flex items-center gap-3">
                                 {live.toast ? (
                                     <span className="flex items-center gap-2 py-1.5 text-[12.5px] font-black"><span className="w-6 h-6 rounded-full text-white flex items-center justify-center text-[12px]" style={{ background: '#16a34a' }}>✓</span>Pedido enviado para a pizzaria</span>
                                 ) : stripItems.map((x) => (
@@ -252,7 +352,7 @@ export default function NavLab() {
                             </div>
 
                             {/* as abas */}
-                            <div key={`${variant}-${mode}`} className="flex items-stretch px-1.5 animate-[labIn_300ms_ease]" style={{ height: variant === 'nova' ? 64 : 58, borderTop: hub ? `1px solid ${colors.border}` : '1px solid transparent' }}>
+                            <div key={`${variant}-${mode}`} className="flex items-stretch px-1.5 animate-[labIn_300ms_ease]" style={{ height: variant === 'nova' ? 64 : 58, borderTop: hub || full ? `1px solid ${colors.border}` : '1px solid transparent' }}>
                                 {list.map((t) => {
                                     const isEu = variant === 'nova' ? t.key === 'eu' : t.key === 'modo'
                                     const active = !hub && current.key === t.key && !isEu
