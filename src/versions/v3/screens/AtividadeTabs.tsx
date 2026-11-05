@@ -13,6 +13,7 @@ import { useOrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 import { useCartStore } from '@/store/useCartStore'
 import PageTabs, { type Tab } from '@/components/PageTabs'
 import { ATIVIDADE_ABAS, pathOfAba, type AtividadeAba } from '../atividade'
+import { useBarKind } from '../bar/kind'
 
 export const LAST_ABA_KEY = 'iuser_atividade_last'
 const ICONS = { conversas: MessageCircle, pedidos: Package, carrinho: ShoppingCart, biblioteca: GraduationCap, avisos: Bell } as const
@@ -20,6 +21,7 @@ const ICONS = { conversas: MessageCircle, pedidos: Package, carrinho: ShoppingCa
 export default function AtividadeTabs({ aba }: { aba: AtividadeAba }) {
     const router = useRouter()
     const pathname = usePathname()
+    const barKind = useBarKind()
     const { userId } = useProfile()
     const unread = useChatUnread(userId)
     const orders = useOrderStatusCounts(userId)
@@ -46,5 +48,7 @@ export default function AtividadeTabs({ aba }: { aba: AtividadeAba }) {
         badge: badgeFor(a.key),
         onClick: () => { if (a.key !== aba || pathname !== a.path.split('?')[0]) router.push(pathOfAba(a.key)); else router.replace(pathOfAba(a.key)) },
     }))
+    // No modo loja ou motorista, as conversas são o trabalho daquele modo (aba Conversas da barra): sem a fileira das compras pessoais em cima
+    if (aba === 'conversas' && barKind !== 'pessoa') return null
     return <PageTabs tabs={tabs} />
 }

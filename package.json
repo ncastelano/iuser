@@ -68,7 +68,9 @@
     "test:handoff": "python3 scripts/local/test-handoff.py",
     "test:island-events": "node --test scripts/test-island-events.mjs",
     "test:manual-crypto": "node --test scripts/test-manual-crypto.mjs",
-    "test:atividade": "node --test scripts/test-atividade.mjs"
+    "test:atividade": "node --test scripts/test-atividade.mjs",
+    "test:bar": "node --test scripts/test-bar.mjs",
+    "test:earnings": "node --test scripts/test-earnings.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

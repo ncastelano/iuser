@@ -4,14 +4,13 @@
 //   · em cima, quando há o que mostrar, a FAIXA (a "ilha" embutida), colada à barra, sem divisória, numa cor neutra suave:
 //       - os AVISOS do sistema (lib/toast): a faixa vira o MENSAGEIRO por um momento (cor e símbolo do tipo, texto, botão de ação; tocar dispensa);
 //       - senão, o que está vivo: o carrinho (itens · total, nas páginas de compra), a corrida pedida e os pedidos novos da loja;
-//   · embaixo, CINCO abas com nome (desenho aprovado no laboratório /paginateste): Explorar (lupa) · Perto (localização, o radar) · Social ·
-//     Atividade (conversas + pedidos + carrinho + biblioteca + avisos, com o selo do que pede atenção) · Eu (a foto do modo ativo; abre o menu de modos, o hub).
+//   · embaixo, CINCO abas com nome (desenho aprovado no laboratório /paginateste): Explorar + três que ACOMPANHAM O MODO (pessoa: Perto · Social · Atividade;
+//     loja: Painel · Pedidos · Conversas; motorista: Corridas · Entregas · Ganhos) + Eu (a foto do modo ativo; abre o menu de modos, o hub).
 // Só apresentação: quem usa (a casca da 3.0) passa as contagens, a foto e o que cada toque faz. Constantes de medida exportadas para quem reserva espaço embaixo.
 'use client'
 
 import { CSSProperties, ReactNode, useEffect, useState } from 'react'
-import { Car, ChevronRight, MapPin, MessagesSquare, Search, ShoppingCart, Store, User, Users } from 'lucide-react'
-import type { OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
+import { Car, ChevronRight, ShoppingCart, Store, User } from 'lucide-react'
 
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 export const BAR_BOTTOM = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
@@ -23,7 +22,8 @@ export const BAR_SPACE = 'calc(84px + var(--staging-banner-h, 0px) + env(safe-ar
 /** O menu de modos (hub): vive DENTRO da barra e cresce para cima a partir dela — a barra vira o cartão, não aparece outro por cima. */
 export interface BarHub { open: boolean; label: string; /** variáveis de tema do conteúdo (--hub-*) */ vars: CSSProperties; children: ReactNode }
 
-export type BarKey = 'home' | 'radar' | 'people' | 'activity'
+/** Uma aba da barra (a casca decide quais, por modo; aqui só se desenha): ícone, nome, se é a página atual e o selo */
+export interface BarTab { key: string; label: string; icon: ReactNode; active: boolean; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean }
 
 /** Um aviso do sistema (toast) mostrado na faixa */
 export interface BarMessage { id: string | number; text: string; description?: string; icon?: string; glyph: string; color: string; action?: { label: string; onClick: () => void } }
@@ -76,13 +76,12 @@ function ModeButton({ mode, open, colors }: { mode: ModeButtonProps; open: boole
     )
 }
 
-export default function BottomNavBar({ colors, active, cartCount, cartTotal, orderCounts, unread, cartExpanded = false, onCartPage = false, mode, hub, message = null, extras = [], customCard = null, onDismiss, onGo, onCart, onActivity, onHome, onRadar, onPeople }: {
+export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartExpanded = false, onCartPage = false, mode, hub, message = null, extras = [], customCard = null, onDismiss, onGo, onCart }: {
     colors: any
-    active: BarKey | null
+    /** As quatro abas que acompanham o modo (Explorar + três); a quinta, Eu, é o botão do modo */
+    tabs: BarTab[]
     cartCount: number
     cartTotal: number
-    orderCounts: OrderStatusCounts
-    unread: number
     /** Páginas de compra: a faixa de cima mostra o carrinho (itens · total) quando há itens */
     cartExpanded?: boolean
     /** Está na página do carrinho (a faixa não repete o carrinho) */
@@ -99,10 +98,6 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
     onDismiss: () => void
     onGo: (path: string) => void
     onCart: () => void
-    onActivity: () => void
-    onHome: () => void
-    onRadar: () => void
-    onPeople: () => void
 }) {
     const showCart = cartExpanded && cartCount > 0 && !onCartPage
     const hubOpen = !!hub?.open
@@ -114,8 +109,6 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
         const t = setTimeout(() => setRaised(false), 500)
         return () => clearTimeout(t)
     }, [hubOpen])
-    // O selo de Atividade: mensagens não lidas + pedidos em andamento (roxo quando há pedido pronto)
-    const ordersActive = orderCounts.pending + orderCounts.preparing + orderCounts.ready
     const money = cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
     return (
         <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM, zIndex: raised || hubOpen ? 75 : 40 }}>
@@ -165,18 +158,11 @@ export default function BottomNavBar({ colors, active, cartCount, cartTotal, ord
                         )}
                     </div>
                     <div className="flex items-stretch px-1.5" style={{ height: BAR_H, borderTop: `1px solid ${hubOpen ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
-                        <BarButton colors={colors} active={active === 'home'} label="Explorar" onClick={onHome}>
-                            <Search size={22} />
-                        </BarButton>
-                        <BarButton colors={colors} active={active === 'radar'} label="Perto" onClick={onRadar}>
-                            <MapPin size={22} />
-                        </BarButton>
-                        <BarButton colors={colors} active={active === 'people'} label="Social" onClick={onPeople}>
-                            <Users size={22} />
-                        </BarButton>
-                        <BarButton colors={colors} active={active === 'activity'} label="Atividade" onClick={onActivity} badge={unread + ordersActive} badgeColor={orderCounts.ready > 0 ? '#a855f7' : '#16a34a'} pulse={unread + ordersActive > 0}>
-                            <MessagesSquare size={22} />
-                        </BarButton>
+                        {tabs.map((t) => (
+                            <BarButton key={t.key} colors={colors} active={t.active} label={t.label} onClick={t.onClick} badge={t.badge} badgeColor={t.badgeColor} pulse={t.pulse}>
+                                {t.icon}
+                            </BarButton>
+                        ))}
                         {mode && <ModeButton mode={mode} open={hubOpen} colors={colors} />}
                     </div>
                 </div>
