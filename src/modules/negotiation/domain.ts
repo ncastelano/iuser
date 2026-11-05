@@ -101,6 +101,22 @@ export function fareDriverText(driver: FareDriver, distanceFare: number, minHour
     return ''
 }
 
+// ===== CORRIDA VALORIZADA: o quanto o valor que o passageiro paga passa da Tarifa iUser da MESMA corrida =====
+export type ValuationTier = 'none' | 'good' | 'great'
+/** de +5% a +19% = "Paga acima do normal"; +20% ou mais = "Corrida valorizada" */
+export const VALUATION_GOOD_PCT = 5
+export const VALUATION_GREAT_PCT = 20
+export function rideValuation(price: number | null | undefined, reference: number | null | undefined): { tier: ValuationTier; pct: number; extra: number } {
+    if (price == null || reference == null || !(reference > 0) || !(price > 0)) return { tier: 'none', pct: 0, extra: 0 }
+    const pct = Math.round(((price - reference) / reference) * 100)
+    const extra = round2(price - reference)
+    if (pct >= VALUATION_GREAT_PCT) return { tier: 'great', pct, extra }
+    if (pct >= VALUATION_GOOD_PCT) return { tier: 'good', pct, extra }
+    return { tier: 'none', pct: Math.max(pct, 0), extra: Math.max(extra, 0) }
+}
+/** ordem na lista: as mais valorizadas primeiro (a sort estável mantém as mais novas antes dentro do mesmo nível) */
+export const valuationRank = (tier: ValuationTier): number => (tier === 'great' ? 2 : tier === 'good' ? 1 : 0)
+
 /** Nenhuma corrida abaixo do piso da plataforma (piso 0 = sem regra) */
 export const belowPlatformFloor = (amount: number | null | undefined, floor: number): boolean => floor > 0 && amount != null && amount < floor
 

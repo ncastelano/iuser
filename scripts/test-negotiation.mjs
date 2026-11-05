@@ -1,7 +1,7 @@
 // Testes das regras puras da negociação de corridas (src/modules/negotiation/domain.ts). Rodar: npm run test:negotiation
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText } from '../src/modules/negotiation/domain.ts'
+import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText, rideValuation, valuationRank } from '../src/modules/negotiation/domain.ts'
 
 test('valor válido: positivo e até R$ 100.000', () => {
     assert.equal(validateAmount(12.5), null)
@@ -139,4 +139,16 @@ test('o que decidiu a Minha tarifa: km, ganho mínimo por hora ou mínimo da pla
     assert.equal(fareDriverText('km', 7, null, 0.8), '')
     assert.match(fareDriverText('platform', 7, null, 0.8), /mínimo da plataforma \(R\$ 0,80 por minuto/)
     assert.match(fareDriverText('hourly', 7, 60, 0.8), /ganho mínimo de R\$ 60,00 por hora/)
+})
+
+test('corrida valorizada: quanto o valor passa da Tarifa iUser da mesma corrida', () => {
+    assert.deepEqual(rideValuation(14.5, 10.25), { tier: 'great', pct: 41, extra: 4.25 })
+    assert.equal(rideValuation(12, 10).tier, 'great')          // exatamente +20%
+    assert.equal(rideValuation(11.9, 10).tier, 'good')         // +19%
+    assert.equal(rideValuation(10.5, 10).tier, 'good')         // exatamente +5%
+    assert.equal(rideValuation(10.4, 10).tier, 'none')         // +4%
+    assert.deepEqual(rideValuation(8, 10), { tier: 'none', pct: 0, extra: 0 })   // abaixo: nunca negativo
+    assert.equal(rideValuation(null, 10).tier, 'none')
+    assert.equal(rideValuation(10, 0).tier, 'none')            // sem referência: não inventa
+    assert.ok(valuationRank('great') > valuationRank('good') && valuationRank('good') > valuationRank('none'))
 })

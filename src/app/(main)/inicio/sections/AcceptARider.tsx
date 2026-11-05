@@ -24,6 +24,8 @@ import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyVehicles } from '@/lib/vehicleHeaderTabs'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
+import { RideSummaryCard } from '@/components/AceitarCorridas/RideSummaryCard'
+import { rideValuation, valuationRank } from '@/modules/negotiation/domain'
 import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from '@/components/AceitarCorridas/LocationAskDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -679,13 +681,13 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                             const rr = ride as unknown as { stop1_lat: number | null; stop1_lng: number | null; stop2_lat: number | null; stop2_lng: number | null }
                             if (rr.stop1_lat != null && rr.stop1_lng != null) stops.push({ lat: rr.stop1_lat, lng: rr.stop1_lng })
                             if (rr.stop2_lat != null && rr.stop2_lng != null) stops.push({ lat: rr.stop2_lat, lng: rr.stop2_lng })
-                            return (
-                            <div
-                                key={ride.id}
-                                className="rounded-2xl p-3.5"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
-                            >
-                                {/* O MESMO card de /aceitar-corridas (quem pediu, o que leva, mapa, trajeto, tempos e valores); aqui só leitura: candidatar-se é na página da corrida */}
+                            const rr2 = ride as unknown as { origin_lat: number | null; origin_lng: number | null; destination_lat: number | null; destination_lng: number | null }
+                            const hasCoords = requester && rr2.origin_lat != null && rr2.destination_lat != null
+                            const fromPassenger = ride.offered_price == null && ride.passenger_offer != null
+                            const price = fromPassenger ? Number(ride.passenger_offer) : q.shown
+                            const valuation = rideValuation(fromPassenger && !ride.order_id ? price : null, q.platform)
+                            // O card completo (só leitura) vive no "Detalhes"; o botão de candidatar é o do card enxuto
+                            const details = (
                                 <RideOfferCard
                                     viewOnly
                                     ride={ride}
@@ -701,34 +703,45 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                     onEditTariff={ride.offered_price != null ? undefined : () => { startNavProgress(); router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}`) }}
                                     toPickup={{ km: route?.km ?? null, min: route?.min ?? null, hasGps: pos != null }}
                                     trip={{ km: q.tripKm, min: trip?.min ?? ride.duration_min }}
-                                    miniMap={requester && (ride as unknown as { origin_lat: number | null }).origin_lat != null && (ride as unknown as { destination_lat: number | null }).destination_lat != null ? (
+                                    miniMap={hasCoords ? (
                                         <RideMiniMap
                                             compact
                                             transition={false}
-                                            originLat={(ride as unknown as { origin_lat: number }).origin_lat}
-                                            originLng={(ride as unknown as { origin_lng: number }).origin_lng}
-                                            destLat={(ride as unknown as { destination_lat: number }).destination_lat}
-                                            destLng={(ride as unknown as { destination_lng: number }).destination_lng}
+                                            originLat={rr2.origin_lat as number}
+                                            originLng={rr2.origin_lng as number}
+                                            destLat={rr2.destination_lat as number}
+                                            destLng={rr2.destination_lng as number}
                                             stops={stops}
                                             driverLat={pos ? pos[1] : null}
                                             driverLng={pos ? pos[0] : null}
                                             onExpand={() => { startNavProgress(); router.push(`/aceitar-corridas/mapa?ride=${ride.id}`) }}
                                         />
                                     ) : null}
-                                    after={(
-                                        <button
-                                            onClick={() => goToRide(ride.id)}
-                                            className="w-full py-3 rounded-full text-sm font-black flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
-                                            style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
-                                        >
-                                            Ver corrida e me candidatar
-                                            <ArrowRight size={16} />
-                                        </button>
-                                    )}
                                 />
-                            </div>
                             )
-                        })}
+                            return {
+                                rank: valuationRank(valuation.tier),
+                                node: (
+                                    <RideSummaryCard
+                                        key={ride.id}
+                                        ride={ride}
+                                        requester={requester}
+                                        price={price}
+                                        approx={!fromPassenger && q.shownKind === 'platform' && pickup?.state !== 'ready'}
+                                        reference={q.platform}
+                                        fromPassenger={fromPassenger}
+                                        totalMin={q.minutes}
+                                        toPickup={{ km: route?.km ?? null, min: route?.min ?? null, hasGps: pos != null }}
+                                        trip={{ km: q.tripKm, min: trip?.min ?? ride.duration_min }}
+                                        thumb={hasCoords ? (
+                                            <RideMiniMap thumb originLat={rr2.origin_lat as number} originLng={rr2.origin_lng as number} destLat={rr2.destination_lat as number} destLng={rr2.destination_lng as number} stops={stops} driverLat={pos ? pos[1] : null} driverLng={pos ? pos[0] : null} />
+                                        ) : undefined}
+                                        onOpen={() => goToRide(ride.id)}
+                                        details={details}
+                                    />
+                                ),
+                            }
+                        }).sort((a, b) => b.rank - a.rank).map((c) => c.node)}
 
                         {openRidesTotal > openRides.length && (
                             <button

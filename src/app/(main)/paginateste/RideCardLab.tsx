@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, ChevronDown, Clock, Flame, Package, TrendingUp, Users, Car, Bike } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { rideValuation } from '@/modules/negotiation/domain'
 import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 
 const ORANGE = '#f97316'
@@ -47,15 +48,6 @@ const SAMPLES: Sample[] = [
     { id: 'd', who: 'Davi', asked: 'há 2 min', kind: 'moto', people: 1, from: 'Bairro Nova Esperança', to: 'Terminal', pickupMin: 6, tripMin: 10, km: 4.1, o: [-8.7960, -63.8750], d: [-8.7700, -63.8990], price: 9.8, reference: 9.6, mine: 8 },
 ]
 
-// ===== Regra PROPOSTA de "valorizada": o quanto o valor da corrida passa da Tarifa iUser da MESMA corrida (hoje já dá para calcular: oferta do passageiro × tarifa) =====
-function tierOf(price: number, reference: number): { tier: Tier; pct: number } {
-    if (!(reference > 0)) return { tier: 'none', pct: 0 }
-    const pct = Math.round(((price - reference) / reference) * 100)
-    if (pct >= 20) return { tier: 'great', pct }
-    if (pct >= 5) return { tier: 'good', pct }
-    return { tier: 'none', pct: Math.max(pct, 0) }
-}
-
 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
 const perHour = (price: number, minutes: number) => Math.round(price / (minutes / 60))
 
@@ -73,7 +65,7 @@ function Money({ value, color, size = 44 }: { value: number; color: string; size
 function RideCard({ s, openByDefault = false }: { s: Sample; openByDefault?: boolean }) {
     const { colors } = useTheme()
     const [open, setOpen] = useState(openByDefault)
-    const { tier, pct } = useMemo(() => tierOf(s.price, s.reference), [s.price, s.reference])
+    const { tier, pct } = useMemo(() => rideValuation(s.price, s.reference), [s.price, s.reference])
     const total = s.pickupMin + s.tripMin
     const hot = tier === 'great'
     const accent = tier === 'none' ? colors.textPrimary : hot ? '#ea580c' : GREEN
@@ -162,7 +154,7 @@ function Row({ k, v, bold }: { k: string; v: string; bold?: boolean }) {
 
 export default function RideCardLab() {
     const { colors } = useTheme()
-    const ordered = useMemo(() => [...SAMPLES].sort((a, b) => tierOf(b.price, b.reference).pct - tierOf(a.price, a.reference).pct), [])
+    const ordered = useMemo(() => [...SAMPLES].sort((a, b) => rideValuation(b.price, b.reference).pct - rideValuation(a.price, a.reference).pct), [])
     return (
         <div className="min-h-screen px-4 py-6" style={{ background: colors.background, color: colors.textPrimary }}>
             <div className="mx-auto max-w-[420px] flex flex-col gap-4">
