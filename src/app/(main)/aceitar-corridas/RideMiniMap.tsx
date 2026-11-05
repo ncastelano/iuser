@@ -62,13 +62,15 @@ interface RideMiniMapProps {
     compact?: boolean
     /** Anima o mini mapa até a tela cheia antes de chamar onExpand (padrão: sim). */
     transition?: boolean
+    /** Miniatura: preenche o espaço do pai (que dá o tamanho), sem legenda nem botão, com a imagem na proporção de um quadradinho. */
+    thumb?: boolean
 }
 
 // Chave em sessionStorage: a imagem do mini mapa que "cresce" até a tela cheia;
 // /aceitar-corridas/mapa a usa de fundo até o mapa de verdade carregar.
 export const MAP_TRANSITION_KEY = 'iuser-map-transition'
 
-export default function RideMiniMap({ originLng, originLat, destLng, destLat, stops = [], driverLng, driverLat, onExpand, onInfo, compact = false, transition = true }: RideMiniMapProps) {
+export default function RideMiniMap({ originLng, originLat, destLng, destLat, stops = [], driverLng, driverLat, onExpand, onInfo, compact = false, transition = true, thumb = false }: RideMiniMapProps) {
     const { colors } = useTheme()
     const [imgUrl, setImgUrl] = useState<string | null>(null)
     const [failed, setFailed] = useState(false)
@@ -128,7 +130,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
             for (const s of stops) overlays.push(`pin-s+${STOP_COLOR}(${s.lng},${s.lat})`)
             overlays.push(`pin-s+ef4444(${destLng},${destLat})`)
 
-            const url = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlays.join(',')}/auto/500x220@2x?padding=40&access_token=${MAPBOX_TOKEN}`
+            const url = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlays.join(',')}/auto/${thumb ? '260x170@2x?padding=22' : '500x220@2x?padding=40'}&access_token=${MAPBOX_TOKEN}`
             if (!cancelled) {
                 setImgUrl(url)
                 setToPickupKm(nextToPickupKm)
@@ -146,6 +148,14 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
     }, [originLng, originLat, destLng, destLat, stopsKey, driverLng, driverLat, hasDriver])
 
     if (failed) return null
+
+    if (thumb) {
+        return (
+            <div className="w-full h-full relative overflow-hidden" style={{ background: `${colors.border}30` }}>
+                {imgUrl && <img src={imgUrl} alt="Trajeto da corrida" className="w-full h-full object-cover" onError={() => setFailed(true)} />}
+            </div>
+        )
+    }
 
     return (
         <div className={compact ? '' : 'mb-2'}>

@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, ChevronDown, Clock, Flame, Package, TrendingUp, Users, Car, Bike } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 
 const ORANGE = '#f97316'
 const GREEN = '#16a34a'
@@ -25,6 +26,9 @@ interface Sample {
     pickupMin: number
     tripMin: number
     km: number
+    /** pontos de exemplo em Porto Velho: o mini-mapa é o MESMO do app (imagem do Mapbox com a rota) */
+    o: [number, number]   // [lat, lng] da partida
+    d: [number, number]   // [lat, lng] da chegada
     /** o que o motorista recebe (a oferta do passageiro, se houver, senão o que a sua tarifa dá) */
     price: number
     /** a referência: a Tarifa iUser da mesma corrida */
@@ -37,10 +41,10 @@ interface Sample {
 }
 
 const SAMPLES: Sample[] = [
-    { id: 'a', who: 'Ana', asked: 'agora há pouco', kind: 'carro', people: 3, from: 'Rodoviária', to: 'Centro', pickupMin: 4, tripMin: 8, km: 3.3, price: 14.5, reference: 10.25, startedAt: 10, mine: 7, floorNote: 'Mínimo da plataforma: R$ 9,60' },
-    { id: 'b', who: 'Bruno', asked: 'há 6 min', kind: 'carro', people: 1, from: 'Shopping Porto Velho', to: 'Av. Carlos Gomes', pickupMin: 20, tripMin: 18, km: 19, price: 41.9, reference: 39.07, mine: 30.23, floorNote: 'Mínimo da plataforma: R$ 30,23' },
-    { id: 'c', who: 'Carla', asked: 'há 14 min', kind: 'carro', people: 2, from: 'Aeroporto', to: 'Hotel Ecos', pickupMin: 9, tripMin: 22, km: 11.4, price: 36, reference: 29.8, waitingMin: 14, startedAt: 30, mine: 26 },
-    { id: 'd', who: 'Davi', asked: 'há 2 min', kind: 'moto', people: 1, from: 'Bairro Nova Esperança', to: 'Terminal', pickupMin: 6, tripMin: 10, km: 4.1, price: 9.8, reference: 9.6, mine: 8 },
+    { id: 'a', who: 'Ana', asked: 'agora há pouco', kind: 'carro', people: 3, from: 'Rodoviária', to: 'Centro', pickupMin: 4, tripMin: 8, km: 3.3, o: [-8.7712, -63.8955], d: [-8.7619, -63.9039], price: 14.5, reference: 10.25, startedAt: 10, mine: 7, floorNote: 'Mínimo da plataforma: R$ 9,60' },
+    { id: 'b', who: 'Bruno', asked: 'há 6 min', kind: 'carro', people: 1, from: 'Shopping Porto Velho', to: 'Av. Carlos Gomes', pickupMin: 20, tripMin: 18, km: 9.3, o: [-8.7555, -63.8929], d: [-8.8052, -63.8689], price: 41.9, reference: 39.07, mine: 30.23, floorNote: 'Mínimo da plataforma: R$ 30,23' },
+    { id: 'c', who: 'Carla', asked: 'há 14 min', kind: 'carro', people: 2, from: 'Aeroporto', to: 'Hotel Ecos', pickupMin: 9, tripMin: 22, km: 11.4, o: [-8.7093, -63.9023], d: [-8.7619, -63.9039], price: 36, reference: 29.8, waitingMin: 14, startedAt: 30, mine: 26 },
+    { id: 'd', who: 'Davi', asked: 'há 2 min', kind: 'moto', people: 1, from: 'Bairro Nova Esperança', to: 'Terminal', pickupMin: 6, tripMin: 10, km: 4.1, o: [-8.7960, -63.8750], d: [-8.7700, -63.8990], price: 9.8, reference: 9.6, mine: 8 },
 ]
 
 // ===== Regra PROPOSTA de "valorizada": o quanto o valor da corrida passa da Tarifa iUser da MESMA corrida (hoje já dá para calcular: oferta do passageiro × tarifa) =====
@@ -63,17 +67,6 @@ function Money({ value, color, size = 44 }: { value: number; color: string; size
             <span style={{ fontSize: size, letterSpacing: '-0.03em' }}>{int}</span>
             <span style={{ fontSize: size * 0.4 }}>,{cents}</span>
         </span>
-    )
-}
-
-/** desenho simples da rota (no app de verdade é o mapa) */
-function RouteSketch({ color }: { color: string }) {
-    return (
-        <svg viewBox="0 0 120 56" className="w-full h-full" aria-hidden>
-            <path d="M8 44 C 30 44, 34 14, 58 18 S 92 40, 112 12" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeDasharray="1 6" />
-            <circle cx="8" cy="44" r="5" fill="#22c55e" />
-            <circle cx="112" cy="12" r="5" fill="#ef4444" />
-        </svg>
     )
 }
 
@@ -110,11 +103,11 @@ function RideCard({ s, openByDefault = false }: { s: Sample; openByDefault?: boo
                     <div>
                         <Money value={s.price} color={accent} />
                         <p className="text-[13px] font-black mt-1.5" style={{ color: tier === 'none' ? colors.textSecondary : accent }}>
-                            rende cerca de R$ {perHour(s.price, total)} por hora
+                            dá uns R$ {perHour(s.price, total)} por hora
                         </p>
                     </div>
-                    <div className="w-[104px] h-[52px] rounded-2xl overflow-hidden flex-shrink-0" style={{ background: `${colors.border}30` }}>
-                        <RouteSketch color={colors.textSecondary} />
+                    <div className="w-[118px] h-[78px] rounded-2xl overflow-hidden flex-shrink-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                        <RideMiniMap thumb originLat={s.o[0]} originLng={s.o[1]} destLat={s.d[0]} destLng={s.d[1]} driverLat={null} driverLng={null} />
                     </div>
                 </div>
 
