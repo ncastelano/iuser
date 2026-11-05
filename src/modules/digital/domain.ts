@@ -271,3 +271,44 @@ export function downloadsLabel(n: number): string {
 export const shortHash = (h: string) => (h.length > 16 ? `${h.slice(0, 8)}…${h.slice(-6)}` : h)
 
 export const APP_WARNING = 'O iUser ainda não verifica vírus nos programas. Baixe só de quem você confia e, se quiser, confira o código SHA-256 do arquivo.'
+
+// ===== RESUMO DO DIGITAL NO PAINEL DA LOJA (só números; nada de dado pessoal de cliente) =====
+export interface StoreDigitalSummary {
+    products: number; freeProducts: number; items: number
+    paidOrders: number; revenueCents: number
+    /** pedidos só de digital esperando a loja "Liberar acesso" */
+    toRelease: number
+    freeClaims: number; downloads: number
+    /** mensalidade do Clube em centavos (null = clube grátis ou desligado) */
+    clubPriceCents: number | null; clubIncludesMusic: boolean; clubPayingMembers: number
+    /** pagamentos do Clube que o fã disse ter feito e a loja precisa conferir */
+    clubToCheck: number
+}
+
+const n0 = (v: unknown): number => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v)) : 0)
+
+/** A linha de get_store_digital_summary → resumo; sem linha, null */
+export function storeDigitalFromRow(r: Record<string, any> | null | undefined): StoreDigitalSummary | null {
+    if (!r || typeof r !== 'object') return null
+    return {
+        products: n0(r.products), freeProducts: n0(r.free_products), items: n0(r.items),
+        paidOrders: n0(r.paid_orders), revenueCents: n0(r.revenue_cents), toRelease: n0(r.to_release),
+        freeClaims: n0(r.free_claims), downloads: n0(r.downloads),
+        clubPriceCents: r.club_price_cents == null ? null : n0(r.club_price_cents) || null,
+        clubIncludesMusic: !!r.club_includes_music, clubPayingMembers: n0(r.club_paying_members), clubToCheck: n0(r.club_to_check),
+    }
+}
+
+/** A loja já mexe com digital (tem produto, vendeu, deram de graça ou tem Clube pago)? Senão o painel só convida. */
+export const hasDigitalActivity = (s: StoreDigitalSummary): boolean => s.products > 0 || s.paidOrders > 0 || s.freeClaims > 0 || s.clubPriceCents !== null || s.clubPayingMembers > 0
+
+/** O que pede a atenção da loja agora: pedidos para liberar + pagamentos do Clube para conferir */
+export const digitalAttention = (s: StoreDigitalSummary): number => s.toRelease + s.clubToCheck
+
+/** "Clube de R$ 9,90 por mês · 3 assinantes" / "Clube grátis" */
+export function clubLine(s: StoreDigitalSummary): string {
+    if (s.clubPriceCents === null) return 'Clube sem mensalidade'
+    const price = (s.clubPriceCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
+    const members = s.clubPayingMembers === 1 ? '1 assinante' : `${s.clubPayingMembers} assinantes`
+    return `Clube de ${price} por mês · ${members}${s.clubIncludesMusic ? ' · música incluída' : ''}`
+}

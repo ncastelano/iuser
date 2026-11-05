@@ -44,7 +44,7 @@ import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromiss
 import StoreOrders from './StoreOrders'
 import StoreDeliveryBoard from './StoreDeliveryBoard'
 import StoreDeliveryDues from './StoreDeliveryDues'
-import StoreTips from '@/components/tips/StoreTips'
+import StoreDigital from './StoreDigital'
 import StoreFeedback from './StoreFeedback'
 import StoreDeliverySettings from './StoreDeliverySettings'
 import StoreFavoriteDrivers from './StoreFavoriteDrivers'
@@ -745,10 +745,8 @@ export default function StoreDashboard({
                 <StoreDeliveryDues storeId={store.id} v3={insideShell} />
             </div>
 
-            {/* ===== Apoios recebidos: gorjetas dos fãs (Pix direto), a conferir e confirmadas ===== */}
-            <div className={insideShell ? 'mb-6' : ''}>
-                <StoreTips storeId={store.id} hasPix={!!store.pix_key} v3={insideShell} />
-            </div>
+            {/* ===== Digital: cursos, músicas e programas (produtos, vendas, o que liberar, Clube) + Apoios recebidos (gorjetas dos fãs) ===== */}
+            <StoreDigital storeId={store.id} storeSlug={store.storeSlug} hasPix={!!store.pix_key} v3={insideShell} />
 
             </>
             )}

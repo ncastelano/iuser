@@ -2,7 +2,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { uploadToR2, removeFromR2 } from '@/lib/r2Upload'
 import { r2FallbackAllowed, heavyUploadInfo } from '@/lib/r2Types'
-import { bucketForKind, DIGITAL_BUCKETS, DIGITAL_HEAVY_KIND, DIGITAL_MAX_BYTES_BY_BUCKET, isHeavyBucket, kindFromFile, storagePathFor, validateItem, validateTeaser, productKindOf, summaryFromCounts, previewPlaySeconds, isInstallerFile, validateAppInput, SHA256_MAX_BYTES, type AppPlatform, type AppVersion, type CurriculumItem, type DigitalKind, type DigitalProductKind } from './domain'
+import { storeDigitalFromRow, type StoreDigitalSummary, bucketForKind, DIGITAL_BUCKETS, DIGITAL_HEAVY_KIND, DIGITAL_MAX_BYTES_BY_BUCKET, isHeavyBucket, kindFromFile, storagePathFor, validateItem, validateTeaser, productKindOf, summaryFromCounts, previewPlaySeconds, isInstallerFile, validateAppInput, SHA256_MAX_BYTES, type AppPlatform, type AppVersion, type CurriculumItem, type DigitalKind, type DigitalProductKind } from './domain'
 
 export interface LibraryItem { product_id: string; product_name: string; product_slug: string; store_slug: string | null; store_name: string | null; image_url: string | null; purchased_at: string; items_count: number }
 export interface OwnItem { id: string; product_id: string; module_title: string | null; title: string; kind: DigitalKind; storage_path: string | null; external_url: string | null; mime_type: string | null; size_bytes: number | null; duration_seconds: number | null; position: number; is_preview: boolean; is_teaser: boolean; platform: AppPlatform | null; version: string | null; release_notes: string | null; sha256: string | null; download_count: number; created_at: string; bucket: string | null; file_name: string | null }
@@ -241,4 +241,11 @@ export function previewUrl(itemId: string): Promise<string | null> {
         previewPending.set(itemId, p)
     }
     return p
+}
+
+/** O resumo do digital da loja para o painel (só o dono; o banco recusa os outros) */
+export async function fetchStoreDigitalSummary(storeId: string): Promise<StoreDigitalSummary | null> {
+    const { data, error } = await supabase.rpc('get_store_digital_summary', { p_store: storeId })
+    if (error) return null
+    return storeDigitalFromRow(data as any)
 }

@@ -203,3 +203,22 @@ test('home: as fileiras de promoções e digitais sangram com -mx-4 px-4 (a marg
         assert.ok(!/-mx-6/.test(src), `${f} usa -mx-6 (estoura a largura da tela da home)`)
     }
 })
+
+// ===== resumo do digital no painel da loja =====
+test('resumo do digital da loja: lê a linha do banco com segurança', async () => {
+    const { storeDigitalFromRow, hasDigitalActivity, digitalAttention, clubLine } = await import('../src/modules/digital/domain.ts')
+    assert.equal(storeDigitalFromRow(null), null)
+    assert.equal(storeDigitalFromRow(undefined), null)
+    const s = storeDigitalFromRow({ products: '10', free_products: 2, items: 41, paid_orders: 2, revenue_cents: 50560, to_release: 3, free_claims: 7, downloads: '12', club_price_cents: 990, club_includes_music: true, club_paying_members: 3, club_to_check: 1 })
+    assert.deepEqual(s, { products: 10, freeProducts: 2, items: 41, paidOrders: 2, revenueCents: 50560, toRelease: 3, freeClaims: 7, downloads: 12, clubPriceCents: 990, clubIncludesMusic: true, clubPayingMembers: 3, clubToCheck: 1 })
+    // lixo vira zero; clube sem preço fica null
+    const z = storeDigitalFromRow({ products: 'x', revenue_cents: -5, club_price_cents: 0, to_release: null })
+    assert.equal(z.products, 0); assert.equal(z.revenueCents, 0); assert.equal(z.clubPriceCents, null); assert.equal(z.toRelease, 0)
+    assert.equal(digitalAttention(s), 4)
+    assert.equal(hasDigitalActivity(z), false)
+    assert.equal(hasDigitalActivity({ ...z, freeClaims: 1 }), true)
+    assert.equal(hasDigitalActivity({ ...z, clubPriceCents: 500 }), true)
+    assert.equal(clubLine(s), 'Clube de R$ 9,90 por mês · 3 assinantes · música incluída')
+    assert.equal(clubLine({ ...s, clubPayingMembers: 1, clubIncludesMusic: false }), 'Clube de R$ 9,90 por mês · 1 assinante')
+    assert.equal(clubLine(z), 'Clube sem mensalidade')
+})
