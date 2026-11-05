@@ -9,7 +9,7 @@
 import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
-    Store as StoreIcon, Car, MessageCircle, User, LogIn, ChevronRight, ChevronDown, X, Search, RotateCcw, ShoppingBag, LayoutDashboard,
+    Store as StoreIcon, Car, User, ChevronRight, ChevronDown, X, RotateCcw, ShoppingBag, LayoutDashboard, Check, Plus, Pencil, Bike,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -24,7 +24,6 @@ import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
 import { useShellCompact } from '@/lib/shellCompact'
 import { toastStyle } from '@/lib/toastStyle'
 import BottomNavBar, { BAR_SPACE, STRIP_H, stripVisible } from '@/components/BottomNavBar'
-import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
 import { switchVersion, versionLabel } from '@/versions/client'
 import { isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
 import { LAST_ABA_KEY } from '@/versions/v3/screens/AtividadeTabs'
@@ -68,219 +67,161 @@ function modePath(mode: string, data: DrawerData): string {
     return '/'
 }
 
-// Linha de um modo no menu: mostra a imagem do modo (foto do perfil, logo da loja, foto do carro) ou, sem imagem, o ícone.
-// Nada some nem aparece aqui — a animação de troca acontece só no topo da página (seção "Bem-vindo").
-function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, actions, extra, hidePanel = false, card = false }: {
-    mode: string; active: string; icon: ReactNode; image?: string | null; title: string; desc?: string; dot?: string
-    onSelect: (mode: string) => void
-    /** Botões extras embaixo da linha (ex.: "Ver loja" e "Editar") */
-    actions?: ReactNode
-    /** Linha de aviso embaixo dos botões (ex.: mensagens não lidas) */
-    extra?: ReactNode
-    /** Sem o botão "Painel" à direita (quando o painel já está entre os botões de baixo) */
-    hidePanel?: boolean
-    /** O cartão é o próprio contêiner (borda e fundo), sem painel em volta */
-    card?: boolean
+// ===== MENU DE MODOS (o hub; desenho aprovado em /paginateste): uma lista de cards IGUAIS (um por modo), uma linha de botões iguais para o modo
+// escolhido e o rodapé. Escolher um card seleciona o modo e abre a página dele, como sempre.
+const MODE_COLOR = { user: '#3b82f6', store: '#f97316', car: '#16a34a' } as const
+
+/** Um modo: foto (ou ícone colorido), nome, subtítulo e, à direita, o ✓ do modo escolhido */
+function ModeCard({ selected, kind, image, title, desc, dot, onClick }: {
+    selected: boolean; kind: keyof typeof MODE_COLOR; image?: string | null; title: string; desc?: string; dot?: string; onClick: () => void
 }) {
-    const selected = active === mode
+    const Icon = kind === 'store' ? StoreIcon : kind === 'car' ? Car : User
     return (
-        <div
-            className={card ? 'rounded-3xl mt-2' : 'rounded-2xl'}
-            style={card
-                ? { background: 'var(--hub-panel)', border: `1px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, boxShadow: selected ? 'inset 0 0 0 1px #f97316' : undefined }
-                : selected ? { background: 'var(--hub-soft)', boxShadow: 'inset 0 0 0 1.5px #f97316' } : undefined}
+        <button
+            onClick={onClick}
+            aria-pressed={selected}
+            className="w-full flex items-center gap-3 p-2.5 rounded-2xl text-left transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+            style={{ border: `1.5px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, background: selected ? '#f9731612' : 'transparent' }}
         >
-            <div className="flex items-center">
-                <button
-                    onClick={() => onSelect(mode)}
-                    aria-pressed={selected}
-                    className="flex-1 min-w-0 flex items-center gap-3 pl-2.5 pr-2 py-2 rounded-2xl text-left transition hover:bg-[var(--hub-soft)] active:bg-[var(--hub-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                >
-                    <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'var(--hub-soft)' }}>
-                        {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : icon}
+            <span className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden" style={{ background: image ? 'var(--hub-soft)' : MODE_COLOR[kind] }}>
+                {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : <Icon size={18} />}
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-black leading-tight truncate">{title}</span>
+                {desc && (
+                    <span className="flex items-center gap-1.5 text-[11px] opacity-80 truncate mt-0.5">
+                        {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}<span className="truncate">{desc}</span>
                     </span>
-                    <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-black leading-tight truncate">{title}</span>
-                        {desc && (
-                            <span className="flex items-center gap-1.5 text-xs opacity-90 truncate">
-                                {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}
-                            </span>
-                        )}
-                    </span>
-                    {(!selected || hidePanel) && <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
-                </button>
-                {/* Modo selecionado: o botão "Painel" leva ao painel dele (o mesmo destino de tocar no cartão) */}
-                {selected && !hidePanel && (
-                    <button
-                        onClick={() => onSelect(mode)}
-                        className="mr-3 flex-shrink-0 h-8 px-4 rounded-full text-xs font-black transition hover:scale-[1.04] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                        style={{ background: '#f97316', color: '#fff' }}
-                    >
-                        Painel
-                    </button>
                 )}
-            </div>
-            {actions && <div className="flex gap-2 px-2.5 pb-2 pt-0">{actions}</div>}
-            {extra && <div className="px-2.5 pb-2.5">{extra}</div>}
+            </span>
+            {selected ? <Check size={17} className="flex-shrink-0" style={{ color: '#f97316' }} /> : <ChevronRight size={16} className="flex-shrink-0 opacity-60" />}
+        </button>
+    )
+}
+
+/** Cartão de chamada (cadastrar loja / virar motorista): do mesmo tamanho dos modos, só que tracejado */
+function ModeCta({ kind, title, desc, onClick }: { kind: keyof typeof MODE_COLOR; title: string; desc: string; onClick: () => void }) {
+    const Icon = kind === 'store' ? StoreIcon : kind === 'car' ? Car : User
+    return (
+        <button onClick={onClick} className="w-full flex items-center gap-3 p-2.5 rounded-2xl text-left transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]" style={{ border: '1.5px dashed var(--hub-line)' }}>
+            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)', color: MODE_COLOR[kind] }}><Icon size={18} /></span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-black leading-tight truncate">{title}</span>
+                <span className="block text-[11px] opacity-80 truncate mt-0.5">{desc}</span>
+            </span>
+            <Plus size={16} className="flex-shrink-0 opacity-60" />
+        </button>
+    )
+}
+
+/** A linha de botões iguais do modo escolhido (2 ou 3, mesma largura e altura) */
+function ModeActions({ items }: { items: { label: string; icon: ReactNode; onClick: () => void; solid?: boolean }[] }) {
+    return (
+        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+            {items.map((it) => (
+                <button
+                    key={it.label}
+                    onClick={it.onClick}
+                    className="h-10 px-2 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-black transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                    style={it.solid ? { background: '#f97316', color: '#fff' } : { border: '1px solid var(--hub-line)', color: 'var(--hub-fg)' }}
+                >
+                    {it.icon}<span className="truncate">{it.label}</span>
+                </button>
+            ))}
         </div>
     )
 }
 
-/** Botão pequeno de ação dentro de uma linha do menu */
-function DrawerPill({ onClick, children, solid = false }: { onClick: () => void; children: ReactNode; solid?: boolean }) {
+/** O cabeçalho do menu: a pergunta, quem está usando e o fechar */
+function HubHeader({ title, sub, onClose }: { title: string; sub?: string; onClose: () => void }) {
     return (
-        <button
-            onClick={onClick}
-            className="flex-1 min-w-0 h-9 px-2 flex items-center justify-center gap-1.5 rounded-full text-xs font-black transition hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-            style={solid ? { background: '#f97316', color: '#fff' } : { background: 'var(--hub-soft)', color: 'var(--hub-fg)', border: '1px solid var(--hub-line)' }}
-        >
-            {children}
-        </button>
-    )
-}
-
-/** Linha de chamada (cadastrar loja / virar motorista): não é um modo, só leva ao cadastro */
-function DrawerCta({ icon, title, desc, onClick }: { icon: ReactNode; title: string; desc: string; onClick: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            className="w-full flex items-center gap-3 px-2.5 py-2 rounded-2xl text-left transition hover:bg-[var(--hub-soft)] active:bg-[var(--hub-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-            style={{ border: '1.5px dashed var(--hub-line)' }}
-        >
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>{icon}</span>
+        <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5 flex-shrink-0">
             <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black leading-tight truncate">{title}</span>
-                <span className="block text-xs opacity-90 truncate">{desc}</span>
+                <span className="block text-[14px] font-black leading-tight">{title}</span>
+                {sub && <span className="block text-[11px] opacity-80 truncate mt-0.5">{sub}</span>}
             </span>
-            <ChevronRight size={16} className="flex-shrink-0 opacity-70" />
-        </button>
+            <button onClick={onClose} aria-label="Fechar menu" className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ border: '1px solid var(--hub-line)' }}>
+                <X size={15} />
+            </button>
+        </div>
     )
 }
 
-function DrawerLabel({ children }: { children: ReactNode }) {
-    return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest opacity-80">{children}</p>
-}
-
-function MenuDrawerContent({ data, active, recent, storeOrders, onSelect, onGo, onSwitchVersion }: {
+function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, onSelect, onGo, onSwitchVersion }: {
     onSwitchVersion: () => Promise<void>
     /** Pedidos de cada loja (novos, em preparo, prontos) */
     storeOrders: Record<string, { pending: number; preparing: number; ready: number; services: number }>
     data: DrawerData
     /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
-    /** As últimas coisas que a pessoa abriu pela busca (avatares do Explorar) */
-    recent: RecentClickItem[]
+    slug: string | null
+    avatarUrl: string | null | undefined
     onSelect: (mode: string) => void; onGo: (path: string) => void
 }) {
+    const ordersLine = (id: string) => {
+        const o = storeOrders[id] || { pending: 0, preparing: 0, ready: 0, services: 0 }
+        const going = o.preparing + o.ready
+        return {
+            o, going,
+            text: o.pending + o.services > 0
+                ? [o.pending > 0 ? `${o.pending} ${o.pending === 1 ? 'pedido novo' : 'pedidos novos'}` : '', o.services > 0 ? `${o.services} ${o.services === 1 ? 'serviço' : 'serviços'}` : '', going > 0 ? `${going} em andamento` : ''].filter(Boolean).join(' · ')
+                : going > 0 ? `${going} ${going === 1 ? 'pedido em andamento' : 'pedidos em andamento'}` : 'Pedidos',
+        }
+    }
+    const selStore = data.stores.find((st) => active === `loja:${st.slug}`)
+    const selVehicle = data.vehicles.find((v) => active === `motorista:${v.slug}`)
+    const actions: { label: string; icon: ReactNode; onClick: () => void; solid?: boolean }[] | null =
+        active === 'perfil' ? [
+            ...(slug ? [{ label: 'Ver perfil', icon: <User size={14} className="flex-shrink-0" />, onClick: () => onGo(`/${slug}`) }] : []),
+            { label: 'Painel', icon: <LayoutDashboard size={14} className="flex-shrink-0" />, onClick: () => onSelect('perfil'), solid: true },
+        ] : selStore ? [
+            { label: 'Ver loja', icon: <StoreIcon size={14} className="flex-shrink-0" />, onClick: () => onGo(`/${selStore.slug}`) },
+            { label: 'Editar', icon: <Pencil size={14} className="flex-shrink-0" />, onClick: () => onGo(`/editar-loja/${encodeURIComponent(selStore.slug)}`) },
+            { label: 'Painel', icon: <LayoutDashboard size={14} className="flex-shrink-0" />, onClick: () => onSelect(`loja:${selStore.slug}`), solid: true },
+        ] : selVehicle ? [
+            { label: 'Meu veículo', icon: <Car size={14} className="flex-shrink-0" />, onClick: () => onGo(`/${selVehicle.slug}`) },
+            { label: 'Entregas', icon: <Bike size={14} className="flex-shrink-0" />, onClick: () => onGo('/entregas') },
+            { label: 'Painel', icon: <LayoutDashboard size={14} className="flex-shrink-0" />, onClick: () => onGo('/painel-motorista'), solid: true },
+        ] : null
     return (
-        <div className="w-full flex flex-col px-3 pb-3">
-            {/* Motorista: uma linha só por veículo (ou o convite para virar motorista), sem painel nem título em volta */}
+        <div className="w-full flex flex-col gap-2 px-3.5 pb-3.5">
+            {/* Pessoa */}
+            <ModeCard selected={active === 'perfil'} kind="user" image={avatarUrl} title="Pessoa" desc={`${slug ? `@${slug} · ` : ''}comprar, contratar, publicar`} onClick={() => onSelect('perfil')} />
+            {/* Lojas */}
+            {data.stores.length > 0 ? data.stores.map((st) => {
+                const { text, o } = ordersLine(st.id)
+                return <ModeCard key={st.id} selected={active === `loja:${st.slug}`} kind="store" image={st.logo} title={st.name} desc={`Modo loja · ${st.open ? 'Aberta agora' : 'Fechada agora'}${o.pending + o.services > 0 ? ` · ${o.pending + o.services} ${o.pending + o.services === 1 ? 'novo' : 'novos'}` : ''}`} dot={st.open ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`loja:${st.slug}`)} />
+            }) : <ModeCta kind="store" title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} />}
+            {/* Motorista: um card por veículo */}
             {data.vehicles.length > 0 ? data.vehicles.map((v) => (
-                <DrawerRow
-                    key={v.slug}
-                    mode={`motorista:${v.slug}`}
-                    active={active}
-                    onSelect={onSelect}
-                    card
-                    icon={<Car size={20} color="#f97316" />}
-                    image={v.photo}
-                    title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
-                    desc={data.driverActive ? 'Modo motorista ativado' : 'Modo motorista desligado'}
-                    dot={data.driverActive ? '#4ade80' : '#fca5a5'}
-                />
-            )) : (
-                <div className="mt-2"><DrawerCta icon={<Car size={20} color="#f97316" />} title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} /></div>
-            )}
+                <ModeCard key={v.slug} selected={active === `motorista:${v.slug}`} kind="car" image={v.photo} title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`} desc={`Modo motorista · ${data.driverActive ? 'ativado' : 'desligado'}`} dot={data.driverActive ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`motorista:${v.slug}`)} />
+            )) : <ModeCta kind="car" title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />}
 
-            {/* Só o cartão da loja (sem o título "Modo loja"): Ver loja + Painel e, embaixo, os pedidos */}
-            <>
-                {data.stores.length > 0 ? data.stores.map((st) => {
-                    const o = storeOrders[st.id] || { pending: 0, preparing: 0, ready: 0, services: 0 }
-                    const going = o.preparing + o.ready
-                    return (
-                        <DrawerRow
-                            key={st.id}
-                            mode={`loja:${st.slug}`}
-                            active={active}
-                            onSelect={onSelect}
-                            hidePanel
-                            card
-                            icon={<StoreIcon size={20} color="#f97316" />}
-                            image={st.logo}
-                            title={st.name}
-                            desc={st.open ? 'Aberta agora' : 'Fechada agora'}
-                            dot={st.open ? '#4ade80' : '#fca5a5'}
-                            actions={(
-                                <>
-                                    <DrawerPill onClick={() => onGo(`/${st.slug}`)}>Ver loja</DrawerPill>
-                                    <DrawerPill onClick={() => onGo(`/editar-loja/${encodeURIComponent(st.slug)}`)}>Editar</DrawerPill>
-                                    <DrawerPill solid onClick={() => onSelect(`loja:${st.slug}`)}>Painel</DrawerPill>
-                                </>
-                            )}
-                            extra={(
-                                <button
-                                    onClick={() => onGo(`/painel-loja/${encodeURIComponent(st.slug)}`)}
-                                    className="w-full h-9 px-3 rounded-full flex items-center gap-2.5 text-xs font-black transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                                    style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
-                                >
-                                    <ShoppingBag size={16} className="flex-shrink-0" />
-                                    <span className="flex-1 text-left truncate">
-                                        {o.pending + o.services > 0
-                                            ? [o.pending > 0 ? `${o.pending} ${o.pending === 1 ? 'pedido novo' : 'pedidos novos'}` : '', o.services > 0 ? `${o.services} ${o.services === 1 ? 'serviço' : 'serviços'}` : '', going > 0 ? `${going} em andamento` : ''].filter(Boolean).join(' · ')
-                                            : going > 0 ? `${going} ${going === 1 ? 'pedido em andamento' : 'pedidos em andamento'}` : 'Pedidos'}
-                                    </span>
-                                    {o.pending + o.services > 0
-                                        ? (
-                                            <span className="flex items-center gap-1 flex-shrink-0">
-                                                {o.pending > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{o.pending > 99 ? '99+' : o.pending}</span>}
-                                                {o.services > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#14b8a6' }}>{o.services > 99 ? '99+' : o.services}</span>}
-                                            </span>
-                                        )
-                                        : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
-                                </button>
-                            )}
-                        />
-                    )
-                }) : (
-                    <div className="mt-2"><DrawerCta icon={<StoreIcon size={20} color="#f97316" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} /></div>
-                )}
-            </>
-
-
-            <DrawerExplorar recent={recent} onGo={onGo} />
+            {/* O que fazer no modo escolhido: botões iguais (e, na loja, os pedidos) */}
+            {actions && <div className="pt-1"><ModeActions items={actions} /></div>}
+            {selStore && (() => {
+                const { text, o } = ordersLine(selStore.id)
+                return (
+                    <button
+                        onClick={() => onGo(`/painel-loja/${encodeURIComponent(selStore.slug)}/pedidos`)}
+                        className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                        style={{ border: '1px solid var(--hub-line)' }}
+                    >
+                        <ShoppingBag size={16} className="flex-shrink-0" />
+                        <span className="flex-1 text-left truncate">{text}</span>
+                        {o.pending + o.services > 0
+                            ? (
+                                <span className="flex items-center gap-1 flex-shrink-0">
+                                    {o.pending > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{o.pending > 99 ? '99+' : o.pending}</span>}
+                                    {o.services > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#14b8a6' }}>{o.services > 99 ? '99+' : o.services}</span>}
+                                </span>
+                            )
+                            : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
+                    </button>
+                )
+            })()}
             <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
-    )
-}
-
-// Explorar: a lupa + as 5 últimas coisas buscadas; leva à home (/)
-function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (path: string) => void }) {
-    return (
-        <>
-            <button
-                type="button"
-                onClick={() => onGo('/')}
-                className="mt-2 w-full rounded-full px-4 h-11 flex items-center gap-3 font-black text-sm transition active:scale-[0.98]"
-                style={{ background: 'var(--hub-soft)', border: '1px solid var(--hub-line)' }}
-            >
-                <Search size={20} className="flex-shrink-0" />
-                <span className="flex-1 text-left">Procurar e explorar</span>
-                {recent.length > 0 && (
-                    <span className="flex flex-shrink-0">
-                        {recent.map((r, i) => (
-                            <span
-                                key={`${r.type}-${r.id}`}
-                                className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-black flex-shrink-0"
-                                style={{ marginLeft: i === 0 ? 0 : -10, background: 'var(--hub-soft)', boxShadow: '0 0 0 2px var(--hub-bg)' }}
-                                title={r.name}
-                            >
-                                {r.imageUrl ? <img src={r.imageUrl} alt="" className="w-full h-full object-cover" /> : (r.name || '?').charAt(0).toUpperCase()}
-                            </span>
-                        ))}
-                    </span>
-                )}
-            </button>
-        </>
     )
 }
 
@@ -306,39 +247,17 @@ function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
     )
 }
 
-// Menu de quem não tem conta: o "modo" é o de visitante (já selecionado), mais entrar/criar conta e o Explorar
-function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
+// Menu de quem não tem conta: o "modo" é o de visitante (já escolhido), mais entrar e criar conta — no mesmo desenho dos modos
+function VisitorDrawerContent({ onGo, onClose, onSwitchVersion }: { onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
     return (
-        <div className="w-full flex flex-col px-3 pb-3">
-            <section className="mt-1 rounded-3xl p-2 pb-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
-                <DrawerLabel>Modo visitante</DrawerLabel>
-                <div className="flex flex-col gap-1.5">
-                    <DrawerRow
-                        mode="visitante"
-                        active="visitante"
-                        onSelect={() => onClose()}
-                        icon={<User size={20} color="#f97316" />}
-                        title="Visitante"
-                        desc="Navegando sem conta"
-                        dot="#fde68a"
-                    />
-                </div>
-            </section>
-
-            <section className="mt-2 rounded-3xl p-2 pb-1.5" style={{ background: 'var(--hub-panel)', border: '1px solid var(--hub-line)' }}>
-                <DrawerLabel>Minha conta</DrawerLabel>
-                <div className="flex flex-col gap-1.5">
-                    <DrawerCta icon={<LogIn size={20} color="#f97316" />} title="Entrar" desc="Já tenho conta no iUser" onClick={() => onGo('/login')} />
-                    <DrawerCta icon={<User size={20} color="#f97316" />} title="Criar conta" desc="Grátis, leva um minuto" onClick={() => onGo('/cadastrar')} />
-                </div>
-            </section>
-
-            <DrawerExplorar recent={recent} onGo={onGo} />
+        <div className="w-full flex flex-col gap-2 px-3.5 pb-3.5">
+            <ModeCard selected kind="user" title="Visitante" desc="Navegando sem conta" dot="#fde68a" onClick={onClose} />
+            <ModeCta kind="user" title="Entrar" desc="Já tenho conta no iUser" onClick={() => onGo('/login')} />
+            <ModeCta kind="user" title="Criar conta" desc="Grátis, leva um minuto" onClick={() => onGo('/cadastrar')} />
             <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
     )
 }
-
 
 // A ilha flutua no topo; o conteúdo da página começa abaixo dela (NAV_H, a mesma altura de antes: telas cheias usam --shell-top)
 const ISLAND_H = 56
@@ -370,39 +289,6 @@ function ModeAvatar({ userId, image, noRing, modeIcon, popToken, colors, size = 
                 {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : modeIcon}
             </span>
         </PlanAvatarRing>
-    )
-}
-
-// Topo do hub (logado): o cumprimento e o perfil num cartão só — foto, @, "Painel", fechar, "Ver perfil / Editar" e as mensagens não lidas
-function HubProfileTop({ slug, avatarUrl, userId, colors, popToken, unread, chatPath, onPanel, onGo, onClose }: {
-    slug: string | null; avatarUrl: string | null | undefined; userId: string | null; colors: any; popToken: number
-    unread: number; chatPath: string
-    onPanel: () => void; onGo: (path: string) => void; onClose: () => void
-}) {
-    return (
-        <div className="flex-shrink-0">
-            <div className="flex items-center gap-2.5 pl-3 pr-2.5 pt-2.5 pb-2">
-                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px var(--hub-line)' }}>
-                    <ModeAvatar userId={userId} image={avatarUrl} noRing={true} modeIcon={<User size={20} color="#fff" />} popToken={popToken} colors={colors} size={42} />
-                </span>
-                <span className="flex-1 min-w-0">
-                    <span className="block text-[11px] truncate opacity-80">Bem-vindo de volta</span>
-                    <span className="block text-[16px] font-black truncate leading-tight">{slug ? `@${slug}` : 'Meu perfil'}</span>
-                </span>
-                <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
-                    <X size={19} />
-                </button>
-            </div>
-            {/* Três botões numa linha só: perfil, painel e conversas (com o selo das não lidas) */}
-            <div className="px-3 pb-2 flex gap-2">
-                {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}><User size={14} className="flex-shrink-0" /><span className="truncate">Ver perfil</span></DrawerPill>}
-                <DrawerPill solid onClick={onPanel}><LayoutDashboard size={14} className="flex-shrink-0" /><span className="truncate">Painel</span></DrawerPill>
-                <DrawerPill onClick={() => onGo(chatPath)}>
-                    <span className="relative flex-shrink-0 flex"><MessageCircle size={14} />{unread > 0 && <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: '#16a34a', boxShadow: '0 0 0 1.5px var(--hub-panel, var(--hub-bg))' }}>{unread > 99 ? '99+' : unread}</span>}</span>
-                    <span className="truncate ml-1">{unread > 0 ? (unread === 1 ? '1 nova' : `${unread} novas`) : 'Conversas'}</span>
-                </DrawerPill>
-            </div>
-        </div>
     )
 }
 
@@ -440,15 +326,6 @@ export default function ModeShell({ children }: {
     const [drawerOpen, setDrawerOpen] = useState(false)
     // Conversa aberta (?c=): a barra de baixo sai da frente
     const [threadOpen, setThreadOpen] = useState(false)
-    // As 5 últimas coisas que a pessoa abriu pela busca (perfil, loja, produto) — vão no Explorar do menu
-    const [recent, setRecent] = useState<RecentClickItem[]>([])
-    useEffect(() => {
-        const read = () => setRecent(getRecentClicks().filter((i) => i.type !== 'ride').slice(0, 5))
-        read()
-        window.addEventListener('focus', read)
-        window.addEventListener('storage', read)
-        return () => { window.removeEventListener('focus', read); window.removeEventListener('storage', read) }
-    }, [])
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
     const [dataLoaded, setDataLoaded] = useState(false)
     // Pedidos de cada loja da pessoa (novos, em preparo, prontos): aparecem no cartão da loja do menu
@@ -666,44 +543,22 @@ export default function ModeShell({ children }: {
     // O conteúdo do menu de modos (vive dentro da barra: BottomNavBar o faz crescer para cima)
     const hubInner = (
         <>
-        {/* Cabeçalho do menu. Logado: o cumprimento e o perfil mesclados num cartão só, no topo */}
-        {userId ? (
-            <HubProfileTop
-                slug={profileSlug}
-                avatarUrl={avatarUrl}
-                userId={userId}
-                colors={colors}
-                popToken={modeTick}
-                unread={topUnread}
-                chatPath={chatPath}
-                onPanel={() => selectMode('perfil')}
-                onGo={goAndClose}
-                onClose={() => setDrawerOpen(false)}
-            />
-        ) : (
-        <div className="flex items-center gap-2.5 pl-2 pr-2 flex-shrink-0" style={{ height: ISLAND_H }}>
-                <span className="flex-shrink-0 rounded-full" style={{ boxShadow: '0 0 0 2px var(--hub-line)' }}>
-                    <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} />
-                </span>
-                <span className="flex-1 min-w-0">
-                    <span className="block text-[11px] truncate opacity-80">{idle.line1}</span>
-                    <span className="block text-[15px] font-black truncate leading-tight">{idle.line2}</span>
-                </span>
-                <button onClick={() => setDrawerOpen(false)} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
-                    <X size={19} />
-                </button>
-            </div>
-        )}
+        <HubHeader
+            title={userId ? 'Com qual modo você quer usar o iUser?' : 'Você está como visitante'}
+            sub={userId && profileSlug ? `@${profileSlug}` : undefined}
+            onClose={() => setDrawerOpen(false)}
+        />
         <div className="overflow-y-auto overscroll-contain flex-1 min-h-0">
             {!userId && (
-                <VisitorDrawerContent recent={recent} onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
+                <VisitorDrawerContent onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
             )}
             {userId && (
                 <MenuDrawerContent
                     data={drawerData}
                     active={activeMode}
-                    recent={recent}
                     storeOrders={storeOrders}
+                    slug={profileSlug}
+                    avatarUrl={avatarUrl}
                     onSelect={selectMode}
                     onGo={goAndClose}
                     onSwitchVersion={onSwitchVersion}
