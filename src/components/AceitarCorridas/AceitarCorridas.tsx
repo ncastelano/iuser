@@ -1604,7 +1604,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         customPickup={ride.offered_price == null && ride.customTariff && pickupKm != null ? computePickupFee(ride.customTariff, pickupKm) : 0}
                                         valueFromOwn={ride.useOwnTariff}
                                         timeRate={ride.customTariff?.pricePerMinute ?? null}
-                                        timeExtras={ride.customTariff ? computeRideExtras(ride.ride_type, flagsOfRide, ride.customTariff) : 0}
+                                        timeExtras={computeRideExtras(ride.ride_type, flagsOfRide, ride.customTariff ?? platformShape)}
                                         applying={applyingId === ride.id}
                                         onApply={(price) => applyToRide(ride, price)}
                                         onCounter={ride.order_id ? () => counterToRide(ride) : undefined}

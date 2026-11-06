@@ -17,6 +17,7 @@ import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
 import { timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 
 const TIME_GRADIENT = 'linear-gradient(135deg, #8b5cf6, #6d28d9)'
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -168,7 +169,12 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const myFareDriver = customPrice != null ? fareDriver(customPrice, floor, platFloor) : null
     const myFareWhy = customPrice != null && myFareDriver && myFareDriver !== 'km' ? fareDriverText(myFareDriver, customPrice, minHourly, minPerMinute) : ''
     // O 3º valor: por tempo (minutos de trabalho × valor por minuto dele + extras), com os mesmos pisos (ganho mínimo por hora e mínimo da plataforma)
-    const timeBase = ride.order_id || ride.offered_price != null ? null : timeFare(minutesTotal, timeRate, timeExtras)
+    // Sem valor por minuto próprio, vale o ganho mínimo por hora PADRÃO do iUser (R$ 40/h = R$ 0,67 por minuto): o "Por tempo" sempre tem número
+    const defaultHourly = useDefaultMinHourly()
+    const ownTimeRate = timeRate != null && timeRate > 0 ? timeRate : null
+    const rateUsed = ownTimeRate ?? (defaultHourly > 0 ? Math.round((defaultHourly / 60) * 10000) / 10000 : null)
+    const timeIsDefault = ownTimeRate == null && rateUsed != null
+    const timeBase = ride.order_id || ride.offered_price != null ? null : timeFare(minutesTotal, rateUsed, timeExtras)
     const myTime = timeBase != null ? raise(suggestedFare(timeBase, floor)) : null
     const timeFloorRaised = timeBase != null && myTime != null && myTime > round2(timeBase)
     const iuserSuggestion = customPrice == null && floor != null && floor > platformPrice ? raise(floor) : null   // sugestão calculada, nunca salva como preferência
@@ -499,8 +505,11 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             {myTime != null && perHour(myTime) != null && (
                                 <span className="block text-[9px] leading-tight font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>≈ R$ {perHour(myTime)}/h{timeFloorRaised ? ' · mínimo' : ''}</span>
                             )}
+                            {myTime != null && timeIsDefault && (
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>padrão iUser</span>
+                            )}
                             {onEditTariff && (
-                                <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: myTime != null ? 'rgba(255,255,255,0.9)' : colors.textSecondary }}>{myTime != null ? 'editar' : timeRate != null && timeRate > 0 ? 'sem minutos' : 'definir'}</span>
+                                <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: myTime != null ? 'rgba(255,255,255,0.9)' : colors.textSecondary }}>{myTime != null ? (timeIsDefault ? 'definir o meu' : 'editar') : rateUsed != null ? 'sem minutos' : 'definir'}</span>
                             )}
                         </button>
                         {!viewOnly && <button
@@ -532,12 +541,12 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         {pickup && pickup.state !== 'ready' && tripFareNote && (
                             <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>{tripFareNote}</p>
                         )}
-                        {myTime != null && minutesTotal != null && timeRate != null && (
+                        {myTime != null && minutesTotal != null && rateUsed != null && (
                             <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>
-                                Por tempo: {Math.round(minutesTotal)} min × {brl(timeRate)} por minuto (sua tarifa por tempo){timeExtras > 0 ? ` + ${brl(timeExtras)} de extras` : ''}
+                                Por tempo: {Math.round(minutesTotal)} min × {brl(rateUsed)} por minuto ({timeIsDefault ? `padrão do iUser: R$ ${defaultHourly.toLocaleString('pt-BR')} por hora — defina o seu em Tarifa` : 'sua tarifa por tempo'}){timeExtras > 0 ? ` + ${brl(timeExtras)} de extras` : ''}{timeFloorRaised ? ' · subiu até o mínimo' : ''}
                             </p>
                         )}
-                        {timeRate != null && timeRate > 0 && minutesTotal == null && (
+                        {rateUsed != null && minutesTotal == null && (
                             <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>Por tempo: ainda falta o tempo até a partida (libere o GPS ou defina o seu local).</p>
                         )}
                     </div>

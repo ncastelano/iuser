@@ -65,6 +65,6 @@ export function computeRideTariffs(ride: RideTariffSource, pricing: DriverPricin
         customShape,
         useCustom: pricing.pricing_mode === 'custom' && customPrice != null,
         timeRate: customShape?.pricePerMinute ?? null,
-        timeExtras: customShape ? computeRideExtras(rideType, flags, customShape) : 0,
+        timeExtras: computeRideExtras(rideType, flags, customShape ?? PLATFORM_DEFAULT_PRICING_BY_VEHICLE[rideKind]),   // sem tarifa própria, os extras do tempo são os da plataforma (o "Por tempo" usa o padrão do iUser)
     }
 }
