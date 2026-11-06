@@ -864,10 +864,15 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         if (acceptedDetail && lastAcceptedRideIdRef.current !== acceptedDetail.id) {
             lastAcceptedRideIdRef.current = acceptedDetail.id
             setActiveTab('aceita')
-            // O redirecionamento automático pra /aceitar-corridas/mapa ao
-            // aceitar mora só em RideAcceptedDialog (global, em
-            // providers.tsx) — de lá funciona em qualquer página do app,
-            // não só quando essa tela específica está aberta e faz poll.
+            // Corrida recém-aceita (o motorista ainda nem saiu): vai DIRETO para o mapa, onde está o que fazer. Isto é o caminho imediato quando
+            // a pessoa está nesta página; o RideAcceptedDialog (global, providers.tsx) cobre as outras páginas e também redireciona (ao fim da
+            // consulta de 8 s). Uma vez só por corrida e sessão: voltar do mapa para a lista antes de sair não prende a pessoa no mapa.
+            if (!embedded && !acceptedDetail.driver_en_route) {
+                const key = `ride_nav_list_${acceptedDetail.id}`
+                let first = true
+                try { first = !sessionStorage.getItem(key); sessionStorage.setItem(key, '1') } catch { /* sem sessionStorage: redireciona */ }
+                if (first) router.push('/aceitar-corridas/mapa')
+            }
         } else if (!acceptedDetail && lastAcceptedRideIdRef.current != null) {
             // A corrida saiu de "aceita" sem ser pelo botão do motorista: se o
             // passageiro a finalizou, toca o som de fim de corrida.

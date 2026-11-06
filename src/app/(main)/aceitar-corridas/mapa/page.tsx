@@ -423,6 +423,27 @@ function AceitarCorridasMapaContent() {
     const [simAvailable, setSimAvailable] = useState(false)
     useEffect(() => { setSimAvailable(devDriveAvailable()); setSimOn(devDriveEnabled()); setSimSpeed(devDriveSpeed()) }, [])
 
+    // ===== PARADO OU DIRIGINDO? =====
+    // O chat só existe com o carro PARADO (quem dirige não escreve): considera "dirigindo" se andou 10 m ou mais nos últimos 6 s.
+    // Andar menos que isso (GPS tremendo no sinal, na porta) conta como parado.
+    const moveAnchorRef = useRef<[number, number] | null>(null)
+    const lastMoveAtRef = useRef(0)
+    const [moving, setMoving] = useState(false)
+    useEffect(() => {
+        if (!driverCoords) return
+        const anchor = moveAnchorRef.current
+        if (!anchor) { moveAnchorRef.current = driverCoords; return }
+        if (haversineKm(anchor, driverCoords) * 1000 >= 10) { moveAnchorRef.current = driverCoords; lastMoveAtRef.current = Date.now() }
+    }, [driverCoords])
+    useEffect(() => {
+        const t = setInterval(() => {
+            const m = Date.now() - lastMoveAtRef.current < 6000
+            setMoving((prev) => (prev === m ? prev : m))
+        }, 1000)
+        return () => clearInterval(t)
+    }, [])
+    useEffect(() => { if (moving) setShowChat(false) }, [moving])
+
     // ===== POSIÇÃO AO VIVO DO MOTORISTA =====
     useEffect(() => {
         if (simOn && !isPreview) return
@@ -966,10 +987,10 @@ function AceitarCorridasMapaContent() {
                             style={following
                                 ? { background: '#22c55e22', color: '#16a34a', border: '1.5px solid #22c55e' }
                                 : { background: GRADIENT, color: '#fff', border: '1.5px solid transparent' }}
-                            title={following ? 'A câmera está seguindo o carro (toque para soltar)' : 'Voltar a seguir o carro'}
+                            title={following ? 'A câmera está centralizada no carro (toque para soltar)' : 'Voltar a seguir o carro'}
                         >
                             {following ? <Navigation size={14} fill="currentColor" /> : <LocateFixed size={14} />}
-                            {following ? 'Seguindo' : 'Recentralizar'}
+                            {following ? 'Centralizado' : 'Recentralizar'}
                         </button>
                     </div>
                     {simAvailable && (
@@ -1019,15 +1040,18 @@ function AceitarCorridasMapaContent() {
                                 <RideWaitBox rideId={acceptedRide.id} role="driver" rideStarted={!!acceptedRide.ride_started_at} rideActive />
 
                                 <div className="flex items-center gap-2">
-                                    <button onClick={toggleChat} className={secondaryBtn} style={secondaryStyle}>
-                                        <MessageCircle size={14} /> {showChat ? 'Fechar chat' : 'Abrir chat'}
-                                    </button>
+                                    {/* Chat só com o carro parado: quem dirige não conversa */}
+                                    {!moving && (
+                                        <button onClick={toggleChat} className={secondaryBtn} style={secondaryStyle}>
+                                            <MessageCircle size={14} /> {showChat ? 'Fechar chat' : 'Abrir chat'}
+                                        </button>
+                                    )}
                                     <button onClick={cancelRide} disabled={cancelling} className={secondaryBtn} style={{ ...secondaryStyle, color: '#ef4444' }}>
                                         {cancelling ? <Spinner size={14} /> : <><Ban size={14} /> Cancelar</>}
                                     </button>
                                 </div>
 
-                                {showChat && (
+                                {showChat && !moving && (
                                     <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
                                 )}
                             </>
