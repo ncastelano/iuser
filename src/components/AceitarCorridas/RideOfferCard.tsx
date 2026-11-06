@@ -15,7 +15,7 @@ import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
-import { fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
+import { fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -76,6 +76,8 @@ interface RideOfferCardProps {
     customPrice?: number | null
     // O que a tarifa PRÓPRIA do motorista cobra pelo deslocamento até a partida (km × o valor por km dele), já calculado por quem chama; soma em "Minha tarifa". 0/undefined = sem deslocamento (sem posição, ou entrega de loja)
     customPickup?: number
+    // Os valores de cada trecho (ir buscar, a corrida, total) vêm da tarifa PRÓPRIA do motorista em vez da Tarifa iUser (o motorista usa "Minha tarifa")
+    valueFromOwn?: boolean
     applying?: boolean
     onApply?: (price: number) => void
     // Entrega de loja: propor a Minha tarifa (o cliente decide). O valor é recalculado no servidor.
@@ -128,7 +130,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice: customTripPrice = null, customPickup = 0, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, minPerMinute = 0, compact = false, pickup, tripFareNote, viewOnly = false, after }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice: customTripPrice = null, customPickup = 0, valueFromOwn = false, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, minPerMinute = 0, compact = false, pickup, tripFareNote, viewOnly = false, after }: RideOfferCardProps) {
     const { colors } = useTheme()
     // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
     const v3 = useInsideShell()
@@ -178,7 +180,13 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const vehicleLabel = ride.vehicle_type === 'qualquer' ? 'Qualquer veículo' : VEHICLE_TYPE_LABELS[ride.vehicle_type]
     const specs = humanizeRideSpecs(ride)
 
-    const stat = (color: string, label: string, km: number | null, min: number | null, pending: string) => (
+    // Valor de cada trecho (só corrida de passageiro com valores à vista): a tarifa que vale para o motorista repartida em ir buscar + a corrida = total
+    const showParts = ride.offered_price == null && !ride.order_id && !footer && !valueBox && platformPrice > 0
+    const ownParts = myFare != null ? fareParts(myFare, customPickup > 0 ? customPickup : null) : null
+    const parts = !showParts ? null : valueFromOwn && ownParts ? ownParts : fareParts(platformPrice, pickup?.state === 'ready' ? pickup.amount : null)
+    const partsLabel = valueFromOwn && ownParts ? 'Minha tarifa' : 'Tarifa iUser'
+
+    const stat = (color: string, label: string, km: number | null, min: number | null, pending: string, value: number | null = null) => (
         <div className="flex-1 min-w-0 rounded-xl px-2.5 py-1.5" style={{ background: `${colors.border}25`, border: bd }}>
             <span className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: colors.textSecondary }}>
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
@@ -187,6 +195,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
             <span className="block text-[11px] font-black leading-tight mt-0.5" style={{ color: colors.textPrimary }}>
                 {km != null ? `${kmText(km)}${min != null ? ` · ${Math.round(min)} min` : ''}` : pending}
             </span>
+            {value != null && <span className="block text-[13px] font-black leading-tight mt-0.5" style={{ color }}>{brl(value)}</span>}
         </div>
     )
 
@@ -264,10 +273,13 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
 
             {/* Quanto falta: cores iguais às linhas do mapa */}
             <div className="flex gap-1.5">
-                {!compact && stat(TO_PICKUP_COLOR, 'Até buscar', toPickup.km, toPickup.min, toPickup.hasGps ? 'calculando…' : 'ative o GPS')}
-                {stat(TRIP_COLOR, 'A corrida', trip.km, trip.min, 'calculando…')}
-                {!compact && stat('#a855f7', 'Total', totalKm, totalMin, '—')}
+                {!compact && stat(TO_PICKUP_COLOR, 'Até buscar', toPickup.km, toPickup.min, toPickup.hasGps ? 'calculando…' : 'ative o GPS', parts?.pickup ?? null)}
+                {stat(TRIP_COLOR, 'A corrida', trip.km, trip.min, 'calculando…', parts?.trip ?? null)}
+                {!compact && stat('#a855f7', 'Total', totalKm, totalMin, '—', parts?.total ?? null)}
             </div>
+            {!compact && parts && (
+                <p className="text-[10px] -mt-1" style={{ color: colors.textSecondary }}>Valores pela {partsLabel}{parts.pickup == null ? ' (sem o deslocamento: falta a sua posição)' : ''}</p>
+            )}
             {!compact && arrivalTime && (
                 <p className="text-[11px] -mt-1" style={{ color: colors.textSecondary }}>
                     Se sair agora, termina por volta das <span className="font-black" style={{ color: colors.textPrimary }}>{arrivalTime}</span>

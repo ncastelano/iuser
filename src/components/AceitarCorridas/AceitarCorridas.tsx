@@ -231,6 +231,8 @@ interface RideCardData extends RideRow {
     suggestedPrice: number
     platformPrice: number
     customPrice: number | null
+    /** o motorista usa a tarifa própria (pricing_mode = custom e ela existe): os valores de cada trecho vêm dela */
+    useOwnTariff: boolean
     customTariff?: DriverPricing | null
     tariff: DriverPricing
     storeName: string | null
@@ -745,6 +747,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 suggestedPrice,
                 platformPrice,
                 customPrice,
+                useOwnTariff: pricing.pricing_mode === 'custom' && customShape != null,
                 customTariff: customShape ?? null,
                 tariff: pricingShape,
                 storeName: r.store_id ? (storeNamesById.get(r.store_id) || null) : null,
@@ -1528,6 +1531,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             tripFareNote={ride.hasDistance && tripKmForNote != null ? describeTripFare(tripKmForNote, platformShape) : undefined}
                                             customPrice={tripCustomPrice}
                                             customPickup={ride.offered_price == null && ride.customTariff && pickupKm != null ? computePickupFee(ride.customTariff, pickupKm) : 0}
+                                            valueFromOwn={ride.useOwnTariff}
                                             applying={applyingId === ride.id}
                                             onApply={(price) => applyToRide(ride, price)}
                                             onCounter={ride.order_id ? () => counterToRide(ride) : undefined}

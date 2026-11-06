@@ -117,6 +117,13 @@ export function rideValuation(price: number | null | undefined, reference: numbe
 /** ordem na lista: as mais valorizadas primeiro (a sort estável mantém as mais novas antes dentro do mesmo nível) */
 export const valuationRank = (tier: ValuationTier): number => (tier === 'great' ? 2 : tier === 'good' ? 1 : 0)
 
+/** O valor repartido pelos trechos do card: ir buscar + a corrida = o total. O mínimo (da plataforma ou do ganho por hora) entra na CORRIDA, para a soma sempre bater com o total mostrado. Sem o deslocamento (sem posição) o total é só a corrida. */
+export function fareParts(total: number | null | undefined, pickupAmount: number | null | undefined): { pickup: number | null; trip: number | null; total: number | null } {
+    if (total == null || !(total >= 0)) return { pickup: null, trip: null, total: null }
+    const pickup = pickupAmount != null && pickupAmount > 0 ? Math.min(round2(pickupAmount), round2(total)) : null
+    return { pickup, trip: round2(total - (pickup ?? 0)), total: round2(total) }
+}
+
 /** Nenhuma corrida abaixo do piso da plataforma (piso 0 = sem regra) */
 export const belowPlatformFloor = (amount: number | null | undefined, floor: number): boolean => floor > 0 && amount != null && amount < floor
 

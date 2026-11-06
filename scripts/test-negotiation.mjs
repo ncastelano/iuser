@@ -1,7 +1,7 @@
 // Testes das regras puras da negociação de corridas (src/modules/negotiation/domain.ts). Rodar: npm run test:negotiation
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText, rideValuation, valuationRank } from '../src/modules/negotiation/domain.ts'
+import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText, rideValuation, valuationRank, fareParts } from '../src/modules/negotiation/domain.ts'
 
 test('valor válido: positivo e até R$ 100.000', () => {
     assert.equal(validateAmount(12.5), null)
@@ -151,4 +151,13 @@ test('corrida valorizada: quanto o valor passa da Tarifa iUser da mesma corrida'
     assert.equal(rideValuation(null, 10).tier, 'none')
     assert.equal(rideValuation(10, 0).tier, 'none')            // sem referência: não inventa
     assert.ok(valuationRank('great') > valuationRank('good') && valuationRank('good') > valuationRank('none'))
+})
+
+test('valor de cada trecho: ir buscar + a corrida = o total, sempre', () => {
+    assert.deepEqual(fareParts(39.07, 19.52), { pickup: 19.52, trip: 19.55, total: 39.07 })
+    assert.deepEqual(fareParts(30.23, 19.52), { pickup: 19.52, trip: 10.71, total: 30.23 })   // o mínimo entra na corrida: a soma bate
+    assert.deepEqual(fareParts(19.55, null), { pickup: null, trip: 19.55, total: 19.55 })      // sem posição: só a corrida
+    assert.deepEqual(fareParts(19.55, 0), { pickup: null, trip: 19.55, total: 19.55 })
+    assert.deepEqual(fareParts(5, 8), { pickup: 5, trip: 0, total: 5 })                         // nunca negativo
+    assert.deepEqual(fareParts(null, 3), { pickup: null, trip: null, total: null })
 })

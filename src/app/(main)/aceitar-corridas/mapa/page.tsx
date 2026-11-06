@@ -170,6 +170,7 @@ interface OfferData {
     platformPrice: number
     customPrice: number | null
     customShape: DriverPricing | null
+    useCustom: boolean
 }
 
 const SHEET_MIN_VH = 22
@@ -333,7 +334,7 @@ function AceitarCorridasMapaContent() {
             ])
             if (cancelled) return
             await loadPlatformTariffs(supabase)
-            const { platformPrice, customPrice, customShape } = computeRideTariffs(
+            const { platformPrice, customPrice, customShape, useCustom } = computeRideTariffs(
                 r as Parameters<typeof computeRideTariffs>[0],
                 (pricing ? pricing : { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }) as Parameters<typeof computeRideTariffs>[1]
             )
@@ -350,6 +351,7 @@ function AceitarCorridasMapaContent() {
                 platformPrice,
                 customPrice,
                 customShape,
+                useCustom,
             })
         })()
         return () => { cancelled = true }
@@ -879,6 +881,7 @@ function AceitarCorridasMapaContent() {
                                 platformPrice={offer.platformPrice + (pickupFee.state === 'ready' ? pickupFee.amount : 0)}
                                 pickup={pickupFee}
                                 customPrice={offer.customPrice}
+                                valueFromOwn={offer.useCustom}
                                 customPickup={offer.ride.offered_price == null && offer.customShape && pickupFee.state === 'ready' ? computePickupFee(offer.customShape, pickupFee.km) : 0}
                                 toPickup={{ km: routeKm, min: routeMin, hasGps: !!driverCoords }}
                                 trip={{ km: shownTripKm, min: shownTripMin }}
