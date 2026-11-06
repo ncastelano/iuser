@@ -117,6 +117,24 @@ function smoothBearing(prev: number | null, raw: number, alpha: number): number 
     return toDeg(Math.atan2(y, x))
 }
 
+// "Frente da rua": para onde a câmera olha quando está seguindo o carro — o rumo do trecho da ROTA logo à frente (uns 110 m), não o do GPS
+// (que treme e, parado, aponta para qualquer lado). Sem rota ainda, quem chama usa o rumo do movimento.
+const AHEAD_METERS = 110
+function aheadBearing(pos: [number, number], coords: [number, number][]): number | null {
+    if (coords.length < 2) return null
+    let nearest = 0
+    let best = Infinity
+    for (let i = 0; i < coords.length; i++) {
+        const d = haversineKm(pos, coords[i])
+        if (d < best) { best = d; nearest = i }
+    }
+    let acc = 0
+    let j = nearest
+    while (j < coords.length - 1 && acc < AHEAD_METERS) { acc += haversineKm(coords[j], coords[j + 1]) * 1000; j++ }
+    if (haversineKm(pos, coords[j]) * 1000 < 15) return null
+    return computeBearing(pos, coords[j])
+}
+
 // Mesmo cuidado de ../RideMapDialog.tsx: sem transition CSS fixa (o
 // mapbox-gl já reprojeta o marcador sozinho ao arrastar o mapa) — o
 // deslize suave só entra quando ESTE código chama setLngLat, numa
@@ -211,6 +229,7 @@ function AceitarCorridasMapaContent() {
     const fitRef = useRef<{ bounds: mapboxgl.LngLatBounds; padding: { top: number; bottom: number; left: number; right: number } } | null>(null)
     const fitStageRef = useRef<0 | 1 | 2>(0)
     const fixedMarkersRef = useRef<mapboxgl.Marker[]>([])
+    const routeCoordsRef = useRef<[number, number][]>([])
 
     const [loading, setLoading] = useState(true)
     const [showChat, setShowChat] = useState(false)
@@ -508,9 +527,7 @@ function AceitarCorridasMapaContent() {
             zoom: 15,
             attributionControl: false,
         })
-        // Bússola visível agora que o mapa gira com a direção do
-        // movimento — dá pra tocar nela pra voltar ao norte pra cima.
-        map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right')
+        // Sem botões por cima do mapa (zoom/bússola): o mapa fica limpo, o zoom é com os dedos e o "seguindo" fica no card de baixo.
 
         // Gesto do usuário (arrastar/zoom/rotacionar) desliga o modo
         // centralizar — igual comportamento de qualquer app de navegação.
@@ -642,15 +659,14 @@ function AceitarCorridasMapaContent() {
             prevBearingCoordsRef.current = driverCoords
         }
 
-        if (followingRef.current) {
-            map.easeTo({ center: driverCoords, bearing: bearingRef.current ?? map.getBearing(), duration: 600 })
-        }
+        if (followingRef.current) followCamera(map, driverCoords)
 
         const reqId = ++routeReqIdRef.current
         fetchRoute(driverCoords, [navTarget.lng, navTarget.lat])
             .then((leg) => {
                 if (routeReqIdRef.current !== reqId) return
                 const src = map.getSource('nav-route') as mapboxgl.GeoJSONSource | undefined
+                routeCoordsRef.current = leg.coords
                 src?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: leg.coords } })
                 setRouteKm(leg.distanceKm)
                 setRouteMin(leg.durationMin)
@@ -659,11 +675,28 @@ function AceitarCorridasMapaContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapReady, driverCoords, navTarget?.lat, navTarget?.lng])
 
-    const recenter = () => {
+    // Câmera de SEGUIR: fica no carro (mais embaixo na tela, para sobrar rua à frente), olhando para onde a rota segue e um pouco inclinada
+    const followCamera = (map: mapboxgl.Map, coords: [number, number]) => {
+        const ahead = aheadBearing(coords, routeCoordsRef.current)
+        if (ahead != null) bearingRef.current = smoothBearing(bearingRef.current, ahead, 0.5)
+        const h = map.getContainer().clientHeight
+        map.easeTo({
+            center: coords,
+            bearing: bearingRef.current ?? map.getBearing(),
+            pitch: 55,
+            zoom: map.getZoom() < 16 ? 17 : map.getZoom(),
+            padding: { top: Math.round(h * 0.38), bottom: 0, left: 0, right: 0 },
+            duration: 800,
+            essential: true,
+        })
+    }
+
+    // Botão de "estou seguindo o carro?": ligado a câmera acompanha; desligado (ou ao arrastar o mapa) a pessoa explora livre
+    const toggleFollow = () => {
+        if (following) { setFollowing(false); return }
         setFollowing(true)
-        if (mapRef.current && driverCoords) {
-            mapRef.current.easeTo({ center: driverCoords, bearing: bearingRef.current ?? mapRef.current.getBearing(), duration: 600 })
-        }
+        followingRef.current = true
+        if (mapRef.current && driverCoords) followCamera(mapRef.current, driverCoords)
     }
 
     // ===== AÇÕES DA CORRIDA (mesma lógica de ../page.tsx) =====
@@ -851,15 +884,17 @@ function AceitarCorridasMapaContent() {
     const primaryStyle = { background: GRADIENT, color: '#fff' }
     const secondaryBtn = 'flex-1 py-3 rounded-xl font-black uppercase text-xs tracking-wider transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-1.5'
     const secondaryStyle = { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+    // "Indo para: Partida · 0.9 km · 2 min" no próprio card (no lugar do antigo "Indo até o ponto de partida" e da ilha que ficava no topo do mapa)
+    const navStats = routeKm != null ? ` · ${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min` : ''}` : ''
     const phaseTitle = isPreview
         ? 'Corrida disponível'
         : !acceptedRide.driver_en_route
             ? 'Corrida aceita'
             : !acceptedRide.driver_arrived_at
-                ? 'Indo até o ponto de partida'
+                ? `Indo para: Partida${navStats}`
                 : !acceptedRide.ride_started_at
                     ? 'Você chegou na partida'
-                    : 'Corrida em andamento'
+                    : `Indo para: ${navTarget?.label ?? 'Chegada'}${navStats}`
     const shownTripKm = acceptedRide.distance_km ?? tripKm
     const shownTripMin = acceptedRide.duration_min ?? tripMin
 
@@ -874,36 +909,6 @@ function AceitarCorridasMapaContent() {
                     style={{ background: '#111', transform: sheetShown ? 'scale(1)' : 'scale(1.12)', transition: 'transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1)' }}
                 />
 
-                <div className="absolute top-6 left-4 right-4 z-10 flex items-center gap-3">
-                    <button
-                        onClick={() => router.push(backUrl)}
-                        className="w-11 h-11 rounded-full flex items-center justify-center shadow-xl flex-shrink-0"
-                        style={{ background: colors.surface, color: colors.textPrimary }}
-                    >
-                        <ArrowLeft size={20} />
-                    </button>
-                    <div className="flex-1 px-4 py-2.5 rounded-full shadow-xl text-center" style={{ background: colors.surface }}>
-                        <span className="text-xs font-black" style={{ color: colors.textPrimary }}>
-                            {navTarget ? `Indo para: ${navTarget.label}` : 'Navegação'}
-                            {routeKm != null && ` · ${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min` : ''}`}
-                        </span>
-                    </div>
-                </div>
-
-                {simAvailable && !isPreview && (
-                    <div className="absolute z-10 left-4" style={{ top: 76 }}>
-                        <DevDriveChip on={simOn} speed={simSpeed} onChange={(o, v) => { setSimOn(o); setSimSpeed(v) }} />
-                    </div>
-                )}
-
-                <button
-                    onClick={recenter}
-                    className="absolute z-10 w-11 h-11 rounded-full flex items-center justify-center shadow-xl"
-                    style={{ right: 10, bottom: 120, background: following ? GRADIENT : colors.surface, color: following ? '#fff' : colors.textPrimary }}
-                    title={following ? 'Centralizando automaticamente' : 'Centralizar no meu local'}
-                >
-                    <LocateFixed size={20} />
-                </button>
             </div>
 
             {/* CARD — mesmo visual do /pedir-motorista */}
@@ -943,7 +948,35 @@ function AceitarCorridasMapaContent() {
                         )
                     ) : (
                     <>
-                    <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>{phaseTitle}</h2>
+                    {/* TUDO embaixo, no card: voltar, "Indo para: ..." e o botão de seguir o carro (nada flutua por cima do mapa) */}
+                    <div className="flex items-center gap-2.5 mb-2">
+                        <button
+                            onClick={() => router.push(backUrl)}
+                            aria-label="Voltar"
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:scale-95 transition"
+                            style={{ background: `${colors.border}45`, color: colors.textPrimary }}
+                        >
+                            <ArrowLeft size={18} />
+                        </button>
+                        <h2 className="flex-1 min-w-0 text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{phaseTitle}</h2>
+                        <button
+                            onClick={toggleFollow}
+                            aria-pressed={following}
+                            className="flex-shrink-0 h-10 px-3 rounded-full flex items-center gap-1.5 text-[12px] font-black active:scale-95 transition"
+                            style={following
+                                ? { background: '#22c55e22', color: '#16a34a', border: '1.5px solid #22c55e' }
+                                : { background: GRADIENT, color: '#fff', border: '1.5px solid transparent' }}
+                            title={following ? 'A câmera está seguindo o carro (toque para soltar)' : 'Voltar a seguir o carro'}
+                        >
+                            {following ? <Navigation size={14} fill="currentColor" /> : <LocateFixed size={14} />}
+                            {following ? 'Seguindo' : 'Recentralizar'}
+                        </button>
+                    </div>
+                    {simAvailable && (
+                        <div className="mb-2">
+                            <DevDriveChip on={simOn} speed={simSpeed} onChange={(o, v) => { setSimOn(o); setSimSpeed(v) }} />
+                        </div>
+                    )}
                     <div className="flex items-start gap-2 text-xs mb-2" style={{ color: colors.textSecondary }}>
                         <MapPin size={12} className="flex-shrink-0 mt-0.5" />
                         <span>{routeLine}</span>
