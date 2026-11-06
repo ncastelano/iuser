@@ -14,7 +14,7 @@ import { haversineKm } from '@/lib/mapboxRoute'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { NewRideAlertCard, type AlertOption } from '@/components/NewRideAlertCard'
 import { isAlertRedundant } from '@/lib/alertSuppression'
-import { loadDefaultMinHourly, loadEarningGoal, loadMinRideFare, loadRideMinimum, platformFloor, round2, timeFare } from '@/modules/negotiation'
+import { effectiveTimeRate, loadDefaultMinHourly, loadEarningGoal, loadMinRideFare, loadRideMinimum, platformFloor, round2, timeFare } from '@/modules/negotiation'
 
 const rideKindOf = (ride: { vehicle_type?: string | null }) => kindForRideType((ride.vehicle_type as VehicleType) || 'carro')
 
@@ -78,7 +78,7 @@ export function DriverRideAlertListener() {
                     const platformPrice = round2(Math.max(platTrip + (pickupKm != null ? computePickupFee(platShape, pickupKm) : 0), floor))
                     const customPrice = kmTrip != null ? round2(Math.max(kmTrip + (pickupKm != null && customShape ? computePickupFee(customShape, pickupKm) : 0), floor)) : null
                     const ownRate = timeRate != null && timeRate > 0 ? timeRate : null
-                    const rate = ownRate ?? (defaultHourly > 0 ? defaultHourly / 60 : null)
+                    const rate = effectiveTimeRate(ownRate, defaultHourly)
                     const timeBase = ride.offered_price == null ? timeFare(minutes, rate, timeExtras) : null
                     const timePrice = timeBase != null ? round2(Math.max(timeBase, floor)) : null
                     const passengerOffer = ride.offered_price == null && r.passenger_offer != null ? Number(r.passenger_offer) : null

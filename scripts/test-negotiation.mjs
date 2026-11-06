@@ -1,7 +1,7 @@
 // Testes das regras puras da negociação de corridas (src/modules/negotiation/domain.ts). Rodar: npm run test:negotiation
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText, rideValuation, valuationRank, fareParts, timeFare, DEFAULT_MIN_RIDE_FARE, setMinRideFare, rideGrade } from '../src/modules/negotiation/domain.ts'
+import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText, rideValuation, valuationRank, fareParts, timeFare, DEFAULT_MIN_RIDE_FARE, setMinRideFare, rideGrade, timeRateFloor, effectiveTimeRate } from '../src/modules/negotiation/domain.ts'
 
 test('valor válido: positivo e até R$ 100.000', () => {
     assert.equal(validateAmount(12.5), null)
@@ -197,4 +197,17 @@ test('como a corrida paga: valorizada, paga muito bem, boa, normal, abaixo do se
     assert.equal(rideGrade({ ...base, price: 30, fromPassenger: false }).grade, 'good')                    // sem oferta do passageiro nunca é "valorizada"
     assert.equal(rideGrade({ ...base, price: 20, minutes: null }).grade, 'normal')                         // sem minutos não dá para dizer quanto rende
     assert.equal(rideGrade({ ...base, price: 29 }).perHour, 58)
+})
+
+test('piso da tarifa por tempo: o ganho mínimo por hora do iUser ÷ 60, para cima; só muda para cima', () => {
+    assert.equal(timeRateFloor(40), 0.67)                    // R$ 40/h = R$ 0,6667/min → R$ 0,67
+    assert.equal(timeRateFloor(60), 1)
+    assert.equal(timeRateFloor(48), 0.8)
+    assert.equal(timeRateFloor(0), 0)
+    assert.equal(effectiveTimeRate(null, 40), 0.67)          // sem valor próprio: vale o piso (padrão do iUser)
+    assert.equal(effectiveTimeRate(0, 40), 0.67)
+    assert.equal(effectiveTimeRate(0.5, 40), 0.67)           // R$ 0,50 (= R$ 30/h) nunca vale: sobe ao piso
+    assert.equal(effectiveTimeRate(1.2, 40), 1.2)            // o do motorista, maior, vale
+    assert.equal(effectiveTimeRate(0.67, 60), 1)             // se o admin sobe o padrão, o valor antigo já não fica abaixo
+    assert.equal(effectiveTimeRate(null, 0), null)
 })

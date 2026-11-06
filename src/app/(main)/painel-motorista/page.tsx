@@ -30,6 +30,8 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useInsideShell } from '@/components/InsideShell'
 import DriverPanelHome from '@/components/v3/DriverPanelHome'
 import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
+import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
+import { timeRateFloor } from '@/modules/negotiation/domain'
 
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 const ORANGE_V3 = '#f97316'
@@ -580,7 +582,17 @@ function PainelMotoristaContent() {
         extra_fee_ar_condicionado: customTouched ? (parseFloat(extraFeeArCondicionado) || 0) : null,
     })
 
+    // "Minha tarifa por tempo": nunca menor que o ganho mínimo por hora do iUser ÷ 60 (R$ 40/h → R$ 0,67/min) e só muda para CIMA; vazio = vale o padrão
+    const defaultHourly = useDefaultMinHourly()
+    const timeFloor = timeRateFloor(defaultHourly)
+    const timeEntered = parseFloat(String(pricePerMinute).replace(',', '.')) || 0
+    const timeBelowFloor = pricingMode === 'custom' && timeEntered > 0 && timeEntered < timeFloor
     const handleSave = async () => {
+        if (timeBelowFloor) {
+            toast.error(`A tarifa por tempo não pode ser menor que R$ ${timeFloor.toFixed(2).replace('.', ',')} por minuto (R$ ${defaultHourly.toLocaleString('pt-BR')} por hora, o mínimo do iUser). Só dá para aumentar.`)
+            setActiveTab('plano')
+            return
+        }
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
             setShowLogin(true)
@@ -1120,19 +1132,24 @@ function PainelMotoristaContent() {
                                     <input
                                         type="number"
                                         inputMode="decimal"
-                                        min="0"
+                                        min={timeFloor}
                                         max="20"
-                                        step="0.05"
+                                        step="0.01"
                                         value={pricePerMinute}
                                         onChange={(e) => setPricePerMinute(e.target.value)}
-                                        placeholder="Ex.: 1,00 (vazio = não definida)"
+                                        placeholder={`Mínimo ${timeFloor.toFixed(2).replace('.', ',')} (vazio = o padrão do iUser)`}
                                         className={inputCls}
-                                        style={fieldStyle}
+                                        style={{ ...fieldStyle, ...(timeBelowFloor ? { border: '1.5px solid #ef4444' } : {}) }}
                                     />
+                                    <p className={`${v3 ? 'text-xs' : 'text-[11px]'} font-bold mt-1.5`} style={{ color: timeBelowFloor ? '#ef4444' : colors.textSecondary }}>
+                                        {timeBelowFloor
+                                            ? `Abaixo do mínimo: R$ ${timeEntered.toFixed(2).replace('.', ',')} por minuto = R$ ${Math.round(timeEntered * 60)} por hora. Use pelo menos R$ ${timeFloor.toFixed(2).replace('.', ',')} por minuto.`
+                                            : `Mínimo R$ ${timeFloor.toFixed(2).replace('.', ',')} por minuto (R$ ${defaultHourly.toLocaleString('pt-BR')} por hora, do iUser). Só dá para aumentar.`}
+                                    </p>
                                     <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-1.5`} style={{ color: colors.textSecondary }}>
                                         Cobra os minutos de trabalho (ir buscar + a corrida). É o seu 3º valor, ao lado da Tarifa iUser e da tarifa por km: em cada corrida você escolhe qual propor. O mínimo do iUser por minuto e o seu ganho mínimo por hora (abaixo) também valem para ele.
                                     </p>
-                                    {(parseFloat(pricePerMinute) || 0) > 0 && (
+                                    {(parseFloat(pricePerMinute) || 0) > 0 && !timeBelowFloor && (
                                         <p className={`${v3 ? 'text-xs' : 'text-[11px]'} font-bold mt-1`} style={{ color: '#16a34a' }}>
                                             Ex.: uma corrida de 20 min de trabalho = R$ {(20 * (parseFloat(pricePerMinute) || 0)).toFixed(2).replace('.', ',')} (R$ {Math.round(60 * (parseFloat(pricePerMinute) || 0))} por hora)
                                         </p>

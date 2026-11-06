@@ -44,7 +44,8 @@ export default function DriverEarningGoalCard({ driverId }: { driverId: string |
         if (trimmed) {
             minHourly = parseMoney(trimmed)
             const err = validateAmount(minHourly)
-            if (err || (minHourly != null && (minHourly < 1 || minHourly > 1000))) { toast.error('Digite um valor por hora entre R$ 1 e R$ 1.000'); return }
+            if (err || (minHourly != null && minHourly > 1000)) { toast.error(`Digite um valor por hora entre R$ ${defaultHourly.toLocaleString('pt-BR')} e R$ 1.000`); return }
+            if (minHourly != null && minHourly < defaultHourly) { toast.error(`O ganho mínimo não pode ser menor que R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o padrão do iUser): só dá para aumentar.`); return }
         }
         setSaving(true)
         try {
@@ -73,8 +74,8 @@ export default function DriverEarningGoalCard({ driverId }: { driverId: string |
                 <>
                     <p className="text-[12px] leading-snug rounded-xl px-3 py-2" style={{ background: usingDefault ? '#f973161a' : `${colors.border}30`, color: colors.textPrimary }}>
                         {usingDefault
-                            ? <>Hoje vale o <strong>padrão do iUser: R$ {defaultHourly.toLocaleString('pt-BR')} por hora</strong>. Escreva outro valor para usar o seu.</>
-                            : <>Vale o <strong>seu</strong> valor. Apague e salve para voltar ao padrão do iUser (R$ {defaultHourly.toLocaleString('pt-BR')}/h).</>}
+                            ? <>Hoje vale o <strong>padrão do iUser: R$ {defaultHourly.toLocaleString('pt-BR')} por hora</strong>. Você pode <strong>aumentar</strong> (nunca ficar abaixo): escreva o seu valor.</>
+                            : <>Vale o <strong>seu</strong> valor. Só dá para aumentar: o mínimo é o padrão do iUser (R$ {defaultHourly.toLocaleString('pt-BR')}/h). Apague e salve para voltar a ele.</>}
                     </p>
                     <label className="block">
                         <span className="block text-[11px] font-bold mb-1" style={{ color: colors.textSecondary }}>Quanto você quer ganhar, no mínimo, por hora de trabalho? (R$)</span>

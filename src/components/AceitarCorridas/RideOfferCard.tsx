@@ -15,7 +15,7 @@ import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
-import { timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
+import { effectiveTimeRate, timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 
@@ -173,8 +173,9 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     // Sem valor por minuto próprio, vale o ganho mínimo por hora PADRÃO do iUser (R$ 40/h = R$ 0,67 por minuto): o "Por tempo" sempre tem número
     const defaultHourly = useDefaultMinHourly()
     const ownTimeRate = timeRate != null && timeRate > 0 ? timeRate : null
-    const rateUsed = ownTimeRate ?? (defaultHourly > 0 ? Math.round((defaultHourly / 60) * 10000) / 10000 : null)
-    const timeIsDefault = ownTimeRate == null && rateUsed != null
+    // o valor por minuto nunca fica abaixo do piso (R$ 40/h ÷ 60 = R$ 0,67); sem valor próprio vale o próprio piso (o padrão do iUser)
+    const rateUsed = effectiveTimeRate(ownTimeRate, defaultHourly)
+    const timeIsDefault = ownTimeRate == null && rateUsed != null   // sem valor próprio: é o padrão do iUser
     const timeBase = ride.order_id || ride.offered_price != null ? null : timeFare(minutesTotal, rateUsed, timeExtras)
     const myTime = timeBase != null ? raise(suggestedFare(timeBase, floor)) : null
     const timeFloorRaised = timeBase != null && myTime != null && myTime > round2(timeBase)

@@ -58,6 +58,15 @@ export function suggestedFare(distanceFare: number, floor: number | null): numbe
 /** Padrão: R$ 40 por hora de trabalho (ir buscar + corrida), para quem não definiu o próprio. O valor de verdade mora no banco (Admin → Tarifas); cada motorista pode mudar o dele. */
 export const DEFAULT_MIN_HOURLY = 40
 
+/** O MENOR valor por minuto que o motorista pode pôr na "Minha tarifa por tempo": o ganho mínimo por hora do iUser ÷ 60, arredondado PARA CIMA em centavos (R$ 40/h → R$ 0,67). Só dá para mudar para cima. */
+export const timeRateFloor = (hourly: number): number => (hourly > 0 ? Math.ceil((hourly / 60) * 100 - 1e-9) / 100 : 0)
+/** O valor por minuto que VALE: o próprio do motorista, mas nunca abaixo do piso (se o admin subir o padrão, o valor antigo já não fica abaixo dele) */
+export const effectiveTimeRate = (own: number | null | undefined, hourly: number): number | null => {
+    const floor = timeRateFloor(hourly)
+    const o = own != null && own > 0 ? own : null
+    return o != null ? Math.max(o, floor) : floor > 0 ? floor : null
+}
+
 // ===== VALOR MÍNIMO DA PLATAFORMA (por minuto de trabalho) =====
 /** Padrão: R$ 0,80 por minuto (= R$ 48 por hora). O valor de verdade mora no banco (Admin → Tarifas); este só vale até ele carregar. */
 export const DEFAULT_MIN_PER_MINUTE = 0.8
