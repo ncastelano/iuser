@@ -12,6 +12,7 @@ import { computeRideTariffs, type RideTariffSource } from '@/lib/rideTariffs'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { NewRideAlertCard } from '@/components/NewRideAlertCard'
 import { isAlertRedundant } from '@/lib/alertSuppression'
+import { loadDefaultMinHourly, loadRideMinimum, platformFloor, round2, timeFare } from '@/modules/negotiation'
 
 // Global, montado em providers.tsx: com o modo motorista ligado, toca o som e
 // avisa (toast com atalho) quando um pedido de corrida novo entra, em QUALQUER
@@ -36,6 +37,7 @@ export function DriverRideAlertListener() {
             ])
             if (cancelled || !pricing?.driver_mode_active) return
             await loadPlatformTariffs(supabase)
+            const [minPerMinute, defaultHourly] = await Promise.all([loadRideMinimum(), loadDefaultMinHourly()])
 
             // Só avisa de corridas que o veículo cadastrado do motorista atende —
             // sem isso, um motorista de moto/bicicleta era avisado de toda corrida
@@ -57,7 +59,13 @@ export function DriverRideAlertListener() {
                     const description = ride.origin_address ? `${short(ride.origin_address)} → ${short(ride.destination_address)}` : undefined
                     // Card na própria notificação com Tarifa iUser / Minha tarifa /
                     // editar, pra o motorista já se candidatar sem abrir a página.
-                    const { platformPrice, customPrice, preferredPrice } = computeRideTariffs(ride, pricing)
+                    const { platformPrice, customPrice, preferredPrice, timeRate, timeExtras } = computeRideTariffs(ride, pricing)
+                    // "Por tempo": a duração da corrida × o valor por minuto do motorista (ou o padrão do iUser, ganho mínimo por hora ÷ 60), sem baixar do mínimo da plataforma.
+                    // Só a corrida (o deslocamento até a partida depende da posição do motorista e não existe aqui), igual à Tarifa iUser do aviso.
+                    const minutes = Number((ride as { duration_min?: number | null }).duration_min)
+                    const rate = timeRate != null && timeRate > 0 ? timeRate : defaultHourly > 0 ? defaultHourly / 60 : null
+                    const timeBase = ride.offered_price == null ? timeFare(minutes, rate, timeExtras) : null
+                    const timePrice = timeBase != null ? round2(Math.max(timeBase, platformFloor(minutes, minPerMinute))) : null
                     toast.custom((toastId) => (
                         <NewRideAlertCard
                             rideId={ride.id}
@@ -65,6 +73,8 @@ export function DriverRideAlertListener() {
                             destinationAddress={ride.destination_address}
                             platformPrice={platformPrice}
                             customPrice={customPrice}
+                            timePrice={timePrice}
+                            timeIsDefault={!(timeRate != null && timeRate > 0)}
                             offeredPrice={ride.offered_price != null ? Number(ride.offered_price) : null}
                             onClose={() => toast.dismiss(toastId)}
                             onOpenMap={() => { toast.dismiss(toastId); router.push(`/aceitar-corridas/mapa?ride=${ride.id}`) }}

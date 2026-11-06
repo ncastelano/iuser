@@ -16,6 +16,7 @@ import { Spinner } from '@/components/Spinner'
 import { submitRideApplication } from '@/lib/rideApplication'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const TIME_GRADIENT = 'linear-gradient(135deg, #8b5cf6, #6d28d9)'
 
 interface NewRideAlertCardProps {
     rideId: string
@@ -23,6 +24,9 @@ interface NewRideAlertCardProps {
     destinationAddress?: string
     platformPrice: number
     customPrice: number | null
+    /** o "Por tempo" (duração × valor por minuto, padrão do iUser se o motorista não definiu o dele); null = sem duração para calcular */
+    timePrice?: number | null
+    timeIsDefault?: boolean
     offeredPrice: number | null
     onClose: () => void
     onOpenMap: () => void
@@ -35,6 +39,8 @@ export function NewRideAlertCard({
     destinationAddress,
     platformPrice,
     customPrice,
+    timePrice = null,
+    timeIsDefault = false,
     offeredPrice,
     onClose,
     onOpenMap,
@@ -122,17 +128,29 @@ export function NewRideAlertCard({
                             <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Tarifa iUser</p>
                             <p className="text-sm font-black">R$ {platformPrice.toFixed(2)}</p>
                         </button>
-                        <button
-                            onClick={() => customPrice != null && apply(customPrice)}
-                            disabled={sending || customPrice == null}
-                            className="flex-1 rounded-xl px-2.5 py-2 text-left active:scale-95 transition-all disabled:opacity-70"
-                            style={customPrice != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: `1px dashed ${colors.border}` }}
-                        >
-                            <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: customPrice != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>Minha tarifa</p>
-                            <p className="text-sm font-black" style={{ color: customPrice != null ? '#fff' : colors.textSecondary }}>
-                                {customPrice != null ? `R$ ${customPrice.toFixed(2)}` : 'não definida'}
-                            </p>
-                        </button>
+                        {/* Só as tarifas que o motorista TEM: a própria por km (se definiu) e a por tempo (a dele ou o padrão do iUser); nada de caixa "não definida" */}
+                        {customPrice != null && (
+                            <button
+                                onClick={() => apply(customPrice)}
+                                disabled={sending}
+                                className="flex-1 rounded-xl px-2.5 py-2 text-left active:scale-95 transition-all disabled:opacity-70"
+                                style={{ background: GRADIENT, color: '#fff' }}
+                            >
+                                <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.85)' }}>Por km</p>
+                                <p className="text-sm font-black" style={{ color: '#fff' }}>R$ {customPrice.toFixed(2)}</p>
+                            </button>
+                        )}
+                        {timePrice != null && (
+                            <button
+                                onClick={() => apply(timePrice)}
+                                disabled={sending}
+                                className="flex-1 rounded-xl px-2.5 py-2 text-left active:scale-95 transition-all disabled:opacity-70"
+                                style={{ background: TIME_GRADIENT, color: '#fff' }}
+                            >
+                                <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.85)' }}>Por tempo{timeIsDefault ? ' · padrão' : ''}</p>
+                                <p className="text-sm font-black" style={{ color: '#fff' }}>R$ {timePrice.toFixed(2)}</p>
+                            </button>
+                        )}
                         <button
                             onClick={() => {
                                 if (editing) { setEditing(false); setValue('') }
