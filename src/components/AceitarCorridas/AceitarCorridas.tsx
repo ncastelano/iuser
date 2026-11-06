@@ -6,7 +6,7 @@
 // com a aba controlada pelo painel).
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, useCallback, useRef, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition } from '@/lib/nativeGeolocation'
@@ -1078,6 +1078,54 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         setSkippedIds((prev) => new Set(prev).add(rideId))
     }
 
+    // ===== CARD ABERTO NÃO SE MEXE =====
+    // Com o "Detalhes" de um card aberto, a lista não reordena (as corridas valorizadas sobem quando chegam os dados da rota) e o card
+    // não sai do lugar na tela quando algo aparece ou some acima dele. Só deixa de existir se a corrida de fato sumiu.
+    const lastOrderRef = useRef<string[]>([])
+    const frozenOrderRef = useRef<string[] | null>(null)
+    const orderCards = (list: { id: string; rank: number; node: ReactNode }[]): ReactNode[] => {
+        const byRank = [...list].sort((a, b) => b.rank - a.rank)
+        let ordered = byRank
+        if (expandedRideId) {
+            // trava a ordem que a pessoa estava vendo quando abriu; corrida nova entra no FIM, a que sumiu sai
+            if (!frozenOrderRef.current) frozenOrderRef.current = lastOrderRef.current
+            const frozen = frozenOrderRef.current
+            const byId = new Map(list.map((c) => [c.id, c]))
+            const kept = frozen.map((id) => byId.get(id)).filter((c): c is { id: string; rank: number; node: ReactNode } => !!c)
+            const fresh = byRank.filter((c) => !frozen.includes(c.id))
+            ordered = [...kept, ...fresh]
+            frozenOrderRef.current = ordered.map((c) => c.id)
+        } else {
+            frozenOrderRef.current = null
+        }
+        lastOrderRef.current = ordered.map((c) => c.id)
+        return ordered.map((c) => c.node)
+    }
+
+    // Mantém o card aberto no mesmo ponto da tela mesmo que algo acima dele mude de altura ou apareça/suma
+    const anchorRef = useRef<{ id: string; top: number } | null>(null)
+    const lastScrollAtRef = useRef(0)
+    useEffect(() => {
+        const onScroll = () => {
+            lastScrollAtRef.current = Date.now()
+            const id = expandedRideId
+            const el = id ? document.getElementById(`ride-card-${id}`) : null
+            if (id && el) anchorRef.current = { id, top: el.getBoundingClientRect().top }
+        }
+        window.addEventListener('scroll', onScroll, { passive: true })
+        return () => window.removeEventListener('scroll', onScroll)
+    }, [expandedRideId])
+    useLayoutEffect(() => {
+        if (!expandedRideId) { anchorRef.current = null; return }
+        const el = document.getElementById(`ride-card-${expandedRideId}`)
+        if (!el) return
+        const top = el.getBoundingClientRect().top
+        const a = anchorRef.current
+        const scrollingNow = Date.now() - lastScrollAtRef.current < 200
+        if (a && a.id === expandedRideId && !scrollingNow && Math.abs(top - a.top) > 0.5) window.scrollBy(0, top - a.top)
+        else anchorRef.current = { id: expandedRideId, top }
+    })
+
     const handleLocationSave = async (location: {
         lat: number
         lng: number
@@ -1490,8 +1538,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     ))}
 
                     {!loading && !showLogin && activeTab === 'servicos' && visibleRides.length > 0 && (
-                        <div className="flex flex-col gap-3">
-                            {visibleRides.map((ride) => {
+                        // overflow-anchor: o ajuste da rolagem do card aberto é nosso (layout effect acima); a correção automática do navegador somaria em dobro
+                        <div className="flex flex-col gap-3" style={{ overflowAnchor: 'none' }}>
+                            {orderCards(visibleRides.map((ride) => {
                                 const info = routeInfoById[ride.id]
                                 // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km do veículo)
                                 const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
@@ -1579,6 +1628,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 )
 
                                 return {
+                                    id: ride.id,
                                     rank: valuationRank(valuation.tier),
                                     node: (
                                         <div
@@ -1624,7 +1674,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         </div>
                                     ),
                                 }
-                            }).sort((a, b) => b.rank - a.rank).map((c) => c.node)}
+                            }))}
+                            {/* folga no fim enquanto há um card aberto: se uma corrida acima dele sumir, a página ainda tem por onde rolar e o card fica parado */}
+                            {expandedRideId && <div aria-hidden style={{ height: '70vh' }} />}
                         </div>
                     )}
 
