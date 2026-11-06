@@ -1,6 +1,7 @@
 // versions/shared/screens/RideTrackingPanel.tsx (painel de acompanhamento do /pedir-motorista)
 'use client'
 
+import { RideWaitBox } from '@/components/ride/RideWaitBox'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { supabase } from '@/lib/supabase/client'
@@ -869,6 +870,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         + Tarefa extra do motorista ({ride.extra_task_minutes} min{ride.extra_task_description ? ` — ${ride.extra_task_description}` : ''}): <strong>R$ {ride.extra_task_fee.toFixed(2)}</strong>
                     </span>
                 </div>
+            )}
+
+            {/* Tempo de espera (embarque, parada, desembarque): o passageiro pede, o motorista aprova e o relógio anda para os dois */}
+            {ride.status === 'accepted' && driver && (
+                <RideWaitBox rideId={ride.id} role="passenger" rideStarted={!!ride.ride_started_at} rideActive />
             )}
 
             {/* Chat com o motorista, enquanto a corrida está aceita */}

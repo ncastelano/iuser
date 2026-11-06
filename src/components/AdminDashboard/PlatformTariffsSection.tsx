@@ -10,6 +10,7 @@ import { Car, Bike, Motorbike, Route, Save } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { callAdminApi } from '@/lib/callAdminApi'
+import RideWaitSettingsCard from './RideWaitSettingsCard'
 import { Spinner } from '@/components/Spinner'
 import type { ThemeColors } from '@/app/contexts/theme'
 import { PLATFORM_TARIFF_COLUMNS, loadPlatformTariffs, type PlatformTariffRow } from '@/lib/platformTariffs'
@@ -215,6 +216,8 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
                     </button>
                 </div>
             </div>
+
+            <RideWaitSettingsCard cardStyle={cardStyle} colors={colors} inputStyle={inputStyle} />
 
             <div className="flex gap-2">
                 {VEHICLES.map(({ kind, label, icon: Icon }) => (

@@ -65,3 +65,10 @@ test('pedido digital: a loja é avisada para liberar o acesso e o cliente quando
   assert.equal(ok?.level, 'success'); assert.equal(ok?.path, '/minhas-compras-digitais/p1'); assert.equal(ok?.actionLabel, 'Começar')
   assert.equal(islandEventFor({ kind: 'digital_order_new', meta: {} }), null)
 })
+
+test('espera na corrida: o pedido chega ao motorista com tempo para aprovar; os demais avisos aparecem na ilha', () => {
+  const e = islandEventFor({ kind: 'ride_wait_requested', meta: { title: 'Pedido de tempo de espera', text: 'Ana pediu para você esperar numa parada.', path: '/aceitar-corridas/mapa?ride=r1' } })
+  assert.equal(e?.level, 'message'); assert.equal(e?.actionLabel, 'Responder'); assert.ok(e && e.duration >= 15000); assert.match(e.path, /aceitar-corridas\/mapa/)
+  for (const k of ['ride_wait_started', 'ride_wait_declined', 'ride_wait_ended']) assert.ok(islandEventFor({ kind: k, meta: { title: 't', text: 'x', path: '/pedir-motorista' } }), k)
+  assert.equal(islandEventFor({ kind: 'ride_wait_requested', meta: {} }), null)
+})

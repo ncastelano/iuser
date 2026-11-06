@@ -18,6 +18,7 @@
 // e tampar o mapa.
 'use client'
 
+import { RideWaitBox } from '@/components/ride/RideWaitBox'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
@@ -933,6 +934,8 @@ function AceitarCorridasMapaContent() {
                                         {finishing ? <Spinner size={16} /> : <><Flag size={16} /> Cheguei ao destino</>}
                                     </button>
                                 )}
+
+                                <RideWaitBox rideId={acceptedRide.id} role="driver" rideStarted={!!acceptedRide.ride_started_at} rideActive />
 
                                 <div className="flex items-center gap-2">
                                     <button onClick={toggleChat} className={secondaryBtn} style={secondaryStyle}>

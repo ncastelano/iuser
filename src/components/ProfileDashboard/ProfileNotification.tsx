@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Bell, Heart, MessageCircle, UserPlus, Eye, Link2, PartyPopper, CornerDownRight, CheckCheck, User,
-    Briefcase, CheckCircle2, Star, Car, ShoppingBag, Bike, KeyRound, PackageCheck, CalendarDays, CalendarCheck, CalendarX, CalendarClock, Users, GraduationCap,
+    Briefcase, Clock, CheckCircle2, Star, Car, ShoppingBag, Bike, KeyRound, PackageCheck, CalendarDays, CalendarCheck, CalendarX, CalendarClock, Users, GraduationCap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -51,7 +51,7 @@ const FILTERS: { id: Filter; label: string; kinds: string[] | null }[] = [
     { id: 'visits', label: 'Visitas', kinds: ['profile_view', 'link_visit'] },
     { id: 'orders', label: 'Pedidos e entregas', kinds: ['order_new', 'digital_order_new', 'digital_access_released', 'order_accepted', 'order_ready', 'order_rejected', 'order_delivered', 'delivery_driver_assigned', 'delivery_driver_accepted', 'delivery_driver_arrived', 'delivery_picked_up', 'delivery_at_door', 'delivery_message', 'delivery_issue', 'delivery_order_ready', 'delivery_completed', 'delivery_done', 'delivery_driver_cancelled', 'delivery_cancelled', 'favorite_invite', 'favorite_accepted', 'favorite_declined', 'dues_update', 'dispute_update', 'moderation_update'] },
     { id: 'agenda', label: 'Agenda', kinds: ['appointment_new', 'appointment_confirmed', 'appointment_cancelled', 'appointment_changed'] },
-    { id: 'services', label: 'Serviços', kinds: ['service_application', 'service_selected', 'service_completed', 'service_review', 'ride_application', 'ride_selected', 'ride_review', 'customer_review', 'ride_offer_new', 'ride_offer_declined', 'ride_offer_agreed', 'ride_offer_expired'] },
+    { id: 'services', label: 'Serviços', kinds: ['service_application', 'service_selected', 'service_completed', 'service_review', 'ride_application', 'ride_selected', 'ride_review', 'customer_review', 'ride_offer_new', 'ride_offer_declined', 'ride_offer_agreed', 'ride_offer_expired', 'ride_wait_requested', 'ride_wait_started', 'ride_wait_declined', 'ride_wait_ended'] },
 ]
 
 const KIND_ICON: Record<string, { icon: typeof Bell; color: string }> = {
@@ -99,6 +99,10 @@ const KIND_ICON: Record<string, { icon: typeof Bell; color: string }> = {
     ride_offer_declined: { icon: CalendarX, color: '#ef4444' },
     ride_offer_agreed: { icon: CheckCircle2, color: '#22c55e' },
     ride_offer_expired: { icon: CalendarX, color: '#94a3b8' },
+    ride_wait_requested: { icon: Clock, color: '#f97316' },
+    ride_wait_started: { icon: Clock, color: '#3b82f6' },
+    ride_wait_declined: { icon: CalendarX, color: '#ef4444' },
+    ride_wait_ended: { icon: CheckCircle2, color: '#22c55e' },
     delivery_order_ready: { icon: PackageCheck, color: '#a855f7' },
     delivery_completed: { icon: CheckCircle2, color: '#22c55e' },
     delivery_done: { icon: CheckCircle2, color: '#3b82f6' },
@@ -205,7 +209,7 @@ export default function ProfileNotification({ userId }: { userId: string }) {
     }
 
     const hrefOf = (n: Notif): string | null => {
-        if ((n.kind.startsWith('order_') || n.kind.startsWith('delivery_') || n.kind.startsWith('ride_offer_')) && n.meta?.path) return n.meta.path
+        if ((n.kind.startsWith('order_') || n.kind.startsWith('delivery_') || n.kind.startsWith('ride_offer_') || n.kind.startsWith('ride_wait_')) && n.meta?.path) return n.meta.path
         if (n.meta?.owner_slug && n.meta?.slug && ['publication_like', 'service_like', 'product_like', 'publication_comment', 'comment_like', 'comment_reply'].includes(n.kind)) {
             return `/${n.meta.owner_slug}/${n.meta.slug}`
         }

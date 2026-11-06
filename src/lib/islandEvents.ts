@@ -46,6 +46,11 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     ride_offer_declined: { level: 'info', icon: '🙅', label: 'Ver', duration: 7000 },
     ride_offer_agreed: { level: 'success', icon: '✅', label: 'Ver', duration: 9000 },
     ride_offer_expired: { level: 'info', icon: '⏳', label: 'Ver', duration: 6500 },   // conteúdo seu foi ocultado ou restaurado pelo iUser
+    // espera na corrida: o passageiro pede (o motorista aprova), o relógio começa para os dois e quem encerra avisa o outro
+    ride_wait_requested: { level: 'message', icon: '⏱️', label: 'Responder', duration: 25000 },
+    ride_wait_started: { level: 'info', icon: '⏱️', label: 'Ver', duration: 8000 },
+    ride_wait_declined: { level: 'info', icon: '🙅', label: 'Ver', duration: 7000 },
+    ride_wait_ended: { level: 'success', icon: '🏁', label: 'Ver', duration: 9000 },
 }
 
 export function islandEventFor(n: RawNotification): IslandEvent | null {

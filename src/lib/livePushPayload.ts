@@ -24,6 +24,10 @@ export const LIVE_PUSH_KINDS: Record<string, { urgent: boolean }> = {
     ride_offer_declined: { urgent: false },
     ride_offer_agreed: { urgent: true },          // o motorista aceitou o valor: corrida confirmada
     ride_offer_expired: { urgent: false },
+    ride_wait_requested: { urgent: true },        // o passageiro pede tempo de espera: o motorista aprova para começar a contar
+    ride_wait_started: { urgent: false },
+    ride_wait_declined: { urgent: false },
+    ride_wait_ended: { urgent: false },
 }
 
 export interface LivePushRow { id: string; kind: string; meta?: Record<string, any> | null }
