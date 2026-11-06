@@ -13,6 +13,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { handleShareLink } from '@/lib/share'
 import { Spinner } from '@/components/Spinner'
 import RentalCardView from '@/components/rentals/RentalCardView'
+import Outdoor from '@/components/outdoor/Outdoor'
 import { EMPTY_FILTERS, PROPERTY_TYPES, filterListings, shareText, type PropertyType, type RentalFilters } from '@/modules/rentals/domain'
 import { loadRentalListings, type RentalCard } from '@/modules/rentals/load'
 
@@ -38,6 +39,8 @@ export default function ImoveisScreen() {
 
     return (
         <div className="pb-28">
+            {/* Outdoor de imóveis: os mais bem pontuados, em cima da busca */}
+            <Outdoor kind="imoveis" className="mb-3" />
             <div className="flex items-center gap-2">
                 <button onClick={() => (window.history.length > 1 ? router.back() : router.push('/'))} aria-label="Voltar" className="flex-shrink-0 rounded-full flex items-center justify-center transition active:scale-95" style={{ width: 46, height: 46, background: soft, color: colors.textPrimary }}>
                     <ArrowLeft size={20} />

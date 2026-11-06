@@ -23,6 +23,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { Spinner } from '@/components/Spinner'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { toast } from '@/lib/toast'
 
 /* ============= HELPERS ============= */
 function toMinutes(timeStr: string): number { const [h, m] = timeStr.split(':').map(Number); return h * 60 + m }
@@ -215,7 +216,7 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
         try {
             const { data: session } = await supabase.auth.getSession()
             const uid = session.session?.user?.id
-            if (!uid) { alert('Você precisa estar logado.'); setSubmitting(false); return }
+            if (!uid) { toast.error('Você precisa estar logado.'); setSubmitting(false); return }
             const dateStr = selectedDate.toISOString().split('T')[0]
             const note = appointmentNote.trim() || 'Convite'
             const { data: myProfile } = await supabase.from('profiles').select('profileSlug, avatar_url').eq('id', uid).single()
@@ -260,7 +261,7 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                 is_public: isPublic,
             }
             const { error } = await supabase.from('appointments').insert([myAppointment, inviteAppointment])
-            if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
+            if (error) { toast.error(`Erro: ${error.message}`); setSubmitting(false); return }
 
             supabase.auth.getSession().then(({ data: { session } }) => {
                 if (!session) return
@@ -277,7 +278,7 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
             await refetch()
             onBack()
         } catch (err: any) {
-            alert(`Erro ao agendar: ${err?.message || err}`)
+            toast.error(`Erro ao agendar: ${err?.message || err}`)
             setSubmitting(false)
         }
     }

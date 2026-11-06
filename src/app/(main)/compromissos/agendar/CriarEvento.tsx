@@ -23,6 +23,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { Spinner } from '@/components/Spinner'
+import { toast } from '@/lib/toast'
 
 /* ============= HELPERS ============= */
 const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -90,14 +91,14 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
     }
 
     async function handleConfirm() {
-        if (!eventTitle.trim()) { alert('Por favor, digite o título do evento.'); return }
-        if (!selectedDate) { alert('Por favor, selecione uma data.'); return }
-        if (!selectedTime) { alert('Por favor, selecione um horário.'); return }
+        if (!eventTitle.trim()) { toast.info('Por favor, digite o título do evento.'); return }
+        if (!selectedDate) { toast.info('Por favor, selecione uma data.'); return }
+        if (!selectedTime) { toast.info('Por favor, selecione um horário.'); return }
 
         setSubmitting(true)
         const { data: session } = await supabase.auth.getSession()
         const uid = session.session?.user?.id
-        if (!uid) { alert('Você precisa estar logado.'); setSubmitting(false); return }
+        if (!uid) { toast.error('Você precisa estar logado.'); setSubmitting(false); return }
         const dateStr = selectedDate.toISOString().split('T')[0]
         const title = eventTitle.trim()
 
@@ -112,7 +113,7 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                 .select('owner_id, storeSlug, name, logo_url')
                 .eq('id', storeId)
                 .single()
-            if (!store) { alert('Loja não encontrada.'); setSubmitting(false); return }
+            if (!store) { toast.error('Loja não encontrada.'); setSubmitting(false); return }
 
             const storeEvent = {
                 store_id: storeId,
@@ -136,7 +137,7 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                 is_public: isPublic,
             }
             const { error } = await supabase.from('appointments').insert(storeEvent)
-            if (error) { alert(`Erro ao criar evento: ${error.message}`); setSubmitting(false); return }
+            if (error) { toast.error(`Erro ao criar evento: ${error.message}`); setSubmitting(false); return }
         } else {
             // Evento de perfil
             const personalEvent = {
@@ -157,7 +158,7 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                 is_public: isPublic,
             }
             const { error } = await supabase.from('appointments').insert(personalEvent)
-            if (error) { alert(`Erro ao criar evento: ${error.message}`); setSubmitting(false); return }
+            if (error) { toast.error(`Erro ao criar evento: ${error.message}`); setSubmitting(false); return }
         }
 
         await refetch()
@@ -369,8 +370,8 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                             {/* BOTAO AVANÇAR */}
                             <button
                                 onClick={() => {
-                                    if (!eventTitle.trim()) { alert('Por favor, digite o título do evento.'); return }
-                                    if (!selectedDate) { alert('Por favor, selecione uma data.'); return }
+                                    if (!eventTitle.trim()) { toast.info('Por favor, digite o título do evento.'); return }
+                                    if (!selectedDate) { toast.info('Por favor, selecione uma data.'); return }
                                     setStep('confirm')
                                 }}
                                 className="w-full rounded-full font-black uppercase text-sm tracking-wider py-4 flex items-center justify-center gap-2 cursor-pointer transition hover:scale-105 active:scale-95 border-none"

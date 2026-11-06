@@ -7,14 +7,16 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Car, Bike, Motorbike, Route, Save } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { callAdminApi } from '@/lib/callAdminApi'
+import RideWaitSettingsCard from './RideWaitSettingsCard'
 import { Spinner } from '@/components/Spinner'
 import type { ThemeColors } from '@/app/contexts/theme'
 import { PLATFORM_TARIFF_COLUMNS, loadPlatformTariffs, type PlatformTariffRow } from '@/lib/platformTariffs'
 import { computeHourlyEarnings, explainSuggestedPrice, type DriverPricing } from '@/lib/driverPricing'
 import type { VehicleKind } from '@/lib/rideVehicle'
+import { capProblem, getMinRideFare, loadMinRideFare, forgetDefaultMinHourly, forgetRideMinimum, loadDefaultMinHourly, loadRideMinimum, loadRideMinimumCap, minPerMinuteProblem } from '@/modules/negotiation'
 
 const VEHICLES: { kind: VehicleKind; label: string; icon: typeof Car }[] = [
     { kind: 'carro', label: 'Carro', icon: Car },
@@ -56,6 +58,82 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
     const [forms, setForms] = useState<Partial<Record<VehicleKind, Form>>>({})
     const [saving, setSaving] = useState(false)
     const [missingTable, setMissingTable] = useState(false)
+    // Valor mínimo por minuto de trabalho (ir buscar + corrida): o piso de TODA corrida de passageiro
+    const [minPerMinute, setMinPerMinute] = useState('')
+    const [savedMin, setSavedMin] = useState<number | null>(null)
+    const [savingMin, setSavingMin] = useState(false)
+    // Teto do mínimo (padrão R$ 1,00 por minuto): só o admin geral eleva
+    const [cap, setCap] = useState<number | null>(null)
+    const [capInput, setCapInput] = useState('')
+    const [savingCap, setSavingCap] = useState(false)
+    // Valor mínimo de UMA corrida (R$ 8,00): nenhuma corrida de passageiro fecha por menos
+    const [minFare, setMinFare] = useState('')
+    const [savedMinFare, setSavedMinFare] = useState<number | null>(null)
+    const [savingMinFare, setSavingMinFare] = useState(false)
+    useEffect(() => { void loadMinRideFare(true).then((v) => { setSavedMinFare(v); setMinFare(String(v).replace('.', ',')) }) }, [])
+    const saveMinFare = async () => {
+        const v = num(minFare)
+        if (!(v >= 0 && v <= 200)) { toast.error('Use um valor entre R$ 0 e R$ 200'); return }
+        setSavingMinFare(true)
+        try {
+            await callAdminApi('/api/admin/ride-minimum', { fare: v })
+            await loadMinRideFare(true)
+            setSavedMinFare(getMinRideFare())
+            toast.success(`Valor mínimo da corrida: ${brl(v)}`)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar o valor mínimo da corrida')
+        } finally { setSavingMinFare(false) }
+    }
+    // Ganho mínimo por HORA padrão do iUser: vale para o motorista que não definiu o dele (ele pode mudar em Tarifa → Meu ganho mínimo por hora)
+    const [defHourly, setDefHourly] = useState('')
+    const [savedDefHourly, setSavedDefHourly] = useState<number | null>(null)
+    const [savingDefHourly, setSavingDefHourly] = useState(false)
+    useEffect(() => { void loadDefaultMinHourly().then((v) => { setSavedDefHourly(v); setDefHourly(String(v).replace('.', ',')) }) }, [])
+    const saveDefHourly = async () => {
+        const v = num(defHourly)
+        if (!(v >= 1 && v <= 1000)) { toast.error('Use um valor entre R$ 1 e R$ 1.000 por hora'); return }
+        setSavingDefHourly(true)
+        try {
+            await callAdminApi('/api/admin/ride-minimum', { hourly: v })
+            forgetDefaultMinHourly()
+            setSavedDefHourly(v)
+            toast.success(`Ganho mínimo padrão: R$ ${v.toLocaleString('pt-BR')} por hora`)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar o ganho mínimo padrão')
+        } finally { setSavingDefHourly(false) }
+    }
+    useEffect(() => {
+        void loadRideMinimum().then((v) => { setSavedMin(v); setMinPerMinute(String(v).replace('.', ',')) })
+        void loadRideMinimumCap().then((v) => { setCap(v); setCapInput(String(v).replace('.', ',')) })
+    }, [])
+    const saveMin = async () => {
+        const v = num(minPerMinute)
+        const problem = minPerMinuteProblem(v, cap ?? undefined)
+        if (problem) { toast.error(problem); return }
+        setSavingMin(true)
+        try {
+            await callAdminApi('/api/admin/ride-minimum', { value: v })
+            forgetRideMinimum()
+            setSavedMin(v)
+            toast.success(v > 0 ? `Mínimo por minuto: ${brl(v)} (≈ R$ ${(v * 60).toFixed(0)} por hora)` : 'Mínimo por minuto desligado')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar o mínimo')
+        } finally { setSavingMin(false) }
+    }
+    const saveCap = async () => {
+        const v = num(capInput)
+        const problem = capProblem(v, savedMin ?? 0)
+        if (problem) { toast.error(problem); return }
+        if (v > 1 && !window.confirm(`Liberar o mínimo por minuto até ${brl(v)}? Corridas mais caras para os passageiros, mais ganho para os motoristas.`)) return
+        setSavingCap(true)
+        try {
+            await callAdminApi('/api/admin/ride-minimum', { cap: v })
+            setCap(v)
+            toast.success(`Teto do mínimo por minuto: ${brl(v)}`)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar o teto')
+        } finally { setSavingCap(false) }
+    }
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -144,6 +222,56 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
                     Tudo da Tarifa iUser num lugar só. O preço de uma corrida é: <strong style={{ color: colors.textPrimary }}>valor base + quilometragem acima da distância base + extras</strong>. A mudança vale na hora para todos os motoristas que usam a tarifa da plataforma.
                 </p>
             </div>
+
+            <div style={cardStyle} className="space-y-2">
+                <p className="text-xs font-black" style={{ color: colors.textPrimary }}>Valor mínimo por minuto de trabalho</p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                    Nenhuma corrida de passageiro fecha por menos que <strong style={{ color: colors.textPrimary }}>minutos × este valor</strong> (tempo de ir buscar + a corrida). Vale para a Tarifa iUser, para a tarifa de cada motorista e para qualquer proposta; entrega de loja (frete fixo) fica de fora. Coloque 0 para desligar. Padrão R$ 0,80; o valor não passa do teto abaixo (R$ 1,00 por minuto, a não ser que você libere mais).
+                </p>
+                <div className="flex items-end gap-2">
+                    <div className="flex-1 flex flex-col gap-0.5">
+                        <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>R$ por minuto</span>
+                        <input type="text" inputMode="decimal" value={minPerMinute} onChange={(e) => setMinPerMinute(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))} style={inputStyle} />
+                    </div>
+                    <button onClick={saveMin} disabled={savingMin || savedMin === null || num(minPerMinute) === savedMin} className="px-4 py-2.5 rounded-xl text-xs font-black text-white disabled:opacity-50 flex items-center gap-1.5" style={{ background: colors.accent }}>
+                        {savingMin ? <Spinner size={14} /> : <Save size={14} />} Salvar
+                    </button>
+                </div>
+                {num(minPerMinute) > 0 && (
+                    <p className="text-[11px] font-bold" style={{ color: '#16a34a' }}>
+                        ≈ R$ {(num(minPerMinute) * 60).toFixed(0)} por hora · uma corrida de 38 min (buscar + corrida) não sai por menos de {brl(Math.ceil(38 * num(minPerMinute) * 100) / 100)}
+                    </p>
+                )}
+                <div className="flex items-end gap-2 pt-2" style={{ borderTop: `1px solid ${colors.border}` }}>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                        <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>Teto do mínimo (R$ por minuto) — só o admin eleva</span>
+                        <input type="text" inputMode="decimal" value={capInput} onChange={(e) => setCapInput(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))} style={inputStyle} />
+                    </div>
+                    <button onClick={saveCap} disabled={savingCap || cap === null || num(capInput) === cap} className="px-4 py-2.5 rounded-xl text-xs font-black disabled:opacity-50 flex items-center gap-1.5" style={{ background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
+                        {savingCap ? <Spinner size={14} /> : <Save size={14} />} Salvar teto
+                    </button>
+                </div>
+                <div className="flex items-end gap-2 pt-2" style={{ borderTop: `1px solid ${colors.border}` }}>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                        <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>Valor mínimo de UMA corrida (R$) — nenhuma corrida de passageiro fecha por menos que isto (vale o maior entre isto e os minutos × mínimo por minuto)</span>
+                        <input type="text" inputMode="decimal" value={minFare} onChange={(e) => setMinFare(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))} style={inputStyle} />
+                    </div>
+                    <button onClick={saveMinFare} disabled={savingMinFare || savedMinFare === null || num(minFare) === savedMinFare} className="px-4 py-2.5 rounded-xl text-xs font-black disabled:opacity-50 flex items-center gap-1.5" style={{ background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
+                        {savingMinFare ? <Spinner size={14} /> : <Save size={14} />} Salvar mínimo
+                    </button>
+                </div>
+                <div className="flex items-end gap-2 pt-2" style={{ borderTop: `1px solid ${colors.border}` }}>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                        <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>Ganho mínimo por HORA padrão do iUser (R$) — vale para quem não definiu o dele; cada motorista pode mudar</span>
+                        <input type="text" inputMode="decimal" value={defHourly} onChange={(e) => setDefHourly(e.target.value.replace(/[^\d.,]/g, '').slice(0, 7))} style={inputStyle} />
+                    </div>
+                    <button onClick={saveDefHourly} disabled={savingDefHourly || savedDefHourly === null || num(defHourly) === savedDefHourly} className="px-4 py-2.5 rounded-xl text-xs font-black disabled:opacity-50 flex items-center gap-1.5" style={{ background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
+                        {savingDefHourly ? <Spinner size={14} /> : <Save size={14} />} Salvar padrão
+                    </button>
+                </div>
+            </div>
+
+            <RideWaitSettingsCard cardStyle={cardStyle} colors={colors} inputStyle={inputStyle} />
 
             <div className="flex gap-2">
                 {VEHICLES.map(({ kind, label, icon: Icon }) => (

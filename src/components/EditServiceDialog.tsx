@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { X, Save, ImageIcon, Trash2, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'

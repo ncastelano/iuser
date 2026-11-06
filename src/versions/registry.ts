@@ -36,7 +36,7 @@ export const VERSION_FLAG_KEY = 'ui_v3'
  * versões são servidas internamente por outro caminho (o proxy faz o rewrite, o endereço no navegador não muda).
  */
 export const VERSION_ROUTES: Record<string, Partial<Record<UiVersion, string>>> = {
-    '/': { v3: '/modeloinicial' },
+    '/': { v3: '/v3' },
     '/carrinho': { v3: '/v3/carrinho' },
     '/conversas': { v3: '/v3/conversas' },
     '/lojas': { v3: '/v3/lojas' },
@@ -52,8 +52,8 @@ export const INTERNAL_PREFIX: Partial<Record<UiVersion, string>> = { v3: '/v3' }
  * Mantêm a moldura própria mesmo na 3.0: só o link público do entregador (quem abre não é usuário do app). Os mapas
  * em tela cheia abrem na casca e começam abaixo da navbar (`--shell-top`, definido em ShellFrame).
  */
-export const SHELL_EXCLUDED = ['/entregador']
+export const SHELL_EXCLUDED = ['/entregador', '/paginateste']
 
 /** Páginas que só existem na v3 (não há equivalente na v2: voltar para a v2 leva à home da v2) */
-export const V3_ONLY_ROUTES = ['/modeloinicial', '/painel-perfil', '/modoprestador', '/comprar', '/imoveis', '/anunciar-imovel', '/meus-imoveis']
-export const V3_ONLY_PREFIXES = ['/painel-loja/', '/veiculo/', '/imoveis/']
+export const V3_ONLY_ROUTES = ['/painel-perfil', '/modoprestador', '/comprar', '/imoveis', '/anunciar-imovel', '/meus-imoveis', '/flash', '/social', '/entregas', '/atividade', '/ganhos']
+export const V3_ONLY_PREFIXES = ['/painel-loja/', '/editar-loja/', '/veiculo/', '/imoveis/']

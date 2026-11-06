@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { toast } from '@/lib/toast'
 
 interface HorarioEDisponibilidadeProps {
     isOpen: boolean
@@ -134,11 +135,11 @@ export default function HorarioEDisponibilidade({
                     .eq('id', activeTab)
                 if (error) throw error
             }
-            alert('Horários e disponibilidade salvos com sucesso!')
+            toast.success('Horários e disponibilidade salvos com sucesso!')
             onClose()
             onSaved()
         } catch (err: any) {
-            alert('Erro ao salvar configurações: ' + err.message)
+            toast.error('Erro ao salvar configurações: ' + err.message)
         } finally {
             setSaving(false)
         }

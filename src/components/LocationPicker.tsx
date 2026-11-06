@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/contexts/theme'
-import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio, Trash2 } from 'lucide-react'
+import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio, Trash2, ChevronRight } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -38,6 +38,64 @@ interface LocationPickerProps {
     /** Primeira etapa: a pessoa escolhe entre aparecer no Radar ou só guardar o endereço para os pedidos nas lojas (grava profiles.show_on_map).
      *  Só vale pra localização da PESSOA, logada. Use onde "definir local" é do perfil (home, Radar, Informações do Perfil). */
     askRadarVisibility?: boolean
+}
+
+
+// ===== BUSCA POR PARTES: número → rua → estado → cidade (com sugestões enquanto escreve) =====
+const UFS: [string, string][] = [
+    ['AC', 'Acre'], ['AL', 'Alagoas'], ['AP', 'Amapá'], ['AM', 'Amazonas'], ['BA', 'Bahia'], ['CE', 'Ceará'], ['DF', 'Distrito Federal'],
+    ['ES', 'Espírito Santo'], ['GO', 'Goiás'], ['MA', 'Maranhão'], ['MT', 'Mato Grosso'], ['MS', 'Mato Grosso do Sul'], ['MG', 'Minas Gerais'],
+    ['PA', 'Pará'], ['PB', 'Paraíba'], ['PR', 'Paraná'], ['PE', 'Pernambuco'], ['PI', 'Piauí'], ['RJ', 'Rio de Janeiro'],
+    ['RN', 'Rio Grande do Norte'], ['RS', 'Rio Grande do Sul'], ['RO', 'Rondônia'], ['RR', 'Roraima'], ['SC', 'Santa Catarina'],
+    ['SP', 'São Paulo'], ['SE', 'Sergipe'], ['TO', 'Tocantins'],
+]
+const ufName = (uf: string) => UFS.find(([k]) => k === uf)?.[1] || ''
+
+interface AddrSuggestion {
+    id: string
+    kind: 'address' | 'city'
+    label: string
+    lat: number
+    lng: number
+    street: string
+    city: string
+    uf: string
+}
+
+/** Sugestões do Mapbox (mesmo serviço e token do resto do app). Falha = lista vazia, nunca erro na tela. */
+async function fetchAddrSuggestions(kind: 'address' | 'city', q: { number: string; street: string; uf: string; city: string }): Promise<AddrSuggestion[]> {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    if (!token) return []
+    const stateName = ufName(q.uf)
+    const text = kind === 'address'
+        ? [`${q.street.trim()}${q.number.trim() ? ' ' + q.number.trim() : ''}`, q.city.trim(), stateName].filter(Boolean).join(', ')
+        : [q.city.trim(), stateName].filter(Boolean).join(', ')
+    if (!text) return []
+    try {
+        const types = kind === 'address' ? 'address,poi' : 'place'
+        const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?access_token=${token}&language=pt&limit=5&country=br&autocomplete=true&types=${types}`)
+        if (!res.ok) return []
+        const data = await res.json()
+        return (data.features || []).map((f: any, i: number): AddrSuggestion => {
+            const ctx: any[] = f.context || []
+            const own = (f.id || '').startsWith('place.') ? [{ id: f.id, text: f.text }] : []
+            const place = [...ctx, ...own].find((c) => String(c.id).startsWith('place.'))
+            const region = [...ctx, ...(String(f.id).startsWith('region.') ? [f] : [])].find((c) => String(c.id).startsWith('region.'))
+            const short = String(region?.short_code || '').replace('BR-', '').toUpperCase()
+            return {
+                id: `${f.id}-${i}`,
+                kind,
+                label: f.place_name || f.text,
+                lng: f.center?.[0],
+                lat: f.center?.[1],
+                street: kind === 'address' ? String(f.text || '') : '',
+                city: String(place?.text || ''),
+                uf: UFS.some(([k]) => k === short) ? short : '',
+            }
+        }).filter((x: AddrSuggestion) => Number.isFinite(x.lat) && Number.isFinite(x.lng))
+    } catch {
+        return []
+    }
 }
 
 const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()
@@ -182,9 +240,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     // 'choose' pergunta como a pessoa quer definir o local (escrever ou
     // marcar no mapa); 'address' mostra a busca/mapa; 'number' e
     // 'complement' vêm depois, em sequência, só depois do endereço definido.
-    // Com askRadarVisibility (e logada), a 1ª etapa é a pergunta "aparecer no Radar ou só salvar o endereço".
+    // Com askRadarVisibility (e logada), a ÚLTIMA etapa (depois do complemento) é a pergunta "aparecer no Radar ou só salvar o endereço".
     const askVisibility = askRadarVisibility && !isStore && !!userId
-    const [step, setStep] = useState<'visibility' | 'choose' | 'address' | 'number' | 'complement'>(askVisibility ? 'visibility' : 'choose')
+    const [step, setStep] = useState<'visibility' | 'choose' | 'address' | 'number' | 'complement'>('choose')
     const [radarChoice, setRadarChoice] = useState<boolean | null>(null)
     const [savingChoice, setSavingChoice] = useState(false)
     // o que a pessoa já tinha escolhido (se já tem localização salva, vem marcado)
@@ -198,7 +256,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [askVisibility, userId])
     const totalSteps = askVisibility ? 5 : 4
-    const stepNo = (n: number) => (askVisibility ? n + 1 : n)
+    const stepNo = (n: number) => n
     const [method, setMethod] = useState<'search' | 'map' | null>(null)
     // Enquanto busca o GPS do aparelho antes de abrir o mapa (só quando não
     // há localização salva pra centralizar nela) - sem isso o mapa abriria
@@ -494,6 +552,65 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
             performSearch(searchQuery)
         }
     }, [performSearch, searchQuery])
+
+
+    // ===== BUSCA POR PARTES (número → rua → estado → cidade) =====
+    const [sNumber, setSNumber] = useState('')
+    const [sStreet, setSStreet] = useState('')
+    const [sUF, setSUF] = useState('')
+    const [sCity, setSCity] = useState('')
+    const [suggs, setSuggs] = useState<AddrSuggestion[]>([])
+    const [suggsLoading, setSuggsLoading] = useState(false)
+    const suggTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const suggSeqRef = useRef(0)
+
+    const askSuggestions = useCallback((kind: 'address' | 'city', q: { number: string; street: string; uf: string; city: string }) => {
+        if (suggTimerRef.current) clearTimeout(suggTimerRef.current)
+        const enough = kind === 'address' ? q.street.trim().length >= 3 : q.city.trim().length >= 2
+        if (!enough) { suggSeqRef.current++; setSuggs([]); setSuggsLoading(false); return }
+        setSuggsLoading(true)
+        const seq = ++suggSeqRef.current
+        suggTimerRef.current = setTimeout(async () => {
+            const list = await fetchAddrSuggestions(kind, q)
+            if (seq !== suggSeqRef.current) return   // chegou uma digitação mais nova: descarta esta resposta
+            setSuggs(list)
+            setSuggsLoading(false)
+        }, 350)
+    }, [])
+
+    const pickSuggestion = useCallback((sg: AddrSuggestion) => {
+        suggSeqRef.current++
+        setSuggs([])
+        setSuggsLoading(false)
+        setError('')
+        if (sg.city) setSCity(sg.city)
+        if (sg.uf) setSUF(sg.uf)
+        if (sg.kind === 'city') {
+            // escolheu a cidade: refaz as sugestões de rua já com a cidade e o estado certos
+            if (sStreet.trim().length >= 3) {
+                askSuggestions('address', { number: sNumber, street: sStreet, uf: sg.uf || sUF, city: sg.city })
+            }
+            return
+        }
+        if (sg.street) setSStreet(sg.street)
+        if (sNumber.trim()) setNewNumber(sNumber.trim())
+        setSelectedPosition({ lat: sg.lat, lng: sg.lng })
+        setNewAddress(sg.label)
+        flyTo(sg.lat, sg.lng)
+    }, [sNumber, sStreet, sUF, askSuggestions, flyTo])
+
+    // "Ir" / Enter: usa a 1ª sugestão da rua (ou busca na hora se ainda não chegou)
+    const searchByParts = useCallback(async () => {
+        if (sStreet.trim().length < 3) { setError('Escreva o nome da rua.'); return }
+        setLoading(true)
+        setError('')
+        const list = suggs.length > 0 && suggs[0].kind === 'address'
+            ? suggs
+            : await fetchAddrSuggestions('address', { number: sNumber, street: sStreet, uf: sUF, city: sCity })
+        setLoading(false)
+        if (list.length === 0) { setError('Endereço não encontrado. Confira a rua, a cidade e o estado.'); return }
+        pickSuggestion(list[0])
+    }, [sStreet, sNumber, sUF, sCity, suggs, pickSuggestion])
 
     // 🗺️ INICIALIZAR MAPA
     const initializeMap = useCallback(async () => {
@@ -831,54 +948,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                         {isStore ? 'Localização da loja' : 'Definir localização'}
                     </h3>
 
-                    {/* ===== ETAPA 1 · APARECER NO RADAR OU SÓ GUARDAR O ENDEREÇO ===== */}
-                    {step === 'visibility' && (
-                        <>
-                            <div className="flex items-center justify-between mb-3">
-                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa 1 de {totalSteps} · Visibilidade
-                                </p>
-                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
-                                    <X size={16} />
-                                </button>
-                            </div>
-                            <p className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que você quer fazer com essa localização?</p>
-                            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Você pode mudar isso quando quiser em Painel do perfil → Visível no Radar.</p>
-                            <div className="flex flex-col gap-2">
-                                {([
-                                    { value: true, icon: <Radio size={18} />, title: 'Aparecer no Radar', text: 'Você e seus serviços aparecem no mapa do Radar, perto de quem procura.' },
-                                    { value: false, icon: <Home size={18} />, title: 'Só salvar meu endereço', text: 'Fica guardado para os pedidos que você fizer nas lojas. Ninguém vê você no Radar.' },
-                                ] as const).map((o) => {
-                                    const on = radarChoice === o.value
-                                    return (
-                                        <button
-                                            key={String(o.value)}
-                                            onClick={() => setRadarChoice(o.value)}
-                                            className="flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition active:scale-[0.99]"
-                                            style={{ borderColor: on ? '#f97316' : colors.border, background: on ? '#f973161a' : 'transparent' }}
-                                        >
-                                            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: on ? 'linear-gradient(135deg, #f97316, #dc2626)' : `${colors.border}` , color: on ? '#fff' : colors.textSecondary }}>{o.icon}</span>
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{o.title}</span>
-                                                <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{o.text}</span>
-                                            </span>
-                                            {on && <Check size={18} style={{ color: '#f97316' }} className="flex-shrink-0" />}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                            <button
-                                onClick={() => setStep('choose')}
-                                disabled={radarChoice === null}
-                                className="mt-3 w-full py-3 rounded-full text-sm font-black text-white disabled:opacity-40"
-                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
-                            >
-                                Continuar
-                            </button>
-                            {clearControl && <div className="mt-1 w-full [&>button]:mx-auto">{clearControl}</div>}
-                        </>
-                    )}
-
                     {/* ===== ETAPA · COMO DEFINIR ===== */}
                     {step === 'choose' && (
                         <>
@@ -1020,37 +1089,111 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                             {method === 'search' && (
                                 <>
                                     <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textPrimary }}>
-                                        Escreva a localização e aperte <strong>Enter</strong> ou clique em <strong>"Ir"</strong> para buscar
+                                        Preencha na ordem: <strong>número</strong>, <strong>rua</strong>, <strong>estado</strong> e <strong>cidade</strong>. As sugestões aparecem enquanto você escreve.
                                     </p>
-                                    <div className="flex gap-2 mb-3">
-                                        <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
-                                            style={{ background: `${colors.surface}88`, backdropFilter: 'blur(10px)', border: `1px solid ${colors.border}` }}
-                                        >
-                                            <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.surface}88` }}>
-                                                <Search size={14} color={colors.textPrimary} />
+                                    <div className="space-y-2 mb-2">
+                                        <div className="flex gap-2">
+                                            <div className="w-[84px] flex-shrink-0">
+                                                <label className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60" style={{ color: colors.textPrimary }}>1 · Número</label>
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    value={sNumber}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value.slice(0, 8)
+                                                        setSNumber(v)
+                                                        if (sStreet.trim().length >= 3) askSuggestions('address', { number: v, street: sStreet, uf: sUF, city: sCity })
+                                                    }}
+                                                    placeholder="123"
+                                                    aria-label="Número"
+                                                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold outline-none"
+                                                    style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                    autoFocus
+                                                />
                                             </div>
-                                            <input
-                                                type="text"
-                                                value={searchQuery}
-                                                onChange={(e) => setSearchQuery(e.target.value)}
-                                                onKeyDown={handleSearchKeyDown}
-                                                placeholder="Digite o endereço..."
-                                                className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
-                                                style={{ color: colors.textPrimary }}
-                                                disabled={loading}
-                                                autoFocus
-                                            />
-                                            <button
-                                                onClick={() => performSearch(searchQuery)}
-                                                disabled={loading || !searchQuery.trim()}
-                                                className="px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 disabled:opacity-50"
-                                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)' }}
-                                            >
-                                                {loading ? '...' : 'Ir'}
-                                            </button>
+                                            <div className="flex-1 min-w-0">
+                                                <label className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60" style={{ color: colors.textPrimary }}>2 · Rua</label>
+                                                <div className="flex items-center rounded-xl pl-2.5" style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}` }}>
+                                                    <Search size={13} color={colors.textSecondary} className="flex-shrink-0" />
+                                                    <input
+                                                        type="text"
+                                                        value={sStreet}
+                                                        onChange={(e) => {
+                                                            setSStreet(e.target.value)
+                                                            askSuggestions('address', { number: sNumber, street: e.target.value, uf: sUF, city: sCity })
+                                                        }}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchByParts() } }}
+                                                        placeholder="Nome da rua"
+                                                        aria-label="Rua"
+                                                        className="flex-1 min-w-0 bg-transparent outline-none ml-1.5 py-2 pr-2.5 text-xs font-semibold"
+                                                        style={{ color: colors.textPrimary }}
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
-
+                                        <div className="flex gap-2">
+                                            <div className="w-[84px] flex-shrink-0">
+                                                <label className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60" style={{ color: colors.textPrimary }}>3 · Estado</label>
+                                                <select
+                                                    value={sUF}
+                                                    onChange={(e) => {
+                                                        setSUF(e.target.value)
+                                                        if (sStreet.trim().length >= 3) askSuggestions('address', { number: sNumber, street: sStreet, uf: e.target.value, city: sCity })
+                                                    }}
+                                                    aria-label="Estado"
+                                                    className="w-full px-2 py-2 rounded-xl text-xs font-semibold outline-none"
+                                                    style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                >
+                                                    <option value="">UF</option>
+                                                    {UFS.map(([k, n]) => <option key={k} value={k}>{k} · {n}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <label className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60" style={{ color: colors.textPrimary }}>4 · Cidade</label>
+                                                <input
+                                                    type="text"
+                                                    value={sCity}
+                                                    onChange={(e) => {
+                                                        setSCity(e.target.value)
+                                                        askSuggestions('city', { number: sNumber, street: sStreet, uf: sUF, city: e.target.value })
+                                                    }}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchByParts() } }}
+                                                    placeholder="Nome da cidade"
+                                                    aria-label="Cidade"
+                                                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold outline-none"
+                                                    style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={searchByParts}
+                                            disabled={loading || sStreet.trim().length < 3}
+                                            className="w-full py-2 rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
+                                            style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)' }}
+                                        >
+                                            {loading ? 'Procurando...' : 'Procurar endereço'}
+                                        </button>
                                     </div>
+
+                                    {(suggsLoading || suggs.length > 0) && (
+                                        <div className="rounded-xl overflow-hidden mb-3" style={{ border: `1px solid ${colors.border}`, background: `${colors.surface}cc` }}>
+                                            {suggsLoading && suggs.length === 0 && (
+                                                <p className="px-3 py-2.5 text-[11px] opacity-60" style={{ color: colors.textPrimary }}>Buscando sugestões...</p>
+                                            )}
+                                            {suggs.map((sg) => (
+                                                <button
+                                                    key={sg.id}
+                                                    type="button"
+                                                    onClick={() => pickSuggestion(sg)}
+                                                    className="w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-black/5 transition"
+                                                    style={{ borderBottom: `1px solid ${colors.border}` }}
+                                                >
+                                                    <MapPin size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />
+                                                    <span className="text-[11px] font-semibold leading-snug" style={{ color: colors.textPrimary }}>{sg.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </>
                             )}
 
@@ -1299,7 +1442,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                     type="text"
                                     value={newComplement}
                                     onChange={(e) => setNewComplement(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveWithConfirmation() }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { if (askVisibility) setStep('visibility'); else handleSaveWithConfirmation() } }}
                                     placeholder="Ex: Casa com parede de cerâmica, portão azul..."
                                     className="w-full bg-transparent outline-none text-xs font-medium"
                                     style={{ color: colors.textPrimary }}
@@ -1321,13 +1464,71 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={handleSaveWithConfirmation}
+                                    onClick={() => (askVisibility ? setStep('visibility') : handleSaveWithConfirmation())}
                                     disabled={loading || !newAddress}
                                     className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                                     style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
                                 >
-                                    <Check size={14} />
-                                    {isStore ? 'Salvar localização da loja' : 'Salvar localização'}
+                                    {askVisibility ? <ChevronRight size={14} /> : <Check size={14} />}
+                                    {askVisibility ? 'Continuar' : isStore ? 'Salvar localização da loja' : 'Salvar localização'}
+                                </button>
+                            </div>
+                        </>
+                    )}
+                    {/* ===== ÚLTIMA ETAPA · APARECER NO RADAR OU SÓ GUARDAR O ENDEREÇO ===== */}
+                    {step === 'visibility' && (
+                        <>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                    Etapa {totalSteps} de {totalSteps} · Visibilidade
+                                </p>
+                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <p className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que você quer fazer com essa localização?</p>
+                            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Você pode mudar isso quando quiser em Painel do perfil → Visível no Radar.</p>
+                            <div className="flex flex-col gap-2">
+                                {([
+                                    { value: true, icon: <Radio size={18} />, title: 'Aparecer no Radar', text: 'Você e seus serviços aparecem no mapa do Radar, perto de quem procura.' },
+                                    { value: false, icon: <Home size={18} />, title: 'Só salvar meu endereço', text: 'Fica guardado para os pedidos que você fizer nas lojas. Ninguém vê você no Radar.' },
+                                ] as const).map((o) => {
+                                    const on = radarChoice === o.value
+                                    return (
+                                        <button
+                                            key={String(o.value)}
+                                            onClick={() => setRadarChoice(o.value)}
+                                            className="flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition active:scale-[0.99]"
+                                            style={{ borderColor: on ? '#f97316' : colors.border, background: on ? '#f973161a' : 'transparent' }}
+                                        >
+                                            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: on ? 'linear-gradient(135deg, #f97316, #dc2626)' : `${colors.border}` , color: on ? '#fff' : colors.textSecondary }}>{o.icon}</span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{o.title}</span>
+                                                <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{o.text}</span>
+                                            </span>
+                                            {on && <Check size={18} style={{ color: '#f97316' }} className="flex-shrink-0" />}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            {error && <p className="text-red-500 text-xs font-medium mt-2 ml-1">{error}</p>}
+                            <div className="flex gap-2 mt-3">
+                                <button
+                                    onClick={() => setStep('complement')}
+                                    disabled={loading || savingChoice}
+                                    className="flex-1 py-3 rounded-full text-sm font-black transition active:scale-95 disabled:opacity-50"
+                                    style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={handleSaveWithConfirmation}
+                                    disabled={radarChoice === null || loading || savingChoice || !newAddress}
+                                    className="flex-[1.6] py-3 rounded-full text-sm font-black text-white disabled:opacity-40 flex items-center justify-center gap-2"
+                                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 4px 14px #f9731660' }}
+                                >
+                                    <Check size={15} />
+                                    Salvar localização
                                 </button>
                             </div>
                         </>

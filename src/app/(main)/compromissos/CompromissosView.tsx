@@ -53,6 +53,7 @@ import AppointmentReviewPanel from '@/components/appointments/AppointmentReviewP
 import ClientTrackRecord from '@/components/appointments/ClientTrackRecord'
 import ServiceInvitationCard from '@/components/appointments/ServiceInvitationCard'
 import { isServiceBooking } from '@/lib/appointmentReviews'
+import { toast } from '@/lib/toast'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -608,7 +609,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
             .select('id, name, profileSlug, avatar_url')
             .eq('profileSlug', inviteSlugDetail.trim())
             .maybeSingle()
-        if (error || !data) alert('Perfil não encontrado.')
+        if (error || !data) toast.error('Perfil não encontrado.')
         else setSearchedProfileDetail(data)
         setSearchingDetail(false)
     }
@@ -635,9 +636,9 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
             direction: 'incoming',
         }
         const { error } = await supabase.from('appointments').insert(convite)
-        if (error) alert(`Erro ao convidar: ${error.message}`)
+        if (error) toast.error(`Erro ao convidar: ${error.message}`)
         else {
-            alert(`Convite enviado para ${searchedProfileDetail.name}!`)
+            toast.success(`Convite enviado para ${searchedProfileDetail.name}!`)
             setSearchedProfileDetail(null)
             setInviteSlugDetail('')
             refetch()

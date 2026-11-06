@@ -6,7 +6,7 @@
 'use client'
 
 import { Fragment, type ReactNode } from 'react'
-import { Car, CheckCircle2, ChevronRight, Hand, Navigation2, Radar, Star, TrendingUp, Volume2, VolumeX, History } from 'lucide-react'
+import { Bike, Car, Package, CheckCircle2, ChevronRight, Hand, Navigation2, Power, Radar, Star, TrendingUp, Volume2, VolumeX, History, Wallet } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
 const ORANGE = '#f97316'
@@ -23,10 +23,10 @@ function Switch({ on, color = ORANGE, label, onClick, busy }: { on: boolean; col
 
 export default function DriverPanelHome({
     colors, driverStatus, driverModeActive, togglingMode, onToggleMode, missingCount, onContinueSignup,
-    rides, candidacies, hasAccepted, goTab,
+    rides, deliveries = 0, candidacies, hasAccepted, acceptedIsDelivery = false, incoming = [], goTab,
     vehicleLabel, vehicles, pricingLabel, tariffLines, reviewsAvg, reviewsCount, ridesDone,
     alertSound, onToggleAlert, voiceNav, onToggleVoice, deliveryRadius, onDeliveryRadius,
-    debt, invite,
+    debt, invite, onDeliveries, onEarnings,
 }: {
     colors: any
     driverStatus: 'inactive' | 'incomplete' | 'active'
@@ -35,7 +35,14 @@ export default function DriverPanelHome({
     onToggleMode: () => void
     missingCount: number
     onContinueSignup: () => void
+    /** corridas de passageiro/objeto/animal esperando */
     rides: number
+    /** entregas de LOJA abertas (pedidos de loja que o motorista pode entregar) */
+    deliveries?: number
+    /** a corrida aceita é uma entrega de loja (leva à Central de entregas) */
+    acceptedIsDelivery?: boolean
+    /** as mais recentes dos dois tipos, juntas */
+    incoming?: { id: string; kind: 'ride' | 'delivery'; title: string; sub: string; price: number | null; at: string }[]
     candidacies: number
     hasAccepted: boolean
     goTab: (t: Tab) => void
@@ -56,12 +63,22 @@ export default function DriverPanelHome({
     onDeliveryRadius: (km: number | null) => void
     debt?: ReactNode
     invite?: ReactNode
+    /** Abre a Central de entregas (/entregas): entregas das lojas, mochila e rota guiada */
+    onDeliveries?: () => void
+    /** Abre os Ganhos (/ganhos) */
+    onEarnings?: () => void
 }) {
     const soft = `${colors.border}30`
-    const stateColor = driverStatus === 'active' ? '#16a34a' : driverStatus === 'incomplete' ? '#ca8a04' : colors.textSecondary
-    const stateText = driverStatus === 'active'
-        ? (driverModeActive ? 'Você está recebendo corridas' : 'Pronto para receber corridas')
-        : driverStatus === 'incomplete' ? `Falta completar o cadastro (${missingCount} ${missingCount === 1 ? 'item' : 'itens'})` : 'Desligado — complete o cadastro para aceitar corridas'
+    const stateColor = (driverModeActive && driverStatus === 'active') ? '#16a34a' : driverStatus === 'incomplete' ? '#ca8a04' : colors.textSecondary
+    // `driverStatus`: 'inactive' = modo DESLIGADO; 'incomplete' = modo ligado mas falta cadastro; 'active' = modo ligado e cadastro pronto.
+    // ONLINE = ligado e pronto; OFFLINE = desligado (nada de corrida, aviso nem contagem); o resto é cadastro por completar.
+    const online = driverModeActive && driverStatus === 'active'
+    const offline = !driverModeActive
+    const stateLabel = online ? 'Online' : offline ? 'Offline' : 'Cadastro incompleto'
+    const stateText = online
+        ? 'Você vê os pedidos em tempo real, recebe aviso de corrida nova e aparece no mapa do passageiro assim que se candidata.'
+        : offline ? 'Você não recebe avisos nem vê pedidos. Ligue o modo motorista para começar.'
+        : `Falta completar o cadastro (${missingCount} ${missingCount === 1 ? 'item' : 'itens'}) para receber corridas.`
 
     const section = (title: string, children: ReactNode, sub?: string) => (
         <section>
@@ -99,45 +116,75 @@ export default function DriverPanelHome({
         <div className="flex flex-col gap-7">
             {debt}
 
-            {/* 1. Modo motorista */}
-            <section className="rounded-3xl p-4" style={{ background: driverStatus === 'active' ? '#16a34a14' : driverStatus === 'incomplete' ? '#eab30818' : soft }}>
+            {/* 1. Modo motorista: o estado em uma olhada (online, offline ou cadastro) */}
+            <section className="rounded-3xl p-4" style={{ background: online ? '#16a34a14' : driverStatus === 'incomplete' ? '#eab30818' : soft, border: `1.5px solid ${online ? '#16a34a55' : driverStatus === 'incomplete' ? '#eab30855' : colors.border}` }}>
                 <div className="flex items-center gap-3">
-                    <span className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: driverStatus === 'active' ? '#16a34a' : driverStatus === 'incomplete' ? '#eab308' : 'rgba(120,120,120,0.6)' }}><Car size={24} /></span>
+                    <span className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: online ? '#16a34a' : driverStatus === 'incomplete' ? '#eab308' : 'rgba(120,120,120,0.6)' }}><Car size={24} /></span>
                     <span className="min-w-0 flex-1">
                         <span className="block text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>Modo motorista</span>
-                        <span className="block text-xs mt-0.5 font-bold" style={{ color: stateColor }}>{stateText}</span>
+                        <span className="inline-flex items-center gap-1.5 text-xs mt-0.5 font-black" style={{ color: stateColor }}>
+                            <span className={`w-2 h-2 rounded-full ${online ? 'animate-pulse' : ''}`} style={{ background: stateColor }} />{stateLabel}
+                        </span>
                     </span>
                     <Switch on={driverModeActive} color="#16a34a" label="Modo motorista" onClick={onToggleMode} busy={togglingMode} />
                 </div>
-                {driverStatus === 'active' && driverModeActive && (
-                    <p className="mt-3 text-xs leading-snug" style={{ color: colors.textSecondary }}>Você vê os pedidos em tempo real e aparece no mapa do passageiro assim que se candidata.</p>
+                <p className="mt-3 text-xs leading-snug" style={{ color: colors.textSecondary }}>{stateText}</p>
+                {online && (rides > 0 || deliveries > 0) && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        {rides > 0 && <button onClick={() => goTab('solicitacoes')} className="h-8 px-3 rounded-full text-xs font-black text-white" style={{ background: ORANGE }}>{rides} {rides === 1 ? 'corrida esperando' : 'corridas esperando'}</button>}
+                        {deliveries > 0 && onDeliveries && <button onClick={onDeliveries} className="h-8 px-3 rounded-full text-xs font-black text-white" style={{ background: '#16a34a' }}>{deliveries} {deliveries === 1 ? 'entrega de loja' : 'entregas de lojas'}</button>}
+                    </div>
                 )}
                 {driverStatus === 'incomplete' && (
                     <button onClick={onContinueSignup} className="mt-3 w-full h-11 rounded-full text-sm font-black text-white transition active:scale-[0.98]" style={{ background: ORANGE }}>Continuar cadastro</button>
                 )}
             </section>
 
+            {/* Atalhos: os MESMOS itens das abas do painel (menos o próprio Painel) + Ganhos; os selos seguem as abas (corridas só aparecem online) */}
+            <div className="grid grid-cols-4 gap-2 -mt-3">
+                {([
+                    ...(onEarnings ? [{ k: 'ganhos', label: 'Ganhos', icon: Wallet, go: onEarnings, badge: 0, badgeColor: ORANGE }] : []),
+                    ...(onDeliveries ? [{ k: 'entregas', label: 'Entregas', icon: Bike, go: onDeliveries, badge: 0, badgeColor: ORANGE }] : []),
+                    ...(hasAccepted ? [{ k: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, go: () => (acceptedIsDelivery && onDeliveries ? onDeliveries() : goTab('aceita')), badge: 0, badgeColor: '#16a34a' }] : []),
+                    { k: 'solicitacoes', label: 'Solicitações', icon: Radar, go: () => goTab('solicitacoes'), badge: driverModeActive ? rides + deliveries : 0, badgeColor: '#ef4444' },
+                    ...(candidacies > 0 || hasAccepted ? [{ k: 'candidaturas', label: 'Me candidatei', icon: Hand, go: () => goTab('candidaturas'), badge: candidacies, badgeColor: '#ef4444' }] : []),
+                    { k: 'veiculo', label: 'Veículo', icon: Car, go: () => goTab('veiculo'), badge: driverStatus === 'incomplete' ? (missingCount || 1) : 0, badgeColor: '#eab308' },
+                    { k: 'tarifa', label: 'Tarifa', icon: TrendingUp, go: () => goTab('plano'), badge: 0, badgeColor: ORANGE },
+                    { k: 'avaliacoes', label: 'Avaliações', icon: Star, go: () => goTab('avaliacoes'), badge: 0, badgeColor: ORANGE },
+                ]).map((it) => {
+                    const Icon = it.icon
+                    return (
+                        <button key={it.k} onClick={it.go} className="relative rounded-2xl py-3 px-1 flex flex-col items-center gap-1.5 transition active:scale-95" style={{ background: soft }}>
+                            {it.badge > 0 && <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: it.badgeColor }}>{it.badge > 99 ? '99+' : it.badge}</span>}
+                            <span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${ORANGE}1f`, color: ORANGE }}><Icon size={18} /></span>
+                            <span className="text-[11px] font-black leading-tight text-center" style={{ color: colors.textPrimary }}>{it.label}</span>
+                        </button>
+                    )
+                })}
+            </div>
+
             {/* 2. Agora */}
             {section('Agora', (
                 <div className="flex flex-col gap-2.5">
                     {hasAccepted && (
-                        <button onClick={() => goTab('aceita')} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: '#16a34a18', border: '1.5px solid #16a34a66' }}>
-                            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: '#16a34a' }}><CheckCircle2 size={20} /></span>
+                        <button onClick={() => (acceptedIsDelivery && onDeliveries ? onDeliveries() : goTab('aceita'))} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: '#16a34a18', border: '1.5px solid #16a34a66' }}>
+                            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: '#16a34a' }}>{acceptedIsDelivery ? <Package size={20} /> : <CheckCircle2 size={20} />}</span>
                             <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Você tem uma corrida aceita</span>
+                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{acceptedIsDelivery ? 'Você tem uma entrega em andamento' : 'Você tem uma corrida aceita'}</span>
                                 <span className="block text-xs" style={{ color: '#16a34a' }}>Toque para abrir e continuar</span>
                             </span>
                             <ChevronRight size={16} style={{ color: '#16a34a' }} />
                         </button>
                     )}
-                    <div className="grid grid-cols-2 gap-2.5">
+                    {driverModeActive && <div className="grid grid-cols-2 gap-2.5">
                         {([
-                            { id: 'solicitacoes' as Tab, n: rides, label: 'Solicitações', hint: rides === 1 ? 'corrida esperando' : 'corridas esperando', icon: Radar },
-                            { id: 'candidaturas' as Tab, n: candidacies, label: 'Me candidatei', hint: candidacies === 1 ? 'aguardando resposta' : 'aguardando resposta', icon: Hand },
+                            { id: 'solicitacoes' as Tab | 'entregas', n: rides, label: 'Corridas', hint: rides === 1 ? 'passageiro esperando' : 'esperando você', icon: Radar },
+                            ...(onDeliveries ? [{ id: 'entregas' as Tab | 'entregas', n: deliveries, label: 'Entregas de lojas', hint: deliveries === 1 ? 'pedido para entregar' : 'pedidos para entregar', icon: Package }] : []),
+                            { id: 'candidaturas' as Tab | 'entregas', n: candidacies, label: 'Me candidatei', hint: 'aguardando resposta', icon: Hand },
                         ]).map((t) => {
                             const Icon = t.icon
                             return (
-                                <button key={t.id} onClick={() => goTab(t.id)} className="rounded-2xl p-3.5 text-left transition active:scale-[0.98]" style={{ background: soft }}>
+                                <button key={t.id} onClick={() => (t.id === 'entregas' ? onDeliveries?.() : goTab(t.id as Tab))} className="rounded-2xl p-3.5 text-left transition active:scale-[0.98]" style={{ background: soft }}>
                                     <span className="flex items-center justify-between">
                                         <span className="text-3xl font-black leading-none" style={{ color: t.n > 0 ? ORANGE : colors.textPrimary }}>{t.n}</span>
                                         <Icon size={18} style={{ color: colors.textSecondary }} />
@@ -147,7 +194,34 @@ export default function DriverPanelHome({
                                 </button>
                             )
                         })}
-                    </div>
+                    </div>}
+                    {/* MODO DESLIGADO: nada de corrida, entrega nem contagem — só o convite para ficar online */}
+                    {!driverModeActive && (
+                        <div className="rounded-2xl p-4 flex flex-col items-center text-center gap-1.5" style={{ background: soft }}>
+                            <span className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: `${colors.border}55`, color: colors.textSecondary }}><Power size={22} /></span>
+                            <span className="text-sm font-black" style={{ color: colors.textPrimary }}>Você está offline</span>
+                            <span className="text-xs leading-snug" style={{ color: colors.textSecondary }}>Corridas e entregas só aparecem, e os avisos só chegam, com o modo motorista ligado.</span>
+                            <button onClick={onToggleMode} disabled={togglingMode} className="mt-1.5 h-10 px-6 rounded-full text-sm font-black text-white transition active:scale-95 disabled:opacity-60" style={{ background: '#16a34a' }}>
+                                Ficar online
+                            </button>
+                        </div>
+                    )}
+                    {/* As mais recentes dos dois tipos juntas: corrida de passageiro e entrega de loja */}
+                    {driverModeActive && incoming.length > 0 && (
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Chegando agora</span>
+                            {incoming.map((it) => (
+                                <button key={it.id} onClick={() => (it.kind === 'delivery' && onDeliveries ? onDeliveries() : goTab('solicitacoes'))} className="w-full rounded-2xl px-3 py-2.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: soft }}>
+                                    <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: it.kind === 'delivery' ? '#16a34a' : ORANGE }}>{it.kind === 'delivery' ? <Package size={17} /> : <Car size={17} />}</span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="flex items-center gap-1.5"><span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full" style={{ background: it.kind === 'delivery' ? '#16a34a22' : `${ORANGE}22`, color: it.kind === 'delivery' ? '#16a34a' : ORANGE }}>{it.kind === 'delivery' ? 'Entrega' : 'Corrida'}</span><span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{it.title}</span></span>
+                                        <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{it.sub}</span>
+                                    </span>
+                                    {it.price != null && <span className="text-sm font-black flex-shrink-0" style={{ color: '#16a34a' }}>R$ {it.price.toFixed(2).replace('.', ',')}</span>}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             ))}
 

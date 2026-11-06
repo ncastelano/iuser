@@ -29,13 +29,11 @@ export interface Tab {
     glow?: boolean
 }
 
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-
 export default function PageTabs({ tabs }: { tabs: Tab[] }) {
     const { colors } = useTheme()
     if (!tabs || tabs.length === 0) return null
     return (
-        <div className="flex gap-2 overflow-x-auto pb-1 pt-1 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex gap-2 overflow-x-auto pb-2 pt-2 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
             {tabs.map((tab) => {
                 const active = tab.isActive
                 const Icon = tab.icon
@@ -43,18 +41,19 @@ export default function PageTabs({ tabs }: { tabs: Tab[] }) {
                     <button
                         key={tab.id}
                         onClick={tab.onClick}
-                        className="relative flex items-center gap-1.5 pl-1 pr-3 py-1 rounded-full text-xs font-bold whitespace-nowrap flex-shrink-0 transition active:scale-95"
+                        className="relative flex items-center gap-1.5 pl-1.5 pr-3.5 h-10 rounded-full text-xs font-black whitespace-nowrap flex-shrink-0 transition active:scale-95"
                         style={{
-                            background: active ? (tab.statusColor ? `${tab.statusColor}dd` : GRADIENT) : colors.surface,
-                            color: active ? '#fff' : colors.textPrimary,
-                            border: `1.5px solid ${active ? 'transparent' : colors.border}`,
-                            boxShadow: active ? '0 2px 8px #f9731640' : 'none',
+                            // Mesmo desenho da ilha e da barra de baixo: fundo sólido da página, borda e sombra leve; a aba atual ganha o laranja
+                            background: active ? (tab.statusColor ? `${tab.statusColor}1f` : '#f9731614') : colors.background,
+                            color: active ? (tab.statusColor || '#ea580c') : colors.textPrimary,
+                            border: `1.5px solid ${active ? (tab.statusColor || '#f97316') : colors.border}`,
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.07)',
                         }}
                     >
                         {tab.imageUrl ? (
                             <img src={tab.imageUrl} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
                         ) : (
-                            <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: active ? 'rgba(255,255,255,0.22)' : 'transparent' }}>
+                            <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: active ? (tab.statusColor || '#f97316') : `${colors.border}66`, color: active ? '#fff' : colors.textPrimary }}>
                                 <Icon size={14} />
                             </span>
                         )}
@@ -67,7 +66,7 @@ export default function PageTabs({ tabs }: { tabs: Tab[] }) {
                             </span>
                         )}
                         {tab.badge && tab.badge.count > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full text-white text-[8px] flex items-center justify-center font-black" style={{ background: tab.badge.color || '#ef4444' }}>{tab.badge.count}</span>
+                            <span className="min-w-5 h-5 px-1.5 -mr-1 rounded-full text-white text-[10px] leading-none flex items-center justify-center font-black tabular-nums" style={{ background: tab.badge.color || '#ef4444' }}>{tab.badge.count > 99 ? '99+' : tab.badge.count}</span>
                         )}
                     </button>
                 )

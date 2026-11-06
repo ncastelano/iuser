@@ -6,7 +6,7 @@
 // com a aba controlada pelo painel).
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, useCallback, useRef, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition } from '@/lib/nativeGeolocation'
@@ -17,7 +17,7 @@ import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import LocationPicker from '@/components/LocationPicker'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, Map as MapIcon, LocateFixed } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
@@ -26,7 +26,7 @@ import { DRIVER_RESERVED_TEXT, brl, remainingLabel } from '@/modules/delivery-se
 import DriverReceiptConfirm from '@/components/DeliveryPayment/DriverReceiptConfirm'
 import DriverPayoutPix from '@/components/DeliveryPayment/DriverPayoutPix'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computePickupFee, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computeRideExtras, computePickupFee, describeTripFare, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
@@ -54,8 +54,15 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 import RideMapDialog from '@/app/(main)/aceitar-corridas/RideMapDialog'
 import { RideOfferCard } from './RideOfferCard'
+import { RideSummaryCard } from './RideSummaryCard'
+import { rideQuote } from '@/lib/rideQuote'
+import { rideValuation, valuationRank } from '@/modules/negotiation/domain'
+import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from './LocationAskDialog'
 import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { submitRideApplication } from '@/lib/rideApplication'
+import { loadEarningGoal, type EarningGoal } from '@/modules/negotiation'
+import DriverNegotiation from '@/components/negotiation/DriverNegotiation'
+import { useRideMinimum } from '@/hooks/useRideMinimum'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
@@ -197,6 +204,7 @@ interface RideRow {
     stop2_lat: number | null
     stop2_lng: number | null
     offered_price: number | null
+    passenger_offer?: number | null
     order_id: string | null
     store_id: string | null
     visible_radius_km?: number | null
@@ -214,6 +222,10 @@ function rideStopsOf(ride: { stop1_lat: number | null; stop1_lng: number | null;
 
 const MAX_CANDIDATES = 5
 
+/** O que o painel do motorista mostra em "Agora": corridas de passageiro/objeto/animal e ENTREGAS de loja, separadas, e as mais recentes dos dois tipos juntas */
+export interface IncomingPreview { id: string; kind: 'ride' | 'delivery'; title: string; sub: string; price: number | null; at: string }
+export interface DriverRequestsSummary { rides: number; deliveries: number; candidacies: number; hasAccepted: boolean; acceptedIsDelivery: boolean; incoming: IncomingPreview[] }
+
 interface RideCardData extends RideRow {
     requesterName: string | null
     requesterSlug: string | null
@@ -222,6 +234,9 @@ interface RideCardData extends RideRow {
     suggestedPrice: number
     platformPrice: number
     customPrice: number | null
+    /** o motorista usa a tarifa própria (pricing_mode = custom e ela existe): os valores de cada trecho vêm dela */
+    useOwnTariff: boolean
+    customTariff?: DriverPricing | null
     tariff: DriverPricing
     storeName: string | null
     hasDistance: boolean
@@ -288,7 +303,7 @@ export interface AceitarCorridasProps {
     tab?: AceitarCorridasTab
     onTabChange?: (tab: AceitarCorridasTab) => void
     // Contagens/estado pras abas do painel (badges e "Corrida aceita").
-    onSummaryChange?: (summary: { rides: number; candidacies: number; hasAccepted: boolean }) => void
+    onSummaryChange?: (summary: DriverRequestsSummary) => void
     // Abrir o cadastro de veículo (no painel: troca pra aba Meu veículo).
     onRegisterVehicle?: () => void
 }
@@ -301,6 +316,10 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const focusRideId = searchParams.get('ride')
     const focusTab = searchParams.get('tab')
     const [highlightRideId, setHighlightRideId] = useState<string | null>(null)
+    // qual card está com o "Detalhes" aberto (o botão grande do card abre; o link da home também)
+    const [expandedRideId, setExpandedRideId] = useState<string | null>(null)
+    // o dedo está no "deslizar para se candidatar" de um card: a lista também não reordena enquanto isso
+    const [slidingRideId, setSlidingRideId] = useState<string | null>(null)
     const focusedRef = useRef(false)
     const { userId: contextUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
@@ -349,6 +368,10 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const lastAcceptedRideIdRef = useRef<string | null>(null)
     const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
     const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
+    // ganho mínimo por hora (privado do motorista): o card avisa ou, no modo "block", não deixa aceitar abaixo dele
+    const minPerMinute = useRideMinimum()
+    const [earningGoal, setEarningGoal] = useState<EarningGoal>({ minHourly: null, protection: 'warn' })
+    useEffect(() => { if (contextUserId) void loadEarningGoal(contextUserId).then(setEarningGoal).catch(() => {}) }, [contextUserId])
     const [applyingId, setApplyingId] = useState<string | null>(null)
     const [customPriceFor, setCustomPriceFor] = useState<string | null>(null)
     const [customPriceValue, setCustomPriceValue] = useState('')
@@ -361,7 +384,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     // distância do motorista até a partida (ver "Pedimos sua localização" na lista).
     const gpsFixRef = useRef(false)
     const gpsWatchRef = useRef<{ clear: () => void } | null>(null)
-    const [gpsStatus, setGpsStatus] = useState<'asking' | 'granted' | 'denied' | 'unavailable'>('asking')
+    const [gpsStatus, setGpsStatus] = useState<'idle' | 'asking' | 'granted' | 'denied' | 'unavailable'>('idle')
+    const [locAskDismissed, setLocAskDismissed] = useState(false)
     const requestGps = useCallback(() => {
         gpsWatchRef.current?.clear()
         setGpsStatus(gpsFixRef.current ? 'granted' : 'asking')
@@ -378,8 +402,10 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
         )
     }, [])
+    // Sem permissão ainda, quem pergunta é o diálogo (LocationAskDialog); com permissão já dada, busca em silêncio
     useEffect(() => {
-        requestGps()
+        setLocAskDismissed(wasLocationAskDismissed())
+        void isGeoPermissionGranted().then((ok) => { if (ok) requestGps() })
         return () => gpsWatchRef.current?.clear()
     }, [requestGps])
     const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
@@ -540,7 +566,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         const [{ data: pricingRow }, { data: profile }, { data: vehicleRows }] = await Promise.all([
             !contextUserId ? noRow : supabase
                 .from('driver_pricing')
-                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
+                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
                 .eq('driver_id', contextUserId)
                 .maybeSingle(),
             !contextUserId ? noRow : supabase
@@ -589,11 +615,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         // (quem já estava ligado de antes, sem a sincronização, é corrigido aqui).
         if (contextUserId) supabase
             .from('driver_pricing')
-            .select('live_location_sync, driver_mode_active')
+            .select('live_location_sync, driver_mode_active, live_lat, live_lng')
             .eq('driver_id', contextUserId)
             .maybeSingle()
             .then(({ data }) => {
                 const modeOn = !!data?.driver_mode_active
+                // Sem GPS do aparelho (permissão negada, teste local, desktop) vale a última posição ao vivo gravada: sem ela as entregas de loja (medidas pela distância) nem apareceriam
+                if (modeOn && !gpsFixRef.current && (data as any)?.live_lat != null && (data as any)?.live_lng != null) setDriverCoords([Number((data as any).live_lng), Number((data as any).live_lat)])
                 if (modeOn && !data?.live_location_sync) {
                     supabase.from('driver_pricing').update({ live_location_sync: true }).eq('driver_id', contextUserId).then(() => {})
                 }
@@ -634,7 +662,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         let openRidesQuery = supabase
             .from('ride_offers')
-            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, visible_radius_km, preferred_driver_id')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, passenger_offer, order_id, store_id, visible_radius_km, preferred_driver_id')
             .eq('status', 'pending')
         // ride_offers já esconde as corridas do próprio motorista (policy) e não mostra quem pediu antes do aceite
         const { data: openRides } = await openRidesQuery
@@ -668,7 +696,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         if (myApplications.length > 0) {
             const { data } = await supabase
                 .from('ride_offers')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, passenger_offer, order_id, store_id')
                 .in('id', myApplications.map((a) => a.ride_request_id))
                 .eq('status', 'pending')
             myRideRows = data || []
@@ -726,6 +754,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 suggestedPrice,
                 platformPrice,
                 customPrice,
+                useOwnTariff: pricing.pricing_mode === 'custom' && customShape != null,
+                customTariff: customShape ?? null,
                 tariff: pricingShape,
                 storeName: r.store_id ? (storeNamesById.get(r.store_id) || null) : null,
                 hasDistance,
@@ -749,15 +779,12 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             }
         })
 
-        // Corrida nova desde a última leitura: toca o alerta (se o motorista
-        // não silenciou em /painel-motorista). A primeira leitura só marca o
-        // que já existia, sem tocar.
+        // Corrida nova desde a última leitura: toca o som (se o motorista não silenciou em /painel-motorista). A primeira leitura só marca o
+        // que já existia, sem tocar. SEM aviso escrito: a corrida nova aparece na própria lista, que a pessoa está vendo (e, fora dela, o
+        // aviso global `DriverRideAlertListener` cuida — ver lib/alertSuppression).
         const newIds = cards.filter((c) => !knownRideIdsRef.current.has(c.id))
         if (knownRideIdsRef.current.size > 0 || firstLoadDoneRef.current) {
-            if (newIds.length > 0) {
-                if (alertSoundRef.current) playRideAlertSound()
-                toast.info(newIds.length === 1 ? 'Nova corrida disponível!' : `${newIds.length} novas corridas disponíveis!`)
-            }
+            if (newIds.length > 0 && alertSoundRef.current) playRideAlertSound()
         }
         knownRideIdsRef.current = new Set(cards.map((c) => c.id))
         firstLoadDoneRef.current = true
@@ -837,10 +864,15 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         if (acceptedDetail && lastAcceptedRideIdRef.current !== acceptedDetail.id) {
             lastAcceptedRideIdRef.current = acceptedDetail.id
             setActiveTab('aceita')
-            // O redirecionamento automático pra /aceitar-corridas/mapa ao
-            // aceitar mora só em RideAcceptedDialog (global, em
-            // providers.tsx) — de lá funciona em qualquer página do app,
-            // não só quando essa tela específica está aberta e faz poll.
+            // Corrida recém-aceita (o motorista ainda nem saiu): vai DIRETO para o mapa, onde está o que fazer. Isto é o caminho imediato quando
+            // a pessoa está nesta página; o RideAcceptedDialog (global, providers.tsx) cobre as outras páginas e também redireciona (ao fim da
+            // consulta de 8 s). Uma vez só por corrida e sessão: voltar do mapa para a lista antes de sair não prende a pessoa no mapa.
+            if (!embedded && !acceptedDetail.driver_en_route) {
+                const key = `ride_nav_list_${acceptedDetail.id}`
+                let first = true
+                try { first = !sessionStorage.getItem(key); sessionStorage.setItem(key, '1') } catch { /* sem sessionStorage: redireciona */ }
+                if (first) router.push('/aceitar-corridas/mapa')
+            }
         } else if (!acceptedDetail && lastAcceptedRideIdRef.current != null) {
             // A corrida saiu de "aceita" sem ser pelo botão do motorista: se o
             // passageiro a finalizou, toca o som de fim de corrida.
@@ -875,6 +907,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         const channel = supabase
             .channel('aceitar-corridas-new-rides')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'ride_offers' }, () => { load() })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ride_applications' }, () => { load() })   // contrapropostas do passageiro
             .subscribe()
         return () => { supabase.removeChannel(channel) }
     }, [load])
@@ -940,9 +973,18 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
     // Avisa o painel (quando embutido) pra ele montar as mesmas abas com os badges.
     useEffect(() => {
-        onSummaryChange?.({ rides: radiusRides.length, candidacies: candidacies.length, hasAccepted: !!acceptedRide })
+        const deliveries = radiusRides.filter((r) => !!r.order_id)
+        const rideKinds = radiusRides.filter((r) => !r.order_id)
+        const label: Record<string, string> = { pessoa: 'Passageiro', objeto: 'Objeto', animal: 'Animal' }
+        const incoming: IncomingPreview[] = [...radiusRides]
+            .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+            .slice(0, 4)
+            .map((r) => r.order_id
+                ? { id: r.id, kind: 'delivery' as const, title: r.storeName || 'Entrega de loja', sub: `Entrega · ${shortAddress(r.destination_address)}`, price: r.offered_price != null ? Number(r.offered_price) : null, at: String(r.created_at) }
+                : { id: r.id, kind: 'ride' as const, title: `${label[r.ride_type] || 'Corrida'} · ${shortAddress(r.origin_address)}`, sub: `até ${shortAddress(r.destination_address)}`, price: r.offered_price != null ? Number(r.offered_price) : null, at: String(r.created_at) })
+        onSummaryChange?.({ rides: rideKinds.length, deliveries: deliveries.length, candidacies: candidacies.length, hasAccepted: !!acceptedRide, acceptedIsDelivery: !!acceptedRide?.order_id, incoming })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [radiusRides.length, candidacies.length, !!acceptedRide])
+    }, [radiusRides, candidacies.length, !!acceptedRide, acceptedRide?.order_id])
 
     const applyToRide = async (ride: RideCardData, price: number) => {
         if (price <= 0) {
@@ -969,7 +1011,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         setApplyingId(ride.id)
         try {
-            await submitRideApplication(user.id, ride.id, price)
+            const ri = routeInfoById[ride.id]
+            const minutes = ri && ri.toPickupMin != null ? ri.toPickupMin + ri.tripMin : null
+            await submitRideApplication(user.id, ride.id, price, minutes)
 
             toast.success('Candidatura enviada!')
             setCustomPriceFor(null)
@@ -983,6 +1027,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     toast.error('Essa corrida já atingiu o limite de candidatos.')
                     setRides((prev) => prev.filter((r) => r.id !== ride.id))
                 }
+            } else if (err.hint === 'below_min_hourly' || err.hint === 'below_platform_min') {
+                toast.error(err.message)
             } else {
                 toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
             }
@@ -1016,16 +1062,73 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     useEffect(() => {
         if (!focusRideId || focusedRef.current || loading) return
         const el = document.getElementById(`ride-card-${focusRideId}`)
-        if (!el) return
+        if (!el) {
+            // A corrida do link não está na lista (outro veículo, já aceita, lotada ou cancelada): avisa em vez de largar a pessoa em outra lista sem explicar
+            const t = setTimeout(() => {
+                if (focusedRef.current || document.getElementById(`ride-card-${focusRideId}`)) return
+                focusedRef.current = true
+                toast.info('Essa corrida não está disponível para você agora: pode ser de outro tipo de veículo, já ter sido aceita ou ter sido cancelada.')
+            }, 2500)
+            return () => clearTimeout(t)
+        }
         focusedRef.current = true
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
         setHighlightRideId(focusRideId)
+        setExpandedRideId(focusRideId)
         setTimeout(() => setHighlightRideId(null), 3000)
     }, [focusRideId, loading, rides, candidacies, activeTab])
 
     const skipRide = (rideId: string) => {
         setSkippedIds((prev) => new Set(prev).add(rideId))
     }
+
+    // ===== CARD ABERTO NÃO SE MEXE =====
+    // Com o "Detalhes" de um card aberto, a lista não reordena (as corridas valorizadas sobem quando chegam os dados da rota) e o card
+    // não sai do lugar na tela quando algo aparece ou some acima dele. Só deixa de existir se a corrida de fato sumiu.
+    const lastOrderRef = useRef<string[]>([])
+    const frozenOrderRef = useRef<string[] | null>(null)
+    const orderCards = (list: { id: string; rank: number; node: ReactNode }[]): ReactNode[] => {
+        const byRank = [...list].sort((a, b) => b.rank - a.rank)
+        let ordered = byRank
+        if (expandedRideId || slidingRideId) {
+            // trava a ordem que a pessoa estava vendo quando abriu; corrida nova entra no FIM, a que sumiu sai
+            if (!frozenOrderRef.current) frozenOrderRef.current = lastOrderRef.current
+            const frozen = frozenOrderRef.current
+            const byId = new Map(list.map((c) => [c.id, c]))
+            const kept = frozen.map((id) => byId.get(id)).filter((c): c is { id: string; rank: number; node: ReactNode } => !!c)
+            const fresh = byRank.filter((c) => !frozen.includes(c.id))
+            ordered = [...kept, ...fresh]
+            frozenOrderRef.current = ordered.map((c) => c.id)
+        } else {
+            frozenOrderRef.current = null
+        }
+        lastOrderRef.current = ordered.map((c) => c.id)
+        return ordered.map((c) => c.node)
+    }
+
+    // Mantém o card aberto no mesmo ponto da tela mesmo que algo acima dele mude de altura ou apareça/suma
+    const anchorRef = useRef<{ id: string; top: number } | null>(null)
+    const lastScrollAtRef = useRef(0)
+    useEffect(() => {
+        const onScroll = () => {
+            lastScrollAtRef.current = Date.now()
+            const id = expandedRideId
+            const el = id ? document.getElementById(`ride-card-${id}`) : null
+            if (id && el) anchorRef.current = { id, top: el.getBoundingClientRect().top }
+        }
+        window.addEventListener('scroll', onScroll, { passive: true })
+        return () => window.removeEventListener('scroll', onScroll)
+    }, [expandedRideId])
+    useLayoutEffect(() => {
+        if (!expandedRideId) { anchorRef.current = null; return }
+        const el = document.getElementById(`ride-card-${expandedRideId}`)
+        if (!el) return
+        const top = el.getBoundingClientRect().top
+        const a = anchorRef.current
+        const scrollingNow = Date.now() - lastScrollAtRef.current < 200
+        if (a && a.id === expandedRideId && !scrollingNow && Math.abs(top - a.top) > 0.5) window.scrollBy(0, top - a.top)
+        else anchorRef.current = { id: expandedRideId, top }
+    })
 
     const handleLocationSave = async (location: {
         lat: number
@@ -1372,6 +1475,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             <main className={embedded ? '' : 'relative z-10 min-h-dvh'}>
                 {!embedded && (
                     <Header
+                        pinned
                         title="Aceitar corrida"
                         showBack={true}
                         onBack={() => router.back()}
@@ -1417,76 +1521,6 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     <>
                     {hasDriver && <DriverDebtBanner userId={contextUserId} />}
 
-                    {/* Por que pedimos a localização: a Tarifa iUser soma a distância até a partida */}
-                    {activeTab === 'servicos' && gpsStatus !== 'granted' && (v3 ? (
-                        <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: surf }}>
-                            <div className="flex items-center gap-3">
-                                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f973161f', color: '#f97316' }}>
-                                    {gpsStatus === 'asking' ? <Spinner size={18} color="#f97316" /> : <LocateFixed size={20} />}
-                                </span>
-                                <p className="text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>
-                                    {gpsStatus === 'asking' ? 'Localizando você...' : 'Precisamos da sua localização'}
-                                </p>
-                            </div>
-                            <p className="text-xs leading-snug" style={{ color: colors.textSecondary }}>
-                                Usamos sua localização para ajustar o valor da <strong style={{ color: colors.textPrimary }}>Tarifa iUser</strong>: se você estiver longe do ponto de partida, somamos esse deslocamento ao valor para você não perder dinheiro rodando até o passageiro.
-                            </p>
-                            {gpsStatus === 'asking' ? (
-                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>Permita a localização quando o navegador perguntar.</p>
-                            ) : (
-                                <>
-                                    <p className="text-xs font-bold" style={{ color: '#ca8a04' }}>
-                                        {gpsStatus === 'denied'
-                                            ? 'A localização está bloqueada. Libere nas configurações do navegador (ou do app) e toque abaixo.'
-                                            : 'Não conseguimos obter sua localização agora.'}
-                                    </p>
-                                    <button
-                                        onClick={requestGps}
-                                        className="w-full h-11 rounded-full text-sm font-black text-white transition active:scale-[0.98]"
-                                        style={{ background: '#f97316' }}
-                                    >
-                                        Permitir localização
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    ) : (
-                        <div
-                            className="rounded-2xl p-3.5 flex items-start gap-3"
-                            style={{ background: '#f9731612', border: '1px solid #f9731640' }}
-                        >
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                                {gpsStatus === 'asking' ? <Spinner size={18} color="#fff" /> : <LocateFixed size={18} />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>
-                                    {gpsStatus === 'asking' ? 'Localizando você...' : 'Precisamos da sua localização'}
-                                </p>
-                                <p className="text-xs mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>
-                                    Usamos sua localização para ajustar o valor da <strong style={{ color: colors.textPrimary }}>Tarifa iUser</strong>: se você estiver longe do ponto de partida, somamos esse deslocamento ao valor para você não perder dinheiro rodando até o passageiro.
-                                </p>
-                                {gpsStatus === 'asking' && (
-                                    <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>Permita a localização quando o navegador perguntar.</p>
-                                )}
-                                {gpsStatus !== 'asking' && (
-                                    <>
-                                        <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>
-                                            {gpsStatus === 'denied'
-                                                ? 'A localização está bloqueada. Libere nas configurações do navegador (ou do app) e toque abaixo.'
-                                                : 'Não conseguimos obter sua localização agora.'}
-                                        </p>
-                                        <button
-                                            onClick={requestGps}
-                                            className="mt-2 px-4 py-2 rounded-full text-xs font-black"
-                                            style={{ background: GRADIENT, color: '#fff' }}
-                                        >
-                                            Permitir localização
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    ))}
                     {activeTab === 'servicos' && visibleRides.length === 0 && (v3 ? (
                         <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: surf }}>
                             <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textSecondary }}>
@@ -1509,63 +1543,148 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     ))}
 
                     {!loading && !showLogin && activeTab === 'servicos' && visibleRides.length > 0 && (
-                        <div className="flex flex-col gap-3">
-                            {visibleRides.map((ride) => {
+                        // overflow-anchor: o ajuste da rolagem do card aberto é nosso (layout effect acima); a correção automática do navegador somaria em dobro
+                        <div className="flex flex-col gap-3" style={{ overflowAnchor: 'none' }}>
+                            {orderCards(visibleRides.map((ride) => {
                                 const info = routeInfoById[ride.id]
                                 // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km do veículo)
                                 const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
-                                const pickupKm = gpsStatus === 'granted'
-                                    ? (info?.toPickupKm ?? (driverCoords && ride.origin_lat != null && ride.origin_lng != null
-                                        ? haversineKm(driverCoords, [ride.origin_lng, ride.origin_lat])
-                                        : null))
-                                    : null
+                                // O valor da corrida usa o km que o mapa do card mostra (a rota de verdade), não só o km gravado no pedido: se os dois
+                                // divergem (pedido antigo, endereço corrigido), vale a rota. Frete de loja é fixo e não entra aqui.
+                                const routeKm = info?.tripKm
+                                const useRouteKm = ride.offered_price == null && routeKm != null && ride.distance_km != null && Math.abs(routeKm - ride.distance_km) > 0.3
+                                const flagsOfRide: RideConditionFlags = {
+                                    origin_needs_access: ride.origin_needs_access, destination_needs_access: ride.destination_needs_access, is_grocery_shopping: ride.has_shopping,
+                                    has_special_needs: ride.has_special_needs, special_needs_wheelchair: ride.special_needs_wheelchair, special_needs_visual_impairment: ride.special_needs_visual_impairment,
+                                    has_guide_dog: ride.has_guide_dog, pet_has_carrier: ride.pet_has_carrier, delivery_location: ride.delivery_location, wants_air_conditioning: (ride as { wants_air_conditioning?: boolean | null }).wants_air_conditioning,
+                                }
+                                const tripPlatformPrice = useRouteKm ? computeSuggestedPrice(routeKm as number, platformShape, ride.ride_type, flagsOfRide) : ride.platformPrice
+                                const tripCustomPrice = useRouteKm && ride.customPrice != null && ride.customTariff ? computeSuggestedPrice(routeKm as number, ride.customTariff, ride.ride_type, flagsOfRide) : ride.customPrice
+                                const tripKmForNote = useRouteKm ? (routeKm as number) : ride.distance_km
+                                // Sem GPS liberado, `driverCoords` já vale a última posição ao vivo ou o local salvo ("Definir local"):
+                                // a conta do deslocamento usa essa posição em vez de ficar só no valor mínimo.
+                                const pickupKm = info?.toPickupKm ?? (driverCoords && ride.origin_lat != null && ride.origin_lng != null
+                                    ? haversineKm(driverCoords, [ride.origin_lng, ride.origin_lat])
+                                    : null)
                                 const pickupAmount = pickupKm != null ? computePickupFee(platformShape, pickupKm) : 0
                                 const pickup = pickupKm != null
-                                    ? { state: 'ready' as const, km: pickupKm, amount: pickupAmount }
+                                    ? { state: 'ready' as const, km: pickupKm, amount: pickupAmount, from: (gpsStatus === 'granted' ? 'gps' : 'saved') as 'gps' | 'saved' }
                                     : { state: (gpsStatus === 'asking' ? 'waiting' : 'missing') as 'waiting' | 'missing' }
-                                return (
-                                    <div
-                                        key={ride.id}
-                                        id={`ride-card-${ride.id}`}
-                                        className="rounded-2xl p-3.5 overflow-hidden relative transition-shadow duration-500"
-                                        style={{ background: surf, border: highlightRideId === ride.id || (ride.preferred_driver_id && ride.preferred_driver_id === contextUserId) ? '1px solid #f97316' : bd, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
-                                    >
-                                        {ride.preferred_driver_id && ride.preferred_driver_id === contextUserId && (
-                                            <span className="inline-flex items-center gap-1 mb-2 text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
-                                                Chamou você
-                                            </span>
-                                        )}
-                                        <RideOfferCard
-                                            ride={ride}
-                                            requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
-                                            storeName={ride.storeName}
-                                            platformPrice={ride.platformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
-                                            pickup={pickup}
-                                            customPrice={ride.customPrice}
-                                            applying={applyingId === ride.id}
-                                            onApply={(price) => applyToRide(ride, price)}
-                                            onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
-                                            toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
-                                            trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
-                                            onSkip={() => skipRide(ride.id)}
-                                            miniMap={ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null ? (
-                                                <RideMiniMap
-                                                    compact
-                                                    originLat={ride.origin_lat}
-                                                    originLng={ride.origin_lng}
-                                                    destLat={ride.destination_lat}
-                                                    destLng={ride.destination_lng}
-                                                    stops={rideStopsOf(ride)}
-                                                    driverLat={driverCoords ? driverCoords[1] : null}
-                                                    driverLng={driverCoords ? driverCoords[0] : null}
-                                                    onExpand={() => router.push(`/aceitar-corridas/mapa?ride=${ride.id}`)}
-                                                    onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [ride.id]: i }))}
-                                                />
-                                            ) : null}
-                                        />
-                                    </div>
+
+                                // O valor do card enxuto sai da MESMA conta do Canal do Motorista da home (lib/rideQuote)
+                                const rq = rideQuote<DriverPricing>({
+                                    offeredPrice: ride.offered_price != null ? Number(ride.offered_price) : null,
+                                    distanceKm: ride.distance_km, routeKm: routeKm ?? null,
+                                    platformShape, customShape: ride.customTariff ?? null, useCustom: ride.useOwnTariff,
+                                    pickupKm, pickupMin: info?.toPickupMin ?? null,
+                                    tripMin: info?.tripMin ?? ride.duration_min ?? (ride.distance_km != null ? (ride.distance_km / 40) * 60 : null),
+                                    minHourly: ride.offered_price != null ? null : earningGoal.minHourly,
+                                    minPerMinute: ride.order_id ? 0 : minPerMinute,
+                                    tripFare: (shape, km) => km != null
+                                        ? computeSuggestedPrice(km, shape, ride.ride_type, flagsOfRide)
+                                        : shape.baseFee + shape.extraFees[ride.ride_type] + computeConditionExtras(flagsOfRide, shape.conditionExtraFees),
+                                    pickupFee: (shape, km) => computePickupFee(shape, km),
+                                })
+                                const fromPassenger = ride.offered_price == null && ride.passenger_offer != null
+                                const price = fromPassenger ? Number(ride.passenger_offer) : rq.shown
+                                const valuation = rideValuation(fromPassenger && !ride.order_id ? price : null, rq.platform)
+                                const hasCoords = ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null
+                                const calledMe = !!ride.preferred_driver_id && ride.preferred_driver_id === contextUserId
+
+                                // O card completo, com TODOS os botões (candidatar, contraproposta, pular), mora no "Detalhes"
+                                const details = (
+                                    <RideOfferCard
+                                        ride={ride}
+                                        requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                        storeName={ride.storeName}
+                                        platformPrice={tripPlatformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
+                                        pickup={pickup}
+                                        tripFareNote={ride.hasDistance && tripKmForNote != null ? describeTripFare(tripKmForNote, platformShape) : undefined}
+                                        customPrice={tripCustomPrice}
+                                        customPickup={ride.offered_price == null && ride.customTariff && pickupKm != null ? computePickupFee(ride.customTariff, pickupKm) : 0}
+                                        valueFromOwn={ride.useOwnTariff}
+                                        timeRate={ride.customTariff?.pricePerMinute ?? null}
+                                        timeExtras={computeRideExtras(ride.ride_type, flagsOfRide, ride.customTariff ?? platformShape)}
+                                        applying={applyingId === ride.id}
+                                        onApply={(price) => applyToRide(ride, price)}
+                                        onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
+                                        minHourly={ride.order_id ? null : earningGoal.minHourly}
+                                        protection={earningGoal.protection}
+                                        minPerMinute={ride.order_id ? 0 : minPerMinute}
+                                        onEditTariff={ride.order_id ? undefined : (section) => router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}&modo=personalizada&secao=${section ?? 'km'}`)}
+                                        toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
+                                        trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
+                                        onSkip={() => skipRide(ride.id)}
+                                        miniMap={hasCoords ? (
+                                            <RideMiniMap
+                                                compact
+                                                originLat={ride.origin_lat as number}
+                                                originLng={ride.origin_lng as number}
+                                                destLat={ride.destination_lat as number}
+                                                destLng={ride.destination_lng as number}
+                                                stops={rideStopsOf(ride)}
+                                                driverLat={driverCoords ? driverCoords[1] : null}
+                                                driverLng={driverCoords ? driverCoords[0] : null}
+                                                onExpand={() => router.push(`/aceitar-corridas/mapa?ride=${ride.id}`)}
+                                                onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [ride.id]: i }))}
+                                            />
+                                        ) : null}
+                                    />
                                 )
-                            })}
+
+                                return {
+                                    id: ride.id,
+                                    rank: valuationRank(valuation.tier),
+                                    node: (
+                                        <div
+                                            key={ride.id}
+                                            id={`ride-card-${ride.id}`}
+                                            className="rounded-3xl transition-shadow duration-500"
+                                            style={{ boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : undefined }}
+                                        >
+                                            <RideSummaryCard
+                                                ride={ride}
+                                                requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                                price={price}
+                                                approx={!fromPassenger && rq.shownKind === 'platform' && pickup.state !== 'ready'}
+                                                reference={rq.platform}
+                                                fromPassenger={fromPassenger}
+                                                totalMin={rq.minutes}
+                                                toPickup={{ km: pickupKm, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
+                                                trip={{ km: rq.tripKm, min: info?.tripMin ?? ride.duration_min }}
+                                                thumb={hasCoords ? (
+                                                    <RideMiniMap
+                                                        thumb
+                                                        originLat={ride.origin_lat as number}
+                                                        originLng={ride.origin_lng as number}
+                                                        destLat={ride.destination_lat as number}
+                                                        destLng={ride.destination_lng as number}
+                                                        stops={rideStopsOf(ride)}
+                                                        driverLat={driverCoords ? driverCoords[1] : null}
+                                                        driverLng={driverCoords ? driverCoords[0] : null}
+                                                        onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [ride.id]: i }))}
+                                                    />
+                                                ) : undefined}
+                                                topBadge={calledMe ? (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
+                                                        Chamou você
+                                                    </span>
+                                                ) : undefined}
+                                                onApply={() => applyToRide(ride, price)}
+                                                applying={applyingId === ride.id}
+                                                onInteract={(on) => setSlidingRideId(on ? ride.id : null)}
+                                                applyBlocked={!fromPassenger && rq.shownKind === 'platform' && pickup.state !== 'ready' ? 'Libere sua localização para ver o valor e se candidatar' : null}
+                                                open={expandedRideId === ride.id}
+                                                onOpenChange={(o) => setExpandedRideId(o ? ride.id : null)}
+                                                onOpen={() => setExpandedRideId(ride.id)}
+                                                details={details}
+                                            />
+                                        </div>
+                                    ),
+                                }
+                            }))}
+                            {/* folga no fim enquanto há um card aberto: se uma corrida acima dele sumir, a página ainda tem por onde rolar e o card fica parado */}
+                            {expandedRideId && <div aria-hidden style={{ height: '70vh' }} />}
                         </div>
                     )}
 
@@ -1616,6 +1735,18 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             valueBox={ride.myProposedPrice != null ? { label: 'Sua proposta', price: ride.myProposedPrice } : undefined}
                                             footer={(
                                                 <div className="flex flex-col gap-2">
+                                                    {!ride.order_id && (
+                                                        <DriverNegotiation
+                                                            applicationId={ride.applicationId}
+                                                            myPrice={ride.myProposedPrice}
+                                                            rideOffer={ride.passenger_offer ?? null}
+                                                            minutes={info && info.toPickupMin != null ? info.toPickupMin + info.tripMin : null}
+                                                            minHourly={earningGoal.minHourly}
+                                                            protection={earningGoal.protection}
+                                                            minPerMinute={minPerMinute}
+                                                            onChanged={() => load()}
+                                                        />
+                                                    )}
                                                     <div className="flex items-center justify-between gap-2">
                                                         <span className="text-[11px] font-black px-2 py-0.5 rounded-full" style={{ background: '#eab30815', color: '#eab308' }}>
                                                             Aguardando decisão
@@ -1924,6 +2055,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     />
                 )
             })()}
+
+            <LocationAskDialog
+                open={activeTab === 'servicos' && !loading && !showLogin && gpsStatus !== 'granted' && !driverCoords && !locAskDismissed}
+                status={gpsStatus === 'granted' ? 'idle' : gpsStatus}
+                onAllow={requestGps}
+                onLater={() => { rememberLocationAskDismissed(); setLocAskDismissed(true) }}
+            />
 
             {showVehicleDialog && (
                 <VehicleRequiredDialog

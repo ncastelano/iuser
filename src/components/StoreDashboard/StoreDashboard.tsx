@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
 import { handleShareLink } from '@/lib/share'
 import {
@@ -42,7 +42,13 @@ import StoreOperatingDays from './StoreOperatingDays'
 import StoreDepositEditor from './StoreDepositEditor'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
+import StoreDeliveryBoard from './StoreDeliveryBoard'
+import StoreDeliveryDues from './StoreDeliveryDues'
+import StoreDigital from './StoreDigital'
+import StoreFeedback from './StoreFeedback'
 import StoreDeliverySettings from './StoreDeliverySettings'
+import StoreFavoriteDrivers from './StoreFavoriteDrivers'
+import StorePromotions from './StorePromotions'
 import StorePaymentMethods from './StorePaymentMethods'
 import StoreWhatsAppBot from './StoreWhatsAppBot'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
@@ -118,6 +124,7 @@ export default function StoreDashboard({
     showDebtBanner = true,
     previewLogo,
     previewName,
+    view = 'all',
 }: {
     profileSlug: string
     storeSlug: string
@@ -132,7 +139,11 @@ export default function StoreDashboard({
     /** Logo e nome que a página já conhece: o esqueleto de carregamento (3.0) já mostra em "Informações da loja" */
     previewLogo?: string | null
     previewName?: string | null
+    /** `painel`: só o que dá feedback à loja (pedidos, agenda, venda presencial, vendas, avaliações, visitantes) · `editar`: informações e preferências da loja · `all`: tudo (2.0) */
+    view?: 'all' | 'painel' | 'editar'
 }) {
+    const showP = view !== 'editar'
+    const showE = view !== 'painel'
     const router = useRouter()
     const { colors } = useTheme()
     // Dentro da casca da 3.0 a ordem das seções muda um pouco (Visitantes sobe) e os cartões ganham o desenho novo
@@ -699,20 +710,56 @@ export default function StoreDashboard({
                 </div>
             )}
 
-            {infoFirst && descriptionNode}
-            {infoFirst && insideShell && storeButtonsV3}
+            {showE && infoFirst && descriptionNode}
+            {showE && infoFirst && insideShell && storeButtonsV3}
 
-            {showDebtBanner && <DriverDebtBanner userId={userId} />}
+            {showP && showDebtBanner && <DriverDebtBanner userId={userId} />}
+            {/* ===== Painel (3.0): atalhos no topo — ver, compartilhar e EDITAR a loja ===== */}
+            {view === 'painel' && (
+                <div className="mb-6 grid grid-cols-3 gap-2">
+                    <button onClick={goToPublicStore} className="h-11 rounded-full text-[13px] font-black transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>Ver loja</button>
+                    <button onClick={shareStoreLink} className="h-11 rounded-full text-[13px] font-black transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>Compartilhar</button>
+                    <button onClick={() => router.push(`/editar-loja/${encodeURIComponent(storeSlug)}`)} className="h-11 rounded-full text-[13px] font-black text-white transition active:scale-95" style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>Editar loja</button>
+                </div>
+            )}
 
+            {showP && (
+            <>
             {/* ===== StoreOrders NO TOPO - é a primeira coisa que a loja precisa ver ===== */}
             <div className="mb-6">
                 <StoreOrders
                     storeId={store.id}
                     storeName={store.name}
                     onOrderCountsChange={onOrderCountsChange}
+                    storeSlug={store.storeSlug}
                 />
             </div>
 
+            {/* ===== Entregas dos motoristas iUser: quem leva os pedidos, código de retirada e saídas por período ===== */}
+            <div className={insideShell ? 'mb-6' : ''}>
+                <StoreDeliveryBoard storeId={store.id} v3={insideShell} />
+            </div>
+
+            {/* ===== Caixa das entregas: repasses do dinheiro da porta, maquininha e entregas contestadas ===== */}
+            <div className={insideShell ? 'mb-6' : ''}>
+                <StoreDeliveryDues storeId={store.id} v3={insideShell} />
+            </div>
+
+            {/* ===== Digital: cursos, músicas e programas (produtos, vendas, o que liberar, Clube) + Apoios recebidos (gorjetas dos fãs) ===== */}
+            <StoreDigital storeId={store.id} storeSlug={store.storeSlug} hasPix={!!store.pix_key} v3={insideShell} />
+
+            </>
+            )}
+
+            {/* ===== Agenda da loja: logo abaixo dos Pedidos — só entra o serviço que a loja ACEITOU ===== */}
+            {showP && (
+            <>
+            <AtalhoCompromissosDaLoja profileSlug={profileSlug} storeId={store.id} storeSlug={store.storeSlug} />
+            </>
+            )}
+
+            {showP && (
+            <>
             {/* ===== Venda Presencial (logo abaixo dos Pedidos) ===== */}
             <div className="mb-6">
                 <ButtonInPersonSale
@@ -724,6 +771,11 @@ export default function StoreDashboard({
                 />
             </div>
 
+            </>
+            )}
+
+            {view === 'all' && insideShell && (
+            <>
             {/* ===== Visitantes: na 3.0 ficam logo abaixo da Venda presencial (na 2.0 seguem no fim da página) ===== */}
             {insideShell && (
                 <div className="mb-6">
@@ -731,19 +783,38 @@ export default function StoreDashboard({
                 </div>
             )}
 
+            </>
+            )}
+
+            {showE && (
+            <>
             {/* ===== STORE OPERATING DAYS ===== */}
             <div className="mb-4">
                 <StoreOperatingDays storeId={store.id} />
             </div>
 
+            </>
+            )}
+
+            {showE && (
+            <>
             {/* ===== ENTRADA NO AGENDAMENTO (opcional) ===== */}
             <div className="mb-4">
                 <StoreDepositEditor storeId={store.id} />
             </div>
 
+            </>
+            )}
+
+            {view === 'all' && (
+            <>
             {!infoFirst && descriptionNode}
             {!infoFirst && insideShell && storeButtonsV3}
+            </>
+            )}
 
+            {view === 'all' && (
+            <>
             {!insideShell && (
                 <>
             <div className="mb-6">
@@ -780,7 +851,11 @@ export default function StoreDashboard({
 
                 </>
             )}
+            </>
+            )}
 
+            {view !== 'editar' && (
+            <>
             {/* ===== Vendas do dia ===== */}
             {insideShell ? (
                 <div className="mb-6">
@@ -830,11 +905,33 @@ export default function StoreDashboard({
             </div>
             )}
 
+            </>
+            )}
+
+            {/* ===== Avaliações e comentários dos clientes (produtos e serviços) ===== */}
+            {showP && <StoreFeedback storeId={store.id} />}
+
+            {view === 'painel' && (
+                <div className="mb-6">
+                    <StoreVisitors storeId={store.id} />
+                </div>
+            )}
+
+            {showE && (
+            <>
             {/* ===== Produtos e Serviços da Loja ===== */}
             <StoreCatalog storeId={store.id} storeSlug={storeSlug} kind="product" />
             <StoreCatalog storeId={store.id} storeSlug={storeSlug} kind="service" />
 
+            {/* ===== Promoções: combos montados com os itens da loja, com o desconto calculado ===== */}
+            <StorePromotions storeId={store.id} />
 
+
+            </>
+            )}
+
+            {showE && (
+            <>
             {/* ===== Configurações de Entrega ===== */}
             <div className="mb-6">
                 <StoreDeliverySettings
@@ -843,6 +940,14 @@ export default function StoreDashboard({
                 />
             </div>
 
+            {/* ===== Entregadores favoritos: recebem as entregas primeiro ===== */}
+            <StoreFavoriteDrivers storeId={store.id} v3={insideShell} />
+
+            </>
+            )}
+
+            {showE && (
+            <>
             {/* ===== Atendimento automático por WhatsApp ===== */}
             {showWhatsAppBot && (
                 <div className="mb-6">
@@ -850,6 +955,11 @@ export default function StoreDashboard({
                 </div>
             )}
 
+            </>
+            )}
+
+            {showE && (
+            <>
             {/* ===== Formas de Pagamento ===== */}
             <div className="mb-6">
                 <StorePaymentMethods
@@ -858,6 +968,11 @@ export default function StoreDashboard({
                 />
             </div>
 
+            </>
+            )}
+
+            {showE && (
+            <>
             {/* ===== Funcionários ===== */}
             <div className="mb-6">
                 <Employee
@@ -872,18 +987,28 @@ export default function StoreDashboard({
                 />
             </div>
 
-            {/* ===== Agendamentos ===== */}
-            <AtalhoCompromissosDaLoja profileSlug={profileSlug} storeId={store.id} storeSlug={store.storeSlug} />
+            </>
+            )}
 
+            {showE && (
+            <>
             {/* ===== Publicações ===== */}
             <Publication storeId={store.id} />
 
+            </>
+            )}
+
+            {showE && (
+            <>
             {/* ===== Club VIP ===== */}
             <StoreClubVip storeId={store.id} />
 
-            {/* ===== Visitantes (2.0) ===== */}
-            {!insideShell && <StoreVisitors storeId={store.id} />}
+            </>
+            )}
 
+            {view === 'all' && !insideShell && <StoreVisitors storeId={store.id} />}
+            {showE && (
+            <>
             {/* ===== Excluir loja (no final, mesmo design do Excluir conta) ===== */}
             <button
                 onClick={() => setShowDeleteStore(true)}
@@ -920,6 +1045,9 @@ export default function StoreDashboard({
                     onClose={() => setExtractPeriod(null)}
                 />
             )}
+            </>
+            )}
+
         </div>
     )
 }

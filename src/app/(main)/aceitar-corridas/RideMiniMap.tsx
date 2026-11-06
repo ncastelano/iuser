@@ -1,7 +1,7 @@
 // app/(main)/aceitar-corridas/RideMiniMap.tsx
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/app/contexts/theme'
 import { Expand } from 'lucide-react'
@@ -46,6 +46,16 @@ function encodePolyline(coords: [number, number][]): string {
     return output
 }
 
+/** diagonal (graus) da caixa que contém os pontos: serve só para comparar tamanhos */
+function bboxDiag(pts: [number, number][]): number {
+    if (pts.length === 0) return 0
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const [x, y] of pts) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y) }
+    return Math.hypot(maxX - minX, maxY - minY)
+}
+/** o trecho do motorista só entra na imagem se não "afastar" o mapa a ponto de a corrida virar um risco */
+const DRIVER_FRAME_MAX_RATIO = 2.2
+
 interface RideMiniMapProps {
     originLng: number
     originLat: number
@@ -62,15 +72,20 @@ interface RideMiniMapProps {
     compact?: boolean
     /** Anima o mini mapa até a tela cheia antes de chamar onExpand (padrão: sim). */
     transition?: boolean
+    /** Miniatura: preenche o espaço do pai (que dá o tamanho), sem legenda nem botão, com a imagem na proporção de um quadradinho. */
+    thumb?: boolean
 }
 
 // Chave em sessionStorage: a imagem do mini mapa que "cresce" até a tela cheia;
 // /aceitar-corridas/mapa a usa de fundo até o mapa de verdade carregar.
 export const MAP_TRANSITION_KEY = 'iuser-map-transition'
 
-export default function RideMiniMap({ originLng, originLat, destLng, destLat, stops = [], driverLng, driverLat, onExpand, onInfo, compact = false, transition = true }: RideMiniMapProps) {
+export default function RideMiniMap({ originLng, originLat, destLng, destLat, stops = [], driverLng, driverLat, onExpand, onInfo, compact = false, transition = true, thumb = false }: RideMiniMapProps) {
     const { colors } = useTheme()
-    const [imgUrl, setImgUrl] = useState<string | null>(null)
+    const [overlayStr, setOverlayStr] = useState<string | null>(null)
+    const [driverShown, setDriverShown] = useState(false)
+    // tamanho real do quadro: a imagem é pedida NA MESMA proporção, senão o object-cover corta o trajeto
+    const [box, setBox] = useState<{ w: number; h: number } | null>(null)
     const [failed, setFailed] = useState(false)
     const [toPickupKm, setToPickupKm] = useState<number | null>(null)
     const [toPickupMin, setToPickupMin] = useState<number | null>(null)
@@ -79,6 +94,33 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
     const hasDriver = driverLng != null && driverLat != null
     const wrapRef = useRef<HTMLDivElement>(null)
     const [flight, setFlight] = useState<{ rect: DOMRect; go: boolean } | null>(null)
+
+    useEffect(() => {
+        const el = wrapRef.current
+        if (!el) return
+        const measure = () => {
+            // arredonda de 20 em 20 px: redimensionar um pouco não refaz a imagem à toa
+            const w = Math.round(el.clientWidth / 20) * 20
+            const h = Math.round(el.clientHeight / 20) * 20
+            if (w < 40 || h < 40) return
+            setBox((b) => (b && b.w === w && b.h === h ? b : { w, h }))
+        }
+        measure()
+        const ro = new ResizeObserver(measure)
+        ro.observe(el)
+        return () => ro.disconnect()
+    }, [thumb])
+
+    const imgUrl = useMemo(() => {
+        if (!overlayStr || !box) return null
+        const w = Math.min(640, Math.max(40, box.w))
+        const h = Math.min(640, Math.max(40, box.h))
+        // folga em cima maior (o pino é alto) e laterais proporcionais ao quadro: o trajeto inteiro cabe sempre
+        const top = Math.round(Math.min(46, h * 0.3))
+        const bottom = Math.round(Math.min(26, h * 0.16))
+        const side = Math.round(Math.min(40, w * 0.1))
+        return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlayStr}/auto/${w}x${h}@2x?padding=${top},${side},${bottom},${side}&access_token=${MAPBOX_TOKEN}`
+    }, [overlayStr, box])
 
     // "Ver no mapa": o mini mapa cresce até a tela cheia e só então navega — na
     // página do mapa o card sobe de baixo, parecendo que o mapa abriu pra trás.
@@ -101,15 +143,18 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
             const overlays: string[] = []
             let nextToPickupKm: number | null = null
             let nextToPickupMin: number | null = null
+            let driverOverlay: string | null = null
+            let driverCoords: [number, number][] = []
 
             if (hasDriver) {
                 const leg = await fetchRoute([driverLng as number, driverLat as number], [originLng, originLat])
                 nextToPickupKm = leg.distanceKm
                 nextToPickupMin = leg.durationMin
+                driverCoords = leg.coords
                 // Desloca as duas pernas pra lados opostos: se o motorista tiver
                 // que ir e voltar pelo mesmo trecho de rua, as duas cores ficam
                 // lado a lado no mapa em vez de uma cobrir a outra.
-                overlays.push(`path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(offsetPolyline(leg.coords, 5)))})`)
+                driverOverlay = `path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(offsetPolyline(leg.coords, 5)))})`
             }
 
             // Com paradas, soma cada perna (partida→parada1→parada2→chegada)
@@ -121,16 +166,24 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
                 distanceKm: legs.reduce((sum, leg) => sum + leg.distanceKm, 0),
                 durationMin: legs.reduce((sum, leg) => sum + leg.durationMin, 0),
             }
+
+            // ENQUADRAMENTO: o foco é a corrida. Motorista longe (ex.: 12 km até buscar numa corrida de 2 km) afastaria o mapa
+            // até a corrida virar um risco; nesse caso o trecho dele fica fora da imagem (os km/min dele seguem no card).
+            const tripDiag = bboxDiag([...trip.coords, [originLng, originLat], [destLng, destLat]])
+            const withDriverDiag = bboxDiag([...trip.coords, ...driverCoords, [originLng, originLat], [destLng, destLat], [driverLng as number, driverLat as number]])
+            const showDriver = hasDriver && driverOverlay !== null && tripDiag > 0 && withDriverDiag <= tripDiag * DRIVER_FRAME_MAX_RATIO
+
+            if (showDriver && driverOverlay) overlays.push(driverOverlay)
             overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(offsetPolyline(trip.coords, -5)))})`)
 
-            if (hasDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
+            if (showDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
             overlays.push(`pin-s+22c55e(${originLng},${originLat})`)
             for (const s of stops) overlays.push(`pin-s+${STOP_COLOR}(${s.lng},${s.lat})`)
             overlays.push(`pin-s+ef4444(${destLng},${destLat})`)
 
-            const url = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlays.join(',')}/auto/500x220@2x?padding=40&access_token=${MAPBOX_TOKEN}`
             if (!cancelled) {
-                setImgUrl(url)
+                setOverlayStr(overlays.join(','))
+                setDriverShown(showDriver)
                 setToPickupKm(nextToPickupKm)
                 setToPickupMin(nextToPickupMin)
                 setTripKm(trip.distanceKm)
@@ -146,6 +199,14 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
     }, [originLng, originLat, destLng, destLat, stopsKey, driverLng, driverLat, hasDriver])
 
     if (failed) return null
+
+    if (thumb) {
+        return (
+            <div ref={wrapRef} className="w-full h-full relative overflow-hidden" style={{ background: `${colors.border}30` }}>
+                {imgUrl && <img src={imgUrl} alt="Trajeto da corrida" className="w-full h-full object-cover" onError={() => setFailed(true)} />}
+            </div>
+        )
+    }
 
     return (
         <div className={compact ? '' : 'mb-2'}>
@@ -169,7 +230,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
                 />,
                 document.body
             )}
-            <div ref={wrapRef} className="w-full rounded-xl overflow-hidden relative" style={{ height: compact ? 104 : 120, background: `${colors.border}30` }}>
+            <div ref={wrapRef} className="w-full rounded-xl overflow-hidden relative" style={{ height: compact ? 132 : 150, background: `${colors.border}30` }}>
                 {imgUrl ? (
                     <img src={imgUrl} alt="Trajeto da corrida" className="w-full h-full object-cover" onError={() => setFailed(true)} />
                 ) : (
@@ -190,7 +251,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
             </div>
             {!compact && (<>
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                {hasDriver && (
+                {driverShown && (
                     <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: `#${TO_PICKUP_COLOR}` }} />
                         Você

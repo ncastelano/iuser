@@ -1,0 +1,73 @@
+// src/lib/islandEvents.ts — o que cada evento do sistema (profile_notifications) vira na ILHA (3.0) ou na pílula do topo (2.0). Regra pura: sem React nem rede.
+// Só entram os eventos "ao vivo" (pedido, entrega, avaliação, agenda); curtida, seguidor e visita ficam só na lista de notificações do perfil (seria ruído).
+
+export type IslandLevel = 'success' | 'info' | 'message' | 'error'
+/** `reply`: o aviso traz uma RESPOSTA PRONTA de um toque (ex.: "Já estou descendo"): o botão da ilha a envia em vez de abrir uma página */
+export interface IslandEvent { level: IslandLevel; title: string; text: string; icon: string; path: string | null; actionLabel: string; duration: number; reply?: { rideId: string; code: string; label: string } }
+export interface RawNotification { kind: string; meta?: Record<string, any> | null }
+
+const T = (m: Record<string, any> | null | undefined, k: string) => (m && typeof m[k] === 'string' ? (m[k] as string) : '')
+
+/** Eventos de pedido e entrega: o gatilho do banco já manda o título, o texto pronto e o destino em `meta` */
+const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; duration?: number }> = {
+    // cliente
+    order_accepted: { level: 'success', icon: '👨‍🍳', label: 'Ver pedido' },
+    order_ready: { level: 'success', icon: '✅', label: 'Ver pedido', duration: 6500 },
+    order_rejected: { level: 'error', icon: '🚫', label: 'Ver pedido', duration: 7000 },
+    order_delivered: { level: 'success', icon: '🎉', label: 'Avaliar', duration: 7000 },
+    delivery_driver_assigned: { level: 'info', icon: '🛵', label: 'Acompanhar' },
+    delivery_picked_up: { level: 'info', icon: '📦', label: 'Acompanhar', duration: 6000 },
+    delivery_at_door: { level: 'success', icon: '🚪', label: 'Ver pedido', duration: 20000 },
+    delivery_message: { level: 'message', icon: '💬', label: 'Ver', duration: 20000 },   // frase pronta entre motorista e cliente
+    delivery_issue: { level: 'error', icon: '⚠️', label: 'Ver', duration: 12000 },        // a loja: o motorista não acha o endereço / ninguém atende   // o entregador avisou "Estou no local": o cliente precisa ir receber
+    // loja
+    order_new: { level: 'message', icon: '🛎️', label: 'Abrir', duration: 7000 },
+    // produto digital (curso, música, programa): a loja confere o Pix e libera o acesso; o cliente é avisado quando abre
+    digital_order_new: { level: 'message', icon: '🎓', label: 'Liberar acesso', duration: 9000 },
+    digital_access_released: { level: 'success', icon: '🔓', label: 'Começar', duration: 8000 },
+    delivery_driver_accepted: { level: 'info', icon: '🛵', label: 'Ver' },
+    delivery_driver_arrived: { level: 'message', icon: '🔑', label: 'Ver código', duration: 20000 },
+    delivery_done: { level: 'success', icon: '✅', label: 'Ver' },
+    delivery_driver_cancelled: { level: 'error', icon: '⚠️', label: 'Ver', duration: 8000 },
+    // motorista
+    delivery_order_ready: { level: 'success', icon: '🍕', label: 'Retirar', duration: 8000 },
+    delivery_completed: { level: 'success', icon: '💰', label: 'Ver' },
+    delivery_cancelled: { level: 'error', icon: '⚠️', label: 'Ver', duration: 7000 },
+    // favoritos: o convite da loja (motorista) e a resposta do motorista (loja)
+    favorite_invite: { level: 'info', icon: '⭐', label: 'Responder', duration: 9000 },
+    favorite_accepted: { level: 'success', icon: '⭐', label: 'Ver', duration: 6500 },
+    favorite_declined: { level: 'info', icon: '⭐', label: 'Ver', duration: 6000 },
+    // caixa do entregador (repasse, maquininha) e contestação de entrega: o texto e o destino vêm prontos do banco
+    dues_update: { level: 'info', icon: '💵', label: 'Ver', duration: 9000 },
+    dispute_update: { level: 'message', icon: '⚖️', label: 'Ver', duration: 10000 },
+    moderation_update: { level: 'info', icon: '🚩', label: 'Ver', duration: 9000 },
+    // negociação do valor da corrida: a proposta do outro lado, recusa, acordo e expiração (texto e destino prontos do banco)
+    ride_offer_new: { level: 'message', icon: '🤝', label: 'Responder', duration: 20000 },   // vale poucos minutos: fica mais tempo na ilha
+    ride_offer_declined: { level: 'info', icon: '🙅', label: 'Ver', duration: 7000 },
+    ride_offer_agreed: { level: 'success', icon: '✅', label: 'Ver', duration: 9000 },
+    ride_offer_expired: { level: 'info', icon: '⏳', label: 'Ver', duration: 6500 },   // conteúdo seu foi ocultado ou restaurado pelo iUser
+    // espera na corrida: o passageiro pede (o motorista aprova), o relógio começa para os dois e quem encerra avisa o outro
+    ride_wait_requested: { level: 'message', icon: '⏱️', label: 'Responder', duration: 25000 },
+    ride_wait_started: { level: 'info', icon: '⏱️', label: 'Ver', duration: 8000 },
+    ride_wait_declined: { level: 'info', icon: '🙅', label: 'Ver', duration: 7000 },
+    ride_wait_ended: { level: 'success', icon: '🏁', label: 'Ver', duration: 9000 },
+}
+
+export function islandEventFor(n: RawNotification): IslandEvent | null {
+    const cfg = LIVE[n.kind]
+    if (cfg) {
+        const title = T(n.meta, 'title'), text = T(n.meta, 'text')
+        if (!text && !title) return null
+        const replyCode = T(n.meta, 'reply_code'), rideId = T(n.meta, 'ride_id')
+        return { level: cfg.level, title, text: text || title, icon: cfg.icon, path: T(n.meta, 'path') || null, actionLabel: cfg.label, duration: cfg.duration ?? 5200, ...(replyCode && rideId ? { reply: { rideId, code: replyCode, label: T(n.meta, 'reply_label') || 'Responder' } } : {}) }
+    }
+    // eventos que já existiam e merecem aparecer na hora
+    switch (n.kind) {
+        case 'ride_selected': return { level: 'success', title: 'Você foi escolhido', text: 'Um passageiro escolheu você para a corrida', icon: '🚗', path: '/aceitar-corridas', actionLabel: 'Abrir', duration: 6500 }
+        case 'ride_review': return { level: 'info', title: 'Nova avaliação', text: `Você recebeu ${'⭐'.repeat(Math.max(1, Math.min(5, Number(n.meta?.rating) || 5)))}${T(n.meta, 'snippet') ? ` — “${T(n.meta, 'snippet').slice(0, 70)}”` : ''}`, icon: '⭐', path: '/entregas', actionLabel: 'Ver', duration: 6000 }
+        case 'appointment_new': return { level: 'message', title: 'Novo agendamento', text: T(n.meta, 'title') ? `“${T(n.meta, 'title')}”${T(n.meta, 'date') ? ` · ${String(n.meta?.date).split('-').reverse().join('/')}${T(n.meta, 'time') ? ` às ${n.meta?.time}` : ''}` : ''}` : 'Você recebeu um pedido de horário', icon: '📅', path: '/compromissos', actionLabel: 'Ver', duration: 6500 }
+        case 'appointment_confirmed': return { level: 'success', title: 'Agendamento confirmado', text: T(n.meta, 'title') ? `“${T(n.meta, 'title')}” foi confirmado` : 'Seu horário foi confirmado', icon: '✅', path: '/compromissos', actionLabel: 'Ver', duration: 5200 }
+        case 'appointment_cancelled': return { level: 'error', title: 'Agendamento cancelado', text: T(n.meta, 'title') ? `“${T(n.meta, 'title')}” foi cancelado` : 'Um horário foi cancelado', icon: '📅', path: '/compromissos', actionLabel: 'Ver', duration: 6500 }
+        default: return null
+    }
+}

@@ -15,8 +15,11 @@ import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
+import { effectiveTimeRate, timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 
+const TIME_GRADIENT = 'linear-gradient(135deg, #8b5cf6, #6d28d9)'
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 export const TO_PICKUP_COLOR = '#3b82f6'
 export const TRIP_COLOR = '#ef4444'
@@ -54,6 +57,8 @@ export type OfferRide = RideSpecFields & {
     created_at: string
     offered_price: number | null
     order_id: string | null
+    /** o que o passageiro se propôs a pagar (opcional); vem de ride_offers */
+    passenger_offer?: number | null
 }
 
 export interface OfferRequester {
@@ -71,6 +76,13 @@ interface RideOfferCardProps {
     // Valores: sem onApply (ou com footer) a seção de tarifas não aparece.
     platformPrice?: number
     customPrice?: number | null
+    // O que a tarifa PRÓPRIA do motorista cobra pelo deslocamento até a partida (km × o valor por km dele), já calculado por quem chama; soma em "Minha tarifa". 0/undefined = sem deslocamento (sem posição, ou entrega de loja)
+    customPickup?: number
+    // "Minha tarifa por TEMPO" (o 3º valor): o valor por minuto da tarifa própria do motorista e os extras da corrida (tipo e condições); sem valor por minuto a caixa fica "não definida"
+    timeRate?: number | null
+    timeExtras?: number
+    // Os valores de cada trecho (ir buscar, a corrida, total) vêm da tarifa PRÓPRIA do motorista em vez da Tarifa iUser (o motorista usa "Minha tarifa")
+    valueFromOwn?: boolean
     applying?: boolean
     onApply?: (price: number) => void
     // Entrega de loja: propor a Minha tarifa (o cliente decide). O valor é recalculado no servidor.
@@ -86,9 +98,24 @@ interface RideOfferCardProps {
     onBack?: () => void
     onSkip?: () => void
     // Deslocamento do motorista até a partida, somado à Tarifa iUser (platformPrice já vem com ele)
-    pickup?: { state: 'ready'; km: number; amount: number } | { state: 'waiting' | 'missing' }
+    // `from`: 'gps' = posição do aparelho; 'saved' = local salvo / última posição ao vivo (o GPS não está liberado)
+    pickup?: { state: 'ready'; km: number; amount: number; from?: 'gps' | 'saved' } | { state: 'waiting' | 'missing' }
+    // Como o valor da corrida (partida → chegada) sai da tarifa; aparece enquanto o deslocamento ainda não entrou na conta
+    tripFareNote?: string
     // Prévia (home): só o trecho da corrida, sem "até buscar"/total/horário
     compact?: boolean
+    // Ganho mínimo por hora do motorista (privado dele): avisa quando um valor fica abaixo e, no modo "block", não deixa aceitar
+    minHourly?: number | null
+    protection?: 'warn' | 'block'
+    // Tocar em "Minha tarifa" abre a tarifa personalizada do motorista (onde ele muda os valores); mandar a proposta por ela é pelo "outro" ou pelo botão da sugestão
+    /** abre a Tarifa PERSONALIZADA do painel do motorista, já na parte pedida (km ou tempo) */
+    onEditTariff?: (section?: 'km' | 'tempo') => void
+    // Valor mínimo da plataforma por minuto de trabalho (Admin → Tarifas): nenhum valor sai abaixo de minutos × isto (0/undefined = sem regra)
+    minPerMinute?: number
+    // Só LEITURA (a prévia da home): mostra os mesmos valores, mas não manda proposta daqui; quem decide é a página da corrida (use `after` para o botão que leva até lá)
+    viewOnly?: boolean
+    // Conteúdo depois dos valores (ex.: o botão "Ver corrida" da home)
+    after?: ReactNode
 }
 
 function relativeTime(iso: string): string {
@@ -109,7 +136,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, compact = false, pickup }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice: customTripPrice = null, customPickup = 0, timeRate = null, timeExtras = 0, valueFromOwn = false, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, minPerMinute = 0, compact = false, pickup, tripFareNote, viewOnly = false, after }: RideOfferCardProps) {
     const { colors } = useTheme()
     // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
     const v3 = useInsideShell()
@@ -121,12 +148,41 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
 
-    // Ganho por hora (informativo): valor ÷ ((km até o passageiro + km da corrida) ÷ 40 km/h)
+    // Ganho por hora (informativo): valor ÷ tempo total (ir buscar + corrida). Sem os minutos do mapa, cai para a conta por km (40 km/h).
+    const minutesTotal = toPickup.min != null && trip.min != null ? (toPickup.min as number) + (trip.min as number) : null
     const perHour = (price: number) => {
+        if (minutesTotal) { const v = perHourOfMinutes(price, minutesTotal); return v != null ? Math.round(v) : null }
         if (toPickup.km == null || trip.km == null) return null
         const h = computeHourlyEarnings(price, trip.km, toPickup.km)
         return h ? Math.round(h.perHour) : null
     }
+    // Ganho mínimo do motorista: piso por tempo, sugestão e alertas (só dele; nada disso vai para o passageiro)
+    const floor = hourlyFloor(minutesTotal, minHourly)
+    // Piso da plataforma: minutos × mínimo por minuto. Vale para a Tarifa iUser, para a tarifa do motorista e para qualquer proposta; frete de loja é fixo
+    const platFloor = ride.order_id || ride.offered_price != null ? 0 : platformFloor(minutesTotal, minPerMinute)
+    const raise = (v: number) => (platFloor > 0 ? Math.max(v, platFloor) : v)
+    platformPrice = raise(platformPrice)
+    // Minha tarifa = a corrida pela tarifa dele + o deslocamento até a partida pelo valor por km dele (igual à Tarifa iUser, que também soma o deslocamento)
+    const customPrice = customTripPrice != null ? round2(customTripPrice + (customPickup > 0 ? customPickup : 0)) : null
+    const myFare = customPrice != null ? raise(suggestedFare(customPrice, floor)) : null
+    // O piso do ganho mínimo SUBIU a tarifa só quando ele é maior que a tarifa por distância (comparando já arredondado, senão uma diferença de centavos acusa "no seu mínimo" sem o piso ter feito nada)
+    const floorRaised = customPrice != null && ((floor != null && floor > round2(customPrice)) || (platFloor > 0 && platFloor > round2(customPrice)))
+    const myFareDriver = customPrice != null ? fareDriver(customPrice, floor, platFloor) : null
+    const myFareWhy = customPrice != null && myFareDriver && myFareDriver !== 'km' ? fareDriverText(myFareDriver, customPrice, minHourly, minPerMinute) : ''
+    // O 3º valor: por tempo (minutos de trabalho × valor por minuto dele + extras), com os mesmos pisos (ganho mínimo por hora e mínimo da plataforma)
+    // Sem valor por minuto próprio, vale o ganho mínimo por hora PADRÃO do iUser (R$ 40/h = R$ 0,67 por minuto): o "Por tempo" sempre tem número
+    const defaultHourly = useDefaultMinHourly()
+    const ownTimeRate = timeRate != null && timeRate > 0 ? timeRate : null
+    // o valor por minuto nunca fica abaixo do piso (R$ 40/h ÷ 60 = R$ 0,67); sem valor próprio vale o próprio piso (o padrão do iUser)
+    const rateUsed = effectiveTimeRate(ownTimeRate, defaultHourly)
+    const timeIsDefault = ownTimeRate == null && rateUsed != null   // sem valor próprio: é o padrão do iUser
+    const timeBase = ride.order_id || ride.offered_price != null ? null : timeFare(minutesTotal, rateUsed, timeExtras)
+    const myTime = timeBase != null ? raise(suggestedFare(timeBase, floor)) : null
+    const timeFloorRaised = timeBase != null && myTime != null && myTime > round2(timeBase)
+    const iuserSuggestion = customPrice == null && floor != null && floor > platformPrice ? raise(floor) : null   // sugestão calculada, nunca salva como preferência
+    const below = (price: number) => belowMinimum(perHour(price), minHourly)
+    const blocked = (price: number) => belowPlatformFloor(price, platFloor) || (protection === 'block' && below(price))
+    const [counterOpen, setCounterOpen] = useState(false)
 
     const haveTotal = toPickup.km != null && toPickup.min != null && trip.km != null && trip.min != null
     const totalKm = haveTotal ? (toPickup.km as number) + (trip.km as number) : null
@@ -140,7 +196,13 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const vehicleLabel = ride.vehicle_type === 'qualquer' ? 'Qualquer veículo' : VEHICLE_TYPE_LABELS[ride.vehicle_type]
     const specs = humanizeRideSpecs(ride)
 
-    const stat = (color: string, label: string, km: number | null, min: number | null, pending: string) => (
+    // Valor de cada trecho (só corrida de passageiro com valores à vista): a tarifa que vale para o motorista repartida em ir buscar + a corrida = total
+    const showParts = ride.offered_price == null && !ride.order_id && !footer && !valueBox && platformPrice > 0
+    const ownParts = myFare != null ? fareParts(myFare, customPickup > 0 ? customPickup : null) : null
+    const parts = !showParts ? null : valueFromOwn && ownParts ? ownParts : fareParts(platformPrice, pickup?.state === 'ready' ? pickup.amount : null)
+    const partsLabel = valueFromOwn && ownParts ? 'Minha tarifa' : 'Tarifa iUser'
+
+    const stat = (color: string, label: string, km: number | null, min: number | null, pending: string, value: number | null = null) => (
         <div className="flex-1 min-w-0 rounded-xl px-2.5 py-1.5" style={{ background: `${colors.border}25`, border: bd }}>
             <span className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: colors.textSecondary }}>
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
@@ -149,6 +211,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
             <span className="block text-[11px] font-black leading-tight mt-0.5" style={{ color: colors.textPrimary }}>
                 {km != null ? `${kmText(km)}${min != null ? ` · ${Math.round(min)} min` : ''}` : pending}
             </span>
+            {value != null && <span className="block text-[13px] font-black leading-tight mt-0.5" style={{ color }}>{brl(value)}</span>}
         </div>
     )
 
@@ -226,10 +289,13 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
 
             {/* Quanto falta: cores iguais às linhas do mapa */}
             <div className="flex gap-1.5">
-                {!compact && stat(TO_PICKUP_COLOR, 'Até buscar', toPickup.km, toPickup.min, toPickup.hasGps ? 'calculando…' : 'ative o GPS')}
-                {stat(TRIP_COLOR, 'A corrida', trip.km, trip.min, 'calculando…')}
-                {!compact && stat('#a855f7', 'Total', totalKm, totalMin, '—')}
+                {!compact && stat(TO_PICKUP_COLOR, 'Até buscar', toPickup.km, toPickup.min, toPickup.hasGps ? 'calculando…' : 'ative o GPS', parts?.pickup ?? null)}
+                {stat(TRIP_COLOR, 'A corrida', trip.km, trip.min, 'calculando…', parts?.trip ?? null)}
+                {!compact && stat('#a855f7', 'Total', totalKm, totalMin, '—', parts?.total ?? null)}
             </div>
+            {!compact && parts && (
+                <p className="text-[10px] -mt-1" style={{ color: colors.textSecondary }}>Valores pela {partsLabel}{parts.pickup == null ? ' (sem o deslocamento: falta a sua posição)' : ''}</p>
+            )}
             {!compact && arrivalTime && (
                 <p className="text-[11px] -mt-1" style={{ color: colors.textSecondary }}>
                     Se sair agora, termina por volta das <span className="font-black" style={{ color: colors.textPrimary }}>{arrivalTime}</span>
@@ -250,7 +316,13 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
             {/* Valores: Tarifa iUser · Minha tarifa · outro valor (ou o frete da loja) */}
             {footer}
 
-            {!footer && onApply && (ride.offered_price != null ? (
+            {!footer && onApply && (ride.offered_price != null ? (viewOnly ? (
+                <div className="rounded-xl px-3 py-2" style={{ background: '#22c55e14', border: '1px solid #22c55e40' }}>
+                    <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>Frete desta entrega</span>
+                    <span className="block text-[17px] font-black leading-tight" style={{ color: '#16a34a' }}>{brl(Number(ride.offered_price))}</span>
+                    {perHour(Number(ride.offered_price)) != null && <span className="block text-[10px] font-semibold leading-tight" style={{ color: colors.textSecondary }}>≈ R$ {perHour(Number(ride.offered_price))}/h</span>}
+                </div>
+            ) : (
                 <>
                 <button
                     onClick={() => onApply(Number(ride.offered_price))}
@@ -280,59 +352,228 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         </>
                     )}
                 </>
+            )) : ride.passenger_offer != null ? (
+                // NEGOCIAÇÃO: o passageiro ofereceu um valor. Referência, oferta e minha tarifa lado a lado, com o ganho por hora de cada uma.
+                (() => {
+                    const offer = Number(ride.passenger_offer)
+                    const mine = myFare ?? iuserSuggestion ?? platformPrice
+                    const mineLabel = customPrice != null ? (myTime != null ? 'Minha tarifa · km' : 'Minha tarifa') : iuserSuggestion != null ? 'Minha tarifa · sugestão do iUser' : 'Minha tarifa · sugestão do iUser'
+                    const offerBelow = below(offer)
+                    const offerBlocked = blocked(offer)
+                    const row = (label: string, value: number, strong = false, hour: number | null = null, warn = false) => (
+                        <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[12px] font-semibold min-w-0 truncate" style={{ color: strong ? colors.textPrimary : colors.textSecondary }}>{label}</span>
+                            <span className="text-right flex-shrink-0">
+                                <span className={`${strong ? 'text-[17px]' : 'text-[14px]'} font-black leading-tight`} style={{ color: strong ? '#16a34a' : colors.textPrimary }}>{brl(value)}</span>
+                                {hour != null && <span className="block text-[10px] font-bold leading-tight" style={{ color: warn ? '#d97706' : colors.textSecondary }}>≈ R$ {hour}/h</span>}
+                            </span>
+                        </div>
+                    )
+                    const quick = quickValues(mine, { count: 4 })
+                    const counterVal = parseMoney(value)
+                    const counterErr = counterVal != null ? validateAmount(counterVal) : null
+                    return (
+                        <>
+                            <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: v3 ? `${colors.border}25` : `${colors.border}20`, border: bd }}>
+                                {row('Tarifa iUser', platformPrice, false, perHour(platformPrice))}
+                                {row('Oferta do passageiro', offer, true, perHour(offer), offerBelow)}
+                                {row(mineLabel, mine, false, perHour(mine), below(mine))}
+                                {myTime != null && row('Minha tarifa · tempo', myTime, false, perHour(myTime), below(myTime))}
+                                {floorRaised && myFareWhy && (
+                                    <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>{myFareWhy}</p>
+                                )}
+                            </div>
+                            {!viewOnly && belowPlatformFloor(offer, platFloor) && (
+                                <p className="text-[11px] font-bold leading-snug rounded-xl px-3 py-2" style={{ background: '#ef44441a', color: '#b91c1c' }}>{platformFloorText(platFloor, minPerMinute)} Essa oferta não pode ser aceita; faça uma contraproposta.</p>
+                            )}
+                            {offerBelow && minHourly != null && perHour(offer) != null && (
+                                <p className="text-[11px] font-bold leading-snug rounded-xl px-3 py-2" style={{ background: '#f59e0b1f', color: '#b45309' }}>
+                                    {belowMinimumText(perHour(offer) as number, minHourly)}{protection === 'block' ? ' Você ativou "não aceitar abaixo do mínimo".' : ''}
+                                </p>
+                            )}
+                            {!viewOnly && (<>
+                            <button
+                                onClick={() => onApply(offer)}
+                                disabled={applying || offerBlocked}
+                                className="w-full py-3 rounded-full text-[13px] font-black uppercase tracking-wide transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                                style={{ background: GRADIENT, color: '#fff' }}
+                            >
+                                {applying ? <Spinner size={14} /> : `Aceitar oferta · ${brl(offer)}`}
+                            </button>
+                            <div className="flex items-stretch gap-1.5">
+                                <button
+                                    onClick={() => { setCounterOpen((o) => !o); setValue('') }}
+                                    className="flex-1 py-2.5 rounded-full text-[12px] font-black uppercase tracking-wide transition-all active:scale-95"
+                                    style={counterOpen ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textPrimary, border: bd }}
+                                >
+                                    Fazer contraproposta
+                                </button>
+                                {onSkip && (
+                                    <button onClick={onSkip} className="px-4 py-2.5 rounded-full text-[12px] font-black uppercase tracking-wide transition-all active:scale-95" style={{ background: 'transparent', color: '#dc2626', border: v3 ? 'none' : '1.5px solid #dc262655' }}>
+                                        Recusar
+                                    </button>
+                                )}
+                            </div>
+                            {counterOpen && (
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {quick.map((q) => (
+                                            <button
+                                                key={q}
+                                                onClick={() => onApply(q)}
+                                                disabled={applying || blocked(q)}
+                                                className="flex-1 min-w-[64px] rounded-xl px-2 py-2 text-center transition-all active:scale-95 disabled:opacity-40"
+                                                style={{ background: `${colors.border}30`, border: bd }}
+                                            >
+                                                <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>R$ {q}</span>
+                                                {perHour(q) != null && <span className="block text-[9px] font-bold" style={{ color: below(q) ? '#d97706' : colors.textSecondary }}>≈ R$ {perHour(q)}/h</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            inputMode="decimal"
+                                            value={value}
+                                            onChange={(e) => setValue(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))}
+                                            placeholder="Outro valor (R$)"
+                                            className={v3 ? 'flex-1 min-w-0 px-4 py-2.5 rounded-full text-sm font-semibold outline-none' : 'flex-1 min-w-0 px-3 py-2 rounded-full border text-sm'}
+                                            style={v3 ? { background: colors.background, color: colors.textPrimary } : { background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                        />
+                                        <button
+                                            onClick={() => counterVal != null && !counterErr && onApply(counterVal)}
+                                            disabled={applying || counterVal == null || !!counterErr || blocked(counterVal)}
+                                            className="px-4 py-2.5 rounded-full text-xs font-black disabled:opacity-50"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            {applying ? <Spinner size={12} /> : 'Enviar'}
+                                        </button>
+                                    </div>
+                                    {counterVal != null && blocked(counterVal) && minHourly != null && (
+                                        <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>{belowMinimumText(perHour(counterVal) as number, minHourly, 'proposta')}</p>
+                                    )}
+                                </div>
+                            )}
+                            </>)}
+                        </>
+                    )
+                })()
             ) : (
                 <>
                     <div className="flex items-stretch gap-1.5">
                         <button
                             onClick={() => onApply(platformPrice)}
-                            disabled={applying}
-                            className="flex-1 rounded-xl px-3 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
+                            disabled={applying || blocked(platformPrice)}
+                            className="flex-1 min-w-0 rounded-xl px-2 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
                             style={{ background: `${colors.border}25`, border: bd }}
                         >
-                            <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>Tarifa iUser</span>
-                            <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{brl(platformPrice)}</span>
+                            <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>{pickup && pickup.state !== 'ready' ? 'iUser · a partir de' : 'Tarifa iUser'}</span>
+                            <span className="block text-[14px] font-black leading-tight whitespace-nowrap" style={{ color: colors.textPrimary }}>{brl(platformPrice)}</span>
                             {perHour(platformPrice) != null && (
-                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: colors.textSecondary }}>≈ R$ {perHour(platformPrice)}/h</span>
-                            )}
-                            {pickup?.state === 'ready' && (
-                                <span className="block text-[9px] leading-tight mt-0.5" style={{ color: '#16a34a' }}>
-                                    inclui {brl(pickup.amount)} · {kmText(pickup.km)} até a partida
-                                </span>
-                            )}
-                            {pickup && pickup.state !== 'ready' && (
-                                <span className="block text-[9px] leading-tight mt-0.5 font-semibold" style={{ color: '#d97706' }}>
-                                    {pickup.state === 'waiting' ? 'Localizando... falta somar a distância até a partida' : 'Falta somar a distância até a partida'}
-                                </span>
-                            )}
-                        </button>
-                        <button
-                            onClick={() => customPrice != null && onApply(customPrice)}
-                            disabled={applying || customPrice == null}
-                            className="flex-1 rounded-xl px-3 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
-                            style={customPrice != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
-                        >
-                            <span className="block text-[10px] font-semibold" style={{ color: customPrice != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>Minha tarifa</span>
-                            <span className="block text-[15px] font-black leading-tight" style={{ color: customPrice != null ? '#fff' : colors.textSecondary }}>
-                                {customPrice != null ? brl(customPrice) : 'não definida'}
-                            </span>
-                            {customPrice != null && perHour(customPrice) != null && (
-                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>≈ R$ {perHour(customPrice)}/h</span>
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: below(platformPrice) ? '#d97706' : colors.textSecondary }}>≈ R$ {perHour(platformPrice)}/h{below(platformPrice) ? ' · abaixo do seu mínimo' : ''}</span>
                             )}
                         </button>
                         <button
                             onClick={() => {
-                                if (editing) { setEditing(false); setValue('') }
-                                else { setEditing(true); setValue((customPrice ?? platformPrice).toFixed(2)) }
+                                // "Minha tarifa" (definida ou não) leva à tarifa personalizada; só a SUGESTÃO do iUser (ainda não é tarifa dele) manda a proposta
+                                if (iuserSuggestion != null && myFare == null) onApply(iuserSuggestion)
+                                else onEditTariff?.('km')
                             }}
-                            className="w-11 rounded-xl flex flex-col items-center justify-center flex-shrink-0 transition-all active:scale-95"
+                            disabled={applying || (iuserSuggestion != null && myFare == null && blocked(iuserSuggestion)) || (iuserSuggestion == null && myFare == null && !onEditTariff)}
+                            className="flex-1 min-w-0 rounded-xl px-2 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
+                            style={myFare != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
+                        >
+                            <span className="block text-[10px] font-semibold" style={{ color: myFare != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>{myFare != null ? 'Por km' : iuserSuggestion != null ? 'Sugestão iUser' : 'Por km'}</span>
+                            <span className="block text-[14px] font-black leading-tight whitespace-nowrap" style={{ color: myFare != null ? '#fff' : colors.textSecondary }}>
+                                {myFare != null ? brl(myFare) : iuserSuggestion != null ? brl(iuserSuggestion) : 'não definida'}
+                            </span>
+                            {(myFare ?? iuserSuggestion) != null && perHour((myFare ?? iuserSuggestion) as number) != null && (
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: myFare != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>≈ R$ {perHour((myFare ?? iuserSuggestion) as number)}/h{myFareDriver === 'platform' ? ' · mín. plataforma' : myFareDriver === 'hourly' ? ' · seu mínimo' : ''}</span>
+                            )}
+                            {onEditTariff && myFare != null && (
+                                <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: 'rgba(255,255,255,0.9)' }}>editar</span>
+                            )}
+                            {onEditTariff && myFare == null && iuserSuggestion == null && (
+                                <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: colors.textSecondary }}>definir</span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => onEditTariff?.('tempo')}
+                            disabled={applying || !onEditTariff}
+                            className="flex-1 min-w-0 rounded-xl px-2 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
+                            style={myTime != null ? { background: TIME_GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
+                        >
+                            <span className="block text-[10px] font-semibold" style={{ color: myTime != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>Por tempo</span>
+                            <span className="block text-[14px] font-black leading-tight whitespace-nowrap" style={{ color: myTime != null ? '#fff' : colors.textSecondary }}>{myTime != null ? brl(myTime) : 'não definida'}</span>
+                            {myTime != null && perHour(myTime) != null && (
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>≈ R$ {perHour(myTime)}/h{timeFloorRaised ? ' · mínimo' : ''}</span>
+                            )}
+                            {myTime != null && timeIsDefault && (
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>padrão iUser</span>
+                            )}
+                            {onEditTariff && (
+                                <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: myTime != null ? 'rgba(255,255,255,0.9)' : colors.textSecondary }}>{myTime != null ? (timeIsDefault ? 'definir o meu' : 'editar') : rateUsed != null ? 'sem minutos' : 'definir'}</span>
+                            )}
+                        </button>
+                        {!viewOnly && <button
+                            onClick={() => {
+                                if (editing) { setEditing(false); setValue('') }
+                                else { setEditing(true); setValue((myFare ?? iuserSuggestion ?? platformPrice).toFixed(2)) }
+                            }}
+                            className="w-9 rounded-xl flex flex-col items-center justify-center flex-shrink-0 transition-all active:scale-95"
                             style={editing ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: bd }}
                             title="Digitar outro valor"
                         >
                             <Pencil size={14} />
                             <span className="text-[9px] font-semibold mt-0.5">outro</span>
-                        </button>
+                        </button>}
                     </div>
 
+                    {/* Como cada valor foi feito (as caixas ficam estreitas com três lado a lado) */}
+                    <div className="flex flex-col gap-0.5">
+                        {pickup?.state === 'ready' && (
+                            <p className="text-[10px] leading-snug" style={{ color: '#16a34a' }}>
+                                Ir buscar ({kmText(pickup.km)}{pickup.from === 'saved' ? ', pela sua última posição salva' : ''}): {brl(pickup.amount)} pela Tarifa iUser{customPickup > 0 ? ` · ${brl(customPickup)} pelo seu valor por km` : ''}
+                            </p>
+                        )}
+                        {pickup && pickup.state !== 'ready' && (
+                            <p className="text-[10px] leading-snug font-semibold" style={{ color: '#d97706' }}>
+                                {pickup.state === 'waiting' ? 'Localizando... falta somar a distância até a partida' : 'Sem o seu local não dá para somar a distância até a partida: defina o local ou libere o GPS'}
+                            </p>
+                        )}
+                        {pickup && pickup.state !== 'ready' && tripFareNote && (
+                            <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>{tripFareNote}</p>
+                        )}
+                        {myTime != null && minutesTotal != null && rateUsed != null && (
+                            <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>
+                                Por tempo: {Math.round(minutesTotal)} min × {brl(rateUsed)} por minuto ({timeIsDefault ? `padrão do iUser: R$ ${defaultHourly.toLocaleString('pt-BR')} por hora — defina o seu em Tarifa` : 'sua tarifa por tempo'}){timeExtras > 0 ? ` + ${brl(timeExtras)} de extras` : ''}{timeFloorRaised ? ' · subiu até o mínimo' : ''}
+                            </p>
+                        )}
+                        {rateUsed != null && minutesTotal == null && (
+                            <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>Por tempo: ainda falta o tempo até a partida (libere o GPS ou defina o seu local).</p>
+                        )}
+                    </div>
+                    {myFareWhy && (
+                        <p className="text-[10px] leading-snug font-semibold" style={{ color: '#b45309' }}>{myFareWhy}</p>
+                    )}
+                    {platFloor > 0 && (
+                        <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>
+                            Mínimo da plataforma nesta corrida: <strong style={{ color: colors.textPrimary }}>{brl(platFloor)}</strong> · {brl(minPerMinute)} por minuto de trabalho ({minutesTotal != null ? `${Math.round(minutesTotal)} min` : ''})
+                        </p>
+                    )}
+
+                    {editing && belowPlatformFloor(parseFloat(value) || 0, platFloor) && (
+                        <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>{platformFloorText(platFloor, minPerMinute)}</p>
+                    )}
+                    {editing && (
+                        <div className="flex gap-1.5">
+                            {[{ k: 'iUser', v: platformPrice }, { k: 'Por km', v: myFare }, { k: 'Por tempo', v: myTime }].filter((c) => c.v != null).map((c) => (
+                                <button key={c.k} onClick={() => setValue((c.v as number).toFixed(2))} className="flex-1 rounded-xl px-2 py-1.5 text-center transition-all active:scale-95" style={{ background: `${colors.border}30`, border: bd }}>
+                                    <span className="block text-[9px] font-semibold" style={{ color: colors.textSecondary }}>{c.k}</span>
+                                    <span className="block text-[12px] font-black" style={{ color: colors.textPrimary }}>{brl(c.v as number)}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     {editing && (
                         <div className="flex items-center gap-2">
                             <input
@@ -347,7 +588,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             />
                             <button
                                 onClick={() => onApply(parseFloat(value) || 0)}
-                                disabled={applying}
+                                disabled={applying || blocked(parseFloat(value) || 0)}
                                 className="px-4 py-2 rounded-full text-xs font-black disabled:opacity-70"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >
@@ -364,6 +605,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                     )}
                 </>
             ))}
+
+            {after}
 
             {onSkip ? (
                 <button onClick={onSkip} className="w-full py-1 text-xs font-semibold" style={{ color: colors.textSecondary }}>

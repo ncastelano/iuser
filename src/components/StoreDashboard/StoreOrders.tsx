@@ -3,11 +3,14 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
+import StoreServiceOrders, { useStoreServiceAppointments } from './StoreServiceOrders'
+import StatChips from './StatChips'
 import { supabase } from '@/lib/supabase/client'
 import { useInsideShell } from '@/components/InsideShell'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { useTheme } from '@/app/contexts/theme'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
+import { releaseOrder } from '@/modules/digital'
 import { hexToRgb } from '@/lib/color'
 import {
     Send,
@@ -84,6 +87,10 @@ interface StoreOrdersProps {
     storeName?: string
     onOrderCountsChange?: (counts: { pending: number; preparing: number; ready: number }) => void
     onRefresh?: () => void
+    /** 'panel' (padrão): o cartão-resumo do painel (contadores + só os pedidos NOVOS + atalho); 'page': a lista completa da página "Pedidos da loja" */
+    variant?: 'panel' | 'page'
+    /** O endereço da loja (o atalho "Ver todos os pedidos" do painel leva a /painel-loja/<storeSlug>/pedidos) */
+    storeSlug?: string
 }
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -139,10 +146,13 @@ export default function StoreOrders({
     storeName = 'Loja',
     onOrderCountsChange,
     onRefresh,
+    variant = 'panel',
+    storeSlug,
 }: StoreOrdersProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const v3 = useInsideShell()
+    const router = useRouter()
 
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
@@ -187,6 +197,13 @@ export default function StoreOrders({
         onCall: (order: any) => setCallDriverOrder(order),
     }
     const [isOrdersExpanded, setIsOrdersExpanded] = usePersistedExpanded('storeOrders', true)
+    // Pedidos de PRODUTOS e pedidos de SERVIÇOS (agendamentos que a loja precisa aceitar; só os aceitos vão para a agenda)
+    const [ordersTab, setOrdersTab] = useState<'products' | 'services'>('products')
+    const svc = useStoreServiceAppointments(storeId)
+    // Página "Pedidos da loja": situação aberta (null = a primeira que tem pedido), quantos aparecem e qual pedido está sendo mudado
+    const [pageTab, setPageTab] = useState<'pending' | 'preparing' | 'ready' | 'paid' | null>(null)
+    const [shown, setShown] = useState(20)
+    const [quickBusy, setQuickBusy] = useState<string | null>(null)
 
     // Ref para evitar múltiplas chamadas
     const isLoadingRef = useRef(false)
@@ -272,6 +289,13 @@ export default function StoreOrders({
                 return
             }
 
+            // Pedido SÓ de produto digital: não tem preparo nem entrega — a loja confirma o Pix e libera o acesso
+            const productIds = [...new Set((ordersData || []).flatMap((o: any) => (o.order_items || []).map((i: any) => i.product_id).filter(Boolean)))] as string[]
+            const digitalIds = new Set<string>()
+            if (productIds.length > 0) {
+                const { data: types } = await supabase.from('products').select('id').eq('type', 'digital').in('id', productIds)
+                ;(types || []).forEach((t: any) => digitalIds.add(t.id))
+            }
             const grouped = (ordersData || []).map(order => {
                 const items = order.order_items || []
                 const subtotal = items.reduce((acc: number, i: any) => acc + Number(i.total_price || 0), 0)
@@ -281,6 +305,7 @@ export default function StoreOrders({
                     store_id: storeId,
                     checkout_id: order.checkout_id,
                     buyer_id: order.buyer_id,
+                    is_digital: items.length > 0 && items.every((i: any) => digitalIds.has(i.product_id)),
                     buyer_name: order.buyer_name,
                     buyer_profile_slug: order.buyer_profile_slug,
                     created_at: order.created_at,
@@ -541,8 +566,19 @@ export default function StoreOrders({
     }
 
     // ===== HANDLE ORDER ACTION =====
-    const handleOrderAction = async (status: string) => {
+    const handleOrderAction = async (status: string, target: any = selectedOrder) => {
+        const selectedOrder = target
         if (!selectedOrder) return
+
+        // Produto digital: "Liberar acesso" confirma o Pix e abre o conteúdo para o cliente (release_digital_order; só a dona da loja)
+        if (status === 'release') {
+            try {
+                await releaseOrder(selectedOrder.id)
+                toast.success('Acesso liberado! O cliente já pode abrir o conteúdo.')
+                loadOrders?.()
+            } catch (e: any) { toast.error(e?.message || 'Não foi possível liberar') }
+            return
+        }
 
         try {
             const { error } = await supabase
@@ -771,20 +807,20 @@ export default function StoreOrders({
     // ===== CORES DOS PEDIDOS INDIVIDUAIS (MAIS ESCURAS) =====
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'pending': return '#2563eb'
+            case 'pending': return '#16a34a'
             case 'preparing': return '#d97706'
             case 'ready': return '#7c3aed'
-            case 'paid': return '#16a34a'
+            case 'paid': return '#2563eb'
             default: return '#4b5563'
         }
     }
 
     const getStatusGradient = (status: string) => {
         switch (status) {
-            case 'pending': return 'linear-gradient(135deg, #1e293b, #0f172a)'
+            case 'pending': return 'linear-gradient(135deg, #064e3b, #021a12)'
             case 'preparing': return 'linear-gradient(135deg, #451a03, #1c0f00)'
             case 'ready': return 'linear-gradient(135deg, #2e1065, #1a0a3a)'
-            case 'paid': return 'linear-gradient(135deg, #064e3b, #021a12)'
+            case 'paid': return 'linear-gradient(135deg, #1e293b, #0f172a)'
             default: return 'linear-gradient(135deg, #1a1a2e, #0d0d0d)'
         }
     }
@@ -798,25 +834,25 @@ export default function StoreOrders({
 
         if (hasPending) {
             return {
-                border: '2px solid #2563eb',
-                shadow: '0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15)',
+                border: '2px solid #16a34a',
+                shadow: '0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15)',
                 hasAnimation: true,
-                animationName: 'borderPulseBlue',
-                badgeBackground: 'rgba(37, 99, 235, 0.15)',
-                badgeColor: '#2563eb',
+                animationName: 'borderPulseGreen',
+                badgeBackground: 'rgba(22, 163, 74, 0.15)',
+                badgeColor: '#16a34a',
                 animationKeyframes: `
-                    @keyframes borderPulseBlue {
+                    @keyframes borderPulseGreen {
                         0%, 100% { 
-                            box-shadow: 0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15);
-                            border-color: #2563eb;
+                            box-shadow: 0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15);
+                            border-color: #16a34a;
                         }
                         50% { 
-                            box-shadow: 0 0 30px rgba(37, 99, 235, 0.4), 0 0 60px rgba(37, 99, 235, 0.2);
-                            border-color: #2563ebdd;
+                            box-shadow: 0 0 30px rgba(22, 163, 74, 0.4), 0 0 60px rgba(22, 163, 74, 0.2);
+                            border-color: #16a34add;
                         }
                     }
                 `,
-                borderColor: '#2563eb',
+                borderColor: '#16a34a',
             }
         }
 
@@ -870,25 +906,25 @@ export default function StoreOrders({
 
         if (onlyFinished) {
             return {
-                border: '2px solid #16a34a',
-                shadow: '0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15)',
+                border: '2px solid #2563eb',
+                shadow: '0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15)',
                 hasAnimation: true,
-                animationName: 'borderPulseGreen',
-                badgeBackground: 'rgba(22, 163, 74, 0.15)',
-                badgeColor: '#16a34a',
+                animationName: 'borderPulseBlue',
+                badgeBackground: 'rgba(37, 99, 235, 0.15)',
+                badgeColor: '#2563eb',
                 animationKeyframes: `
-                    @keyframes borderPulseGreen {
+                    @keyframes borderPulseBlue {
                         0%, 100% { 
-                            box-shadow: 0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15);
-                            border-color: #16a34a;
+                            box-shadow: 0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15);
+                            border-color: #2563eb;
                         }
                         50% { 
-                            box-shadow: 0 0 30px rgba(22, 163, 74, 0.4), 0 0 60px rgba(22, 163, 74, 0.2);
-                            border-color: #16a34add;
+                            box-shadow: 0 0 30px rgba(37, 99, 235, 0.4), 0 0 60px rgba(37, 99, 235, 0.2);
+                            border-color: #2563ebdd;
                         }
                     }
                 `,
-                borderColor: '#16a34a',
+                borderColor: '#2563eb',
             }
         }
 
@@ -904,15 +940,132 @@ export default function StoreOrders({
         }
     }, [groupedOrders, colors.border, colors.textSecondary, surfaceRgb.r, surfaceRgb.g, surfaceRgb.b])
 
+    // ===== PÁGINA "PEDIDOS DA LOJA" (variant='page'): a lista completa, por situação, em linhas compactas =====
+    const renderPage = () => {
+        const TABS = [
+            { id: 'pending' as const, label: 'Novos', color: '#16a34a', list: newOrders },
+            { id: 'preparing' as const, label: 'Preparando', color: '#d97706', list: preparing },
+            { id: 'ready' as const, label: 'Prontos', color: '#7c3aed', list: ready },
+            { id: 'paid' as const, label: 'Finalizados', color: '#2563eb', list: finished },
+        ]
+        const first = TABS.find((t) => t.list.length > 0)
+        const active = TABS.find((t) => t.id === (pageTab ?? first?.id ?? 'pending'))!
+        // Prontos que esperam um motorista iUser (ainda ninguém aceitou): numa fileira horizontal, para não encher a lista
+        const waiting = active.id === 'ready' && iuserDeliveryEnabled ? ready.filter((o: any) => dispatchedOrderIds.has(o.id) && !acceptedDispatchIds.has(o.id)) : []
+        const rest = active.list.filter((o: any) => !waiting.includes(o))
+        const quickFor = (o: any): { label: string; next: string } | null =>
+            o.is_digital && o.status !== 'paid' && o.status !== 'rejected' ? { label: 'Liberar acesso', next: 'release' }
+            : o.status === 'pending' ? { label: 'Aceitar', next: 'preparing' }
+                : o.status === 'preparing' ? { label: 'Pronto', next: 'ready' }
+                    // entrega: quem conclui é o motorista; a loja só finaliza o que o cliente retira
+                    : o.status === 'ready' && !o.delivery_address ? { label: 'Finalizar', next: 'paid' }
+                        : null
+        const renderOrder = (order: any, isPaid: boolean) => {
+            const q = quickFor(order)
+            return (
+                <OrderButton
+                    iuserDelivery={iuserDelivery}
+                    key={order.checkout_id}
+                    order={order}
+                    assignmentMap={assignmentMap}
+                    setSelectedOrder={setSelectedOrder}
+                    setSingleAssignOpen={setSingleAssignOpen}
+                    getStatusColor={getStatusColor}
+                    getStatusGradient={getStatusGradient}
+                    formatAssignmentStatus={formatAssignmentStatus}
+                    isInPerson={!order.buyer_profile_slug}
+                    borderColor={colors.border}
+                    isPaid={isPaid}
+                    compact
+                    quick={q ? {
+                        label: q.label,
+                        busy: quickBusy === order.checkout_id,
+                        onClick: async () => { setQuickBusy(order.checkout_id); await handleOrderAction(q.next, order); setQuickBusy(null) },
+                    } : null}
+                />
+            )
+        }
+        return (
+            <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-2">
+                    {([['products', 'Produtos', newOrders.length], ['services', 'Serviços', svc.pending.length]] as const).map(([k, label, n]) => (
+                        <button key={k} onClick={() => setOrdersTab(k)} className="h-10 rounded-full text-[13px] font-black flex items-center justify-center gap-2 transition active:scale-95" style={ordersTab === k ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary }}>
+                            {label}
+                            {n > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{n}</span>}
+                        </button>
+                    ))}
+                </div>
+
+                {ordersTab === 'services' ? (
+                    <StoreServiceOrders pending={svc.pending} onChanged={svc.refetch} />
+                ) : initialLoading && groupedOrders.length === 0 ? (
+                    <div className="flex flex-col gap-2">{[0, 1, 2, 3].map((i) => <span key={i} className="block h-14 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)}</div>
+                ) : groupedOrders.length === 0 ? (
+                    <div className="rounded-2xl p-6 text-center" style={{ border: `1px dashed ${colors.border}` }}>
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>Nenhum pedido ainda.</p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
+                            {TABS.map((t) => {
+                                const on = t.id === active.id
+                                return (
+                                    <button key={t.id} onClick={() => { setPageTab(t.id); setShown(20) }} className="h-10 px-3.5 rounded-full text-[12px] font-black flex items-center gap-2 flex-shrink-0 transition active:scale-95" style={on ? { background: t.color, color: '#fff' } : { background: `${t.color}${t.list.length ? '1a' : '0d'}`, color: t.list.length ? t.color : colors.textSecondary, border: `1px solid ${t.color}${t.list.length ? '40' : '20'}` }}>
+                                        {t.label}
+                                        <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center tabular-nums" style={on ? { background: 'rgba(255,255,255,0.28)' } : { background: `${t.color}22` }}>{t.list.length}</span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        {waiting.length > 0 && (
+                            <div>
+                                <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: active.color }}>Esperando motorista ({waiting.length})</p>
+                                <div className="flex gap-2.5 overflow-x-auto -mx-4 px-4 pb-1 snap-x" style={{ scrollbarWidth: 'none' }}>
+                                    {waiting.map((o: any) => {
+                                        const info = dispatchInfo.get(o.id)
+                                        return (
+                                            <button key={o.checkout_id} onClick={() => setSelectedOrder(o)} className="snap-start flex-shrink-0 w-[196px] rounded-2xl p-3 text-left flex flex-col gap-1 transition active:scale-95" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${active.color}` }}>
+                                                <span className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{o.buyer_profile_slug ? `@${o.buyer_profile_slug}` : o.buyer_name || 'Presencial'}</span>
+                                                <span className="text-[13px] font-black" style={{ color: colors.textPrimary }}>R$ {o.totalPrice.toFixed(2)}</span>
+                                                <span className="text-[10px] font-bold leading-tight" style={{ color: active.color }}>{info?.v2State ? storeV2Text(info) : `Buscando motorista${info ? ` · R$ ${info.freight.toFixed(2)} · até ${info.radius} km` : ''}`}</span>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {rest.length === 0 && waiting.length === 0 ? (
+                            <div className="rounded-2xl p-5 text-center" style={{ border: `1px dashed ${colors.border}` }}>
+                                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Nenhum pedido {active.label.toLowerCase().replace('novos', 'novo').replace('finalizados', 'finalizado')} agora.</p>
+                            </div>
+                        ) : rest.length > 0 && (
+                            <div className="flex flex-col gap-2">
+                                {rest.slice(0, shown).map((o: any) => renderOrder(o, active.id === 'paid'))}
+                                {rest.length > shown && (
+                                    <button onClick={() => setShown((n) => n + 20)} className="h-11 rounded-full text-[13px] font-black transition active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                        Mostrar mais ({rest.length - shown})
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        )
+    }
+
     return (
         <>
+            {variant === 'page' ? renderPage() : (
             <div
                 className={v3 ? 'rounded-3xl relative overflow-hidden flex flex-col p-4 gap-4' : `rounded-2xl relative overflow-hidden flex flex-col ${isOrdersExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
                 style={v3 ? {
                     // 3.0: cartão limpo (sem brilho nem borda animada); só ganha o realce laranja quando há pedido novo esperando
                     background: colors.surface,
-                    border: newOrders.length > 0 ? '1.5px solid #f97316' : `1px solid ${colors.border}`,
-                    boxShadow: newOrders.length > 0 ? '0 6px 20px #f9731626' : 'none',
+                    border: newOrders.length + svc.pending.length > 0 ? '1.5px solid #f97316' : `1px solid ${colors.border}`,
+                    boxShadow: newOrders.length + svc.pending.length > 0 ? '0 6px 20px #f9731626' : 'none',
                 } : {
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
@@ -988,9 +1141,9 @@ export default function StoreOrders({
                             <div className="flex items-center gap-3 min-w-0">
                                 <div className="min-w-0">
                                     <h3 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>Pedidos na loja</h3>
-                                    <p className="text-[11px] mt-0.5" style={{ color: newOrders.length > 0 ? '#ea580c' : colors.textSecondary }}>
-                                        {newOrders.length > 0
-                                            ? `${newOrders.length} ${newOrders.length === 1 ? 'pedido novo esperando' : 'pedidos novos esperando'}`
+                                    <p className="text-[11px] mt-0.5" style={{ color: newOrders.length + svc.pending.length > 0 ? '#16a34a' : colors.textSecondary }}>
+                                        {newOrders.length + svc.pending.length > 0
+                                            ? [newOrders.length > 0 ? `${newOrders.length} ${newOrders.length === 1 ? 'pedido novo' : 'pedidos novos'}` : '', svc.pending.length > 0 ? `${svc.pending.length} ${svc.pending.length === 1 ? 'serviço para aceitar' : 'serviços para aceitar'}` : ''].filter(Boolean).join(' · ') + ' esperando'
                                             : preparing.length + ready.length > 0
                                                 ? `${preparing.length + ready.length} em andamento`
                                                 : 'Nada esperando agora'}
@@ -1007,14 +1160,14 @@ export default function StoreOrders({
                                     <span
                                         className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
                                         style={{
-                                            background: 'rgba(37, 99, 235, 0.15)',
+                                            background: 'rgba(22, 163, 74, 0.15)',
                                             backdropFilter: 'blur(8px)',
                                             WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(37, 99, 235, 0.2)',
-                                            color: '#2563eb',
+                                            border: '1px solid rgba(22, 163, 74, 0.2)',
+                                            color: '#16a34a',
                                         }}
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
                                         {newOrders.length}
                                     </span>
 
@@ -1055,14 +1208,14 @@ export default function StoreOrders({
                                     <span
                                         className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
                                         style={{
-                                            background: 'rgba(22, 163, 74, 0.15)',
+                                            background: 'rgba(37, 99, 235, 0.15)',
                                             backdropFilter: 'blur(8px)',
                                             WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(22, 163, 74, 0.2)',
-                                            color: '#16a34a',
+                                            border: '1px solid rgba(37, 99, 235, 0.2)',
+                                            color: '#2563eb',
                                         }}
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
                                         {finished.length}
                                     </span>
                                 </div>
@@ -1079,29 +1232,43 @@ export default function StoreOrders({
                     </button>
                 </div>
 
-                {/* 3.0: os quatro números sempre à vista, cada um na sua cor */}
-                {v3 && (
-                    <div className="grid grid-cols-4 gap-2 relative z-10">
-                        {([
-                            { label: 'Novos', n: newOrders.length, color: '#2563eb' },
-                            { label: 'Preparando', n: preparing.length, color: '#d97706' },
-                            { label: 'Prontos', n: ready.length, color: '#7c3aed' },
-                            { label: 'Finalizados', n: finished.length, color: '#16a34a' },
-                        ]).map((t) => (
-                            <button
-                                key={t.label}
-                                onClick={() => setIsOrdersExpanded(true)}
-                                className="rounded-2xl py-2.5 px-1 flex flex-col items-center gap-0.5 transition active:scale-95"
-                                style={{ background: `${t.color}${t.n > 0 ? '1f' : '10'}`, border: `1px solid ${t.color}${t.n > 0 ? '40' : '20'}` }}
-                            >
-                                <span className="text-xl font-black leading-none" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.n}</span>
-                                <span className="text-[9px] font-black uppercase tracking-wide" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.label}</span>
-                            </button>
-                        ))}
-                    </div>
+                {/* Pedidos de produtos × pedidos de serviços */}
+                <div className="grid grid-cols-2 gap-2 relative z-10">
+                    {([['products', 'Produtos', newOrders.length], ['services', 'Serviços', svc.pending.length]] as const).map(([k, label, n]) => (
+                        <button
+                            key={k}
+                            onClick={() => { setOrdersTab(k); setIsOrdersExpanded(true) }}
+                            className="h-10 rounded-full text-[13px] font-black flex items-center justify-center gap-2 transition active:scale-95"
+                            style={ordersTab === k ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary }}
+                        >
+                            {label}
+                            {n > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{n}</span>}
+                        </button>
+                    ))}
+                </div>
+
+                {/* 3.0: serviços — os números em chips pequenos (o destaque são os pedidos) */}
+                {v3 && ordersTab === 'services' && (
+                    <StatChips onClick={() => setIsOrdersExpanded(true)} items={[
+                        { label: 'Novos', n: svc.pending.length, color: '#16a34a' },
+                        { label: 'Na agenda', n: svc.confirmed.length, color: '#7c3aed' },
+                        { label: 'Feitos', n: svc.completed.length, color: '#2563eb' },
+                    ]} />
                 )}
 
-                {isOrdersExpanded && (
+                {isOrdersExpanded && ordersTab === 'services' && <StoreServiceOrders pending={svc.pending} onChanged={svc.refetch} />}
+
+                {/* 3.0: os quatro números em chips pequenos, cada um na sua cor */}
+                {v3 && ordersTab === 'products' && (
+                    <StatChips onClick={() => setIsOrdersExpanded(true)} items={[
+                        { label: 'Novos', n: newOrders.length, color: '#16a34a' },
+                        { label: 'Preparando', n: preparing.length, color: '#d97706' },
+                        { label: 'Prontos', n: ready.length, color: '#7c3aed' },
+                        { label: 'Finalizados', n: finished.length, color: '#2563eb' },
+                    ]} />
+                )}
+
+                {isOrdersExpanded && ordersTab === 'products' && (
                     <>
                         {selectedOrderIds.size > 0 && (
                             <div className="flex flex-wrap items-center gap-3 relative z-10">
@@ -1137,12 +1304,12 @@ export default function StoreOrders({
                             <div className="space-y-4 relative z-10">
                                 {newOrders.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#2563eb' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#16a34a' }}>
                                             {!v3 && <Clock size={12} />}
                                             Novos ({newOrders.length})
                                         </h4>
                                         <div className="space-y-3">
-                                            {newOrders.map((order: any) => (
+                                            {newOrders.slice(0, 3).map((order: any) => (
                                                 <OrderButton
                                                     iuserDelivery={iuserDelivery}
                                                     key={order.checkout_id}
@@ -1162,91 +1329,28 @@ export default function StoreOrders({
                                     </div>
                                 )}
 
-                                {preparing.length > 0 && (
-                                    <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#d97706' }}>
-                                            {!v3 && <Package size={12} />}
-                                            Em Preparo ({preparing.length})
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {preparing.map((order: any) => (
-                                                <OrderButton
-                                                    iuserDelivery={iuserDelivery}
-                                                    key={order.checkout_id}
-                                                    order={order}
-                                                    assignmentMap={assignmentMap}
-                                                    setSelectedOrder={setSelectedOrder}
-                                                    setSingleAssignOpen={setSingleAssignOpen}
-                                                    getStatusColor={getStatusColor}
-                                                    getStatusGradient={getStatusGradient}
-                                                    formatAssignmentStatus={formatAssignmentStatus}
-                                                    isInPerson={!order.buyer_profile_slug}
-                                                    borderColor={colors.border}
-                                                    isPaid={false}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
+                                {newOrders.length === 0 && (
+                                    <p className="text-[13px] font-bold" style={{ color: colors.textSecondary }}>Nenhum pedido novo esperando.</p>
                                 )}
-
-                                {ready.length > 0 && (
-                                    <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#7c3aed' }}>
-                                            {!v3 && <CheckCircle size={12} />}
-                                            Prontos ({ready.length})
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {ready.map((order: any) => (
-                                                <OrderButton
-                                                    iuserDelivery={iuserDelivery}
-                                                    key={order.checkout_id}
-                                                    order={order}
-                                                    assignmentMap={assignmentMap}
-                                                    setSelectedOrder={setSelectedOrder}
-                                                    setSingleAssignOpen={setSingleAssignOpen}
-                                                    getStatusColor={getStatusColor}
-                                                    getStatusGradient={getStatusGradient}
-                                                    formatAssignmentStatus={formatAssignmentStatus}
-                                                    isInPerson={!order.buyer_profile_slug}
-                                                    borderColor={colors.border}
-                                                    isPaid={false}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
+                                {newOrders.length > 3 && (
+                                    <p className="text-[12px] font-black" style={{ color: '#16a34a' }}>+ {newOrders.length - 3} {newOrders.length - 3 === 1 ? 'pedido novo' : 'pedidos novos'} na página de pedidos</p>
                                 )}
-
-                                {finished.length > 0 && (
-                                    <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#16a34a' }}>
-                                            {!v3 && <CheckCircle size={12} />}
-                                            Finalizados ({finished.length})
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {finished.slice(0, 5).map((order: any) => (
-                                                <OrderButton
-                                                    iuserDelivery={iuserDelivery}
-                                                    key={order.checkout_id}
-                                                    order={order}
-                                                    assignmentMap={assignmentMap}
-                                                    setSelectedOrder={setSelectedOrder}
-                                                    setSingleAssignOpen={setSingleAssignOpen}
-                                                    getStatusColor={getStatusColor}
-                                                    getStatusGradient={getStatusGradient}
-                                                    formatAssignmentStatus={formatAssignmentStatus}
-                                                    isInPerson={!order.buyer_profile_slug}
-                                                    borderColor={colors.border}
-                                                    isPaid={true}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
+                                {storeSlug && (
+                                    <button
+                                        onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)}
+                                        className="w-full h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-2 transition active:scale-95 text-white"
+                                        style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
+                                    >
+                                        Ver todos os pedidos
+                                        <span className="px-2 py-0.5 rounded-full text-[11px]" style={{ background: 'rgba(255,255,255,0.25)' }}>{newOrders.length + preparing.length + ready.length} em andamento</span>
+                                    </button>
                                 )}
                             </div>
                         )}
                     </>
                 )}
             </div>
+            )}
 
             {/* Modais */}
             {showAssignModal && (
@@ -1291,6 +1395,7 @@ export default function StoreOrders({
 
             {callDriverOrder && (
                 <CallIuserDriverDialog
+                    storeId={storeId}
                     order={callDriverOrder}
                     onClose={() => setCallDriverOrder(null)}
                     onDispatched={(id) => setDispatchedOrderIds((prev) => new Set(prev).add(id))}
@@ -1360,6 +1465,8 @@ function OrderButton({
     borderColor,
     isPaid = false,
     iuserDelivery,
+    compact = false,
+    quick = null,
 }: any) {
     const v3 = useInsideShell()
     const { colors: themeColors } = useTheme()
@@ -1406,7 +1513,7 @@ function OrderButton({
                 style={{ background: themeColors.surface, border: `1px solid ${themeColors.border}`, borderLeft: `4px solid ${statusColor}` }}
                 onClick={() => setSelectedOrder(order)}
             >
-                <div className="flex items-center gap-3 px-3.5 py-3">
+                <div className={`flex items-center gap-3 ${compact ? 'px-3 py-2' : 'px-3.5 py-3'}`}>
                     <div className="flex flex-col min-w-0 flex-1 gap-1">
                         <div className="flex items-center gap-2 min-w-0">
                             {isInPerson ? (
@@ -1441,6 +1548,11 @@ function OrderButton({
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                         {orderTime && <span className="text-[11px] font-bold tabular-nums" style={{ color: themeColors.textSecondary }}>{orderTime}</span>}
+                        {quick && (
+                            <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); if (!quick.busy) quick.onClick() }} disabled={quick.busy} className="h-8 px-3.5 rounded-full text-[11px] font-black text-white transition active:scale-95 disabled:opacity-60 ml-1" style={{ background: statusColor }} type="button">
+                                {quick.busy ? '…' : quick.label}
+                            </button>
+                        )}
                         {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (iuserDelivery.dispatchedIds.has(order.id) || ['preparing', 'ready'].includes(order.status)) && (
                             iuserDelivery.dispatchedIds.has(order.id) ? (
                                 null

@@ -33,7 +33,7 @@ import {
     Info,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import type { Map as LeafletMap, Marker } from 'leaflet'
 
 // ===== GRADIENTE FIXO =====

@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Plus, Trash2, EyeOff, Eye } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 

@@ -14,15 +14,20 @@ import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
-import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera } from 'lucide-react'
+import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, ChevronsUpDown, Trash2, GraduationCap, CalendarClock } from 'lucide-react'
+import { isDigitalCart } from '@/modules/digital'
 import Image from 'next/image'
-import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
-import { toast } from 'sonner'
+import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHours } from '@/lib/storeHours'
+import { toast } from '@/lib/toast'
 import HeaderSearchInput from './HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
+import CatalogoSkeleton from './CatalogoSkeleton'
 import { hexToRgb } from '@/lib/color'
 import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
+import DigitalCurriculum from '@/components/digital/DigitalCurriculum'
+import PromoRail from './PromoRail'
+import { promoInfoOf, isPromoProduct, fetchComboItems, type ComboItem } from '@/modules/promotions'
 import { captureReferral } from '@/lib/referralCapture'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 import { useInsideShell } from '@/components/InsideShell'
@@ -41,6 +46,10 @@ interface Product {
     slug?: string
     created_at?: string
     has_addons?: boolean
+    is_active?: boolean | null
+    is_combo?: boolean
+    combo_image_uploaded?: boolean
+    compare_at_price?: number | null
 }
 
 interface StoreInfo {
@@ -80,9 +89,15 @@ export default function CatalogoClientPage() {
     const [error, setError] = useState<string | null>(null)
     const [mounted, setMounted] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({})   // categorias recolhidas (buscando, tudo abre)
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
     const [showProductModal, setShowProductModal] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
+    const [searchOpen, setSearchOpen] = useState(false)
+    const [kindChoice, setKindChoice] = useState<'physical' | 'digital' | 'service' | null>(null)
+    // "Você está aqui": a categoria da seção que está na tela enquanto a pessoa rola a lista (2.0 e 3.0: o topo é fixo nas duas)
+    const [spyCat, setSpyCat] = useState<string | null>(null)
+    const headerRef = useRef<HTMLDivElement>(null)
     const [searchExpanded, setSearchExpanded] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -192,9 +207,6 @@ export default function CatalogoClientPage() {
         }
     }, [storeConfig, deliveryOption])
 
-    const canChooseReceivingMethod = !!(storeConfig?.accepts_delivery && storeConfig?.accepts_pickup)
-    const onlyPickupAvailable = !!(storeConfig?.accepts_pickup && !storeConfig?.accepts_delivery)
-    const onlyDeliveryAvailable = !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
 
     // ========== CORES DO HEADER ==========
     const surfaceRgb = hexToRgb(colors.surface)
@@ -234,6 +246,7 @@ export default function CatalogoClientPage() {
                     .select('*')
                     .eq('store_id', store.id)
                     .eq('listing_type', 'sale')
+                    .or('is_active.is.null,is_active.eq.true')
                     .order('created_at', { ascending: false })
 
                 if (productsError) {
@@ -414,6 +427,13 @@ export default function CatalogoClientPage() {
         return itemsByStore[storeKey] || []
     }, [itemsByStore, storeKey])
 
+    // Carrinho só de produto DIGITAL: sem entrega nem retirada de verdade (retirada + Pix; o acesso abre quando a loja confirma o pagamento)
+    const digitalOnly = isDigitalCart(cartItems)
+    const canChooseReceivingMethod = !digitalOnly && !!(storeConfig?.accepts_delivery && storeConfig?.accepts_pickup)
+    const onlyPickupAvailable = digitalOnly || !!(storeConfig?.accepts_pickup && !storeConfig?.accepts_delivery)
+    const onlyDeliveryAvailable = !digitalOnly && !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
+    useEffect(() => { if (digitalOnly && deliveryOption !== 'retirada') setDeliveryOption('retirada') }, [digitalOnly, deliveryOption])
+
     useEffect(() => {
         const items = cartItems.map(item => ({
             product: item.product,
@@ -465,6 +485,16 @@ export default function CatalogoClientPage() {
             return
         }
 
+        // Produto digital não tem observação nem adicionais: vai direto para o carrinho
+        if (product.type === 'digital') {
+            addItem(ownerSlug, { name: storeInfo.name, logo_url: storeInfo.logo_url ?? null }, {
+                id: product.id, name: product.name, price: product.price || 0, image_url: product.image_url || null, slug: product.slug, type: 'digital',
+                description: product.description || undefined, category: product.category || undefined,
+            } as any)
+            void cartAddedFeedback()
+            return
+        }
+
         setPendingProduct(product)
         setShowAddCommentModal(true)
     }
@@ -483,6 +513,7 @@ export default function CatalogoClientPage() {
             price: pendingProduct.price || 0,
             image_url: pendingProduct.image_url || null,
             slug: pendingProduct.slug,
+            type: pendingProduct.type || undefined,
             description: pendingProduct.description || undefined,
             category: pendingProduct.category || undefined,
         }
@@ -493,7 +524,8 @@ export default function CatalogoClientPage() {
         // perde nem sobrescreve a outra.
         addItem(ownerSlug, storeDetails, cartProduct as any, comment, addons.length > 0 ? addons : undefined)
 
-        toast.success(`Produto adicionado${comment || addons.length > 0 ? ' com personalização!' : '!'}`)
+        // 3.0: o aviso cobria a peça de baixo; o retorno visual já está no selo/quantidade do produto e na faixa da sacola
+        if (!insideShell) toast.success(`Produto adicionado${comment || addons.length > 0 ? ' com personalização!' : '!'}`)
         void cartAddedFeedback()
         setShowAddCommentModal(false)
         setPendingProduct(null)
@@ -960,9 +992,45 @@ export default function CatalogoClientPage() {
         return { isOpen, statusText: isOpen ? 'Aberto' : 'Fechado', nextOpening: nextAvailable }
     }, [storeConfig, nextAvailable])
 
+    // ========== AMBIENTES (Produtos · Digitais · Serviços) ==========
+    // Cada tipo é um ambiente separado, com cor e clima próprios; a loja que vende um tipo só não mostra seletor.
+    const kindOf = (t: string | null | undefined): 'physical' | 'digital' | 'service' => (t === 'digital' || t === 'service' ? t : 'physical')
+    const kindList = (['physical', 'digital', 'service'] as const)
+        .map(k => ({ k, count: products.filter(p => kindOf(p.type) === k).length }))
+        .filter(x => x.count > 0)
+    const activeKind: 'physical' | 'digital' | 'service' | null =
+        kindList.length > 1 ? (kindList.some(x => x.k === kindChoice) ? kindChoice : kindList[0].k) : null
+    const searching = searchQuery.trim().length > 0
+    // Promoções = seção horizontal própria (produto com desconto ou da categoria Promoções): saem das categorias e voltam na busca
+    const promoProducts = useMemo(
+        () => products.filter(p => kindOf(p.type) === 'physical' && isPromoProduct(p))
+            .sort((a, b) => Number(!!b.is_combo) - Number(!!a.is_combo) || (promoInfoOf(b)?.pct ?? 0) - (promoInfoOf(a)?.pct ?? 0)),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [products]
+    )
+    const catalogProducts = useMemo(() => {
+        const promoIds = new Set(promoProducts.map(p => p.id))
+        return products.filter(p => !promoIds.has(p.id))
+    }, [products, promoProducts])
+    const baseProducts = useMemo(
+        () => (searching ? products : activeKind ? catalogProducts.filter(p => kindOf(p.type) === activeKind) : catalogProducts),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [products, catalogProducts, activeKind, searching]
+    )
+    // itens dos combos SEM foto enviada: o cartão mostra as fotos deles juntas
+    const [comboItems, setComboItems] = useState<Record<string, ComboItem[]>>({})
+    useEffect(() => {
+        const ids = products.filter(p => p.is_combo && !p.combo_image_uploaded).map(p => p.id)
+        if (ids.length === 0) { setComboItems({}); return }
+        let alive = true
+        fetchComboItems(ids).then(r => { if (alive) setComboItems(r) }).catch(() => { if (alive) setComboItems({}) })
+        return () => { alive = false }
+    }, [products])
+    const showPromoRail = !searching && selectedCategory === 'Todos' && (activeKind === null || activeKind === 'physical') && promoProducts.length > 0
+
     // ========== FILTRO DE PRODUTOS ==========
     const filteredProducts = useMemo(() => {
-        let result = products
+        let result = baseProducts
 
         if (selectedCategory !== 'Todos') {
             result = result.filter(p => p.category === selectedCategory)
@@ -978,9 +1046,11 @@ export default function CatalogoClientPage() {
         }
 
         return result
-    }, [products, searchQuery, selectedCategory])
+    }, [baseProducts, searchQuery, selectedCategory])
 
     // ========== AGRUPAR POR CATEGORIA (o tipo vira título da seção, não etiqueta do card) ==========
+    // "Promoções" vem sempre primeiro (na lista e nos chips)
+    const isPromoCategory = (name: string | null | undefined) => /promo/i.test(name || '')
     const groupedFilteredProducts = useMemo(() => {
         const groups: Record<string, typeof filteredProducts> = {}
         filteredProducts.forEach(product => {
@@ -988,22 +1058,122 @@ export default function CatalogoClientPage() {
             if (!groups[cat]) groups[cat] = []
             groups[cat].push(product)
         })
-        return groups
-    }, [filteredProducts])
+        // promoções primeiro e, depois, as categorias com mais produtos (a mesma ordem dos chips)
+        const total: Record<string, number> = {}
+        products.forEach(p => { const c = p.category || 'Geral'; total[c] = (total[c] || 0) + 1 })
+        const sortedNames = Object.keys(groups).sort((a, b) => Number(isPromoCategory(b)) - Number(isPromoCategory(a)) || (total[b] || 0) - (total[a] || 0))
+        return Object.fromEntries(sortedNames.map(n => [n, groups[n]])) as Record<string, typeof filteredProducts>
+    }, [filteredProducts, products])
 
     // ========== CATEGORIAS ==========
     const categories = useMemo(() => {
         const cats = new Map<string, number>()
-        products.forEach(p => {
+        baseProducts.forEach(p => {
             if (p.category) {
                 cats.set(p.category, (cats.get(p.category) || 0) + 1)
             }
         })
         return [
-            { name: 'Todos', count: products.length },
-            ...Array.from(cats.entries()).map(([name, count]) => ({ name, count }))
+            { name: 'Todos', count: baseProducts.length },
+            ...Array.from(cats.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => Number(isPromoCategory(b.name)) - Number(isPromoCategory(a.name)) || b.count - a.count)
         ]
-    }, [products])
+    }, [baseProducts])
+
+    // Acompanha a rolagem: a última seção cujo topo já passou da linha logo abaixo do cabeçalho fixo é "onde a pessoa está"
+    useEffect(() => {
+        if (selectedCategory !== 'Todos' || searchQuery.trim()) { setSpyCat(null); return }
+        let raf = 0
+        const update = () => {
+            raf = 0
+            const line = (headerRef.current?.getBoundingClientRect().bottom ?? 0) + 24
+            let cur: string | null = null
+            for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-cat-section]'))) {
+                if (el.getBoundingClientRect().top <= line) cur = el.dataset.catSection || null
+                else break
+            }
+            setSpyCat(prev => (prev === cur ? prev : cur))
+        }
+        const onScroll = () => { if (!raf) raf = requestAnimationFrame(update) }
+        update()
+        window.addEventListener('scroll', onScroll, { passive: true })
+        window.addEventListener('resize', onScroll)
+        return () => {
+            if (raf) cancelAnimationFrame(raf)
+            window.removeEventListener('scroll', onScroll)
+            window.removeEventListener('resize', onScroll)
+        }
+    }, [selectedCategory, searchQuery, groupedFilteredProducts])
+    // Mantém o chip de "onde estou" à vista na fileira (rola só a fileira, não a página)
+    useEffect(() => {
+        if (!spyCat) return
+        const btn = Array.from(document.querySelectorAll<HTMLElement>('[data-chip]')).find(b => b.dataset.chip === spyCat)
+        const row = btn?.parentElement
+        if (!btn || !row) return
+        row.scrollTo({ left: btn.offsetLeft - (row.clientWidth - btn.clientWidth) / 2, behavior: 'smooth' })
+    }, [spyCat])
+
+    // Cada ambiente tem cor, ícone e uma frase de contexto próprios
+    const KIND_META = {
+        physical: { label: 'Produtos', color: '#f97316', Icon: Package, hint: 'Escolha os itens e monte o seu pedido' },
+        digital: { label: 'Digitais', color: '#8b5cf6', Icon: GraduationCap, hint: 'Cursos e arquivos: o acesso é liberado depois que a loja confirma o pagamento' },
+        service: { label: 'Serviços', color: '#14b8a6', Icon: CalendarClock, hint: 'Veja o que a loja oferece e reserve o seu horário' },
+    } as const
+    const accent = activeKind ? KIND_META[activeKind].color : '#f97316'
+    // Uma fileira de chips das categorias DO ambiente: texto limpo, sem contagem; ativo = cor do ambiente
+    const renderCategoryChips = (className: string) => categories.length > 1 && !searching ? (
+        <div className={className} role="tablist" aria-label="Categorias">
+            {categories.map((cat) => {
+                const on = selectedCategory === cat.name
+                // vendo a lista toda, o chip da seção que está na tela ganha borda de destaque ("você está aqui")
+                const here = !on && spyCat === cat.name
+                return (
+                    <button
+                        key={cat.name}
+                        role="tab"
+                        data-chip={cat.name}
+                        aria-selected={on}
+                        aria-current={here ? 'location' : undefined}
+                        onClick={() => setSelectedCategory(cat.name)}
+                        className="flex items-center h-9 px-3.5 rounded-full text-xs font-bold whitespace-nowrap flex-shrink-0 transition active:scale-95"
+                        style={on
+                            ? { background: accent, color: '#fff', border: `1.5px solid ${accent}` }
+                            : here
+                                ? { background: `${accent}14`, color: colors.textPrimary, border: `2px solid ${accent}`, fontWeight: 800 }
+                                : { background: 'transparent', color: colors.textPrimary, border: `1.5px solid ${colors.border}` }}
+                    >
+                        {cat.name}
+                    </button>
+                )
+            })}
+        </div>
+    ) : null
+    // Os ambientes: três abas largas, cada uma com a sua cor; a frase embaixo muda com o ambiente
+    const renderAmbientes = (className: string) => activeKind && !searching ? (
+        <div className={className}>
+            <div className="flex gap-1.5" role="tablist" aria-label="Ambiente do catálogo">
+                {kindList.map(({ k }) => {
+                    const m = KIND_META[k]
+                    const on = activeKind === k
+                    return (
+                        <button
+                            key={k}
+                            role="tab"
+                            aria-selected={on}
+                            onClick={() => { setKindChoice(k); setSelectedCategory('Todos') }}
+                            className="flex-1 min-w-0 h-10 rounded-full flex items-center justify-center gap-1.5 text-xs font-bold transition active:scale-95"
+                            style={on
+                                ? { background: m.color, color: '#fff', border: `1.5px solid ${m.color}` }
+                                : { background: 'transparent', color: colors.textPrimary, border: `1.5px solid ${colors.border}` }}
+                        >
+                            <m.Icon size={16} />
+                            <span className="truncate">{m.label}</span>
+                        </button>
+                    )
+                })}
+            </div>
+            <p className="mt-1.5 px-1 text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{KIND_META[activeKind].hint}</p>
+        </div>
+    ) : null
 
     // ========== VOLTAR ==========
     const handleGoBack = () => {
@@ -1028,14 +1198,8 @@ export default function CatalogoClientPage() {
 
     // ========== RENDER ==========
     if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
-                <div className="text-center">
-                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando catálogo...</p>
-                </div>
-            </div>
-        )
+        // esqueleto com a forma do catálogo (3.0: grade + peça de baixo; 2.0: lista em linhas)
+        return <div style={{ background: colors.background, minHeight: insideShell ? undefined : '100dvh' }}><CatalogoSkeleton v3={insideShell} /></div>
     }
 
     if (error || !storeInfo || !ownerSlug) {
@@ -1064,153 +1228,106 @@ export default function CatalogoClientPage() {
     // Cor padrão para os textos
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
+    const storeStatusText = storeInfo
+        ? (isStoreOpen
+            ? `Aberta agora${(() => { const h = getTodayHoursText(storeInfo.business_hours); return h ? ` · ${h === '00:00 - 00:00' ? '24 horas' : h}` : '' })()}`
+            : nextAvailable ? `Fechada · abre ${nextAvailable.day} às ${nextAvailable.open}` : 'Fechada agora')
+        : ''
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            <div className="fixed inset-0 z-0">
-                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-            </div>
+            {!insideShell && (
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+            )}
 
-            <main className="relative z-10 min-h-dvh pb-32">
-                {/* ===== HEADER EMBUTIDO ===== */}
-                <div
-                    style={{
-                        color: colors.textPrimary,
-                        padding: '8px 12px 14px 12px',
-                        position: 'sticky',
-                        top: insideShell ? 'var(--shell-top, 0px)' : 0,
-                        zIndex: 20,
-                        overflow: 'hidden',
-                        background: gradientBg,
-                        backdropFilter: 'blur(20px) saturate(180%)',
-                        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                        minHeight: 120,
-                    }}
-                    className="sm:px-6 sm:pt-5"
-                >
+            <main className="relative z-10 min-h-dvh" style={{ paddingBottom: insideShell ? 'calc(150px + var(--staging-banner-h, 0px))' : '8rem' }}>
+
+                {/* ===== 3.0: o topo é só o título da loja e as categorias (nada flutuante). Voltar, loja e busca ficam na peça de baixo, fundidos à sacola. ===== */}
+                {insideShell ? (
                     <div
+                        ref={headerRef}
+                        className="sticky z-20 px-4 pt-2.5 pb-2.5"
                         style={{
-                            position: 'absolute',
-                            right: storeInfo.logo_url ? -15 : -5,
-                            top: storeInfo.logo_url ? -15 : -5,
-                            width: storeInfo.logo_url ? 130 : 90,
-                            height: storeInfo.logo_url ? 130 : 90,
-                            opacity: storeInfo.logo_url ? 0.45 : 0.35,
-                            transform: 'rotate(6deg)',
-                            maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.95) 15%, rgba(0,0,0,0) 75%)',
-                            WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.95) 15%, rgba(0,0,0,0) 75%)',
-                            pointerEvents: 'none',
-                            background: storeInfo.logo_url ? 'transparent' : colors.accent,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 1,
+                            top: 'var(--shell-top, 0px)',
+                            // a sombra sólida cobre a faixa acima do topo fixo (entre a borda da tela e a barra do app), para a lista não aparecer passando ali
+                            boxShadow: `0 -24px 0 0 ${colors.background}`,
+                            background: `linear-gradient(180deg, ${accent}1f, ${accent}08 70%, transparent), ${colors.background}`,
+                            borderBottom: `2px solid ${accent}55`,
+                            transition: 'background 0.3s, border-color 0.3s',
                         }}
                     >
-                        {storeInfo.logo_url ? (
-                            <img
-                                src={storeInfo.logo_url}
-                                alt=""
-                                style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: 'cover',
-                                    borderRadius: '50%',
-                                }}
-                            />
-                        ) : (
-                            <img
-                                src="/logotransparente.png"
-                                alt="headerimage"
-                                style={{ width: 45, height: 45, objectFit: 'contain' }}
-                            />
-                        )}
+                        {/* logo ao lado do nome (o anel mostra se está aberta); toque leva à página da loja */}
+                        <button onClick={() => router.push(`/${ownerSlug}`)} className="flex items-center gap-3 min-w-0 text-left max-w-full">
+                            <span className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT, boxShadow: `0 0 0 2px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}>
+                                {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block text-base font-black leading-tight tracking-tight truncate" style={{ color: colors.textPrimary }}>{storeInfo.name}</span>
+                                <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>
+                                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isStoreOpen ? '#16a34a' : '#ef4444' }} />
+                                    <span className="truncate">
+                                        {isStoreOpen
+                                            ? `Aberta agora${(() => { const h = getTodayHoursText(storeInfo.business_hours); return h ? ` · ${h === '00:00 - 00:00' ? '24 horas' : h}` : '' })()}`
+                                            : nextAvailable ? `Fechada · abre ${nextAvailable.day} às ${nextAvailable.open}` : 'Fechada agora'}
+                                    </span>
+                                </span>
+                            </span>
+                        </button>
+                        {renderAmbientes('mt-2.5')}
+                        {renderCategoryChips('mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5')}
                     </div>
-
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-3">
-                            {insideShell && (
-                                <button
-                                    onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push(`/${ownerSlug}`))}
-                                    aria-label="Voltar"
-                                    className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition active:scale-95"
-                                    style={{ background: `${colors.border}40`, color: colors.textPrimary }}
-                                >
-                                    <ArrowLeft size={19} />
-                                </button>
-                            )}
-                            {storeInfo.logo_url && (
-                                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2" style={{ borderColor: colors.accent }}>
-                                    <img src={storeInfo.logo_url} alt={storeInfo.name} className="w-full h-full object-cover" />
+                ) : (
+                /* 2.0: cabeçalho de UMA linha (logo · nome e status · lupa) + uma fileira de chips. A busca abre pela lupa. */
+                <div ref={headerRef} className="sticky top-0 z-20" style={{ background: `linear-gradient(180deg, ${accent}1f, ${accent}08 70%, transparent), ${colors.background}`, borderBottom: `2px solid ${accent}55`, transition: 'background 0.3s, border-color 0.3s' }}>
+                    <div className="max-w-7xl mx-auto px-3 pt-2.5 pb-2">
+                        {searchOpen || searchQuery ? (
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 flex items-center gap-2 h-10 px-3.5 rounded-full" style={{ background: `${colors.border}30` }}>
+                                    <Search size={16} style={{ color: colors.textSecondary }} />
+                                    <input
+                                        ref={searchInputRef}
+                                        autoFocus
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder={`Buscar em ${storeInfo.name}`}
+                                        className="flex-1 min-w-0 bg-transparent outline-none text-sm"
+                                        style={{ color: colors.textPrimary }}
+                                    />
                                 </div>
-                            )}
-                            <h1 className="text-lg sm:text-2xl lg:text-3xl font-extrabold tracking-tight break-words" style={{ color: colors.textPrimary }}>
-                                {storeInfo.name}
-                            </h1>
-                        </div>
-
-                        {categories.length > 1 && (
-                            <div
-                                className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide px-1"
-                                style={{
-                                    overflowY: 'visible',
-                                    paddingLeft: '4px',
-                                    paddingRight: '4px',
-                                }}
-                            >
-                                {categories.map((cat) => {
-                                    const isActive = selectedCategory === cat.name
-                                    return (
-                                        <button
-                                            key={cat.name}
-                                            onClick={() => setSelectedCategory(cat.name)}
-                                            className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 hover:scale-105"
-                                            style={{
-                                                background: isActive
-                                                    ? GRADIENT
-                                                    : 'transparent',
-                                                color: textColor,
-                                                boxShadow: isActive ? `0 2px 12px #f9731650` : 'none',
-                                                border: isActive ? 'none' : `1px solid ${colors.border}44`,
-                                                ...(isActive ? {
-                                                    fontWeight: 'bold',
-                                                    transform: 'scale(1.05)',
-                                                } : {}),
-                                            }}
-                                        >
-                                            <div
-                                                className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
-                                                style={{
-                                                    background: isActive
-                                                        ? 'linear-gradient(135deg, #f97316, #dc2626)'
-                                                        : colors.surface,
-                                                    color: textColor,
-                                                    border: isActive ? 'none' : `1px solid ${colors.border}33`,
-                                                }}
-                                            >
-                                                {cat.count}
-                                            </div>
-                                            <span className="ml-1.5 sm:ml-2">{cat.name}</span>
-                                        </button>
-                                    )
-                                })}
+                                <button onClick={() => { setSearchQuery(''); setSearchOpen(false) }} className="h-10 px-3 rounded-full text-xs font-bold flex-shrink-0" style={{ color: colors.textSecondary }}>
+                                    Cancelar
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2.5">
+                                <button onClick={handleGoBack} aria-label="Voltar para a loja" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                    <ArrowLeft size={18} />
+                                </button>
+                                <button onClick={() => router.push(`/${ownerSlug}`)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left" aria-label={`Ir para a página de ${storeInfo.name}`}>
+                                    <span className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT, boxShadow: `0 0 0 2px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}>
+                                        {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
+                                    </span>
+                                    <span className="min-w-0">
+                                        <span className="block text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{storeInfo.name}</span>
+                                        <span className="block text-[11px] font-semibold truncate" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>{storeStatusText}</span>
+                                    </span>
+                                </button>
+                                <button onClick={() => { setSelectedCategory('Todos'); setSearchOpen(true) }} aria-label="Buscar produtos" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                    <Search size={18} />
+                                </button>
                             </div>
                         )}
-
-                        <div className="mt-2">
-                            <HeaderSearchInput
-                                placeholder="Buscar produtos..."
-                                value={searchQuery}
-                                onChange={setSearchQuery}
-                                inputRef={searchInputRef}
-                            />
-                        </div>
+                        {renderAmbientes('mt-2.5')}
+                        {renderCategoryChips('mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3 pb-0.5')}
                     </div>
                 </div>
+                )}
 
                 {/* Banner da loja */}
                 {storeInfo.banner_url && (
-                    <div className="w-full h-96 md:h-[32rem] relative overflow-hidden">
+                    <div className={insideShell ? 'mx-4 mt-2 h-36 rounded-3xl relative overflow-hidden' : 'w-full h-96 md:h-[32rem] relative overflow-hidden'}>
                         <Image
                             src={storeInfo.banner_url}
                             alt={storeInfo.name}
@@ -1253,7 +1370,22 @@ export default function CatalogoClientPage() {
 
                 {/* Catálogo de produtos */}
                 <div className="max-w-7xl mx-auto px-1 py-1">
-                    {filteredProducts.length === 0 ? (
+                    {showPromoRail && (
+                        <div className="mb-6 pt-2">
+                            <PromoRail
+                                products={promoProducts}
+                                comboItems={comboItems}
+                                colors={colors}
+                                storeLogo={storeInfo?.logo_url ?? null}
+                                storeOpen={isStoreOpen}
+                                quantityOf={getProductQuantity}
+                                onOpen={(p) => handleProductClick(p)}
+                                onAdd={handleAddWithComment}
+                                formatPrice={formatPrice}
+                            />
+                        </div>
+                    )}
+                    {filteredProducts.length === 0 ? showPromoRail ? null : (
                         <div className="flex flex-col items-center justify-center py-20">
                             <div className="text-6xl mb-4">🛍️</div>
                             <h3 className="text-xl font-semibold" style={{ color: textColor }}>
@@ -1265,12 +1397,33 @@ export default function CatalogoClientPage() {
                         </div>
                     ) : (
                         <div className="flex flex-col gap-6">
-                            {Object.entries(groupedFilteredProducts).map(([category, categoryProducts]) => (
-                                <div key={category} className="flex flex-col gap-3">
-                                    <h4 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                        {category}
-                                    </h4>
-                                    <div className="flex flex-col gap-4">
+                            {Object.entries(groupedFilteredProducts).map(([category, categoryProducts], groupIndex, allGroups) => {
+                                const isCollapsed = allGroups.length > 1 && !searchQuery.trim() && !!collapsedCats[category]
+                                const toggle = () => setCollapsedCats(prev => ({ ...prev, [category]: !prev[category] }))
+                                return (
+                                <div key={category} data-cat-section={category} className="flex flex-col gap-3">
+                                    {/* 3.0: com uma categoria só, o título ("Geral") não diz nada */}
+                                    {allGroups.length > 1 && (
+                                        <button type="button" onClick={toggle} aria-expanded={!isCollapsed} className="w-full flex items-center gap-2 px-1 text-left transition active:opacity-70">
+                                            {insideShell && isPromoCategory(category) ? (
+                                                <span className="flex-1 min-w-0 flex items-center gap-2 text-xl font-black leading-none" style={{ color: '#dc2626' }}>
+                                                    <Flame size={22} /> {category}
+                                                    <span className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(220,38,38,0.4), transparent)' }} />
+                                                </span>
+                                            ) : insideShell ? (
+                                                <span className="flex-1 min-w-0 flex items-center gap-2 text-xl font-black leading-none" style={{ color: colors.textPrimary }}>
+                                                    {category}
+                                                    <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>{categoryProducts.length}</span>
+                                                    <span className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${colors.border}, transparent)` }} />
+                                                </span>
+                                            ) : (
+                                                <span className="flex-1 min-w-0 text-[11px] font-black uppercase tracking-wider" style={{ color: accent }}>{category}</span>
+                                            )}
+                                            <ChevronDown size={insideShell ? 20 : 14} className="flex-shrink-0 transition-transform" style={{ color: insideShell && isPromoCategory(category) ? '#dc2626' : accent, transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
+                                        </button>
+                                    )}
+                                    {!(isCollapsed && !(insideShell && allGroups.length <= 1)) && (
+                                    <div className={insideShell ? 'flex flex-col gap-2.5' : 'flex flex-col gap-4'}>
                                         {categoryProducts.map((product) => {
                                 const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                 const quantity = getProductQuantity(product.id)
@@ -1286,15 +1439,96 @@ export default function CatalogoClientPage() {
                                     }
                                 }
 
+
+                                // 3.0: cartão em grade (foto em cima, nome, preço e o botão de adicionar/quantidade), no desenho do /comprar
+                                if (insideShell) {
+                                    const soldOut = product.stock !== null && product.stock <= 0
+                                    const promo = promoInfoOf(product)
+                                    // Adicionar (+) ou seletor de quantidade (lixeira/− · n · +), o mesmo desenho da 2.0
+                                    const controls = soldOut ? null : isSelected && !productIsDisabled ? (
+                                        <span className="flex items-center gap-0.5 rounded-full p-0.5 flex-shrink-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }} onClick={(e) => e.stopPropagation()}>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); if (quantity <= 1) removeAllOfProduct(product.id); else decreaseQuantity(product.id) }}
+                                                aria-label={quantity <= 1 ? 'Tirar do carrinho' : 'Diminuir quantidade'}
+                                                className="w-7 h-7 rounded-full flex items-center justify-center transition active:scale-90"
+                                                style={quantity <= 1 ? { background: '#ef444418', color: '#ef4444' } : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                {quantity <= 1 ? <Trash2 size={13} /> : <Minus size={14} />}
+                                            </button>
+                                            <span className="min-w-[22px] text-center text-[13px] font-black" style={{ color: colors.textPrimary }}>{quantity}</span>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleAddWithComment(product) }}
+                                                aria-label="Aumentar quantidade"
+                                                className="w-7 h-7 rounded-full flex items-center justify-center text-white transition active:scale-90"
+                                                style={{ background: GRADIENT }}
+                                            >
+                                                <Plus size={14} strokeWidth={3} />
+                                            </button>
+                                        </span>
+                                    ) : (
+                                        <button
+                                            onClick={handleProductInteraction}
+                                            aria-label={productIsDisabled ? 'Ver detalhes' : `Adicionar ${product.name}`}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-90"
+                                            style={{ background: productIsDisabled ? colors.border : GRADIENT, color: productIsDisabled ? colors.textSecondary : '#fff' }}
+                                        >
+                                            {productIsDisabled ? <Info size={14} /> : <Plus size={15} strokeWidth={3} />}
+                                        </button>
+                                    )
+                                    // Linha compacta (3.0): foto pequena + nome, uma linha de descrição, preço e controle. As ofertas usam a mesma linha, com o selo -% e o preço antigo riscado.
+                                    return (
+                                        <div
+                                            key={product.id}
+                                            onClick={(e) => handleProductClick(product, e)}
+                                            className="rounded-2xl flex items-center gap-3 p-2 cursor-pointer text-left transition active:scale-[0.99]"
+                                            style={{
+                                                background: isSelected ? `linear-gradient(#f973161a, #f973161a), ${colors.surface}` : colors.surface,
+                                                border: `1px solid ${isSelected ? '#f9731666' : colors.border}`,
+                                                opacity: soldOut ? 0.6 : 1,
+                                            }}
+                                        >
+                                            <div className="relative w-[72px] h-[72px] rounded-xl overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
+                                                {product.image_url || storeInfo?.logo_url
+                                                    ? <img src={product.image_url || storeInfo?.logo_url || ''} alt="" className={`w-full h-full ${product.image_url ? 'object-cover' : 'object-contain p-3'}`} loading="lazy" />
+                                                    : <span className="absolute inset-0 flex items-center justify-center text-white/90 text-2xl font-black">{storeInfo?.name?.trim().charAt(0).toUpperCase() || '?'}</span>}
+                                                {soldOut
+                                                    ? <span className="absolute inset-x-0 bottom-0 text-[9px] font-black uppercase text-center py-0.5 text-white" style={{ background: '#dc2626' }}>Esgotado</span>
+                                                    : promo && <span className="absolute left-1 top-1 text-[9px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}>-{promo.pct}%</span>}
+                                                {isSelected && quantity > 0 && !soldOut && (
+                                                    <span className="absolute right-1 top-1 min-w-[20px] h-5 px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: '#f97316', boxShadow: '0 0 0 1.5px #fff' }}>{quantity}</span>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0 self-stretch flex flex-col justify-between gap-1">
+                                                <div className="min-w-0">
+                                                    <h3 className="text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{product.name}</h3>
+                                                    {(promo ? promo.rest : product.description) && (
+                                                        <p className="text-[11px] leading-snug truncate" style={{ color: colors.textSecondary }}>{promo ? promo.rest : product.description}</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="flex items-baseline gap-1.5 min-w-0">
+                                                        <span className="text-sm font-black whitespace-nowrap" style={{ color: '#f97316' }}>
+                                                            {formatPrice(product.price)}{isHourly && <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}> /h</span>}
+                                                        </span>
+                                                        {promo && <span className="text-[10px] line-through whitespace-nowrap" style={{ color: colors.textSecondary }}>{formatPrice(promo.old)}</span>}
+                                                    </span>
+                                                    {controls}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                }
+
                                 return (
                                     <div
                                         key={product.id}
                                         onClick={(e) => handleProductClick(product, e)}
-                                        className={`group rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl cursor-pointer border-4 flex flex-row`}
+                                        className={`group rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl cursor-pointer border flex flex-row`}
                                         style={{
-                                            background: cardBackground,
+                                            // No carrinho: leve tom de laranja no fundo + selo com a quantidade na foto (o contorno verde saiu)
+                                            background: isSelected ? `linear-gradient(#f973161a, #f973161a), ${cardBackground}` : cardBackground,
                                             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                            borderColor: isSelected ? '#22c55e' : 'transparent',
+                                            borderColor: isSelected ? '#f9731666' : `${colors.border}55`,
                                         }}
                                     >
                                         <div className="w-32 sm:w-40 md:w-48 flex-shrink-0 relative bg-gray-100 overflow-hidden" style={{ minHeight: '140px', height: 'auto' }}>
@@ -1310,7 +1544,7 @@ export default function CatalogoClientPage() {
                                                     {storeInfo?.name?.trim() ? storeInfo.name.trim().charAt(0).toUpperCase() : '?'}
                                                 </div>
                                             )}
-                                            {product.type && (
+                                            {product.type && product.type !== 'physical' && (
                                                 <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase backdrop-blur-md"
                                                     style={{ background: 'rgba(0,0,0,0.3)', color: '#ffffff' }}>
                                                     {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
@@ -1320,6 +1554,9 @@ export default function CatalogoClientPage() {
                                                 <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                                                     Esgotado
                                                 </div>
+                                            )}
+                                            {isSelected && quantity > 0 && !(product.stock !== null && product.stock <= 0) && (
+                                                <span className="absolute right-2 top-2 min-w-[26px] h-[26px] px-1.5 rounded-full text-xs font-black text-white flex items-center justify-center" style={{ background: '#f97316', boxShadow: '0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.25)' }} aria-label={`${quantity} no carrinho`}>{quantity}</span>
                                             )}
                                             {productIsDisabled && (
                                                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
@@ -1354,53 +1591,30 @@ export default function CatalogoClientPage() {
 
                                             <div className="mt-2 flex justify-end items-center">
                                                 {isSelected ? (
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-0.5 rounded-full p-1" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation()
-                                                                if (quantity <= 1) {
-                                                                    removeAllOfProduct(product.id)
-                                                                } else {
-                                                                    decreaseQuantity(product.id)
-                                                                }
+                                                                if (quantity <= 1) removeAllOfProduct(product.id)
+                                                                else decreaseQuantity(product.id)
                                                             }}
-                                                            className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff'
-                                                            }}
+                                                            aria-label={quantity <= 1 ? 'Tirar do carrinho' : 'Diminuir quantidade'}
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 product-action-button"
+                                                            style={quantity <= 1 ? { background: '#ef444418', color: '#ef4444' } : { background: colors.surface, color: textColor, border: `1px solid ${colors.border}` }}
                                                         >
-                                                            −
+                                                            {quantity <= 1 ? <Trash2 size={15} /> : <Minus size={16} />}
                                                         </button>
-                                                        <span className="text-xs font-bold min-w-[20px] text-center" style={{ color: '#f97316' }}>
-                                                            {quantity}
-                                                        </span>
+                                                        <span className="min-w-[30px] text-center text-sm font-black" style={{ color: textColor }} aria-live="polite">{quantity}</span>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation()
                                                                 handleAddWithComment(product)
                                                             }}
-                                                            className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff'
-                                                            }}
+                                                            aria-label="Aumentar quantidade"
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 product-action-button"
+                                                            style={{ background: GRADIENT, color: '#ffffff' }}
                                                         >
-                                                            +
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                removeAllOfProduct(product.id)
-                                                            }}
-                                                            className="w-7 h-7 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs product-action-button"
-                                                            style={{
-                                                                background: '#ef4444',
-                                                                color: '#ffffff'
-                                                            }}
-                                                            title="Remover todos"
-                                                        >
-                                                            <X className="w-3 h-3 text-white" />
+                                                            <Plus size={16} />
                                                         </button>
                                                     </div>
                                                 ) : (
@@ -1418,8 +1632,10 @@ export default function CatalogoClientPage() {
                                 )
                             })}
                                     </div>
+                                    )}
                                 </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>
@@ -1438,8 +1654,8 @@ export default function CatalogoClientPage() {
                 </div>
 
                 {/* ===== BOTÃO FLUTUANTE - INÍCIO (lado direito; some enquanto a sacola está aberta) ===== */}
-                {!isBagExpanded && !checkoutStep && (
-                    <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                {!insideShell && !isBagExpanded && !checkoutStep && (
+                    <div style={{ position: 'fixed', bottom: bagItems.length > 0 ? 'calc(104px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))' : 32, right: 24, zIndex: 997, transition: 'bottom 0.25s' }}>
                         <button
                             onClick={handleHome}
                             className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
@@ -1457,8 +1673,25 @@ export default function CatalogoClientPage() {
                 )}
 
                 {/* ===== BOTÃO FLUTUANTE - SACOLA (agora no lado esquerdo; busca vive no header, igual à home) ===== */}
-                <div style={{ position: 'fixed', bottom: 32, left: 16, zIndex: 998, maxWidth: 'calc(100vw - 32px)' }}>
+                <div style={insideShell
+                    ? {
+                        // UMA peça só (como a barra de baixo do app): sacola em cima e, embaixo, voltar + loja + busca
+                        position: 'fixed', bottom: 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 448, margin: '0 auto', zIndex: showProductModal ? 150 : 998,
+                        background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 30, boxShadow: '0 12px 32px rgba(0,0,0,0.2)', overflow: 'hidden',
+                    }
+                    : bagItems.length > 0
+                        // 2.0: barra fixa embaixo (como o cabeçalho, mas na base): sacola, total e Finalizar sempre à mão
+                        ? {
+                            position: 'fixed', bottom: 'calc(12px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 720, margin: '0 auto', zIndex: showProductModal ? 150 : 998,
+                            background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 28, boxShadow: '0 12px 32px rgba(0,0,0,0.2)', overflow: 'hidden',
+                        }
+                        : { display: 'none' }}>
+                    {/* 3.0: a sacola só aparece com itens (compacta, como a faixa do carrinho da barra); sem itens, só a linha de baixo */}
+                    {(!insideShell || bagItems.length > 0) && (
                     <CatalogBag
+                        dock
+                        v3={insideShell}
+                        bare={insideShell}
                         bagItems={bagItems}
                         isExpanded={isBagExpanded}
                         onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
@@ -1566,8 +1799,8 @@ export default function CatalogoClientPage() {
                                                 <Store size={18} />
                                             </div>
                                             <div>
-                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não tem entrega</p>
-                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
+                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{digitalOnly ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
+                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digitalOnly ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                             </div>
                                         </div>
                                     ) : onlyDeliveryAvailable ? (
@@ -1774,7 +2007,7 @@ export default function CatalogoClientPage() {
                                             { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: storeConfig?.accepts_pix },
                                             { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: storeConfig?.accepts_card },
                                             { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: storeConfig?.accepts_cash },
-                                        ]).filter(opt => opt.enabled).map((opt) => {
+                                        ]).filter(opt => opt.enabled && (!digitalOnly || opt.value === 'pix')).map((opt) => {
                                             const selected = paymentMethod === opt.value
                                             return (
                                                 <button
@@ -1887,6 +2120,31 @@ export default function CatalogoClientPage() {
                             </>
                         ) : null}
                     />
+                    )}
+                    {insideShell && (
+                        <div className="flex items-center gap-2 px-2" style={{ height: 62, borderTop: bagItems.length > 0 ? `1px solid ${colors.border}` : 'none' }}>
+                            <button
+                                onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push(`/${ownerSlug}`))}
+                                aria-label="Voltar"
+                                className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition active:scale-95"
+                                style={{ background: `${colors.border}55`, color: colors.textPrimary }}
+                            >
+                                <ArrowLeft size={19} />
+                            </button>
+                            <div className="flex-1 min-w-0 flex items-center gap-2 px-3.5 h-11 rounded-full" style={{ background: `${colors.border}40` }}>
+                                <Search size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                <input
+                                    ref={searchInputRef}
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Buscar na loja"
+                                    className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
+                                    style={{ color: colors.textPrimary }}
+                                />
+                                {searchQuery && <button onClick={() => setSearchQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={15} /></button>}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* ===== MODAL DE ADICIONAR (observação sempre; adicionais se a loja habilitar) ===== */}
@@ -2118,7 +2376,7 @@ export default function CatalogoClientPage() {
                         onClick={() => setShowProductModal(false)}
                     >
                         <div
-                            className="w-full max-w-3xl rounded-2xl p-5 animate-fade-in max-h-[80vh] overflow-y-auto"
+                            className="w-full max-w-lg rounded-2xl p-5 animate-fade-in max-h-[88vh] overflow-y-auto"
                             style={{ background: cardBackground }}
                             onClick={(e) => e.stopPropagation()}
                         >
@@ -2135,30 +2393,28 @@ export default function CatalogoClientPage() {
                                 </button>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row gap-4">
-                                <div className="sm:w-2/5">
-                                    <div className="w-full aspect-square rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
+                            <div className="flex flex-col gap-3">
+                                {/* O que é o produto vem primeiro: a foto é só uma miniatura ao lado do nome e do preço */}
+                                <div className="flex items-start gap-3">
+                                    <div className="w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
                                         {selectedProduct.image_url || storeInfo?.logo_url ? (
                                             <img
                                                 src={selectedProduct.image_url || storeInfo?.logo_url || ''}
                                                 alt={selectedProduct.name}
-                                                className={selectedProduct.image_url ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-8'}
+                                                className={selectedProduct.image_url ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-3'}
                                             />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-sm font-medium" style={{ color: textColor }}>
+                                            <div className="w-full h-full flex items-center justify-center text-[10px] font-medium" style={{ color: textColor }}>
                                                 Sem imagem
                                             </div>
                                         )}
                                     </div>
-                                </div>
-
-                                <div className="flex-1 flex flex-col">
-                                    <div>
-                                        <h4 className="text-lg font-black truncate" style={{ color: textColor }}>
+                                    <div className="min-w-0 flex-1">
+                                        <h4 className="text-lg font-black leading-tight" style={{ color: textColor }}>
                                             {selectedProduct.name}
                                         </h4>
                                         {selectedProduct.category && (
-                                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: '#f9731620', color: '#f97316' }}>
+                                            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: '#f9731620', color: '#f97316' }}>
                                                 {selectedProduct.category}
                                             </span>
                                         )}
@@ -2171,23 +2427,30 @@ export default function CatalogoClientPage() {
                                             )}
                                         </div>
                                     </div>
+                                </div>
 
-                                    {selectedProduct.description && (
-                                        <div className="mt-2 p-2.5 rounded-lg flex-1" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
-                                            <p className="text-xs leading-relaxed line-clamp-3" style={{ color: textColor }}>
+                                <div className="flex-1 flex flex-col">
+                                    <div className="p-3 rounded-lg" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
+                                        {selectedProduct.description && (
+                                            <p className="text-sm leading-relaxed whitespace-pre-line font-bold" style={{ color: textColor }}>
                                                 {selectedProduct.description}
                                             </p>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-2 gap-2 mt-3">
+                                        )}
+                                        {/* Dados técnicos ficam recolhidos dentro da descrição (o foco é o que o produto é, o preço, a foto e o que se diz dele) */}
+                                    <details className="group mt-2">
+                                        <summary className="inline-flex items-center gap-1 cursor-pointer list-none text-xs font-normal select-none" style={{ color: colors.textSecondary }}>
+                                            Ver mais sobre este produto
+                                            <ChevronDown size={16} className="transition-transform group-open:rotate-180" style={{ color: '#f97316' }} />
+                                        </summary>
+                                        <div className="pt-2">
+                                            <div className="grid grid-cols-2 gap-2">
                                         {selectedProduct.type && (
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                                                 <div className="flex items-center gap-1.5">
                                                     <Package size={13} style={{ color: '#f97316' }} />
-                                                    <span className="text-[10px] font-bold" style={{ color: textColor }}>Tipo</span>
+                                                    <span className="text-[10px] font-normal" style={{ color: textColor }}>Tipo</span>
                                                 </div>
-                                                <p className="text-xs font-semibold mt-0.5" style={{ color: textColor }}>
+                                                <p className="text-xs font-normal mt-0.5" style={{ color: textColor }}>
                                                     {selectedProduct.type === 'physical' ? 'Produto' :
                                                         selectedProduct.type === 'service' ? 'Serviço' : 'Digital'}
                                                 </p>
@@ -2197,9 +2460,9 @@ export default function CatalogoClientPage() {
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                                                 <div className="flex items-center gap-1.5">
                                                     <Tag size={13} style={{ color: '#f97316' }} />
-                                                    <span className="text-[10px] font-bold" style={{ color: textColor }}>Estoque</span>
+                                                    <span className="text-[10px] font-normal" style={{ color: textColor }}>Estoque</span>
                                                 </div>
-                                                <p className="text-xs font-semibold mt-0.5" style={{ color: selectedProduct.stock > 0 ? '#22c55e' : '#ef4444' }}>
+                                                <p className="text-xs font-normal mt-0.5" style={{ color: selectedProduct.stock > 0 ? '#22c55e' : '#ef4444' }}>
                                                     {selectedProduct.stock > 0 ? `${selectedProduct.stock} un.` : 'Esgotado'}
                                                 </p>
                                             </div>
@@ -2208,9 +2471,9 @@ export default function CatalogoClientPage() {
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                                                 <div className="flex items-center gap-1.5">
                                                     <Clock size={13} style={{ color: '#f97316' }} />
-                                                    <span className="text-[10px] font-bold" style={{ color: textColor }}>Modalidade</span>
+                                                    <span className="text-[10px] font-normal" style={{ color: textColor }}>Modalidade</span>
                                                 </div>
-                                                <p className="text-xs font-semibold mt-0.5" style={{ color: textColor }}>
+                                                <p className="text-xs font-normal mt-0.5" style={{ color: textColor }}>
                                                     {selectedProduct.price_type === 'fixed' ? 'Fixo' :
                                                         selectedProduct.price_type === 'hourly' ? 'Por hora' : 'Negociável'}
                                                 </p>
@@ -2220,9 +2483,9 @@ export default function CatalogoClientPage() {
                                             <div className="p-2 rounded-lg" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                                                 <div className="flex items-center gap-1.5">
                                                     <Calendar size={13} style={{ color: '#f97316' }} />
-                                                    <span className="text-[10px] font-bold" style={{ color: textColor }}>Adicionado</span>
+                                                    <span className="text-[10px] font-normal" style={{ color: textColor }}>Adicionado</span>
                                                 </div>
-                                                <p className="text-xs font-semibold mt-0.5" style={{ color: textColor }}>
+                                                <p className="text-xs font-normal mt-0.5" style={{ color: textColor }}>
                                                     {new Date(selectedProduct.created_at).toLocaleDateString('pt-BR', {
                                                         day: '2-digit',
                                                         month: 'short'
@@ -2231,6 +2494,20 @@ export default function CatalogoClientPage() {
                                             </div>
                                         )}
                                     </div>
+                                        </div>
+                                    </details>
+                                    </div>
+
+                                    {selectedProduct.stock !== null && selectedProduct.stock !== undefined && selectedProduct.stock <= 0 && (
+                                        <p className="mt-2 text-xs font-bold" style={{ color: '#ef4444' }}>Esgotado</p>
+                                    )}
+
+                                    {selectedProduct.type === 'digital' && (
+                                        <div className="mt-3">
+                                            <DigitalCurriculum productId={selectedProduct.id} />
+                                        </div>
+                                    )}
+
 
                                     {!isStoreOpen && (
                                         <div className="mt-2 p-2 rounded-lg text-center" style={{ background: 'rgba(239, 68, 68, 0.08)', border: `1px dashed #ef4444` }}>
@@ -2246,55 +2523,56 @@ export default function CatalogoClientPage() {
                                         </div>
                                     )}
 
-                                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                                    <div className="mt-3 sticky -bottom-5 -mx-5 -mb-5 px-5 py-3 flex flex-col sm:flex-row gap-2" style={{ background: cardBackground }}>
                                         {isStoreOpen ? (
                                             <>
                                                 {cartItems.some((item: any) => item.product.id === selectedProduct.id) ? (
-                                                    <div className="flex items-center gap-2 w-full">
-                                                        <button
-                                                            onClick={() => {
-                                                                const qty = getProductQuantity(selectedProduct.id)
-                                                                if (qty <= 1) {
-                                                                    removeAllOfProduct(selectedProduct.id)
-                                                                } else {
-                                                                    decreaseQuantity(selectedProduct.id)
-                                                                }
-                                                            }}
-                                                            className="flex-1 py-2 rounded-full font-bold text-xs transition hover:scale-105 active:scale-95"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff',
-                                                                boxShadow: `0 4px 14px #f9731660`,
-                                                            }}
-                                                        >
-                                                            Remover
-                                                        </button>
-                                                        <span className="text-base font-bold min-w-[32px] text-center" style={{ color: '#f97316' }}>
-                                                            {getProductQuantity(selectedProduct.id)}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => handleAddWithComment(selectedProduct)}
-                                                            className="flex-1 py-2 rounded-full font-bold text-xs transition hover:scale-105 active:scale-95"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff',
-                                                                boxShadow: `0 4px 14px #f9731660`,
-                                                            }}
-                                                        >
-                                                            Adicionar
-                                                        </button>
+                                                    /* Já está no carrinho: seletor de quantidade (− 1 +). Com 1 unidade o "−" vira a lixeira e tira o produto */
+                                                    <div className="flex items-center justify-between gap-3 w-full">
+                                                        <div className="min-w-0">
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: colors.textSecondary }}>No carrinho</p>
+                                                            <p className="text-sm font-black" style={{ color: textColor }}>
+                                                                {getProductQuantity(selectedProduct.id)} {getProductQuantity(selectedProduct.id) === 1 ? 'unidade' : 'unidades'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 rounded-full p-1" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const qty = getProductQuantity(selectedProduct.id)
+                                                                    if (qty <= 1) removeAllOfProduct(selectedProduct.id)
+                                                                    else decreaseQuantity(selectedProduct.id)
+                                                                }}
+                                                                aria-label={getProductQuantity(selectedProduct.id) <= 1 ? 'Tirar do carrinho' : 'Diminuir quantidade'}
+                                                                className="w-10 h-10 rounded-full flex items-center justify-center transition active:scale-90"
+                                                                style={getProductQuantity(selectedProduct.id) <= 1 ? { background: '#ef444418', color: '#ef4444' } : { background: colors.surface, color: textColor, border: `1px solid ${colors.border}` }}
+                                                            >
+                                                                {getProductQuantity(selectedProduct.id) <= 1 ? <Trash2 size={17} /> : <Minus size={18} />}
+                                                            </button>
+                                                            <span className="min-w-[40px] text-center text-lg font-black" style={{ color: textColor }} aria-live="polite">
+                                                                {getProductQuantity(selectedProduct.id)}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => handleAddWithComment(selectedProduct)}
+                                                                aria-label="Aumentar quantidade"
+                                                                className="w-10 h-10 rounded-full flex items-center justify-center transition active:scale-90"
+                                                                style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
+                                                            >
+                                                                <Plus size={18} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     <button
                                                         onClick={() => handleAddWithComment(selectedProduct)}
-                                                        className="w-full py-2 rounded-full font-bold text-xs transition hover:scale-105 active:scale-95"
+                                                        className="w-full h-12 rounded-full font-black text-sm flex items-center justify-center gap-2 transition hover:scale-[1.02] active:scale-95"
                                                         style={{
                                                             background: GRADIENT,
                                                             color: '#ffffff',
                                                             boxShadow: `0 4px 14px #f9731660`,
                                                         }}
                                                     >
-                                                        Adicionar ao carrinho
+                                                        <Plus size={18} />
+                                                        Adicionar ao carrinho · {formatPrice(selectedProduct.price || 0)}
                                                     </button>
                                                 )}
                                             </>

@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { ArrowLeft, Briefcase, Building2, Camera, Check, CheckCircle2, ChevronRight, History, LocateFixed, MapPin, Plus, Search, Send, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'

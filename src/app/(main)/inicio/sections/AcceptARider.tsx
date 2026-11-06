@@ -9,8 +9,12 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
-import { kindForRideType } from '@/lib/rideVehicle'
+import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, computeRideExtras, describeTripFare, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { perHour as perHourOfMinutes } from '@/modules/negotiation/domain'
+import { rideQuote } from '@/lib/rideQuote'
+import { useRideMinimum } from '@/hooks/useRideMinimum'
+import { loadEarningGoal } from '@/modules/negotiation'
+import { kindForRideType, rideAcceptsAnyVehicle, ridesAcceptableForVehicleKind, type VehicleKind } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { watchPosition } from '@/lib/nativeGeolocation'
 import { Spinner } from '@/components/Spinner'
@@ -20,6 +24,10 @@ import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyVehicles } from '@/lib/vehicleHeaderTabs'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
+import { RideSummaryCard } from '@/components/AceitarCorridas/RideSummaryCard'
+import { rideValuation, valuationRank } from '@/modules/negotiation/domain'
+import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
+import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from '@/components/AceitarCorridas/LocationAskDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -45,6 +53,12 @@ interface OpenRidePreview {
     ride: OfferRide
     requester: OfferRequester
     suggestedPrice: number
+    /** Tarifa iUser e tarifa própria do motorista para o veículo desta corrida, e as condições dela: entram na MESMA conta de /aceitar-corridas (lib/rideQuote) */
+    platformShape: DriverPricing
+    customShape: DriverPricing | null
+    useCustom: boolean
+    flags: RideConditionFlags
+    destination: [number, number] | null
     // Ponto de partida (pra medir a distância do motorista até ele) e se o valor
     // é a Tarifa iUser — só ela soma o deslocamento até o passageiro.
     origin: [number, number] | null
@@ -97,7 +111,17 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const [gpsStatus, setGpsStatus] = useState<'idle' | 'asking' | 'granted' | 'denied' | 'unavailable'>('idle')
     const gpsWatchRef = useRef<{ clear: () => void } | null>(null)
     const gpsFixRef = useRef(false)
+    // Sem GPS liberado vale o local salvo em "Definir local": o deslocamento até a partida entra na conta mesmo assim
+    const [savedPos, setSavedPos] = useState<[number, number] | null>(null)
+    const [livePos, setLivePos] = useState<[number, number] | null>(null)
+    const fallbackPos = livePos ?? savedPos
+    const pos = gps ?? fallbackPos
     const [pickupById, setPickupById] = useState<Record<string, { km: number; min: number }>>({})
+    // a corrida em si (partida → chegada) pela rota do mapa: o valor usa este km, igual a /aceitar-corridas
+    const [tripById, setTripById] = useState<Record<string, { km: number; min: number }>>({})
+    const [minHourly, setMinHourly] = useState<number | null>(null)
+    const minPerMinute = useRideMinimum()
+    useEffect(() => { if (contextUserId) void loadEarningGoal(contextUserId).then((g) => setMinHourly(g.minHourly)).catch(() => {}) }, [contextUserId])
     const lastRouteRef = useRef<{ coords: [number, number]; key: string } | null>(null)
 
     const requestGps = useCallback(() => {
@@ -176,20 +200,31 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 return
             }
             await loadPlatformTariffs(supabase)
+            if (userId) {
+                const { data: me } = await supabase.from('my_profile').select('store_lat, store_lng').eq('id', userId).maybeSingle()
+                if (active) setSavedPos(me?.store_lat != null && me?.store_lng != null ? [Number(me.store_lng), Number(me.store_lat)] : null)
+            }
             // Visitante (sem login) também vê as corridas abertas: assim ele sabe que
             // tem corrida pra pegar. Sem conta não tem driver_pricing nem candidatura
             // própria, então vale a tarifa iUser e nada é filtrado por "já me candidatei".
-            let pricingRow: { pricing_mode: any; base_distance_km: any; base_fee: any; price_per_km_after_base: any } | null = null
+            let pricingRow: { pricing_mode: any; base_distance_km: any; base_fee: any; price_per_km_after_base: any; price_per_minute?: any } | null = null
             let appliedIds = new Set<string>()
+            // Mesma regra do quadro de /aceitar-corridas: só as corridas do veículo que a pessoa tem cadastrado (carro não vê entrega de moto).
+            // Sem veículo cadastrado, qualquer tipo.
+            const { data: vehicleRows } = await supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', userId)
+            const myKinds = (vehicleRows || []).map((v) => v.vehicle_kind as VehicleKind)
+            const acceptableTypes = new Set<string>(myKinds.length > 0 ? myKinds.flatMap((k) => ridesAcceptableForVehicleKind(k)) : ['carro', 'van', 'van-grande', 'moto', 'bicicleta', 'qualquer'])
             if (userId) {
                 // As corridas aparecem mesmo sem o modo motorista ativado (e sem tarifa
                 // cadastrada ainda): quem não tem driver_pricing vê o valor pela tarifa iUser.
                 const { data } = await supabase
                     .from('driver_pricing')
-                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
+                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, live_lat, live_lng')
                     .eq('driver_id', userId)
                     .maybeSingle()
                 pricingRow = data
+                // Mesma regra da lista de corridas: com o Modo motorista ligado vale a última posição ao vivo; senão, o local salvo
+                if (data?.driver_mode_active && data.live_lat != null && data.live_lng != null && active) setLivePos([Number(data.live_lng), Number(data.live_lat)])
 
                 const { data: myApplicationRows } = await supabase
                     .from('ride_applications')
@@ -203,14 +238,14 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             let openQuery = supabase
                 .from('ride_offers')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, order_id, applicant_count, stop1_address, stop2_address')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, passenger_offer, order_id, applicant_count, stop1_address, stop2_address, stop1_lat, stop1_lng, stop2_lat, stop2_lng')
                 .eq('status', 'pending')
             const { data: rows } = await openQuery
                 .order('created_at', { ascending: false })
-                .limit(15)
+                .limit(120)   // folga: o filtro do veículo descarta parte delas
             if (!active) return
 
-            const candidateRows = (rows || []).filter((r) => !appliedIds.has(r.id) && (r.applicant_count ?? 0) < 5)
+            const candidateRows = (rows || []).filter((r) => !appliedIds.has(r.id) && (r.applicant_count ?? 0) < 5 && (rideAcceptsAnyVehicle(r.vehicle_type) || acceptableTypes.has(r.vehicle_type)))
             const top = candidateRows.slice(0, 3)
             setOpenRidesTotal(candidateRows.length)
 
@@ -221,9 +256,11 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             if (!active) return
             const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
 
-            const pricingShape = getEffectivePricing(pricing)
             setOpenRides(
                 top.map((r) => {
+                    const rideKind = kindForRideType(r.vehicle_type)
+                    const pricingShape = getEffectivePricing(pricing, rideKind)
+                    const customShape = getCustomPricing(pricing as any, rideKind)
                     const p = profilesById.get(r.requester_id)
                     const conditionFlags: RideConditionFlags = {
                         origin_needs_access: r.origin_needs_access,
@@ -253,6 +290,11 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         },
                         // Frete de loja já vem com valor fechado; o resto sai da tarifa
                         suggestedPrice: r.offered_price != null ? Number(r.offered_price) : computedPrice,
+                        platformShape: PLATFORM_DEFAULT_PRICING_BY_VEHICLE[rideKind],
+                        customShape,
+                        useCustom: pricing.pricing_mode === 'custom',
+                        flags: conditionFlags,
+                        destination: r.destination_lat != null && r.destination_lng != null ? [r.destination_lng, r.destination_lat] as [number, number] : null,
                         origin: r.origin_lat != null && r.origin_lng != null ? [r.origin_lng, r.origin_lat] as [number, number] : null,
                         usesPlatformTariff: r.offered_price == null && pricing.pricing_mode === 'platform',
                     }
@@ -386,24 +428,36 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     // Pede a localização sozinho assim que existe corrida na Tarifa iUser pra mostrar.
     // (o deslocamento até o passageiro também entra no ganho por hora, qualquer que seja a tarifa)
     const needsLocation = openRides.length > 0
+    // Com permissão já dada busca em silêncio; sem ela, quem pergunta é o diálogo (LocationAskDialog)
+    const [locAskDismissed, setLocAskDismissed] = useState(false)
     useEffect(() => {
-        if (needsLocation && gpsStatus === 'idle') requestGps()
+        setLocAskDismissed(wasLocationAskDismissed())
+        if (needsLocation && gpsStatus === 'idle') void isGeoPermissionGranted().then((ok) => { if (ok) requestGps() })
     }, [needsLocation, gpsStatus, requestGps])
+
+    // A rota de cada corrida (partida → chegada), uma vez
+    useEffect(() => {
+        openRides.forEach(({ ride, origin, destination }) => {
+            if (!origin || !destination || tripById[ride.id]) return
+            fetchRoute(origin, destination).then((route) => setTripById((prev) => ({ ...prev, [ride.id]: { km: route.distanceKm, min: route.durationMin } }))).catch(() => {})
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openRides])
 
     // Km de estrada do motorista até a partida de cada corrida (recalcula se ele andou +300 m)
     useEffect(() => {
-        if (!gps || openRides.length === 0) return
+        if (!pos || openRides.length === 0) return
         const key = openRides.map((r) => r.ride.id).join(',')
         const last = lastRouteRef.current
-        if (last && last.key === key && haversineKm(last.coords, gps) < 0.3) return
-        lastRouteRef.current = { coords: gps, key }
+        if (last && last.key === key && haversineKm(last.coords, pos) < 0.3) return
+        lastRouteRef.current = { coords: pos, key }
         openRides.forEach(({ ride, origin }) => {
             if (!origin) return
-            fetchRoute(gps, origin).then((route) => {
+            fetchRoute(pos, origin).then((route) => {
                 setPickupById((prev) => ({ ...prev, [ride.id]: { km: route.distanceKm, min: route.durationMin } }))
             })
         })
-    }, [gps, openRides])
+    }, [pos, openRides])
 
     const buttonStyle = {
         display: 'flex',
@@ -588,89 +642,110 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     </div>
                 )}
 
-                {/* Por que pedimos a localização: a Tarifa iUser soma o deslocamento até a partida */}
-                {needsLocation && gpsStatus !== 'granted' && (
-                    <div className="rounded-2xl p-3 flex items-start gap-3 mb-3" style={{ background: '#f9731612', border: '1px solid #f9731640' }}>
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                            {gpsStatus === 'asking' || gpsStatus === 'idle' ? <Spinner size={16} color="#fff" /> : <LocateFixed size={16} />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>
-                                {gpsStatus === 'asking' || gpsStatus === 'idle' ? 'Localizando você...' : 'Precisamos da sua localização'}
-                            </p>
-                            <p className="text-[11px] mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>
-                                Para mostrar quanto você pode ganhar (e quanto isso rende por hora): contamos o deslocamento até o ponto de partida, pra você não perder dinheiro rodando até o passageiro.
-                            </p>
-                            {gpsStatus !== 'asking' && gpsStatus !== 'idle' && (
-                                <button onClick={requestGps} className="mt-2 px-3.5 py-1.5 rounded-full text-[11px] font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                    Permitir localização
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                )}
+                <LocationAskDialog
+                    open={needsLocation && gpsStatus !== 'granted' && !fallbackPos && !locAskDismissed}
+                    status={gpsStatus === 'granted' ? 'idle' : gpsStatus}
+                    onAllow={requestGps}
+                    onLater={() => { rememberLocationAskDismissed(); setLocAskDismissed(true) }}
+                />
 
                 {openRides.length > 0 && (
                     <div className="flex flex-col gap-3">
-                        {openRides.map(({ ride, requester, suggestedPrice, usesPlatformTariff }) => {
-                            const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
-                            const route = gpsStatus === 'granted' ? pickupById[ride.id] : undefined
-                            const pickup = usesPlatformTariff ? route : undefined
-                            const pickupKm = pickup?.km
-                            const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km) : 0
-                            const total = suggestedPrice + pickupAmount
-                            // Ganho por hora: km até o passageiro + km da corrida, a 40 km/h
-                            const hourly = route && ride.distance_km != null ? computeHourlyEarnings(total, ride.distance_km, route.km) : null
-                            const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
-                            return (
-                            <div
-                                key={ride.id}
-                                className="rounded-2xl p-3.5"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
-                            >
+                        {openRides.map(({ ride, requester, platformShape, customShape, useCustom, flags }) => {
+                            // O valor sai da MESMA conta de /aceitar-corridas (lib/rideQuote): rota do mapa, deslocamento, tarifa própria e piso por hora
+                            const route = pos ? pickupById[ride.id] : undefined
+                            const trip = tripById[ride.id]
+                            const rideType = (ride as unknown as { ride_type: 'pessoa' | 'animal' | 'objeto' }).ride_type
+                            const q = rideQuote<DriverPricing>({
+                                offeredPrice: ride.offered_price != null ? Number(ride.offered_price) : null,
+                                distanceKm: ride.distance_km, routeKm: trip?.km ?? null,
+                                platformShape, customShape, useCustom,
+                                pickupKm: route?.km ?? null, pickupMin: route?.min ?? null,
+                                tripMin: trip?.min ?? ride.duration_min ?? (ride.distance_km != null ? (ride.distance_km / 40) * 60 : null),
+                                minHourly: ride.offered_price != null ? null : minHourly,
+                                minPerMinute,
+                                tripFare: (shape, km) => km != null
+                                    ? computeSuggestedPrice(km, shape, rideType, flags)
+                                    : shape.baseFee + shape.extraFees[rideType] + computeConditionExtras(flags, shape.conditionExtraFees),
+                                pickupFee: (shape, km) => computePickupFee(shape, km),
+                            })
+                            const usesPlatformTariff = q.shownKind === 'platform'
+                            // Deslocamento até a partida: só a Tarifa iUser soma (igual a /aceitar-corridas)
+                            const pickup: React.ComponentProps<typeof RideOfferCard>['pickup'] = usesPlatformTariff
+                                ? (route ? { state: 'ready', km: route.km, amount: computePickupFee(platformShape, route.km), from: gps ? 'gps' : 'saved' } : { state: gpsStatus === 'asking' || gpsStatus === 'idle' ? 'waiting' : 'missing' })
+                                : undefined
+                            const tripFare = (shape: DriverPricing, km: number | null) => km != null
+                                ? computeSuggestedPrice(km, shape, rideType, flags)
+                                : shape.baseFee + shape.extraFees[rideType] + computeConditionExtras(flags, shape.conditionExtraFees)
+                            const stops: { lat: number; lng: number }[] = []
+                            const rr = ride as unknown as { stop1_lat: number | null; stop1_lng: number | null; stop2_lat: number | null; stop2_lng: number | null }
+                            if (rr.stop1_lat != null && rr.stop1_lng != null) stops.push({ lat: rr.stop1_lat, lng: rr.stop1_lng })
+                            if (rr.stop2_lat != null && rr.stop2_lng != null) stops.push({ lat: rr.stop2_lat, lng: rr.stop2_lng })
+                            const rr2 = ride as unknown as { origin_lat: number | null; origin_lng: number | null; destination_lat: number | null; destination_lng: number | null }
+                            const hasCoords = requester && rr2.origin_lat != null && rr2.destination_lat != null
+                            const fromPassenger = ride.offered_price == null && ride.passenger_offer != null
+                            const price = fromPassenger ? Number(ride.passenger_offer) : q.shown
+                            const valuation = rideValuation(fromPassenger && !ride.order_id ? price : null, q.platform)
+                            // O card completo (só leitura) vive no "Detalhes"; o botão de candidatar é o do card enxuto
+                            const details = (
                                 <RideOfferCard
-                                    compact
+                                    viewOnly
                                     ride={ride}
                                     requester={requester}
                                     storeName={null}
-                                    toPickup={{ km: null, min: null, hasGps: true }}
-                                    trip={{ km: ride.distance_km, min: ride.duration_min }}
-                                    footer={
-                                        <div className="flex flex-col gap-2">
-                                            <div className="flex items-end justify-between gap-3 rounded-xl px-3 py-2" style={{ background: '#22c55e14', border: '1px solid #22c55e40' }}>
-                                                <div>
-                                                    <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>Você pode ganhar</span>
-                                                    <span className="block text-xl font-black leading-tight" style={{ color: '#16a34a' }}>{brl(total)}</span>
-                                                    {hourly && (
-                                                        <span className="block text-[10px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>
-                                                            ≈ R$ {Math.round(hourly.perHour)} por hora (com o deslocamento)
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {usesPlatformTariff && (
-                                                    <span className="text-[10px] leading-tight text-right font-semibold" style={{ color: pickupKm != null ? '#16a34a' : '#d97706' }}>
-                                                        {pickupKm != null
-                                                            ? `inclui ${brl(pickupAmount)} · ${pickupKm.toFixed(1).replace('.', ',')} km até a partida`
-                                                            : gpsStatus === 'asking' || gpsStatus === 'idle'
-                                                                ? 'Localizando... falta somar a distância até a partida'
-                                                                : 'falta somar a distância até a partida'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <button
-                                                onClick={() => goToRide(ride.id)}
-                                                className="w-full py-3 rounded-full text-sm font-black flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
-                                                style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
-                                            >
-                                                Ver corrida
-                                                <ArrowRight size={16} />
-                                            </button>
-                                        </div>
-                                    }
+                                    platformPrice={q.platform}
+                                    pickup={pickup}
+                                    tripFareNote={usesPlatformTariff && !route && q.tripKm != null ? describeTripFare(q.tripKm, platformShape) : undefined}
+                                    customPrice={customShape ? tripFare(customShape, q.tripKm) : null}
+                                    customPickup={ride.offered_price == null && customShape && route ? computePickupFee(customShape, route.km) : 0}
+                                    valueFromOwn={useCustom}
+                                    timeRate={customShape?.pricePerMinute ?? null}
+                                    timeExtras={computeRideExtras(rideType, flags, customShape ?? platformShape)}
+                                    onApply={() => goToRide(ride.id)}
+                                    minHourly={ride.offered_price != null ? null : minHourly}
+                                    minPerMinute={ride.offered_price != null ? 0 : minPerMinute}
+                                    onEditTariff={ride.offered_price != null ? undefined : (section) => { startNavProgress(); router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}&modo=personalizada&secao=${section ?? 'km'}`) }}
+                                    toPickup={{ km: route?.km ?? null, min: route?.min ?? null, hasGps: pos != null }}
+                                    trip={{ km: q.tripKm, min: trip?.min ?? ride.duration_min }}
+                                    miniMap={hasCoords ? (
+                                        <RideMiniMap
+                                            compact
+                                            transition={false}
+                                            originLat={rr2.origin_lat as number}
+                                            originLng={rr2.origin_lng as number}
+                                            destLat={rr2.destination_lat as number}
+                                            destLng={rr2.destination_lng as number}
+                                            stops={stops}
+                                            driverLat={pos ? pos[1] : null}
+                                            driverLng={pos ? pos[0] : null}
+                                            onExpand={() => { startNavProgress(); router.push(`/aceitar-corridas/mapa?ride=${ride.id}`) }}
+                                        />
+                                    ) : null}
                                 />
-                            </div>
                             )
-                        })}
+                            return {
+                                rank: valuationRank(valuation.tier),
+                                node: (
+                                    <RideSummaryCard
+                                        key={ride.id}
+                                        ride={ride}
+                                        requester={requester}
+                                        price={price}
+                                        approx={!fromPassenger && q.shownKind === 'platform' && pickup?.state !== 'ready'}
+                                        reference={q.platform}
+                                        fromPassenger={fromPassenger}
+                                        totalMin={q.minutes}
+                                        toPickup={{ km: route?.km ?? null, min: route?.min ?? null, hasGps: pos != null }}
+                                        trip={{ km: q.tripKm, min: trip?.min ?? ride.duration_min }}
+                                        thumb={hasCoords ? (
+                                            <RideMiniMap thumb originLat={rr2.origin_lat as number} originLng={rr2.origin_lng as number} destLat={rr2.destination_lat as number} destLng={rr2.destination_lng as number} stops={stops} driverLat={pos ? pos[1] : null} driverLng={pos ? pos[0] : null} />
+                                        ) : undefined}
+                                        onOpen={() => goToRide(ride.id)}
+                                        details={details}
+                                    />
+                                ),
+                            }
+                        }).sort((a, b) => b.rank - a.rank).map((c) => c.node)}
 
                         {openRidesTotal > openRides.length && (
                             <button

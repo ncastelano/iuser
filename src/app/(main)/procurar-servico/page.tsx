@@ -11,8 +11,13 @@ import { useTheme } from '@/app/contexts/theme'
 import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
-import { toast } from 'sonner'
-import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, History, HeartCrack } from 'lucide-react'
+import { useMyOrigin } from '@/hooks/useMyOrigin'
+import ListFilters, { type SortOption, type CategoryOption } from '@/components/ListFilters'
+import PhotoCollage from '@/components/PhotoCollage'
+import { haversineKm } from '@/lib/mapboxRoute'
+import { formatDistance } from '@/lib/radarNearest'
 import { Spinner } from '@/components/Spinner'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
@@ -74,6 +79,7 @@ function SerParceiroContent() {
     const [editAccessNotes, setEditAccessNotes] = useState('')
     const [savingEdit, setSavingEdit] = useState(false)
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const origin = useMyOrigin(userId)   // onde a pessoa está: serve para mostrar a distância de cada pedido
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
@@ -273,18 +279,50 @@ function SerParceiroContent() {
     // Quem já se inscreveu sai da lista e passa pra aba "Me inscrevi"
     const availableJobs = useMemo(() => jobs.filter((j) => !appliedKeys.has(itemKey(j))), [jobs, appliedKeys])
 
+    // Filtros de UMA linha: tipo do serviço + ordenação. O tipo é o próprio nome do serviço pedido (pintor, cabeleireiro...)
+    const [typeFilter, setTypeFilter] = useState('todas')
+    const [sort, setSort] = useState<'recentes' | 'antigos' | 'perto' | 'vistos'>('recentes')
+    const sorts: SortOption[] = [
+        { id: 'perto', label: origin ? 'Mais perto de mim' : 'Mais perto (defina seu local)', short: 'Perto', icon: MapPin },
+        { id: 'recentes', label: 'Mais recentes', short: 'Recentes', icon: Clock },
+        { id: 'antigos', label: 'Mais antigos', short: 'Antigos', icon: History },
+        { id: 'vistos', label: 'Mais vistos', short: 'Vistos', icon: Eye },
+    ]
+    const typeOptions = useMemo<CategoryOption[]>(() => {
+        const seen = new Map<string, CategoryOption>()
+        for (const j of availableJobs) {
+            const label = getItemLabel(j)
+            if (!seen.has(label)) seen.set(label, { slug: label, label, icon: getItemIcon(j), color: '#f97316' })
+        }
+        return [...seen.values()]
+    }, [availableJobs])
+    const typeCounts = useMemo(() => {
+        const c: Record<string, number> = {}
+        for (const j of availableJobs) { const l = getItemLabel(j); c[l] = (c[l] || 0) + 1 }
+        return c
+    }, [availableJobs])
+    const distOf = (j: BoardItem) => (origin && j.approx_lat != null && j.approx_lng != null ? haversineKm([origin.lng, origin.lat], [Number(j.approx_lng), Number(j.approx_lat)]) : Infinity)
+
     const filteredJobs = useMemo(() => {
         const query = searchQuery.trim().toLowerCase()
-        if (!query) return availableJobs
-        return availableJobs.filter((job) => getItemSearchHaystack(job).includes(query))
-    }, [availableJobs, searchQuery])
+        let list = availableJobs
+        if (typeFilter !== 'todas') list = list.filter((j) => getItemLabel(j) === typeFilter)
+        if (query) list = list.filter((job) => getItemSearchHaystack(job).includes(query))
+        const by = [...list]
+        if (sort === 'perto') by.sort((a, b) => distOf(a) - distOf(b))
+        else if (sort === 'vistos') by.sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+        else if (sort === 'antigos') by.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        else by.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        return by
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [availableJobs, searchQuery, typeFilter, sort, origin])
 
     const activeApplications = myApplications.filter((a) => a.status !== 'rejected')
 
     const headerTabs: Tab[] = [
         {
             id: 'disponiveis',
-            label: 'Serviços disponíveis',
+            label: 'Disponíveis',
             icon: Briefcase,
             onClick: () => setActiveTab('disponiveis'),
             isActive: activeTab === 'disponiveis',
@@ -366,13 +404,22 @@ function SerParceiroContent() {
                         </div>
                     )}
 
+                    {activeTab === 'disponiveis' && !loading && !showLogin && availableJobs.length > 0 && (
+                        <div className="mb-3">
+                            <ListFilters
+                                sorts={sorts} sort={sort} onSort={(id) => setSort(id as typeof sort)}
+                                sortFirst options={typeOptions} counts={typeCounts} category={typeFilter} onCategory={setTypeFilter} allLabel="Todos os serviços"
+                            />
+                        </div>
+                    )}
+
                     {activeTab === 'disponiveis' && !loading && !showLogin && availableJobs.length > 0 && filteredJobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhum pedido encontrado para "{searchQuery}".
+                                {searchQuery.trim() ? <>Nenhum pedido encontrado para "{searchQuery}".</> : 'Nenhum pedido com esse filtro.'}
                             </p>
                         </div>
                     )}
@@ -386,8 +433,8 @@ function SerParceiroContent() {
                                 const key = itemKey(job)
                                 const applied = appliedKeys.has(key)
                                 const isMine = job.requester_id === userId
-                                const title = getRequestTitle(job.description, job.service_type, job.custom_service)
-                                const photo = job.photo_urls[0] || null
+                                const fullText = (job.description || '').trim()
+                                const km = !isMine && origin && job.approx_lat != null && job.approx_lng != null ? haversineKm([origin.lng, origin.lat], [Number(job.approx_lng), Number(job.approx_lat)]) : null
                                 const requesterName = (job.requester?.profileSlug ? `@${job.requester.profileSlug}` : job.requester?.name || 'Alguém')
                                 return (
                                     <div
@@ -395,7 +442,7 @@ function SerParceiroContent() {
                                         id={`job-card-${job.id}`}
                                         // Tocar no card (fora dos botões) abre o pedido em tamanho grande e já conta a visita
                                         onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a, input, textarea')) setViewJob(job) }}
-                                        className={v3 ? 'py-3 scroll-mt-32 flex gap-3 cursor-pointer' : 'rounded-3xl p-3 scroll-mt-32 flex gap-3 cursor-pointer'}
+                                        className={v3 ? 'py-4 scroll-mt-32 flex cursor-pointer' : 'rounded-3xl p-4 scroll-mt-32 flex cursor-pointer'}
                                         style={v3 ? {
                                             borderBottom: `1px solid ${colors.border}50`,
                                             background: focusId === job.id ? `${colors.accent}10` : undefined,
@@ -405,27 +452,8 @@ function SerParceiroContent() {
                                             boxShadow: focusId === job.id ? `0 0 0 3px ${colors.accent}40` : colors.shadow,
                                         }}
                                     >
-                                        {/* Foto do pedido em destaque, à esquerda (sem foto: o ícone do tipo) */}
-                                        <div
-                                            className={v3 ? 'relative w-20 h-20 flex-shrink-0 rounded-2xl overflow-hidden' : 'relative w-28 sm:w-32 flex-shrink-0 rounded-2xl overflow-hidden self-stretch min-h-[132px]'}
-                                            style={v3 ? { background: photo ? '#0b1220' : '#f9731620' } : { background: photo ? '#0b1220' : GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.18)' }}
-                                        >
-                                            {photo ? (
-                                                <img src={photo} alt={title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-                                            ) : (
-                                                <div className="absolute inset-0 flex items-center justify-center">
-                                                    <Icon size={v3 ? 28 : 38} color={v3 ? '#f97316' : 'rgba(255,255,255,0.9)'} />
-                                                </div>
-                                            )}
-                                            {job.photo_urls.length > 1 && (
-                                                <span className="absolute bottom-1.5 right-1.5 text-[10px] font-black text-white px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                                                    +{job.photo_urls.length - 1}
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Tudo do lado direito: quem pede, o TÍTULO, onde, e o botão */}
-                                        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                                        {/* O foco é o que a pessoa ESCREVEU (inteiro, em letra grande); em volta: quem pediu, as etiquetas e o botão. Sem foto nem ícone ao lado. */}
+                                        <div className="flex-1 min-w-0 flex flex-col gap-2.5">
                                             <div className="flex items-center gap-1.5 min-w-0">
                                                 <PlanAvatarRing userId={job.requester_id}>
                                                     {job.requester?.avatarUrl ? (
@@ -448,16 +476,31 @@ function SerParceiroContent() {
                                                 </span>
                                             </div>
 
-                                            <p className={`${v3 ? 'text-[15px]' : 'text-base'} font-black leading-snug`} style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: v3 ? 2 : 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                                {title}
-                                            </p>
+                                            <div className="flex items-start gap-3">
+                                                <p className={`${fullText.length <= 90 && !fullText.includes('\n') ? 'text-xl font-black' : 'text-base font-bold'} flex-1 min-w-0 leading-snug whitespace-pre-wrap break-words`} style={{ color: colors.textPrimary }}>
+                                                    {fullText || label}
+                                                </p>
+                                                {/* Miniatura da foto (pequena): tocar abre o card de detalhes, onde a foto amplia com zoom */}
+                                                {job.photo_urls.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setViewJob(job)}
+                                                        aria-label={`Ver ${job.photo_urls.length === 1 ? 'a foto' : `as ${job.photo_urls.length} fotos`} do pedido`}
+                                                        className="flex-shrink-0 active:scale-95 transition"
+                                                        style={{ border: `1px solid ${colors.border}`, borderRadius: 18 }}
+                                                    >
+                                                        <PhotoCollage photos={job.photo_urls} size={80} />
+                                                    </button>
+                                                )}
+                                            </div>
 
-                                            <div className="flex items-center gap-1.5 flex-wrap text-[11px]" style={{ color: colors.textSecondary }}>
-                                                <span className="flex items-center gap-1 min-w-0">
-                                                    <MapPin size={11} className="flex-shrink-0" />
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black" style={{ background: `${colors.accent}18`, color: colors.accent }}><Icon size={12} /> {label}</span>
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold min-w-0 max-w-full" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                                    <MapPin size={12} className="flex-shrink-0" />
                                                     <span className="truncate">{getItemAddress(job)}</span>
+                                                    {km != null && <span className="flex-shrink-0 font-black" style={{ color: colors.accent }}>· {formatDistance(km)}</span>}
                                                 </span>
-                                                <span className="px-1.5 py-px rounded-full font-bold flex-shrink-0" style={{ background: '#f9731618', color: '#ea580c' }}>{label}</span>
                                             </div>
                                             {job.location_needs_access && (
                                                 <span className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
@@ -661,6 +704,7 @@ function SerParceiroContent() {
                     applied={appliedKeys.has(itemKey(viewJob))}
                     onApply={() => { const j = viewJob; setViewJob(null); handleApply(j) }}
                     onClose={() => setViewJob(null)}
+                    origin={origin ?? null}
                 />
             )}
         </div>

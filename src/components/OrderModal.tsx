@@ -2,6 +2,7 @@
 'use client'
 
 import OrderReviewPanel from '@/components/OrderReviewPanel'
+import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck, Globe, Store, ShoppingCart, CreditCard, Coins, Calendar, User, Phone } from 'lucide-react'
 
 export interface GroupedOrder {
@@ -40,11 +41,11 @@ function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): 
 const statusMap = {
     'pending': {
         label: 'Novo Pedido',
-        color: '#3b82f6',
-        gradient: 'from-blue-500 to-blue-600',
-        bg: 'bg-blue-50',
-        border: 'border-blue-200',
-        text: 'text-blue-600',
+        color: '#22c55e',
+        gradient: 'from-green-500 to-emerald-500',
+        bg: 'bg-green-50',
+        border: 'border-green-200',
+        text: 'text-green-600',
         icon: Package,
         next: 'preparing',
         nextLabel: 'Aceitar Pedido',
@@ -76,11 +77,11 @@ const statusMap = {
     },
     'paid': {
         label: 'Finalizado',
-        color: '#22c55e',
-        gradient: 'from-green-500 to-emerald-500',
-        bg: 'bg-green-50',
-        border: 'border-green-200',
-        text: 'text-green-600',
+        color: '#3b82f6',
+        gradient: 'from-blue-500 to-blue-600',
+        bg: 'bg-blue-50',
+        border: 'border-blue-200',
+        text: 'text-blue-600',
         icon: CheckCircle,
         next: null,
         nextLabel: ''
@@ -393,6 +394,9 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                                 </div>
                             </div>
                         </div>
+
+                        {/* Prova da entrega (código do cliente ou foto do entregador) */}
+                        {deliveryAddress && <div className="-mx-3.5"><DeliveryProofCard orderId={order.id as string} role="store" light enabled={['preparing', 'ready', 'paid'].includes(order.status)} /></div>}
 
                         {/* Troca de avaliações (só aparece em pedido concluído, se a loja ligou) */}
                         {order.status === 'paid' && <OrderReviewPanel orderId={order.id} />}

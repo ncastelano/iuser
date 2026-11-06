@@ -30,7 +30,7 @@ import {
     Bookmark,
     Trash2,
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Spinner } from '@/components/Spinner'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 

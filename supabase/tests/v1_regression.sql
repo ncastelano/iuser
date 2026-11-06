@@ -34,6 +34,7 @@ begin
   perform pg_temp.as_user(drv); set local role authenticated;
   begin update ride_requests set status = 'completed' where id = ride; res := res || 'concluir direto(BAD) | '; exception when others then res := res || 'concluir direto negado | '; end;
   update ride_requests set driver_departed_at = now() where id = ride; update ride_requests set driver_arrived_at = now() where id = ride; update ride_requests set ride_started_at = now() where id = ride;
+  perform arrive_at_destination(ride, -8.7860, -63.8760);
   perform complete_ride(ride, -8.7860, -63.8760);
   reset role;
   select status into rec from orders where id = o; res := res || format('pedido=%s ', rec.status);

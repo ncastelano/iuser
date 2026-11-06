@@ -1,7 +1,9 @@
 // src/app/(main)/carrinho/page.tsx
 'use client'
 
+import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/store/useCartStore'
+import { isDigitalCart } from '@/modules/digital'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
 import { validateCampaignCode, calculateCampaignDiscountAmount, type CampaignDiscount } from '@/lib/campaignRedemption'
@@ -32,8 +34,7 @@ import {
     Plus,
     Minus,
     Trash2,
-    PackageCheck,
-} from 'lucide-react'
+    PackageCheck, GraduationCap } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -41,12 +42,14 @@ import { createStoreOrder, CreateStoreOrderError } from '@/lib/createStoreOrder'
 import { useCheckoutFlows } from '@/lib/useCheckoutFlow'
 import { isEstimateRejection } from '@/modules/delivery-estimate'
 import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { ReviewModal } from '@/components/ratings/ReviewModal'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import PageTabs from '@/components/PageTabs'
+import DigitalLibrary from '@/components/digital/DigitalLibrary'
+import { fetchLibrary } from '@/modules/digital'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import type { UiVersion } from '@/versions/registry'
@@ -106,7 +109,8 @@ async function geocodeAddress(query: string): Promise<{ lat: number; lng: number
  * Carrinho / pedidos. UMA implementação para as duas versões: o conteúdo (carrinho, pedidos, avaliações) é o mesmo,
  * só a moldura muda — v2: Header + fundo animado próprios; v3: o cartão do app já vem do layout (ShellFrame).
  */
-export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
+/** `hideTabs` + `tab`: dentro da Atividade (3.0) a fileira de abas é a da Atividade (Pedidos, Carrinho, Biblioteca) e a aba aberta vem de fora */
+export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { ui?: UiVersion; hideTabs?: boolean; tab?: 'carrinho' | 'pedidos' | 'digital' | 'avaliacoes' }) {
     const v3 = ui === 'v3'
     const {
         itemsByStore,
@@ -237,6 +241,15 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // Opções selecionadas por loja
     const [deliveryOptionByStore, setDeliveryOptionByStore] = useState<Record<string, 'entrega' | 'retirada'>>({})
     const [paymentMethodByStore, setPaymentMethodByStore] = useState<Record<string, 'pix' | 'cartao' | 'dinheiro'>>({})
+
+    // Lojas cujo carrinho é só de produto digital: retirada + Pix (não há entrega, cartão nem dinheiro para conteúdo digital)
+    useEffect(() => {
+        for (const slug of Object.keys(itemsByStore)) {
+            if (!isDigitalCart(itemsByStore[slug] || [])) continue
+            setDeliveryOptionByStore((prev) => (prev[slug] === 'retirada' ? prev : { ...prev, [slug]: 'retirada' }))
+            setPaymentMethodByStore((prev) => (prev[slug] === 'pix' ? prev : { ...prev, [slug]: 'pix' }))
+        }
+    }, [itemsByStore])
     const [cashChangeByStore, setCashChangeByStore] = useState<Record<string, string>>({})
     const [cardContactlessByStore, setCardContactlessByStore] = useState<Record<string, boolean | null>>({})
 
@@ -263,15 +276,24 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         return !!id && checkoutFlowByStoreId[id] === 'v2'
     }
 
+    // Compras digitais já liberadas (selo da aba Digital)
+    const [digitalCount, setDigitalCount] = useState(0)
+    useEffect(() => {
+        if (!currentUserId) { setDigitalCount(0); return }
+        fetchLibrary().then((l) => setDigitalCount(l.length)).catch(() => setDigitalCount(0))
+    }, [currentUserId])
+
     // ===== ESTADO DA TAB ATIVA =====
-    const [activeTab, setActiveTab] = useState<string>('carrinho')
-    // ?aba=pedidos|avaliacoes abre direto nessa aba (a barra do topo leva pros pedidos quando o carrinho está vazio)
+    const [activeTab, setActiveTab] = useState<string>(tab || 'carrinho')
+    // ?aba=pedidos|avaliacoes|digital abre direto nessa aba (a barra do topo leva pros pedidos quando o carrinho está vazio)
     useEffect(() => {
         try {
             const aba = new URLSearchParams(window.location.search).get('aba')
-            if (aba === 'pedidos' || aba === 'avaliacoes') setActiveTab(aba)
+            if (aba === 'pedidos' || aba === 'avaliacoes' || aba === 'digital') setActiveTab(aba)
         } catch { /* sem window */ }
     }, [])
+    // aba escolhida de fora (a fileira da Atividade)
+    useEffect(() => { if (tab) setActiveTab(tab) }, [tab])
 
     // ===== FUNÇÃO PARA SALVAR LOCALIZAÇÃO NO LOCALSTORAGE =====
     const saveDeliveryLocationToStorage = useCallback((slug: string, location: {
@@ -445,6 +467,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         price: i.total_price,
                         created_at: o.created_at,
                         status: o.status,
+                        order_id: o.id,
                         checkout_id: o.checkout_id,
                         buyer_id: o.buyer_id,
                         buyer_name: o.buyer_name,
@@ -1229,10 +1252,10 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
     const getStatusStyles = (status: string) => {
         const styles: any = {
-            pending: { badge: 'bg-blue-100 text-blue-800 border border-blue-200', label: 'Pendente', icon: '⏳', message: 'Aguardando confirmação do vendedor' },
+            pending: { badge: 'bg-green-100 text-green-800 border border-green-200', label: 'Pendente', icon: '⏳', message: 'Aguardando confirmação do vendedor' },
             preparing: { badge: 'bg-yellow-100 text-yellow-800 border border-yellow-200', label: 'Preparando', icon: '👨‍🍳', message: 'O lojista está preparando seu pedido' },
             ready: { badge: 'bg-purple-100 text-purple-800 border border-purple-200', label: 'Pronto', icon: '✅', message: 'Seu pedido está pronto para retirada!' },
-            paid: { badge: 'bg-green-100 text-green-800 border border-green-200', label: 'Finalizado', icon: '🎉', message: 'Pedido finalizado com sucesso' },
+            paid: { badge: 'bg-blue-100 text-blue-800 border border-blue-200', label: 'Finalizado', icon: '🎉', message: 'Pedido finalizado com sucesso' },
             rejected: { badge: 'bg-red-100 text-red-800 border border-red-200', label: 'Recusado', icon: '❌', message: 'O pedido foi recusado pelo vendedor' },
         }
         return styles[status] || styles.pending
@@ -1270,6 +1293,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             if (!groups[p.checkout_id]) {
                 groups[p.checkout_id] = {
                     checkout_id: p.checkout_id,
+                    order_id: p.order_id,
                     store_name: p.store_name,
                     store_id: p.store_id,
                     created_at: p.created_at,
@@ -1323,7 +1347,14 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     }, [myPurchases])
 
     const surfaceRgb = hexToRgb(colors.surface)
-    const cardStyle = {
+    // 3.0: cartões sólidos, no mesmo desenho da ilha e da barra (fundo da página, borda e sombra leve); 2.0: vidro sobre o fundo animado
+    const cardStyle = v3 ? {
+        background: colors.surface,
+        border: `1px solid ${colors.border}`,
+        boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
+        borderRadius: '1.5rem',
+        padding: '1.25rem',
+    } : {
         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
@@ -1377,6 +1408,16 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     onClick: () => setActiveTab('pedidos'),
                 },
                 {
+                    id: 'digital',
+                    label: 'Digital',
+                    icon: GraduationCap,
+                    sectionId: 'section-digital',
+                    indicator: null,
+                    badge: digitalCount > 0 ? { count: digitalCount, color: '#f97316' } : null,
+                    isActive: activeTab === 'digital',
+                    onClick: () => setActiveTab('digital'),
+                },
+                {
                     id: 'avaliacoes',
                     label: 'Avaliações',
                     icon: Star,
@@ -1388,7 +1429,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             ]
 
         return tabList
-    }, [currentUserId, activeOrderCounts, pendingReviews.length, activeTab, cartItemCount])
+    }, [currentUserId, activeOrderCounts, pendingReviews.length, activeTab, cartItemCount, digitalCount])
 
     const OrderCard = ({ order }: { order: any }) => {
         const statusStyle = getStatusStyles(order.status)
@@ -1398,14 +1439,14 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         if (v3) {
             // cada etapa tem a sua cor; as linhas entre elas são laranjas (a cor do iUser)
             const STEPS = [
-                { key: 'pending', label: 'Recebido', color: '#3b82f6' },
+                { key: 'pending', label: 'Recebido', color: '#22c55e' },
                 { key: 'preparing', label: 'Preparando', color: '#eab308' },
                 { key: 'ready', label: 'Pronto', color: '#a855f7' },
-                { key: 'paid', label: 'Finalizado', color: '#10b981' },
+                { key: 'paid', label: 'Finalizado', color: '#3b82f6' },
             ]
             const rejected = order.status === 'rejected'
             const stepIndex = Math.max(0, STEPS.findIndex((st) => st.key === order.status))
-            const accent = rejected ? '#ef4444' : ({ pending: '#3b82f6', preparing: '#eab308', ready: '#a855f7', paid: '#10b981' } as Record<string, string>)[order.status] || '#3b82f6'
+            const accent = rejected ? '#ef4444' : ({ pending: '#22c55e', preparing: '#eab308', ready: '#a855f7', paid: '#3b82f6' } as Record<string, string>)[order.status] || '#22c55e'
             const soft = `${colors.border}40`
             return (
                 <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
@@ -1445,6 +1486,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         </div>
                     )}
 
+                    <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} />
                     <div className="px-3.5 py-2.5 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${colors.border}` }}>
                         {order.items.map((item: any, idx: number) => (
                             <div key={idx} className="flex items-center justify-between gap-2 text-[13px]">
@@ -1503,12 +1545,15 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                         order.status === 'ready' ? '75%' :
                                             order.status === 'paid' ? '100%' : '100%',
                             background:
-                                order.status === 'pending' ? '#3b82f6' :
+                                order.status === 'pending' ? '#22c55e' :
                                     order.status === 'preparing' ? '#eab308' :
                                         order.status === 'ready' ? '#a855f7' :
-                                            order.status === 'paid' ? '#10b981' : '#ef4444',
+                                            order.status === 'paid' ? '#3b82f6' : '#ef4444',
                         }}
                     ></div>
+                </div>
+                <div className="-mx-3.5">
+                    <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} light />
                 </div>
                 <div className="space-y-2">
                     {order.items.map((item: any, idx: number) => (
@@ -1626,12 +1671,12 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             <main className={v3 ? 'relative' : 'relative z-10 min-h-dvh'} style={{ overscrollBehavior: 'none' }}>
                 {v3 ? (
                     <>
-                        <PageTabs tabs={tabs} />
+                        {!hideTabs && <PageTabs tabs={tabs} />}
                         {activeTab === 'carrinho' && storeSlugs.length > 0 && (
-                            <div className="mt-3 flex items-center justify-between gap-3 px-1">
-                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>
+                            <div className="mt-3 flex items-center justify-between gap-3 pl-4 pr-1.5 h-12 rounded-full" style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: '0 6px 20px rgba(0,0,0,0.08)' }}>
+                                <p className="text-xs font-bold min-w-0 truncate" style={{ color: colors.textSecondary }}>
                                     {storeSlugs.length} {storeSlugs.length === 1 ? 'loja' : 'lojas'} · {cartItemCount} {cartItemCount === 1 ? 'item' : 'itens'} ·{' '}
-                                    <span className="font-black" style={{ color: colors.textPrimary }}>R$ {cartGrandTotal.toFixed(2)}</span>
+                                    <span className="font-black text-sm" style={{ color: '#f97316' }}>R$ {cartGrandTotal.toFixed(2)}</span>
                                 </p>
                                 <button
                                     onClick={() => {
@@ -1668,7 +1713,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     {/* Seção Carrinho - visível apenas quando activeTab === 'carrinho' */}
                     {activeTab === 'carrinho' && (
                         <section id="section-carrinho" className="scroll-mt-24">
-                            <div className="flex items-center gap-2 mb-4">
+                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <ShoppingCart size={16} />
                                 </div>
@@ -1717,9 +1762,11 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                         const canCard = config.accepts_card
                                         const canCash = config.accepts_cash
 
-                                        const canChooseReceivingMethod = canDelivery && canPickup
-                                        const onlyPickupAvailable = canPickup && !canDelivery
-                                        const onlyDeliveryAvailable = canDelivery && !canPickup
+                                        // Carrinho só de produto DIGITAL: sem entrega nem retirada de verdade; o pedido segue como retirada e o acesso abre quando a loja confirma o Pix
+                                        const digital = isDigitalCart(items || [])
+                                        const canChooseReceivingMethod = !digital && canDelivery && canPickup
+                                        const onlyPickupAvailable = digital || (canPickup && !canDelivery)
+                                        const onlyDeliveryAvailable = !digital && canDelivery && !canPickup
                                         const bagDeliveryEstimate = computeDeliveryFee(slug, deliveryLoc)
                                         const cashChangeFor = cashChangeByStore[slug] || ''
                                         const cardIsContactless = cardContactlessByStore[slug] ?? null
@@ -1824,8 +1871,8 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                                 <Store size={18} />
                                                             </div>
                                                             <div>
-                                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não tem entrega</p>
-                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
+                                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{digital ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
+                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digital ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                                             </div>
                                                         </div>
                                                     ) : onlyDeliveryAvailable ? (
@@ -1980,7 +2027,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                             { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: canPix },
                                                             { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: canCard },
                                                             { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: canCash },
-                                                        ]).filter(opt => opt.enabled).map((opt) => {
+                                                        ]).filter(opt => opt.enabled && (!digital || opt.value === 'pix')).map((opt) => {
                                                             const selected = paymentOpt === opt.value
                                                             return (
                                                                 <button
@@ -2164,7 +2211,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                                             return (
                                                 <div key={slug}>
-                                                    <div className="rounded-3xl mb-4 overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, opacity: isStoreOpen ? 1 : 0.92 }}>
+                                                    <div className="rounded-3xl mb-4 overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: '0 8px 24px rgba(0,0,0,0.07)', opacity: isStoreOpen ? 1 : 0.92 }}>
                                                         {/* Loja: logo, nome e como está */}
                                                         <div className="p-3.5 flex items-center gap-3">
                                                             <button onClick={() => router.push(`/${slug}`)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
@@ -2440,7 +2487,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     {/* Seção Pedidos - visível apenas quando activeTab === 'pedidos' */}
                     {currentUserId && activeTab === 'pedidos' && (
                         <section id="section-pedidos" className="scroll-mt-24">
-                            <div className="flex items-center gap-2 mb-4">
+                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <Package size={16} />
                                 </div>
@@ -2452,6 +2499,16 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                 </span>
                             </div>
                             <DeliveryIncreasePrompt userId={currentUserId} className="mb-4" />
+                            {hideTabs && pendingReviews.length > 0 && (
+                                <button onClick={() => setActiveTab('avaliacoes')} className="w-full flex items-center gap-3 p-3.5 mb-4 rounded-2xl text-left active:scale-[0.99] transition" style={{ ...cardStyle, border: '1.5px solid #f97316' }}>
+                                    <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#f9731620', color: '#f97316' }}><Star size={17} /></span>
+                                    <span className="flex-1 min-w-0">
+                                        <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{pendingReviews.length === 1 ? '1 compra para avaliar' : `${pendingReviews.length} compras para avaliar`}</span>
+                                        <span className="block text-xs" style={{ color: colors.textSecondary }}>Sua avaliação ajuda quem compra depois de você</span>
+                                    </span>
+                                    <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>Avaliar</span>
+                                </button>
+                            )}
                             {filteredGroupedOrders.length === 0 ? (
                                 <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
                                     <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: '#f9731620' }}>
@@ -2472,10 +2529,24 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         </section>
                     )}
 
+                    {/* Seção Digital - o que a pessoa comprou de curso, aula, e-book e arquivo (liberado pela loja) */}
+                    {currentUserId && activeTab === 'digital' && (
+                        <section id="section-digital" className="scroll-mt-24">
+                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}><GraduationCap size={16} /></div>
+                                <h2 className="text-base font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>Compras digitais</h2>
+                            </div>
+                            <DigitalLibrary userId={currentUserId} />
+                        </section>
+                    )}
+
                     {/* Seção Avaliações - visível apenas quando activeTab === 'avaliacoes' */}
                     {currentUserId && activeTab === 'avaliacoes' && (
                         <section id="section-avaliar" className="scroll-mt-24">
-                            <div className="flex items-center gap-2 mb-4">
+                            {hideTabs && (
+                                <button onClick={() => setActiveTab('pedidos')} className="mb-3 h-9 px-3.5 rounded-full text-xs font-black active:scale-95" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>‹ Voltar aos pedidos</button>
+                            )}
+                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <Star size={16} />
                                 </div>

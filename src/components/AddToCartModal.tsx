@@ -1,8 +1,7 @@
 // src/components/AddToCartModal.tsx
 //
-// Etapas ao adicionar um produto ao carrinho: observação/remover algo
-// (sempre) e, se a loja tiver habilitado pro produto, escolher adicionais
-// (cada um com seu próprio preço, definido pela loja). Usado tanto no
+// Etapas ao adicionar um produto ao carrinho: 1º os adicionais (só se a loja habilitou pro produto; cada um
+// com seu próprio preço, definido pela loja) e 2º a observação/remover algo (sempre; fecha com "Adicionar"). Usado tanto no
 // catálogo quanto na página de produto — mesmo comportamento nos dois.
 //
 // Quando são várias unidades de uma vez (ex: 2 x-tudo), primeiro pergunta se
@@ -64,7 +63,9 @@ export default function AddToCartModal({ product, onClose, onConfirm, onConfirmE
     // Só oferece "cada um" se quem chamou sabe tratar (onConfirmEach).
     const canCustomizeEach = qty > 1 && !!onConfirmEach
     const [mode, setMode] = useState<'all' | 'each'>('all')
-    const [step, setStep] = useState<'modo' | 'observacao' | 'adicionais'>(canCustomizeEach ? 'modo' : 'observacao')
+    // Ordem por unidade: 1º os adicionais (se o produto tiver), 2º a observação — que fecha com "Adicionar"
+    const firstStep: 'observacao' | 'adicionais' = product.has_addons ? 'adicionais' : 'observacao'
+    const [step, setStep] = useState<'modo' | 'observacao' | 'adicionais'>(canCustomizeEach ? 'modo' : firstStep)
     const [unit, setUnit] = useState(0)
     const [units, setUnits] = useState<UnitDraft[]>(() => Array.from({ length: qty }, () => ({ comment: '', ids: [] })))
     const current = units[unit]
@@ -128,15 +129,15 @@ export default function AddToCartModal({ product, onClose, onConfirm, onConfirmE
         }
         setUnits((prev) => prev.map((u, i) => (i === unit + 1 && !u.comment && u.ids.length === 0 ? { ...prev[unit] } : u)))
         setUnit(unit + 1)
-        setStep('observacao')
+        setStep(firstStep)
     }
 
     const goBack = () => {
-        if (step === 'adicionais') {
-            setStep('observacao')
+        if (step === 'observacao' && product.has_addons) {
+            setStep('adicionais')
         } else if (mode === 'each' && unit > 0) {
             setUnit(unit - 1)
-            setStep(product.has_addons ? 'adicionais' : 'observacao')
+            setStep('observacao')
         } else if (canCustomizeEach) {
             setStep('modo')
         } else {
@@ -147,11 +148,11 @@ export default function AddToCartModal({ product, onClose, onConfirm, onConfirmE
     const chooseMode = (m: 'all' | 'each') => {
         setMode(m)
         setUnit(0)
-        setStep('observacao')
+        setStep(firstStep)
     }
 
     const stepsPerUnit = product.has_addons ? 2 : 1
-    const stepNumber = step === 'adicionais' ? 2 : 1
+    const stepNumber = step === 'adicionais' ? 1 : (product.has_addons ? 2 : 1)
     const unitNoun = qty > 1 ? `${qty} unidades` : ''
     const stepLabel = step === 'adicionais' ? 'Adicionais' : 'Observação'
 
@@ -283,14 +284,14 @@ export default function AddToCartModal({ product, onClose, onConfirm, onConfirmE
                                 className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
                                 style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
                             >
-                                {canCustomizeEach || (mode === 'each' && unit > 0) ? 'Voltar' : 'Cancelar'}
+                                {product.has_addons || canCustomizeEach || (mode === 'each' && unit > 0) ? 'Voltar' : 'Cancelar'}
                             </button>
                             <button
-                                onClick={() => (product.has_addons ? setStep('adicionais') : finishUnit())}
+                                onClick={finishUnit}
                                 className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
                                 style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
                             >
-                                {product.has_addons ? 'Continuar' : isLastUnit ? 'Adicionar' : `Próximo produto (${unit + 2}/${qty})`}
+                                {isLastUnit ? (qty > 1 && mode === 'all' ? `Adicionar ${qty}` : 'Adicionar') : `Próximo produto (${unit + 2}/${qty})`}
                             </button>
                         </div>
                     </>
@@ -345,14 +346,14 @@ export default function AddToCartModal({ product, onClose, onConfirm, onConfirmE
                                 className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
                                 style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
                             >
-                                Voltar
+                                {canCustomizeEach || (mode === 'each' && unit > 0) ? 'Voltar' : 'Cancelar'}
                             </button>
                             <button
-                                onClick={finishUnit}
+                                onClick={() => setStep('observacao')}
                                 className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
                                 style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
                             >
-                                {isLastUnit ? (qty > 1 && mode === 'all' ? `Adicionar ${qty}` : 'Adicionar') : `Próximo produto (${unit + 2}/${qty})`}
+                                Continuar
                             </button>
                         </div>
                     </>

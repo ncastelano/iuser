@@ -153,7 +153,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                 {(() => {
                     const buy = p.showBuy ?? true
                     const sched = !!p.showSchedule
-                    const big = 'h-12 rounded-full text-[14px] font-black flex items-center justify-center gap-2 transition active:scale-95'
+                    const big = 'h-11 rounded-full text-[14px] font-black flex items-center justify-center gap-1.5 transition active:scale-95'
                     const follow = p.canFollow ? (
                         <button
                             onClick={p.onFollowToggle}
@@ -164,31 +164,22 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                             {p.isFollowing ? 'Seguindo' : 'Seguir'}
                         </button>
                     ) : null
-                    const contact = p.contactSlot
-                    // loja de atendimento com produtos: os produtos ficam na aba "Produtos" (sem botão extra apertando a linha)
-                    const productsBtn = null
+                    // Comprar / Agendar, Seguir e a conversa (só o ícone) ficam NUMA linha só
                     return (
-                        <>
-                            <div className="mt-3 flex items-center gap-2">
-                                {buy && (
-                                    <button onClick={p.onOpenCatalog} className={`flex-1 ${big}`} style={{ background: ORANGE, color: '#fff' }}>
-                                        <ShoppingBag size={17} /> Comprar
-                                    </button>
-                                )}
-                                {sched && (
-                                    <button onClick={p.onOpenSchedule} className={`flex-1 ${big}`} style={buy ? { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` } : { background: ORANGE, color: '#fff' }}>
-                                        <Calendar size={17} /> {buy ? 'Agendar' : 'Agendar atendimento'}
-                                    </button>
-                                )}
-                            </div>
-                            {(follow || contact || productsBtn) && (
-                                <div className="mt-2 flex items-center gap-2">
-                                    {follow}
-                                    {contact}
-                                    {productsBtn}
-                                </div>
+                        <div className="mt-3 flex items-center gap-2">
+                            {buy && (
+                                <button onClick={p.onOpenCatalog} className={`flex-1 ${big}`} style={{ background: ORANGE, color: '#fff' }}>
+                                    <ShoppingBag size={16} /> Comprar
+                                </button>
                             )}
-                        </>
+                            {sched && (
+                                <button onClick={p.onOpenSchedule} className={`flex-1 ${big}`} style={buy ? { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` } : { background: ORANGE, color: '#fff' }}>
+                                    <Calendar size={16} /> Agendar
+                                </button>
+                            )}
+                            {follow}
+                            {p.contactSlot}
+                        </div>
                     )
                 })()}
 

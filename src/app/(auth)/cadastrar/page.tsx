@@ -35,7 +35,7 @@ import {
   IdCard,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { checkSlugAvailability, sanitizeSlug, RESERVED_SLUGS } from '@/lib/slugUtils'
 import { getDeviceId } from '@/lib/deviceId'
 import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'
@@ -171,7 +171,7 @@ function RegisterContent() {
   const actionWords = ['venda', 'compre', 'compartilhe']
   const actionIcons = [TrendingUp, ShoppingCart, Share2]
 
-  const taxWords = ['Taxa 0%!', 'sem taxa!']
+  const taxWords = ['Taxa iUser 0%!', 'sem taxa do iUser!']
   const taxIcons = [Sparkles, Percent]
 
   // Timer para avançar uma palavra por vez

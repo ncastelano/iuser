@@ -1,6 +1,6 @@
 // src/versions/v3/shell/ShellFrame.tsx
 //
-// Casca única das páginas do app (/modeloinicial, /carrinho, /conversas, /painel-perfil, /modoprestador, /painel-loja,
+// Casca única das páginas do app (/v3, /carrinho, /conversas, /painel-perfil, /modoprestador, /painel-loja,
 // veículo): vive no layout `(main)/(shell)`, então a barra do topo, o menu e a aba clara NÃO são recriados a cada
 // página — a aba desliza de verdade entre os ícones e o menu mantém o que já carregou.
 'use client'

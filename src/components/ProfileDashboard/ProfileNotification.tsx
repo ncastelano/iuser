@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Bell, Heart, MessageCircle, UserPlus, Eye, Link2, PartyPopper, CornerDownRight, CheckCheck, User,
-    Briefcase, CheckCircle2, Star, Car, CalendarDays, CalendarCheck, CalendarX, CalendarClock, Users,
+    Briefcase, Clock, CheckCircle2, Star, Car, ShoppingBag, Bike, KeyRound, PackageCheck, CalendarDays, CalendarCheck, CalendarX, CalendarClock, Users, GraduationCap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -29,7 +29,7 @@ interface Notif {
     id: string
     kind: string
     ref_id: string | null
-    meta: { title?: string; snippet?: string; slug?: string; owner_slug?: string; path?: string; rating?: number; role?: string; price?: number; store?: string; store_id?: string; date?: string; time?: string; flow?: string }
+    meta: { title?: string; snippet?: string; slug?: string; owner_slug?: string; path?: string; rating?: number; role?: string; price?: number; store?: string; store_id?: string; date?: string; time?: string; flow?: string; text?: string }
     created_at: string
     read_at: string | null
     actor_id: string | null
@@ -41,7 +41,7 @@ interface Notif {
 const PAGE_SIZE = 10
 const PREVIEW_COUNT = 5
 
-type Filter = 'all' | 'likes' | 'comments' | 'followers' | 'visits' | 'services' | 'agenda'
+type Filter = 'all' | 'likes' | 'comments' | 'followers' | 'visits' | 'services' | 'agenda' | 'orders'
 
 const FILTERS: { id: Filter; label: string; kinds: string[] | null }[] = [
     { id: 'all', label: 'Tudo', kinds: null },
@@ -49,8 +49,9 @@ const FILTERS: { id: Filter; label: string; kinds: string[] | null }[] = [
     { id: 'comments', label: 'Comentários', kinds: ['publication_comment', 'profile_comment', 'comment_reply'] },
     { id: 'followers', label: 'Seguidores', kinds: ['follow', 'invite_signup'] },
     { id: 'visits', label: 'Visitas', kinds: ['profile_view', 'link_visit'] },
+    { id: 'orders', label: 'Pedidos e entregas', kinds: ['order_new', 'digital_order_new', 'digital_access_released', 'order_accepted', 'order_ready', 'order_rejected', 'order_delivered', 'delivery_driver_assigned', 'delivery_driver_accepted', 'delivery_driver_arrived', 'delivery_picked_up', 'delivery_at_door', 'delivery_message', 'delivery_issue', 'delivery_order_ready', 'delivery_completed', 'delivery_done', 'delivery_driver_cancelled', 'delivery_cancelled', 'favorite_invite', 'favorite_accepted', 'favorite_declined', 'dues_update', 'dispute_update', 'moderation_update'] },
     { id: 'agenda', label: 'Agenda', kinds: ['appointment_new', 'appointment_confirmed', 'appointment_cancelled', 'appointment_changed'] },
-    { id: 'services', label: 'Serviços', kinds: ['service_application', 'service_selected', 'service_completed', 'service_review', 'ride_application', 'ride_selected', 'ride_review', 'customer_review'] },
+    { id: 'services', label: 'Serviços', kinds: ['service_application', 'service_selected', 'service_completed', 'service_review', 'ride_application', 'ride_selected', 'ride_review', 'customer_review', 'ride_offer_new', 'ride_offer_declined', 'ride_offer_agreed', 'ride_offer_expired', 'ride_wait_requested', 'ride_wait_started', 'ride_wait_declined', 'ride_wait_ended'] },
 ]
 
 const KIND_ICON: Record<string, { icon: typeof Bell; color: string }> = {
@@ -74,6 +75,39 @@ const KIND_ICON: Record<string, { icon: typeof Bell; color: string }> = {
     ride_selected: { icon: CheckCircle2, color: '#22c55e' },
     ride_review: { icon: Star, color: '#eab308' },
     customer_review: { icon: Star, color: '#eab308' },
+    order_new: { icon: ShoppingBag, color: '#22c55e' },
+    digital_order_new: { icon: GraduationCap, color: '#7c3aed' },
+    digital_access_released: { icon: GraduationCap, color: '#22c55e' },
+    order_accepted: { icon: CheckCircle2, color: '#eab308' },
+    order_ready: { icon: CheckCircle2, color: '#a855f7' },
+    order_rejected: { icon: CalendarX, color: '#ef4444' },
+    order_delivered: { icon: PartyPopper, color: '#3b82f6' },
+    delivery_driver_assigned: { icon: Bike, color: '#f97316' },
+    delivery_driver_accepted: { icon: Bike, color: '#f97316' },
+    delivery_driver_arrived: { icon: KeyRound, color: '#22c55e' },
+    delivery_picked_up: { icon: PackageCheck, color: '#3b82f6' },
+    delivery_at_door: { icon: Bike, color: '#22c55e' },
+    delivery_message: { icon: MessageCircle, color: '#0ea5e9' },
+    delivery_issue: { icon: CalendarX, color: '#ef4444' },
+    favorite_invite: { icon: Star, color: '#eab308' },
+    favorite_accepted: { icon: Star, color: '#22c55e' },
+    favorite_declined: { icon: Star, color: '#94a3b8' },
+    dues_update: { icon: PackageCheck, color: '#22c55e' },
+    dispute_update: { icon: CalendarX, color: '#f97316' },
+    moderation_update: { icon: CalendarX, color: '#ef4444' },
+    ride_offer_new: { icon: Car, color: '#f97316' },
+    ride_offer_declined: { icon: CalendarX, color: '#ef4444' },
+    ride_offer_agreed: { icon: CheckCircle2, color: '#22c55e' },
+    ride_offer_expired: { icon: CalendarX, color: '#94a3b8' },
+    ride_wait_requested: { icon: Clock, color: '#f97316' },
+    ride_wait_started: { icon: Clock, color: '#3b82f6' },
+    ride_wait_declined: { icon: CalendarX, color: '#ef4444' },
+    ride_wait_ended: { icon: CheckCircle2, color: '#22c55e' },
+    delivery_order_ready: { icon: PackageCheck, color: '#a855f7' },
+    delivery_completed: { icon: CheckCircle2, color: '#22c55e' },
+    delivery_done: { icon: CheckCircle2, color: '#3b82f6' },
+    delivery_driver_cancelled: { icon: CalendarX, color: '#ef4444' },
+    delivery_cancelled: { icon: CalendarX, color: '#ef4444' },
     appointment_new: { icon: CalendarDays, color: '#0ea5e9' },
     appointment_confirmed: { icon: CalendarCheck, color: '#22c55e' },
     appointment_cancelled: { icon: CalendarX, color: '#ef4444' },
@@ -170,11 +204,12 @@ export default function ProfileNotification({ userId }: { userId: string }) {
             case 'appointment_confirmed': return `${who} confirmou ${apptWhat(n)}`
             case 'appointment_cancelled': return `${who} cancelou ${apptWhat(n)}`
             case 'appointment_changed': return `${who} mudou o horário de ${apptWhat(n)}`
-            default: return who
+            default: return n.meta?.text || who   // pedidos e entregas: o gatilho do banco já manda a frase pronta
         }
     }
 
     const hrefOf = (n: Notif): string | null => {
+        if ((n.kind.startsWith('order_') || n.kind.startsWith('delivery_') || n.kind.startsWith('ride_offer_') || n.kind.startsWith('ride_wait_')) && n.meta?.path) return n.meta.path
         if (n.meta?.owner_slug && n.meta?.slug && ['publication_like', 'service_like', 'product_like', 'publication_comment', 'comment_like', 'comment_reply'].includes(n.kind)) {
             return `/${n.meta.owner_slug}/${n.meta.slug}`
         }

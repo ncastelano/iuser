@@ -39,10 +39,12 @@ import {
     UserCheck,
     UserPlus,
     Camera,
+    ChevronDown,
+    ChevronsUpDown,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { getAvatarUrl } from '@/lib/avatar'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 import StoreSchedule from '@/components/StoreSchedule'
@@ -162,6 +164,8 @@ export function Store({
     const [cartAnimating, setCartAnimating] = useState(false)
     const [activeTab, setActiveTab] = useState<TabType>('products')
     const [searchQuery, setSearchQuery] = useState('')
+    // Categorias recolhidas (para passar rápido pelos produtos/serviços); a chave leva a aba junto
+    const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({})
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
     const [showAllHours, setShowAllHours] = useState(false)
@@ -335,7 +339,10 @@ export function Store({
             if (!groups[cat]) groups[cat] = []
             groups[cat].push(product)
         })
-        return groups
+        // "Promoções" primeiro e, depois, as categorias com mais itens (mesma ordem do catálogo)
+        const promo = (n: string) => /promo/i.test(n)
+        const names = Object.keys(groups).sort((x, y) => Number(promo(y)) - Number(promo(x)) || groups[y].length - groups[x].length)
+        return Object.fromEntries(names.map(n => [n, groups[n]])) as Record<string, any[]>
     }, [filteredProducts])
 
     // ========== RATINGS STATS ==========
@@ -887,36 +894,36 @@ export function Store({
                             </button>
                         </div>
 
-                        {/* Imagem */}
-                        <div className="w-full aspect-square rounded-xl overflow-hidden mb-4" style={{ background: colors.accentLight }}>
-                            {selectedProduct.image_url ? (
-                                <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-sm font-medium" style={{ color: colors.textSecondary }}>
-                                    Sem imagem
+                        {/* O que é o produto vem primeiro: a foto é só uma miniatura ao lado do nome e do preço */}
+                        <div className="flex items-start gap-3">
+                            <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
+                                {selectedProduct.image_url ? (
+                                    <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-medium" style={{ color: colors.textSecondary }}>
+                                        Sem imagem
+                                    </div>
+                                )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h4 className="text-xl font-black leading-tight" style={{ color: colors.textPrimary }}>
+                                    {selectedProduct.name}
+                                </h4>
+                                <div className="mt-1">
+                                    <span className="text-2xl font-extrabold" style={{ color: '#f97316' }}>
+                                        {selectedProduct.type === 'service' && !((selectedProduct.price || 0) > 0) ? 'Valor a combinar' : `R$ ${(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                                    </span>
+                                    {selectedProduct.price_type === 'hourly' && (selectedProduct.price || 0) > 0 && (
+                                        <span className="text-sm ml-1 opacity-75" style={{ color: colors.textSecondary }}>/h</span>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Nome */}
-                        <h4 className="text-xl font-black" style={{ color: colors.textPrimary }}>
-                            {selectedProduct.name}
-                        </h4>
-
-                        {/* Preço */}
-                        <div className="mt-2">
-                            <span className="text-2xl font-extrabold" style={{ color: '#f97316' }}>
-                                {selectedProduct.type === 'service' && !((selectedProduct.price || 0) > 0) ? 'Valor a combinar' : `R$ ${(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                            </span>
-                            {selectedProduct.price_type === 'hourly' && (selectedProduct.price || 0) > 0 && (
-                                <span className="text-sm ml-1 opacity-75" style={{ color: colors.textSecondary }}>/h</span>
-                            )}
+                            </div>
                         </div>
 
                         {/* Descrição */}
                         {selectedProduct.description && (
                             <div className="mt-3 p-3 rounded-xl" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
-                                <p className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
+                                <p className="text-sm leading-relaxed font-bold" style={{ color: colors.textPrimary }}>
                                     {selectedProduct.description}
                                 </p>
                             </div>
@@ -927,13 +934,13 @@ export function Store({
                             {selectedProduct.category && (
                                 <div className="flex justify-between">
                                     <span>Categoria</span>
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>{selectedProduct.category}</span>
+                                    <span className="font-normal" style={{ color: colors.textPrimary }}>{selectedProduct.category}</span>
                                 </div>
                             )}
                             {selectedProduct.type && (
                                 <div className="flex justify-between">
                                     <span>Tipo</span>
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                    <span className="font-normal" style={{ color: colors.textPrimary }}>
                                         {selectedProduct.type === 'physical' ? 'Produto' :
                                             selectedProduct.type === 'service' ? 'Serviço' : 'Digital'}
                                     </span>
@@ -942,7 +949,7 @@ export function Store({
                             {selectedProduct.stock_quantity !== undefined && selectedProduct.stock_quantity !== null && (
                                 <div className="flex justify-between">
                                     <span>Estoque</span>
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                    <span className="font-normal" style={{ color: colors.textPrimary }}>
                                         {selectedProduct.stock_quantity > 0 ? `${selectedProduct.stock_quantity} unidades` : 'Indisponível'}
                                     </span>
                                 </div>
@@ -1036,7 +1043,7 @@ export function Store({
                     chatSaving={chatSaving}
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
                     onOpenAgendaDialog={() => setShowAgendaDialog(true)}
-                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="Falar com a loja" /> : undefined}
+                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="" /> : undefined}
                     extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
                     ownerToolsSlot={isOwner && !isStoreOpen ? (
                         <StoreOperatingDays
@@ -1488,7 +1495,9 @@ export function Store({
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2 mb-4">
+                        {/* v3: sem nada para buscar, não mostra a busca */}
+                        {!(v3 && catalogList.length === 0) && (
+                        <div className={`flex items-center gap-2 ${v3 ? 'mb-3' : 'mb-4'}`}>
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
                                 <input
@@ -1506,6 +1515,7 @@ export function Store({
                                 />
                             </div>
                         </div>
+                        )}
 
                         {storeSubscriptionActive === false ? (
                             <div className="py-8 text-center rounded-xl" style={{
@@ -1549,6 +1559,10 @@ export function Store({
                                         <Plus size={16} /> {activeTab === 'services' ? 'Adicionar serviço' : 'Adicionar Produto'}
                                     </button>
                                 </div>
+                            ) : v3 && catalogList.length === 0 ? (
+                                <p className="py-3 text-[13px] font-bold" style={{ color: colors.textSecondary }}>
+                                    {activeTab === 'services' ? 'Esta loja ainda não publicou serviços.' : 'Esta loja ainda não publicou produtos.'}
+                                </p>
                             ) : (
                                 <div className="py-8 text-center rounded-xl" style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
@@ -1564,11 +1578,36 @@ export function Store({
                                 </div>
                             )
                         ) : (
-                            Object.entries(groupedProducts).map(([category, products]) => (
+                            Object.entries(groupedProducts).map(([category, products], groupIndex, allGroups) => {
+                                const catKey = `${activeTab}:${category}`
+                                // buscando, tudo fica aberto (o resultado não pode ficar escondido)
+                                const isCollapsed = !searchQuery.trim() && !!collapsedCats[catKey]
+                                const allCollapsed = allGroups.every(([c]) => collapsedCats[`${activeTab}:${c}`])
+                                return (
                                 <div key={category} className="space-y-2 mt-3">
-                                    <h4 className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                        {category}
-                                    </h4>
+                                    {groupIndex === 0 && allGroups.length > 1 && !searchQuery.trim() && (
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>{allGroups.length} categorias</span>
+                                            <button
+                                                onClick={() => setCollapsedCats(Object.fromEntries(allGroups.map(([c]) => [`${activeTab}:${c}`, !allCollapsed])))}
+                                                className="h-8 px-3 rounded-full text-[11px] font-black flex items-center gap-1 transition active:scale-95"
+                                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                            >
+                                                <ChevronsUpDown size={13} /> {allCollapsed ? 'Expandir todas' : 'Recolher todas'}
+                                            </button>
+                                        </div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setCollapsedCats(prev => ({ ...prev, [catKey]: !prev[catKey] }))}
+                                        aria-expanded={!isCollapsed}
+                                        className="w-full flex items-center gap-2 text-left transition active:opacity-70"
+                                    >
+                                        <ChevronDown size={14} className="flex-shrink-0 transition-transform" style={{ color: '#f97316', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
+                                        <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>{category}</span>
+                                        <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={{ background: `${colors.border}55`, color: colors.textSecondary }}>{products.length}</span>
+                                    </button>
+                                    {!isCollapsed && (
                                     <div className={v3 && activeTab === 'services' && actions.serviceRows ? 'flex flex-col' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
                                         {products.map(product => {
                                             const isHourly = product.price_type === 'hourly'
@@ -1737,8 +1776,10 @@ export function Store({
                                             )
                                         })}
                                     </div>
+                                    )}
                                 </div>
-                            ))
+                                )
+                            })
                         )}
                     </div>
                 )}

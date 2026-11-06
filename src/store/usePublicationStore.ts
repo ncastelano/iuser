@@ -2,7 +2,7 @@
 import { profileLabel } from '@/lib/profileDisplay'
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase/client'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 export interface Publication {
     id: string

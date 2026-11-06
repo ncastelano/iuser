@@ -33,9 +33,10 @@ import {
     User,
     Camera,
     MoreHorizontal,
+    GraduationCap
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import { useStoreCheckout } from './useStoreCheckout'
@@ -48,6 +49,12 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { trackProductView } from '@/lib/trackProductView'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import ProductReviewsV3, { type ProductReviewV3 } from '@/components/v3/ProductReviewsV3'
+import DigitalCurriculum from '@/components/digital/DigitalCurriculum'
+import DigitalGet from '@/components/digital/DigitalGet'
+import AppDownloads from '@/components/digital/AppDownloads'
+import ReportButton from '@/components/moderation/ReportButton'
+import type { CurriculumItem } from '@/modules/digital'
+import Link from 'next/link'
 import { useInsideShell } from '@/components/InsideShell'
 import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
 
@@ -64,6 +71,7 @@ interface ProductWithStore {
     view_count: number | null
     created_at: string
     store_id: string
+    type?: string | null
     has_addons?: boolean
     store?: {
         id: string
@@ -91,6 +99,7 @@ interface InitialProductRow {
     view_count: number | null
     created_at: string
     store_id: string
+    type?: string | null
     has_addons?: boolean
 }
 
@@ -143,6 +152,7 @@ export function ProductClientPage({
     const [product, setProduct] = useState<ProductWithStore | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [quantity, setQuantity] = useState(1)
+    const [digitalItems, setDigitalItems] = useState<CurriculumItem[] | null>(null)
     const [addingToCart, setAddingToCart] = useState(false)
     const [addedToCart, setAddedToCart] = useState(false)
     const [showAddModal, setShowAddModal] = useState(false)
@@ -387,6 +397,8 @@ export function ProductClientPage({
     // compartilhado com o catálogo.
     const openAddModal = () => {
         if (!product) return
+        // Produto digital não tem observação nem adicionais: vai direto para o carrinho
+        if (product.type === 'digital') { confirmAddToCart(undefined, []); return }
         setShowAddModal(true)
     }
 
@@ -410,6 +422,7 @@ export function ProductClientPage({
                 // é só o caminho no storage e não abre como imagem direto.
                 image_url: imageUrl,
                 slug: product.slug,
+                type: product.type || undefined,
             }
             for (let i = 0; i < quantity; i++) {
                 addItem(ownerSlug, storeDetails, cartProduct, comment, addons.length > 0 ? addons : undefined)
@@ -433,7 +446,7 @@ export function ProductClientPage({
         setAddingToCart(true)
         try {
             const storeDetails = { name: product.store?.name || ownerSlug, logo_url: finalStoreImage }
-            const cartProduct = { id: product.id, name: product.name, price: product.price || 0, image_url: imageUrl, slug: product.slug }
+            const cartProduct = { id: product.id, name: product.name, price: product.price || 0, image_url: imageUrl, slug: product.slug, type: product.type || undefined }
             for (const u of units) {
                 addItem(ownerSlug, storeDetails, cartProduct, u.comment, u.addons.length > 0 ? u.addons : undefined)
             }
@@ -500,7 +513,9 @@ export function ProductClientPage({
         })
         : ''
 
-    const formattedPrice = product.price !== null && product.price !== undefined
+    // Produto digital de preço 0 é GRÁTIS: não vai ao carrinho, a pessoa pega direto (DigitalGet)
+    const freeDigital = product.type === 'digital' && (!product.price || product.price <= 0)
+    const formattedPrice = freeDigital ? 'Grátis' : product.price !== null && product.price !== undefined
         ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)
         : 'Preço sob consulta'
 
@@ -512,7 +527,7 @@ export function ProductClientPage({
         ? productReviews.reduce((sum, r) => sum + r.rating, 0) / productReviews.length
         : 0
 
-    const cartControls = (
+    const cartControls = freeDigital ? null : (
         <>
             <div
                 className="flex items-center gap-1 rounded-full p-1 flex-shrink-0"
@@ -707,11 +722,11 @@ export function ProductClientPage({
                         ) : checkout.onlyPickupAvailable ? (
                             <div className="flex items-center gap-3 p-3 rounded-2xl" style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}>
                                 <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                    <Store size={18} />
+                                    {checkout.digitalOnly ? <GraduationCap size={18} /> : <Store size={18} />}
                                 </div>
                                 <div>
-                                    <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não tem entrega</p>
-                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
+                                    <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{checkout.digitalOnly ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
+                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>{checkout.digitalOnly ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                 </div>
                             </div>
                         ) : checkout.onlyDeliveryAvailable ? (
@@ -899,7 +914,7 @@ export function ProductClientPage({
                                 { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: checkout.storeConfig?.accepts_pix },
                                 { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: checkout.storeConfig?.accepts_card },
                                 { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: checkout.storeConfig?.accepts_cash },
-                            ]).filter(opt => opt.enabled).map((opt) => {
+                            ]).filter(opt => opt.enabled && (!checkout.digitalOnly || opt.value === 'pix')).map((opt) => {
                                 const selected = checkout.paymentMethod === opt.value
                                 return (
                                     <button
@@ -1312,6 +1327,20 @@ export function ProductClientPage({
                                         {product.description}
                                     </p>
                                 </div>
+                            )}
+
+                            {/* Produto digital: o que a pessoa recebe (sumário, com aulas grátis) e o atalho para quem já tem acesso */}
+                            {product.type === 'digital' && (
+                                <>
+                                    <DigitalGet productId={product.id} productName={product.name} price={product.price} items={digitalItems} storeId={product.store_id} storeName={product.store?.name} />
+                                    <AppDownloads productId={product.id} free={freeDigital} />
+                                    <DigitalCurriculum productId={product.id} onLoaded={setDigitalItems} />
+                                    <Link href="/carrinho?aba=digital" className="self-start inline-flex items-center gap-2 h-11 px-4 rounded-full text-sm font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                        <GraduationCap size={16} /> Já comprou? Abrir minhas compras digitais
+                                    </Link>
+                                    {/* Denunciar: direito autoral, golpe, conteúdo impróprio... (3 pessoas diferentes tiram do ar até o iUser analisar) */}
+                                    <ReportButton type="digital_product" id={product.id} authorId={product.store?.owner_id} label="Denunciar este produto" size={15} />
+                                </>
                             )}
 
                             {/* v3: avaliações em cartão que gira (mais curtidas primeiro) e abre a lista completa */}
