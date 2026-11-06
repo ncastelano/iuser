@@ -16,7 +16,7 @@ import type { ThemeColors } from '@/app/contexts/theme'
 import { PLATFORM_TARIFF_COLUMNS, loadPlatformTariffs, type PlatformTariffRow } from '@/lib/platformTariffs'
 import { computeHourlyEarnings, explainSuggestedPrice, type DriverPricing } from '@/lib/driverPricing'
 import type { VehicleKind } from '@/lib/rideVehicle'
-import { capProblem, forgetDefaultMinHourly, forgetRideMinimum, loadDefaultMinHourly, loadRideMinimum, loadRideMinimumCap, minPerMinuteProblem } from '@/modules/negotiation'
+import { capProblem, getMinRideFare, loadMinRideFare, forgetDefaultMinHourly, forgetRideMinimum, loadDefaultMinHourly, loadRideMinimum, loadRideMinimumCap, minPerMinuteProblem } from '@/modules/negotiation'
 
 const VEHICLES: { kind: VehicleKind; label: string; icon: typeof Car }[] = [
     { kind: 'carro', label: 'Carro', icon: Car },
@@ -66,6 +66,24 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
     const [cap, setCap] = useState<number | null>(null)
     const [capInput, setCapInput] = useState('')
     const [savingCap, setSavingCap] = useState(false)
+    // Valor mínimo de UMA corrida (R$ 8,00): nenhuma corrida de passageiro fecha por menos
+    const [minFare, setMinFare] = useState('')
+    const [savedMinFare, setSavedMinFare] = useState<number | null>(null)
+    const [savingMinFare, setSavingMinFare] = useState(false)
+    useEffect(() => { void loadMinRideFare(true).then((v) => { setSavedMinFare(v); setMinFare(String(v).replace('.', ',')) }) }, [])
+    const saveMinFare = async () => {
+        const v = num(minFare)
+        if (!(v >= 0 && v <= 200)) { toast.error('Use um valor entre R$ 0 e R$ 200'); return }
+        setSavingMinFare(true)
+        try {
+            await callAdminApi('/api/admin/ride-minimum', { fare: v })
+            await loadMinRideFare(true)
+            setSavedMinFare(getMinRideFare())
+            toast.success(`Valor mínimo da corrida: ${brl(v)}`)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar o valor mínimo da corrida')
+        } finally { setSavingMinFare(false) }
+    }
     // Ganho mínimo por HORA padrão do iUser: vale para o motorista que não definiu o dele (ele pode mudar em Tarifa → Meu ganho mínimo por hora)
     const [defHourly, setDefHourly] = useState('')
     const [savedDefHourly, setSavedDefHourly] = useState<number | null>(null)
@@ -231,6 +249,15 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
                     </div>
                     <button onClick={saveCap} disabled={savingCap || cap === null || num(capInput) === cap} className="px-4 py-2.5 rounded-xl text-xs font-black disabled:opacity-50 flex items-center gap-1.5" style={{ background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
                         {savingCap ? <Spinner size={14} /> : <Save size={14} />} Salvar teto
+                    </button>
+                </div>
+                <div className="flex items-end gap-2 pt-2" style={{ borderTop: `1px solid ${colors.border}` }}>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                        <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>Valor mínimo de UMA corrida (R$) — nenhuma corrida de passageiro fecha por menos que isto (vale o maior entre isto e os minutos × mínimo por minuto)</span>
+                        <input type="text" inputMode="decimal" value={minFare} onChange={(e) => setMinFare(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))} style={inputStyle} />
+                    </div>
+                    <button onClick={saveMinFare} disabled={savingMinFare || savedMinFare === null || num(minFare) === savedMinFare} className="px-4 py-2.5 rounded-xl text-xs font-black disabled:opacity-50 flex items-center gap-1.5" style={{ background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
+                        {savingMinFare ? <Spinner size={14} /> : <Save size={14} />} Salvar mínimo
                     </button>
                 </div>
                 <div className="flex items-end gap-2 pt-2" style={{ borderTop: `1px solid ${colors.border}` }}>

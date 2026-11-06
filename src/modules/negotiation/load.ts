@@ -1,6 +1,6 @@
 // src/modules/negotiation/load.ts — fala com o banco (ofertas, contrapropostas, ganho mínimo). A validação de verdade mora nas funções do banco.
 import { supabase } from '@/lib/supabase/client'
-import { DEFAULT_MIN_HOURLY, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, negotiationError, offerFromRow, parseHourlyCheck, type HourlyCheck, type PriceOffer } from './domain'
+import { getMinRideFare, DEFAULT_MIN_HOURLY, DEFAULT_MIN_RIDE_FARE, setMinRideFare, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, negotiationError, offerFromRow, parseHourlyCheck, type HourlyCheck, type PriceOffer } from './domain'
 
 export class NegotiationError extends Error {
     hint: string | null
@@ -79,12 +79,24 @@ let minCache: { at: number; value: number } | null = null
 /** O mínimo por minuto de trabalho (Admin → Tarifas). Guardado 5 min; se não carregar, vale o padrão. */
 export async function loadRideMinimum(): Promise<number> {
     if (minCache && Date.now() - minCache.at < 300_000) return minCache.value
+    void loadMinRideFare()   // o valor mínimo da corrida acompanha o mínimo por minuto em todas as telas
     const { data, error } = await supabase.rpc('get_ride_minimum')
     const v = !error && data != null && Number.isFinite(Number(data)) ? Number(data) : DEFAULT_MIN_PER_MINUTE
     minCache = { at: Date.now(), value: v }
     return v
 }
 export function forgetRideMinimum() { minCache = null }
+
+let fareLoaded = false
+/** O valor mínimo de uma corrida (R$ 8,00 por padrão; Admin → Tarifas): atualiza a regra usada por `platformFloor` em todas as telas. */
+export async function loadMinRideFare(force = false): Promise<number> {
+    if (fareLoaded && !force) return getMinRideFare()
+    const { data, error } = await supabase.rpc('get_ride_min_fare')
+    const v = !error && data != null && Number.isFinite(Number(data)) ? Number(data) : DEFAULT_MIN_RIDE_FARE
+    setMinRideFare(v)
+    fareLoaded = !error
+    return v
+}
 
 /** O teto do mínimo por minuto (só para o Admin mostrar). */
 export async function loadRideMinimumCap(): Promise<number> {

@@ -80,10 +80,18 @@ export function capProblem(cap: number, currentMin: number): string | null {
     return null
 }
 
-/** Piso de uma corrida: minutos de trabalho (ir buscar + corrida) × o mínimo por minuto, arredondado PARA CIMA em centavos. 0 se não dá para medir ou o mínimo está desligado. */
-export function platformFloor(minutes: number | null | undefined, minPerMinute: number | null | undefined): number {
-    if (!minutes || minutes <= 0 || !minPerMinute || minPerMinute <= 0) return 0
-    return Math.ceil(minutes * minPerMinute * 100 - 1e-9) / 100
+// ===== VALOR MÍNIMO DE UMA CORRIDA (R$ 8,00) =====
+/** Padrão: nenhuma corrida de passageiro fecha por menos de R$ 8,00. O valor de verdade mora no banco (Admin → Tarifas); `setMinRideFare` o atualiza quando carrega. */
+export const DEFAULT_MIN_RIDE_FARE = 8
+let minRideFareNow = DEFAULT_MIN_RIDE_FARE
+export const setMinRideFare = (v: number) => { if (Number.isFinite(v) && v >= 0) minRideFareNow = v }
+export const getMinRideFare = () => minRideFareNow
+
+/** Piso de uma corrida: o MAIOR entre os minutos de trabalho (ir buscar + corrida) × o mínimo por minuto, arredondado PARA CIMA em centavos, e o valor mínimo da corrida (R$ 8,00). 0 se o mínimo por minuto está desligado (entrega de loja passa 0: frete fixo). */
+export function platformFloor(minutes: number | null | undefined, minPerMinute: number | null | undefined, minFare: number = minRideFareNow): number {
+    if (!minPerMinute || minPerMinute <= 0) return 0
+    const byTime = minutes && minutes > 0 ? Math.ceil(minutes * minPerMinute * 100 - 1e-9) / 100 : 0
+    return Math.max(byTime, minFare > 0 ? minFare : 0)
 }
 
 /** O que decidiu o valor da "Minha tarifa": a conta por km dela mesma, o ganho mínimo por hora do motorista ou o mínimo da plataforma (o MAIOR dos três vale; empate fica com o km). */
@@ -118,6 +126,38 @@ export function rideValuation(price: number | null | undefined, reference: numbe
     if (pct >= VALUATION_GOOD_PCT) return { tier: 'good', pct, extra }
     return { tier: 'none', pct: Math.max(pct, 0), extra: Math.max(extra, 0) }
 }
+// ===== COMO A CORRIDA PAGA (as cores do aviso de corrida nova) =====
+/** valued = o passageiro paga bem acima da Tarifa iUser; great = paga muito bem por hora; good = boa; normal = o esperado; low = abaixo do mínimo do próprio motorista */
+export type RideGrade = 'valued' | 'great' | 'good' | 'normal' | 'low'
+export const GRADE_LABEL: Record<RideGrade, string> = { valued: 'Corrida valorizada', great: 'Paga muito bem', good: 'Boa corrida', normal: 'Paga o normal', low: 'Abaixo do seu mínimo' }
+/** a partir de quantas vezes o piso por hora (mínimo por minuto × 60) a corrida é "boa" e "muito boa" */
+export const GRADE_GOOD_RATIO = 1.2
+export const GRADE_GREAT_RATIO = 1.5
+export interface RideGradeInput {
+    price: number
+    /** minutos de trabalho (ir buscar + corrida); null = não dá para dizer quanto rende por hora */
+    minutes: number | null
+    /** a Tarifa iUser desta corrida: base para dizer que o passageiro está pagando acima */
+    platformPrice: number
+    /** o valor é a oferta do passageiro (só aí vale "valorizada") */
+    fromPassenger: boolean
+    /** o mínimo por hora PRÓPRIO do motorista (null se ele não definiu: o padrão do iUser não conta como "abaixo do seu") */
+    ownMinHourly: number | null
+    /** o piso por hora da plataforma (mínimo por minuto × 60) */
+    floorPerHour: number
+}
+export function rideGrade(i: RideGradeInput): { grade: RideGrade; label: string; perHour: number | null; extra: number } {
+    const ph = perHour(i.price, i.minutes)
+    const val = i.fromPassenger ? rideValuation(i.price, i.platformPrice) : { tier: 'none' as ValuationTier, pct: 0, extra: 0 }
+    const done = (grade: RideGrade) => ({ grade, label: GRADE_LABEL[grade], perHour: ph, extra: val.extra })
+    if (val.tier === 'great') return done('valued')
+    if (belowMinimum(ph, i.ownMinHourly)) return done('low')
+    const ratio = ph != null && i.floorPerHour > 0 ? ph / i.floorPerHour : null
+    if (ratio != null && ratio >= GRADE_GREAT_RATIO) return done('great')
+    if ((ratio != null && ratio >= GRADE_GOOD_RATIO) || val.tier === 'good') return { ...done('good'), label: val.tier === 'good' && !(ratio != null && ratio >= GRADE_GOOD_RATIO) ? 'Paga acima do normal' : GRADE_LABEL.good }
+    return done('normal')
+}
+
 /** ordem na lista: as mais valorizadas primeiro (a sort estável mantém as mais novas antes dentro do mesmo nível) */
 export const valuationRank = (tier: ValuationTier): number => (tier === 'great' ? 2 : tier === 'good' ? 1 : 0)
 
@@ -138,8 +178,9 @@ export function timeFare(minutes: number | null | undefined, ratePerMinute: numb
 export const belowPlatformFloor = (amount: number | null | undefined, floor: number): boolean => floor > 0 && amount != null && amount < floor
 
 /** "O valor mínimo da plataforma para esta corrida é R$ 19,00 (R$ 0,50 por minuto)." */
-export function platformFloorText(floor: number, minPerMinute: number): string {
+export function platformFloorText(floor: number, minPerMinute: number, minFare: number = minRideFareNow): string {
     const m = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`
+    if (minFare > 0 && round2(floor) <= round2(minFare)) return `O valor mínimo de uma corrida é ${m(minFare)}.`
     return `O valor mínimo da plataforma para esta corrida é ${m(floor)} (${m(minPerMinute)} por minuto de trabalho).`
 }
 

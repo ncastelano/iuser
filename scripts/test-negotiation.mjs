@@ -1,7 +1,7 @@
 // Testes das regras puras da negociação de corridas (src/modules/negotiation/domain.ts). Rodar: npm run test:negotiation
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText, rideValuation, valuationRank, fareParts, timeFare } from '../src/modules/negotiation/domain.ts'
+import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText, rideValuation, valuationRank, fareParts, timeFare, DEFAULT_MIN_RIDE_FARE, setMinRideFare, rideGrade } from '../src/modules/negotiation/domain.ts'
 
 test('valor válido: positivo e até R$ 100.000', () => {
     assert.equal(validateAmount(12.5), null)
@@ -98,10 +98,10 @@ test('mensagens de erro em português', () => {
 })
 
 test('valor mínimo da plataforma: minutos × mínimo por minuto, arredondado para cima', () => {
-    assert.equal(platformFloor(38, 0.5), 19)
-    assert.equal(platformFloor(38.05, 0.5), 19.03)
-    assert.equal(platformFloor(12, 0.5), 6)
-    assert.equal(platformFloor(null, 0.5), 0)
+    assert.equal(platformFloor(38, 0.5, 0), 19)
+    assert.equal(platformFloor(38.05, 0.5, 0), 19.03)
+    assert.equal(platformFloor(12, 0.5, 0), 6)
+    assert.equal(platformFloor(null, 0.5, 0), 0)
     assert.equal(platformFloor(30, 0), 0)
     assert.equal(platformFloor(30, null), 0)
     assert.equal(belowPlatformFloor(18.99, 19), true)
@@ -111,10 +111,22 @@ test('valor mínimo da plataforma: minutos × mínimo por minuto, arredondado pa
     assert.match(negotiationError({ hint: 'below_platform_min', message: 'O valor mínimo é R$ 19,00' }), /R\$ 19,00/)
 })
 
+test('valor mínimo de UMA corrida: R$ 8,00, vale o maior entre ele e os minutos × mínimo por minuto', () => {
+    assert.equal(DEFAULT_MIN_RIDE_FARE, 8)
+    assert.equal(platformFloor(5, 0.8), 8)                 // 5 min × 0,80 = 4,00 → sobe para R$ 8,00
+    assert.equal(platformFloor(null, 0.8), 8)              // sem como medir o tempo, o mínimo da corrida continua valendo
+    assert.equal(platformFloor(12, 0.8), 9.6)              // 12 min × 0,80 = 9,60: o tempo manda
+    assert.equal(platformFloor(12, 0.8, 12), 12)           // piso configurado mais alto
+    assert.equal(platformFloor(30, 0, 8), 0)               // entrega de loja (mínimo por minuto 0) fica de fora
+    assert.equal(platformFloorText(8, 0.8), 'O valor mínimo de uma corrida é R$ 8,00.')
+    assert.match(platformFloorText(30.4, 0.8), /R\$ 30,40 \(R\$ 0,80 por minuto/)
+    setMinRideFare(10); assert.equal(platformFloor(5, 0.8), 10); setMinRideFare(DEFAULT_MIN_RIDE_FARE)
+})
+
 test('mínimo padrão R$ 0,80 por minuto, teto R$ 1,00; só o admin eleva o teto', () => {
     assert.equal(DEFAULT_MIN_PER_MINUTE, 0.8)
     assert.equal(DEFAULT_MIN_PER_MINUTE_CAP, 1)
-    assert.equal(platformFloor(38, DEFAULT_MIN_PER_MINUTE), 30.4)              // 38 min não saem por menos de R$ 30,40
+    assert.equal(platformFloor(38, DEFAULT_MIN_PER_MINUTE, 0), 30.4)              // 38 min não saem por menos de R$ 30,40
     assert.equal(minPerMinuteProblem(0.8), null)
     assert.equal(minPerMinuteProblem(1), null)                                  // no teto: vale
     assert.equal(minPerMinuteProblem(0), null)                                  // 0 desliga
@@ -170,4 +182,19 @@ test('Minha tarifa por tempo: minutos de trabalho × valor por minuto do motoris
     assert.equal(timeFare(37, 0), null); assert.equal(timeFare(37, null), null); assert.equal(timeFare(37, undefined), null)
     assert.equal(timeFare(null, 1), null); assert.equal(timeFare(0, 1), null); assert.equal(timeFare(-5, 1), null)
     assert.equal(timeFare(10, 1, -4), 10)                   // extra negativo nunca desconta
+})
+
+test('como a corrida paga: valorizada, paga muito bem, boa, normal, abaixo do seu mínimo', () => {
+    const base = { minutes: 30, platformPrice: 24, fromPassenger: false, ownMinHourly: null, floorPerHour: 48 }
+    assert.equal(rideGrade({ ...base, price: 24 }).grade, 'normal')                     // R$ 48/h = o piso
+    assert.equal(rideGrade({ ...base, price: 29 }).grade, 'good')                       // R$ 58/h (1,2×)
+    assert.equal(rideGrade({ ...base, price: 40 }).grade, 'great')                      // R$ 80/h (1,67×)
+    assert.equal(rideGrade({ ...base, price: 24, ownMinHourly: 60 }).grade, 'low')      // abaixo do mínimo que ELE definiu
+    assert.equal(rideGrade({ ...base, price: 24, ownMinHourly: null }).grade, 'normal') // o padrão do iUser não conta como "abaixo do seu"
+    assert.equal(rideGrade({ ...base, price: 30, platformPrice: 24, fromPassenger: true }).grade, 'valued')   // +25% sobre a Tarifa iUser
+    const above = rideGrade({ ...base, price: 25.5, platformPrice: 24, fromPassenger: true })              // +6%: "acima do normal"
+    assert.equal(above.grade, 'good'); assert.equal(above.label, 'Paga acima do normal')
+    assert.equal(rideGrade({ ...base, price: 30, fromPassenger: false }).grade, 'good')                    // sem oferta do passageiro nunca é "valorizada"
+    assert.equal(rideGrade({ ...base, price: 20, minutes: null }).grade, 'normal')                         // sem minutos não dá para dizer quanto rende
+    assert.equal(rideGrade({ ...base, price: 29 }).perHour, 58)
 })

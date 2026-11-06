@@ -64,5 +64,13 @@ test('piso da plataforma (R$ 0,50 por minuto): nem a Tarifa iUser nem a tarifa p
     assert.equal(above.platformMin, 19); assert.equal(above.platform, 41.2)
     assert.equal(rideQuote({ ...cheap, offeredPrice: 8 }).platformMin, 0)   // entrega: frete fixo
     assert.equal(rideQuote({ ...cheap, minPerMinute: 0 }).platformMin, 0)   // 0 desliga
-    assert.equal(rideQuote({ ...cheap, pickupMin: null, minPerMinute: 0.5 }).platformMin, 0)   // sem os minutos não dá para medir
+    assert.equal(rideQuote({ ...cheap, pickupMin: null, minPerMinute: 0.5 }).platformMin, 8)   // sem os minutos não dá para medir o tempo, mas o valor mínimo de uma corrida (R$ 8,00) continua valendo
+})
+
+test('valor mínimo de UMA corrida (R$ 8,00): corrida curta e barata nunca sai abaixo dele', () => {
+    const tiny = { ...base, distanceKm: 0.5, routeKm: 0.5, pickupKm: 0.2, pickupMin: 1, tripMin: 2, minPerMinute: 0.8 }   // 3 min × 0,80 = 2,40; Tarifa iUser por km = 7 + deslocamento
+    const q = rideQuote({ ...tiny, customShape: null, useCustom: false })
+    assert.ok(q.platformMin >= 8)
+    assert.ok(q.platform >= 8)
+    assert.ok(q.shown >= 8)
 })

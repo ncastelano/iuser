@@ -10,6 +10,14 @@ export async function POST(req: Request) {
     const admin = await requireSuperAdmin(req)
     if (!admin) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
     const body = await req.json().catch(() => ({}))
+    // `fare` muda o VALOR MÍNIMO DE UMA CORRIDA (R$ 8,00 por padrão)
+    if (body?.fare !== undefined) {
+        const f = Number(body.fare)
+        if (!Number.isFinite(f) || f < 0 || f > 200) return NextResponse.json({ error: 'Valor inválido: use de R$ 0 a R$ 200' }, { status: 400 })
+        const { data, error } = await supabaseAdmin.rpc('admin_set_ride_min_fare', { p_value: f, p_admin: admin.id })
+        if (error) return NextResponse.json({ error: error.code === '22023' ? error.message : 'Não foi possível salvar. Tente de novo.' }, { status: error.code === '22023' ? 400 : 500 })
+        return NextResponse.json({ ok: true, value: data })
+    }
     // `hourly` muda o ganho mínimo por HORA padrão do iUser (R$ 40 por padrão; cada motorista pode definir o dele)
     if (body?.hourly !== undefined) {
         const h = Number(body.hourly)
