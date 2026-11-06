@@ -2,7 +2,7 @@
 // A conta é a MESMA do banco (supabase/tests/ride_waits_scenarios.sql confere os mesmos números lá).
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { waitFeeCents, waitSeconds, waitFeeNow, totalWaitCents, openWait, kindsForPhase, clock, centsToBrl, graceLeft, ruleText, waitLine, cleanNote, viewFromJson, waitError, waitSettingsProblem, exampleWaitCents, settingsFromJson, DEFAULT_WAIT_SETTINGS } from '../src/modules/ridewait/domain.ts'
+import { waitFeeCents, waitSeconds, waitFeeNow, totalWaitCents, openWait, kindsForPhase, clock, centsToBrl, graceLeft, ruleText, waitLine, cleanNote, viewFromJson, waitError, waitSettingsProblem, exampleWaitCents, settingsFromJson, DEFAULT_WAIT_SETTINGS, parseCents, discountProblem, hasDiscount, ruleLine } from '../src/modules/ridewait/domain.ts'
 
 const w = (o = {}) => ({ id: 'w1', kind: 'stop', note: null, status: 'active', requestedBy: 'p', requestedAt: '2026-11-06T10:00:00Z', startedAt: '2026-11-06T10:00:00Z', endedAt: null, rateCents: 50, graceSeconds: 180, maxSeconds: 7200, seconds: null, feeCents: null, ...o })
 const T0 = Date.parse('2026-11-06T10:00:00Z')
@@ -100,4 +100,23 @@ test('NOVA REGRA: ao acionar já vale R$ 3,00 (cobre 3 min); depois R$ 0,60 por 
     assert.equal(waitFeeNow(w({ status: 'requested', startedAt: null, baseCents: 300 }), T0), 0)   // pedida e ainda não aprovada: nada
     assert.equal(totalWaitCents([w({ id: 'a', status: 'ended', baseCents: 300, feeCents: 300, seconds: 60 }), nw], T0 + 480_000), 300 + 600)   // as esperas se somam, cada uma com o seu valor inicial
     assert.equal(waitFeeCents(481, 180, 50), 251)            // regra antiga (sem valor inicial) continua igual
+})
+
+test('DESCONTO do motorista: o valor do iUser é o teto; só diminui', () => {
+    assert.equal(parseCents('3,00'), 300); assert.equal(parseCents('R$ 0,6'), 60); assert.equal(parseCents('0'), 0); assert.equal(parseCents(''), null); assert.equal(parseCents('abc'), null)
+    assert.equal(discountProblem(100, 30, 300, 60), null)
+    assert.equal(discountProblem(300, 60, 300, 60), null)                      // exatamente o teto vale
+    assert.equal(discountProblem(0, 0, 300, 60), null)                          // sem cobrar vale
+    assert.match(discountProblem(400, 30, 300, 60), /R\$ 3,00/)
+    assert.match(discountProblem(100, 70, 300, 60), /R\$ 0,60/)
+    assert.ok(discountProblem(null, 30, 300, 60)); assert.ok(discountProblem(-1, 30, 300, 60))
+    assert.equal(hasDiscount(w({ baseCents: 300, rateCents: 60, listBaseCents: 300, listRateCents: 60 })), false)
+    assert.equal(hasDiscount(w({ baseCents: 100, rateCents: 60, listBaseCents: 300, listRateCents: 60 })), true)
+    assert.equal(hasDiscount(w({ baseCents: 300, rateCents: 30, listBaseCents: 300, listRateCents: 60 })), true)
+    assert.equal(hasDiscount(w({ baseCents: 300, rateCents: 60 })), false)      // espera antiga: sem teto guardado, sem desconto
+    assert.equal(ruleLine({ baseCents: 300, rateCents: 60, graceSeconds: 180 }), 'Valor inicial R$ 3,00 (cobre 3 min) · R$ 0,60 por minuto')
+    // com desconto o valor cai: 10 min com inicial R$ 1,00 e R$ 0,50/min = R$ 3,50 (em vez de R$ 7,20)
+    assert.equal(waitFeeCents(600, 180, 50, 100), 100 + 350)
+    const viewed = viewFromJson({ now: '2026-11-06T10:00:10Z', waits: [{ id: 'a', kind: 'stop', status: 'active', requested_by: 'p', requested_at: 'x', started_at: '2026-11-06T10:00:00Z', base_cents: 100, rate_cents: 50, list_base_cents: 300, list_rate_cents: 60, grace_seconds: 180, max_seconds: 7200 }] })
+    assert.equal(viewed.waits[0].listBaseCents, 300); assert.equal(viewed.waits[0].baseCents, 100)
 })

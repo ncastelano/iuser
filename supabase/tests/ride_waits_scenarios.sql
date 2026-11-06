@@ -121,7 +121,28 @@ BEGIN
     PERFORM respond_ride_wait(w3, true);
     PERFORM pg_temp.as_server();
     IF (SELECT base_cents || '/' || rate_cents || '/' || grace_seconds || '/' || max_seconds FROM ride_waits WHERE id = w3) <> '200/100/300/3600' THEN RAISE EXCEPTION '8: a espera nova deveria usar a regra nova'; END IF;
-    UPDATE ride_waits SET started_at = now() - interval '10 minutes' WHERE id = w3;   -- R$ 2,00 + (600 - 300) s × R$ 1,00/min = R$ 7,00
+    -- 8b) DESCONTO DO MOTORISTA: só o motorista da corrida diminui; o valor do iUser (200/100 nesta espera) é o TETO; o passageiro é avisado; dá para voltar ao valor do iUser
+    UPDATE ride_waits SET started_at = now() - interval '10 minutes' WHERE id = w3;
+    PERFORM pg_temp.as_user(P);
+    PERFORM pg_temp.expect_fail(format('SELECT set_ride_wait_discount(%L, 100, 50)', w3), 'not_driver');
+    PERFORM pg_temp.as_user(X);
+    PERFORM pg_temp.expect_fail(format('SELECT set_ride_wait_discount(%L, 100, 50)', w3), 'not_driver');
+    PERFORM pg_temp.as_user(D);
+    PERFORM pg_temp.expect_fail(format('SELECT set_ride_wait_discount(%L, 300, 50)', w3), 'above_ceiling');     -- inicial acima do teto
+    PERFORM pg_temp.expect_fail(format('SELECT set_ride_wait_discount(%L, 100, 150)', w3), 'above_ceiling');    -- por minuto acima do teto
+    PERFORM pg_temp.expect_fail(format('SELECT set_ride_wait_discount(%L, -1, 50)', w3), 'invalid_amount');
+    j := set_ride_wait_discount(w3, 100, 50);
+    IF (j->>'base_cents')::int <> 100 OR (j->>'rate_cents')::int <> 50 OR (j->>'list_base_cents')::int <> 200 OR (j->>'list_rate_cents')::int <> 100 THEN RAISE EXCEPTION '8b: desconto mal gravado %', j; END IF;
+    j := get_ride_waits(ride);
+    IF (j->>'total_fee_cents')::int <> 600 + 350 THEN RAISE EXCEPTION '8b: com desconto, 10 min = R$ 1,00 + 300 s × R$ 0,50/min = R$ 3,50 (total 600 + 350), veio %', j->>'total_fee_cents'; END IF;
+    IF (SELECT (e->>'list_base_cents')::int FROM jsonb_array_elements(j->'waits') e WHERE e->>'id' = w3::text) <> 200 THEN RAISE EXCEPTION '8b: a leitura deveria trazer o teto do iUser'; END IF;
+    PERFORM pg_temp.as_server();
+    IF NOT EXISTS (SELECT 1 FROM profile_notifications WHERE profile_id = P AND kind = 'ride_wait_started' AND meta->>'title' = 'Desconto na espera') THEN RAISE EXCEPTION '8b: o passageiro não foi avisado do desconto'; END IF;
+    PERFORM pg_temp.as_user(D);
+    PERFORM set_ride_wait_discount(w3, 200, 100);                       -- volta ao valor do iUser (é o teto: vale)
+    PERFORM pg_temp.as_server();
+    UPDATE ride_waits SET started_at = now() - interval '10 minutes' WHERE id = w3;
+   -- R$ 2,00 + (600 - 300) s × R$ 1,00/min = R$ 7,00
     PERFORM pg_temp.as_user(D); j := get_ride_waits(ride);
     IF (j->>'total_fee_cents')::int <> 600 + 700 THEN RAISE EXCEPTION '8: as esperas deveriam se somar (600 + 700), veio %', j->>'total_fee_cents'; END IF;
     PERFORM pg_temp.as_user(P); PERFORM end_ride_wait(w3);

@@ -18,6 +18,9 @@ export interface RideWait {
     /** congelados quando o motorista aprovou: o valor inicial (já inclui os primeiros minutos), o valor por minuto depois deles e o limite */
     baseCents: number | null
     rateCents: number | null
+    /** o valor do iUser dessa espera (o teto do desconto do motorista): igual a baseCents/rateCents quando não há desconto */
+    listBaseCents: number | null
+    listRateCents: number | null
     graceSeconds: number | null
     maxSeconds: number | null
     seconds: number | null
@@ -122,7 +125,7 @@ export function viewFromJson(j: any, deviceNowMs = Date.now()): RideWaitsView | 
         waits: j.waits.map((w: any): RideWait => ({
             id: w.id, kind: w.kind, note: w.note ?? null, status: w.status, requestedBy: w.requested_by, requestedAt: w.requested_at,
             startedAt: w.started_at ?? null, endedAt: w.ended_at ?? null,
-            baseCents: num(w.base_cents), rateCents: num(w.rate_cents), graceSeconds: num(w.grace_seconds), maxSeconds: num(w.max_seconds), seconds: num(w.seconds), feeCents: num(w.fee_cents),
+            baseCents: num(w.base_cents), rateCents: num(w.rate_cents), listBaseCents: num(w.list_base_cents), listRateCents: num(w.list_rate_cents), graceSeconds: num(w.grace_seconds), maxSeconds: num(w.max_seconds), seconds: num(w.seconds), feeCents: num(w.fee_cents),
         })),
     }
 }
@@ -138,6 +141,9 @@ export function waitError(err: { message?: string; hint?: string | null } | null
         wait_already_open: 'Já existe uma espera aberta nesta corrida.',
         too_many_waits: 'Esta corrida já teve muitos pedidos de espera.',
         already_answered: 'Esse pedido já foi respondido.',
+        wait_not_active: 'O desconto vale só enquanto a espera está em andamento.',
+        above_ceiling: 'Só dá para diminuir: o valor do iUser é o teto.',
+        invalid_amount: 'Digite valores válidos.',
     }
     return (err?.hint && map[err.hint]) || err?.message || 'Não deu certo. Tente de novo.'
 }
@@ -162,4 +168,31 @@ export const exampleWaitCents = (minutes: number, v: WaitSettings): number => wa
 export function settingsFromJson(j: any): WaitSettings {
     const n = (x: any, d: number) => (x != null && Number.isFinite(Number(x)) ? Number(x) : d)
     return { baseFee: n(j?.base_fee, DEFAULT_WAIT_SETTINGS.baseFee), ratePerMinute: n(j?.rate_per_minute, DEFAULT_WAIT_SETTINGS.ratePerMinute), graceMinutes: n(j?.grace_minutes, DEFAULT_WAIT_SETTINGS.graceMinutes), maxMinutes: n(j?.max_minutes, DEFAULT_WAIT_SETTINGS.maxMinutes) }
+}
+
+// ===== DESCONTO DO MOTORISTA NA ESPERA =====
+/** O valor do iUser é o TETO: o motorista só diminui. Esta espera tem desconto? */
+export const hasDiscount = (w: RideWait): boolean =>
+    (w.listBaseCents != null && (w.baseCents ?? 0) < w.listBaseCents) || (w.listRateCents != null && (w.rateCents ?? 0) < w.listRateCents)
+
+/** "3,00" / "3.5" / "R$ 0,6" → centavos (null se não é um valor) */
+export function parseCents(text: string): number | null {
+    const t = String(text ?? '').replace(/[^\d.,]/g, '').replace(',', '.')
+    if (!t || Number.isNaN(Number(t))) return null
+    return Math.round(Number(t) * 100)
+}
+
+/** Confere o desconto digitado contra o teto do iUser; devolve o motivo em português ou null se vale */
+export function discountProblem(baseCents: number | null, rateCents: number | null, listBaseCents: number, listRateCents: number): string | null {
+    if (baseCents == null || rateCents == null) return 'Digite os dois valores (pode ser 0,00).'
+    if (baseCents < 0 || rateCents < 0) return 'Os valores não podem ser negativos.'
+    if (baseCents > listBaseCents) return `O valor inicial não pode passar de ${centsToBrl(listBaseCents)} (o do iUser).`
+    if (rateCents > listRateCents) return `O valor por minuto não pode passar de ${centsToBrl(listRateCents)} (o do iUser).`
+    return null
+}
+
+/** "Valor inicial R$ 3,00 (cobre 3 min) · R$ 0,60 por minuto" */
+export function ruleLine(w: Pick<RideWait, 'baseCents' | 'rateCents' | 'graceSeconds'>): string {
+    const g = Math.round((w.graceSeconds ?? 0) / 60)
+    return `Valor inicial ${centsToBrl(w.baseCents ?? 0)}${g > 0 ? ` (cobre ${g} min)` : ''} · ${centsToBrl(w.rateCents ?? 0)} por minuto`
 }

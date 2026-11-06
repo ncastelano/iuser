@@ -16,6 +16,7 @@ import { toast } from '@/lib/toast'
 import {
     WAIT_KIND_LABEL, WAIT_NOTE_MAX, centsToBrl, cleanNote, clock, endRideWait, graceLeft, kindsForPhase, loadRideWaits, openWait, requestRideWait, respondRideWait,
     ruleText, totalWaitCents, waitFeeNow, waitLine, waitSeconds, type RideWaitsView, type WaitKind,
+    setRideWaitDiscount, discountProblem, hasDiscount, parseCents, ruleLine,
 } from '@/modules/ridewait'
 
 const ORANGE = '#f97316'
@@ -44,6 +45,10 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
     const [asking, setAsking] = useState(false)
     const [kind, setKind] = useState<WaitKind>('stop')
     const [note, setNote] = useState('')
+    // o motorista edita (só para baixo) o valor desta espera: dá um desconto
+    const [editing, setEditing] = useState(false)
+    const [eBase, setEBase] = useState('')
+    const [eRate, setERate] = useState('')
     const alive = useRef(true)
 
     const refresh = useCallback(async () => {
@@ -111,6 +116,53 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
                     <p className="text-[12px] font-black mt-1.5" style={{ color: free > 0 ? GREEN : ORANGE }}>
                         {free > 0 ? `Já vale ${centsToBrl(waitFeeNow(open, now, view.offsetMs))} · cobre mais ${clock(free)}` : `Cobrando ${centsToBrl(waitFeeNow(open, now, view.offsetMs))}`}
                     </p>
+                    {/* MEU VALOR DE TEMPO: o que está valendo nesta espera; o motorista edita PARA BAIXO (o valor do iUser é o teto) para dar um desconto */}
+                    <div className="mt-2 rounded-xl px-3 py-2 text-left" style={{ background: `${colors.border}22`, border: `1px solid ${colors.border}` }}>
+                        <div className="flex items-center gap-2">
+                            <p className="text-[11px] font-bold flex-1 leading-snug" style={{ color: colors.textSecondary }}>
+                                {role === 'driver' ? 'Meu valor de tempo' : 'Valor do tempo'}: <span style={{ color: colors.textPrimary }}>{ruleLine(open)}</span>
+                                {hasDiscount(open) && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black text-white" style={{ background: GREEN }}>com desconto</span>}
+                            </p>
+                            {role === 'driver' && !editing && (
+                                <button onClick={() => { setEBase(((open.baseCents ?? 0) / 100).toFixed(2).replace('.', ',')); setERate(((open.rateCents ?? 0) / 100).toFixed(2).replace('.', ',')); setEditing(true) }}
+                                    className="text-[11px] font-black underline flex-shrink-0" style={{ color: ORANGE }}>Editar</button>
+                            )}
+                        </div>
+                        {role === 'driver' && editing && (() => {
+                            const listBase = open.listBaseCents ?? open.baseCents ?? 0
+                            const listRate = open.listRateCents ?? open.rateCents ?? 0
+                            const nb = parseCents(eBase), nr = parseCents(eRate)
+                            const problem = discountProblem(nb, nr, listBase, listRate)
+                            const quick = (b: number, r: number) => { setEBase((b / 100).toFixed(2).replace('.', ',')); setERate((r / 100).toFixed(2).replace('.', ',')) }
+                            return (
+                                <div className="mt-2 flex flex-col gap-2">
+                                    <div className="flex gap-2">
+                                        <label className="flex-1 min-w-0">
+                                            <span className="block text-[10px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>Valor inicial (R$)</span>
+                                            <input value={eBase} onChange={(e) => setEBase(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))} inputMode="decimal" className="w-full h-10 px-3 rounded-xl text-[14px] font-black outline-none" style={{ background: colors.background, border: `1.5px solid ${colors.border}`, color: colors.textPrimary }} />
+                                        </label>
+                                        <label className="flex-1 min-w-0">
+                                            <span className="block text-[10px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>Por minuto (R$)</span>
+                                            <input value={eRate} onChange={(e) => setERate(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))} inputMode="decimal" className="w-full h-10 px-3 rounded-xl text-[14px] font-black outline-none" style={{ background: colors.background, border: `1.5px solid ${colors.border}`, color: colors.textPrimary }} />
+                                        </label>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        <button onClick={() => quick(listBase, listRate)} className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>Valor do iUser</button>
+                                        <button onClick={() => quick(Math.round(listBase / 2), Math.round(listRate / 2))} className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>50% de desconto</button>
+                                        <button onClick={() => quick(0, 0)} className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>Sem cobrar</button>
+                                    </div>
+                                    <p className="text-[10px]" style={{ color: problem ? '#b45309' : colors.textSecondary }}>{problem ?? `Só dá para diminuir: o valor do iUser é o teto (${centsToBrl(listBase)} inicial e ${centsToBrl(listRate)} por minuto). Vale para esta espera.`}</p>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setEditing(false)} className="h-9 px-4 rounded-full text-[12px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>Cancelar</button>
+                                        <button disabled={!!problem || busy != null} onClick={() => run('disc', async () => { await setRideWaitDiscount(open.id, nb as number, nr as number); setEditing(false) }, 'Valor do tempo atualizado')}
+                                            className="flex-1 h-9 rounded-full text-[12px] font-black text-white disabled:opacity-50 flex items-center justify-center" style={{ background: ORANGE }}>
+                                            {busy === 'disc' ? <Spinner size={14} /> : 'Salvar valor do tempo'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )
+                        })()}
+                    </div>
                     <button onClick={() => run('end', () => endRideWait(open.id), 'Espera encerrada')} disabled={busy != null}
                         className="mt-2.5 w-full h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-60"
                         style={{ background: colors.textPrimary, color: colors.background }}>

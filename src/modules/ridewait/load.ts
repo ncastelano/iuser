@@ -35,3 +35,9 @@ export async function loadWaitSettings(): Promise<WaitSettings> {
     const { data, error } = await supabase.rpc('get_ride_wait_settings')
     return error || !data ? DEFAULT_WAIT_SETTINGS : settingsFromJson(data)
 }
+
+/** O motorista dá um DESCONTO nesta espera: diminui o valor inicial e/ou o valor por minuto (o valor do iUser é o teto; o banco confere) */
+export async function setRideWaitDiscount(waitId: string, baseCents: number, rateCents: number): Promise<void> {
+    const { error } = await supabase.rpc('set_ride_wait_discount', { p_wait: waitId, p_base_cents: baseCents, p_rate_cents: rateCents })
+    if (error) throw new RideWaitError(error)
+}
