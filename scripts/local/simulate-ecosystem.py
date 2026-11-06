@@ -106,6 +106,17 @@ STATE = {'appt_age': {}, 'ride_tick': {}}
 # Donos que atendem à mão no app (admin-teste, a Pizzaria Forno de Ouro): o simulador NÃO aceita pedidos nem confirma agendamentos das lojas deles
 MANUAL_OWNERS = ('c86da741-189b-4eab-a347-08166081b31a',)
 MANUAL_SQL = ','.join(f"'{x}'" for x in MANUAL_OWNERS)
+THEATER_OWNER_SLUGS = ('helena-prado',)   # com o Teatro ligado, a Helena (a clínica e o perfil dela) é atendida pela tela, não por este simulador
+THEATER_STORE_SLUGS = ('24h-farmacia-plantao',)   # e a Farmácia Plantão 24h tem as entregas feitas pelos entregadores das telas (o alimentador do Teatro a atende)
+
+
+def manual_sql():
+    """Donos que NÃO são atendidos por este simulador: os da pessoa (sempre) e os do Teatro (enquanto ele roda)."""
+    if not theater_on():
+        return MANUAL_SQL
+    return (MANUAL_SQL + ', ' + "(select id from profiles where \"profileSlug\" in (" + ','.join(f"'{x}'" for x in THEATER_OWNER_SLUGS) + "))"
+            + ', ' + "(select owner_id from stores where \"storeSlug\" in (" + ','.join(f"'{x}'" for x in THEATER_STORE_SLUGS) + "))")
+
 # Motoristas que entregam para a Pizzaria Forno de Ouro (seed-entregadores.mjs) agem só pelo simulador da pizzaria; entrega de loja (order_id) também
 PIZZA_DRIVERS_SQL = "(select u.id from auth.users u where u.email like 'entregador-%@staging.iuser.test')"
 # Com o TEATRO ligado (página /tres-telas), quem conduz a motorista de corridas (Eva) e a dona da pizzaria (admin-teste, que também é motorista) são as TELAS: este simulador não mexe nelas.
@@ -113,8 +124,7 @@ THEATER_SLUGS = ('rede-eva-administradora', 'admin-teste')
 _theater_cache = {'at': 0.0, 'on': False}
 
 
-def theater_drivers_sql():
-    """Lista (SQL) das contas que o Teatro conduz pelas telas; vazia quando o Teatro está desligado."""
+def theater_on():
     now = time.time()
     if now - _theater_cache['at'] > 5:
         _theater_cache['at'] = now
@@ -123,7 +133,12 @@ def theater_drivers_sql():
             _theater_cache['on'] = '--theater' in (st.get('sims', {}).get('pizzaria', {}).get('args') or [])
         except Exception:  # noqa: BLE001
             _theater_cache['on'] = False
-    if not _theater_cache['on']:
+    return _theater_cache['on']
+
+
+def theater_drivers_sql():
+    """Lista (SQL) das contas que o Teatro conduz pelas telas; vazia quando o Teatro está desligado."""
+    if not theater_on():
         return '(select id from profiles where false)'
     return "(select id from profiles where \"profileSlug\" in (" + ','.join(f"'{x}'" for x in THEATER_SLUGS) + "))"
 
@@ -410,7 +425,7 @@ def requests_round():
 
 # ---------------------------------------------------------------- relógio das lojas e agendas
 def tick_orders():
-    rows = q_local(f"select o.id, o.status, s.owner_id from orders o join stores s on s.id = o.store_id where o.status in ('pending','preparing','ready') and s.owner_id not in ({MANUAL_SQL}) order by random() limit 8")
+    rows = q_local(f"select o.id, o.status, s.owner_id from orders o join stores s on s.id = o.store_id where o.status in ('pending','preparing','ready') and s.owner_id not in ({manual_sql()}) order by random() limit 8")
     for r in rows:
         nxt = {'pending': R.choices(['preparing', 'rejected'], [92, 8])[0], 'preparing': R.choice(['ready', 'paid']), 'ready': 'paid'}[r['status']]
         try:
@@ -429,7 +444,7 @@ def tick_appointments():
     rows = q_local(f"""select a.id, a.status, a.service_name, a.customer_id,
         case when a.store_id is not null then (select s.owner_id from stores s where s.id = a.store_id) else a.provider_profile_id end as svc_owner
         from appointments a where a.status in ('pending','confirmed') and a.created_at > now() - interval '2 hours'
-          and coalesce((select s.owner_id from stores s where s.id = a.store_id), a.provider_profile_id) not in ({MANUAL_SQL}) order by random() limit 8""")
+          and coalesce((select s.owner_id from stores s where s.id = a.store_id), a.provider_profile_id) not in ({manual_sql()}) order by random() limit 8""")
     for r in rows:
         if not r['svc_owner']:
             continue
@@ -448,7 +463,7 @@ def tick_appointments():
         exists (select 1 from appointment_reviews r where r.appointment_id = a.id and r.kind = 'service') as has_service,
         exists (select 1 from appointment_reviews r where r.appointment_id = a.id and r.kind = 'client') as has_client
         from appointments a where a.status = 'completed' and a.completed_at is not null and a.completed_at > now() - interval '3 hours'
-          and coalesce((select s.owner_id from stores s where s.id = a.store_id), a.provider_profile_id) not in ({MANUAL_SQL}) order by random() limit 6""")
+          and coalesce((select s.owner_id from stores s where s.id = a.store_id), a.provider_profile_id) not in ({manual_sql()}) order by random() limit 6""")
     for r in done:
         if not r['svc_owner'] or r['svc_owner'] == r['customer_id']:
             continue

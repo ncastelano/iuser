@@ -171,6 +171,19 @@ def helena_booking():
     log(f"🩺 {c['name']} pediu “{svc['name']}” na Clínica Mente Viva para {day.strftime('%d/%m')} {hour:02d}:{minute:02d}{paid}")
 
 
+def helena_deposits():
+    """O cliente que ainda não pagou a entrada informa o Pix um tempo depois (a Helena então confere e aceita o horário)."""
+    if not CLINIC:
+        return
+    for r in q_local(f"""select a.id, a.customer_id from appointments a where a.store_id = {esc(CLINIC['id'])}::uuid and a.status = 'pending' and a.deposit_status = 'awaiting'
+                         and a.created_at < now() - interval '50 seconds' order by random() limit 2"""):
+        try:
+            as_user(r['customer_id'], f"select report_appointment_deposit({esc(r['id'])}::uuid);")
+            log('  💸 o cliente informou a entrada do agendamento na clínica')
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ entrada: {str(e).splitlines()[0][:100]}")
+
+
 _conv = {}
 
 
@@ -290,11 +303,11 @@ def main():
     ap.add_argument('--chat-every', type=float, default=40, help='segundos entre uma mensagem e a próxima para a clínica')
     ap.add_argument('--ride-every', type=float, default=45, help='segundos entre um pedido de corrida e o próximo')
     ap.add_argument('--doces-every', type=float, default=70, help='segundos entre um pedido com entrega e o próximo na Farmácia Plantão 24h')
-    ap.add_argument('--once', choices=['helena', 'chat', 'ride', 'choose', 'doces', 'attend', 'rate'])
+    ap.add_argument('--once', choices=['helena', 'chat', 'ride', 'choose', 'doces', 'attend', 'rate', 'deposit'])
     a = ap.parse_args()
     load()
     if a.once:
-        return safe({'helena': helena_booking, 'chat': helena_chat, 'ride': ride_feed, 'choose': ride_choose, 'doces': doces_order, 'attend': doces_attend, 'rate': ride_rate}[a.once])
+        return safe({'helena': helena_booking, 'chat': helena_chat, 'ride': ride_feed, 'choose': ride_choose, 'doces': doces_order, 'attend': doces_attend, 'rate': ride_rate, 'deposit': helena_deposits}[a.once])
     owner_driver_mode(True)
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))   # o comando único para este processo com SIGTERM: sai limpo e restaura
     log(f"TEATRO (alimentador): {len(CUSTOMERS)} clientes; Helena = {CLINIC.get('name', '—')} ({len(SVCS)} serviços); corridas p/ {EVA.get('name', '—')}; entregas de {DOCES.get('name', '—')}.")
@@ -304,6 +317,7 @@ def main():
         time.sleep(0.5)
     loop(a.helena_every, helena_booking, stop)
     loop(a.chat_every, helena_chat, stop)
+    loop(25, helena_deposits, stop)
     loop(a.ride_every, ride_feed, stop)
     loop(6, ride_choose, stop)
     loop(20, ride_rate, stop)

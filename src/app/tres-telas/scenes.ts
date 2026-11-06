@@ -276,12 +276,165 @@ export async function deliveryDriverScene(c: Ctx, who: Who, key: string, eager: 
     }
 }
 
+// ---------------------------------------------------------------- HELENA (o perfil dela e a Clínica Mente Viva)
+const CLINIC_SLUG = 'clinica-mente-viva'
+const HELENA_REVIEWS = ['Cliente pontual e educado.', 'Sessão tranquila, tudo certo.']
+
+/** De cada "CONVITE DE SERVIÇO" (um cartão por cliente) tira quantos horários tem e se dá para aceitar (entrada informada ou sem entrada) */
+function inviteCards(text: string) {
+    const blocks = text.split('CONVITE DE SERVIÇO').slice(1)
+    let firstBtn = 0
+    return blocks.map((b) => {
+        const slots = Math.max(1, Number((/(\d+) horários? pedidos?/.exec(b) || [])[1] || 1))
+        const card = { handle: (/@[a-z0-9][a-z0-9-]*/.exec(b) || [''])[0], slots, firstBtn, acceptable: /Entrada informada/.test(b) || !/Aguardando a entrada/.test(b), awaiting: /Aguardando a entrada/.test(b) }
+        firstBtn += slots
+        return card
+    })
+}
+
+export async function helenaScene(c: Ctx) {
+    const st = c.st
+    const who: Who = 'helena'
+    await human(c, 3, 5)
+    await st.goto(who, `/painel-loja/${CLINIC_SLUG}`)
+    await st.prep(who)
+    await st.caption(who, '🩺 Helena na Clínica Mente Viva')
+    await human(c, 2, 3)
+    let lastChat = 0, lastTour = Date.now(), lastHistory = 0
+    while (alive(c)) {
+        try {
+            await review(c, who, 'o cliente', HELENA_REVIEWS)
+            // 1) PEDIDOS DE SERVIÇO da loja: confere a entrada e aceita o horário; os que ainda esperam a entrada ela só olha o histórico
+            if (!st.where(who).includes('/pedidos')) { await st.goto(who, `/painel-loja/${CLINIC_SLUG}/pedidos`); await human(c, 1, 1.6) }
+            await st.soft(who, { op: 'click', target: { text: 'Serviços', selector: 'button' } }); await human(c, 1.2, 1.8)
+            const cards = inviteCards(await textOf(c, who))
+            const ready = cards.find((x) => x.acceptable)
+            if (ready) {
+                c.say(who, `aceitou o horário de ${ready.handle}`)
+                await st.caption(who, `📅 Convite de ${ready.handle}`)
+                await human(c, 1.5, 2.5)
+                await st.soft(who, { op: 'scroll', by: 160, ms: 800 })
+                await st.caption(who, '💸 Entrada conferida — aceitando o horário')
+                await human(c, 1.5, 2.5)
+                await st.soft(who, { op: 'click', target: { text: 'Aceitar horário', nth: ready.firstBtn } })
+                await human(c, 3, 4)
+                continue
+            }
+            if (cards.length && Date.now() - lastHistory > 45_000) {   // vê o histórico de quem ainda não pagou a entrada
+                lastHistory = Date.now()
+                await st.caption(who, '🔎 Olhando o histórico do cliente antes de aceitar')
+                await st.soft(who, { op: 'click', target: { text: 'Histórico do cliente' } }); await human(c, 4, 6)
+                await st.soft(who, { op: 'click', target: { text: 'Histórico do cliente' } })   // fecha
+                await human(c, 2, 3)
+                continue
+            }
+            // 2) CONVERSAS: responde quem escreveu para a clínica
+            if (Date.now() - lastChat > 50_000) {
+                lastChat = Date.now()
+                await answerChat(c, who, CLINIC_SLUG, CLINIC_ANSWERS, 'Helena')
+                continue
+            }
+            // 3) um passeio: a agenda dela (da loja e pessoal), o perfil e a página pública da clínica
+            if (Date.now() - lastTour > 100_000) {
+                lastTour = Date.now()
+                await st.goto(who, '/compromissos'); await st.caption(who, '📅 Conferindo a agenda'); await human(c, 2, 3)
+                await st.soft(who, { op: 'scroll', by: 360, ms: 1600 }); await human(c, 2, 3); await st.soft(who, { op: 'scroll', to: 'top', ms: 1200 }); await human(c, 1.5, 2.5)
+                await st.goto(who, '/helena-prado'); await st.caption(who, '👤 O perfil da Helena'); await human(c, 2, 3)
+                await st.soft(who, { op: 'scroll', by: 500, ms: 1800 }); await human(c, 2, 3)
+                await st.goto(who, `/${CLINIC_SLUG}`); await st.caption(who, '🏥 A página da clínica, como o cliente vê'); await human(c, 2, 3)
+                await st.soft(who, { op: 'scroll', by: 500, ms: 1800 }); await human(c, 2, 3)
+                continue
+            }
+            await st.caption(who, '🩺 Atendendo a clínica')
+            await human(c, 4, 6)
+        } catch (e: any) { c.st.onLog(who, `✗ ${e.message}`) }
+    }
+}
+
+// ---------------------------------------------------------------- MOTORISTA DE CORRIDAS (qualquer pedido de motorista: passageiro, objeto, animal)
+const RIDE_REVIEWS = ['Passageiro educado e pontual.', 'Tudo tranquilo na corrida.', 'Ótimo passageiro!']
+
+export async function rideScene(c: Ctx) {
+    const st = c.st
+    const who: Who = 'ride'
+    let name = 'Eva Administradora'
+    await human(c, 3, 5)
+    await st.goto(who, '/aceitar-corridas')
+    await st.prep(who)
+    await st.caption(who, '🚗 Motorista de corridas: vendo os pedidos')
+    await human(c, 2, 3)
+    let appliedAt = 0
+    while (alive(c)) {
+        try {
+            if (await review(c, who, 'o passageiro', RIDE_REVIEWS)) continue
+            if (!st.where(who).startsWith('/aceitar-corridas')) await st.goto(who, '/aceitar-corridas')
+            const low = (await textOf(c, who)).toLowerCase()
+            // ---- uma corrida aceita: percorre as etapas (os botões mudam a cada passo)
+            if (low.includes('ir para o ponto de partida')) {
+                c.say(who, 'saindo para buscar o passageiro'); await st.caption(who, '🚗 Indo buscar o passageiro')
+                await human(c, 1.5, 2.5); await st.soft(who, { op: 'click', target: { text: 'ir para o ponto de partida' } }); await human(c, 8, 14)   // o tempo de chegar lá
+                continue
+            }
+            if (low.includes('cheguei ao ponto de partida')) {
+                await st.caption(who, '📍 Chegou ao ponto de partida')
+                await human(c, 5, 9); await st.soft(who, { op: 'click', target: { text: 'cheguei ao ponto de partida' } })
+                await st.caption(who, '⏳ Esperando o passageiro entrar'); await human(c, 4, 7)
+                continue
+            }
+            if (low.includes('iniciar corrida')) {
+                await st.caption(who, '🚦 O passageiro entrou — iniciando a corrida')
+                await human(c, 2, 3); await st.soft(who, { op: 'click', target: { text: 'iniciar corrida' } }); c.say(who, 'corrida iniciada')
+                await st.caption(who, '🛣️ A caminho do destino'); await human(c, 12, 20)   // o tempo do trajeto
+                continue
+            }
+            if (low.includes('cheguei ao destino')) {
+                const j = await fetch(`/api/dev/ride-points?driver=${encodeURIComponent(name)}`).then((r) => r.json()).catch(() => null)
+                const ride = j?.ride
+                if (ride) await st.devpos(who, ride.destination_lat, ride.destination_lng)   // o GPS de teste: o motorista "está" no destino
+                await st.caption(who, '🏁 Chegou ao destino'); await human(c, 2, 3)
+                await st.soft(who, { op: 'click', target: { text: 'cheguei ao destino' } })
+                c.say(who, 'corrida concluída'); await human(c, 3, 4)
+                await st.devpos(who, null, null)
+                await st.caption(who, '🎉 Corrida concluída!'); await human(c, 2, 3)
+                appliedAt = 0
+                continue
+            }
+            // ---- esperando ser escolhida pelo passageiro
+            if (appliedAt && Date.now() - appliedAt < 60_000) {
+                await st.caption(who, '⏳ Candidatura enviada — esperando o passageiro escolher')
+                await human(c, 5, 8); await st.goto(who, '/aceitar-corridas')
+                continue
+            }
+            appliedAt = 0
+            // ---- sem corrida: olha os pedidos e se candidata ao melhor
+            if (low.includes('solicitações de motorista') && (low.includes('tarifa iuser') || low.includes('aceitar oferta'))) {
+                await st.caption(who, '👀 Vendo o pedido: trajeto, tempos e valores')
+                await st.soft(who, { op: 'scroll', by: 260, ms: 1400 }); await human(c, 2, 3)
+                await st.soft(who, { op: 'move', target: { text: 'Por tempo' } }); await human(c, 1.5, 2.5)
+                await st.soft(who, { op: 'scroll', by: -260, ms: 1000 }); await human(c, 1, 1.5)
+                const offer = low.includes('aceitar oferta')
+                await st.caption(who, offer ? '🤝 O passageiro ofereceu um valor — aceitando a oferta' : '💰 Candidatando-se pela Tarifa iUser')
+                const ok = offer
+                    ? await st.soft(who, { op: 'click', target: { text: 'aceitar oferta', selector: 'button' } })
+                    : await st.soft(who, { op: 'click', target: { text: 'tarifa iuser', selector: 'button' } })
+                if (ok !== null) { appliedAt = Date.now(); c.say(who, 'se candidatou a uma corrida') }
+                await human(c, 3, 4)
+                continue
+            }
+            await st.caption(who, '💤 Nenhum pedido de motorista agora')
+            await st.soft(who, { op: 'scroll', by: pick([-150, 200]), ms: 1100 })
+            await human(c, 4, 6)
+            await st.goto(who, '/aceitar-corridas')
+        } catch (e: any) { c.st.onLog(who, `✗ ${e.message}`) }
+    }
+}
+
 export function runTheater(st: Stage, obs: () => Obs | null, say: (who: Who, msg: string) => void) {
     const c: Ctx = { st, gen: ++st.gen, obs, say }
     void ownerScene(c)
     void deliveryDriverScene(c, 'fixed', 'dani', 0.95)
     void deliveryDriverScene(c, 'courier1', 'leo', 0.8)
     void deliveryDriverScene(c, 'courier2', 'tito', 0.65)
-    void idleScene(c, 'helena', '/painel-loja/clinica-mente-viva', '🩺 Helena na Clínica Mente Viva')
-    void idleScene(c, 'ride', '/aceitar-corridas', '🚗 Motorista de corridas')
+    void helenaScene(c)
+    void rideScene(c)
 }

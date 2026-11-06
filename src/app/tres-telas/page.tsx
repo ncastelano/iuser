@@ -50,7 +50,8 @@ function Phone({ who, title, subtitle, scale, big, mode, cam, onExpand, children
         return () => ro.disconnect()
     }, [open, mode])
     // o ponto da ação vai para perto do centro (um pouco acima: embaixo fica a barra do app); nunca mostra além das bordas
-    const z = cam?.z ?? 1
+    // na miniatura o zoom é forte (o celular é pequeno); no tamanho real já se lê tudo, então a câmera só se aproxima de leve
+    const z = cam ? (open ? 1 + (cam.z - 1) * 0.4 : cam.z) : 1
     const tx = cam ? Math.min(0, Math.max(sz.w - z * sz.w, sz.w / 2 - z * cam.x)) : 0
     const ty = cam ? Math.min(0, Math.max(sz.h - z * sz.h, sz.h * 0.42 - z * cam.y)) : 0
     return (
