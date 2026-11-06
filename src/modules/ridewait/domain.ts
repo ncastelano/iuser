@@ -21,6 +21,8 @@ export interface RideWait {
     /** o valor do iUser dessa espera (o teto do desconto do motorista): igual a baseCents/rateCents quando não há desconto */
     listBaseCents: number | null
     listRateCents: number | null
+    /** por que terminou: left_spot (o carro saiu do local), ride_started (o embarque acabou), ride_finished; vazio = alguém tocou em terminar */
+    endedReason?: string | null
     graceSeconds: number | null
     maxSeconds: number | null
     seconds: number | null
@@ -103,7 +105,8 @@ export function ruleText(graceSeconds: number, rateCents: number, baseCents = 0)
 export function waitLine(w: RideWait, nowMs: number, offsetMs = 0): string {
     const s = waitSeconds(w, nowMs, offsetMs)
     const base = `${WAIT_KIND_LABEL[w.kind]} · ${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s · ${centsToBrl(waitFeeNow(w, nowMs, offsetMs))}`
-    return w.note ? `${base} (${w.note})` : base
+    const why = w.endedReason === 'left_spot' ? ' · terminou sozinha: o carro saiu do local' : w.endedReason === 'ride_started' ? ' · terminou ao começar a corrida' : ''
+    return (w.note ? `${base} (${w.note})` : base) + why
 }
 
 /** Nota digitada: sem espaços nas pontas e até 80 caracteres (o banco confere de novo) */
@@ -125,7 +128,7 @@ export function viewFromJson(j: any, deviceNowMs = Date.now()): RideWaitsView | 
         waits: j.waits.map((w: any): RideWait => ({
             id: w.id, kind: w.kind, note: w.note ?? null, status: w.status, requestedBy: w.requested_by, requestedAt: w.requested_at,
             startedAt: w.started_at ?? null, endedAt: w.ended_at ?? null,
-            baseCents: num(w.base_cents), rateCents: num(w.rate_cents), listBaseCents: num(w.list_base_cents), listRateCents: num(w.list_rate_cents), graceSeconds: num(w.grace_seconds), maxSeconds: num(w.max_seconds), seconds: num(w.seconds), feeCents: num(w.fee_cents),
+            baseCents: num(w.base_cents), rateCents: num(w.rate_cents), listBaseCents: num(w.list_base_cents), listRateCents: num(w.list_rate_cents), endedReason: w.ended_reason ?? null, graceSeconds: num(w.grace_seconds), maxSeconds: num(w.max_seconds), seconds: num(w.seconds), feeCents: num(w.fee_cents),
         })),
     }
 }

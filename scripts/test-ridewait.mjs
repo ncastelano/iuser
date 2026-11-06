@@ -120,3 +120,10 @@ test('DESCONTO do motorista: o valor do iUser é o teto; só diminui', () => {
     const viewed = viewFromJson({ now: '2026-11-06T10:00:10Z', waits: [{ id: 'a', kind: 'stop', status: 'active', requested_by: 'p', requested_at: 'x', started_at: '2026-11-06T10:00:00Z', base_cents: 100, rate_cents: 50, list_base_cents: 300, list_rate_cents: 60, grace_seconds: 180, max_seconds: 7200 }] })
     assert.equal(viewed.waits[0].listBaseCents, 300); assert.equal(viewed.waits[0].baseCents, 100)
 })
+
+test('histórico diz quando a espera terminou sozinha', () => {
+    assert.equal(waitLine(w({ status: 'ended', seconds: 300, feeCents: 420, baseCents: 300, endedReason: 'left_spot' }), T0), 'Parada · 5 min 00 s · R$ 4,20 · terminou sozinha: o carro saiu do local')
+    assert.equal(waitLine(w({ status: 'ended', seconds: 240, feeCents: 360, endedReason: 'ride_started', kind: 'pickup' }), T0), 'Embarque · 4 min 00 s · R$ 3,60 · terminou ao começar a corrida')
+    assert.equal(waitLine(w({ status: 'ended', seconds: 60, feeCents: 300, endedReason: null }), T0), 'Parada · 1 min 00 s · R$ 3,00')
+    assert.equal(viewFromJson({ now: '2026-11-06T10:00:10Z', waits: [{ id: 'a', kind: 'stop', status: 'ended', requested_by: 'p', requested_at: 'x', ended_reason: 'left_spot', seconds: 5, fee_cents: 300 }] }).waits[0].endedReason, 'left_spot')
+})
