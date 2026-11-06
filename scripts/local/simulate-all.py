@@ -37,8 +37,10 @@ SIMS = {
     # `log`: o log CRU de cada simulador (sem prefixo) — a página /tres-telas lê o da pizzaria em /tmp/sim-pizzaria.log (rota /api/dev/observer)
     'eco': {'tag': 'eco', 'script': HERE / 'simulate-ecosystem.py', 'color': '36', 'name': 'ecossistema', 'log': '/tmp/sim-ecosystem.log'},
     'pizzaria': {'tag': 'pizza', 'script': HERE / 'simulate-pizzaria.py', 'color': '35', 'name': 'pizzaria', 'log': '/tmp/sim-pizzaria.log'},
+    # o ALIMENTADOR do TEATRO de 6 telas (Helena, corridas, entregas de outras lojas): só sobe quando o Teatro é ligado (botão da página /tres-telas ou --theater)
+    'teatro': {'tag': 'teatro', 'script': HERE / 'simulate-teatro.py', 'color': '32', 'name': 'teatro (alimentador)', 'log': '/tmp/sim-teatro.log'},
 }
-ALIASES = {'eco': 'eco', 'ecossistema': 'eco', 'pizza': 'pizzaria', 'pizzaria': 'pizzaria'}
+ALIASES = {'eco': 'eco', 'ecossistema': 'eco', 'pizza': 'pizzaria', 'pizzaria': 'pizzaria', 'teatro': 'teatro'}
 TTY = sys.stdout.isatty()
 print_lock = threading.Lock()
 
@@ -64,7 +66,7 @@ def alive(pid):
 
 def stray_simulators():
     """Simuladores abertos fora deste comando (pid, linha de comando)"""
-    out = subprocess.run(['pgrep', '-af', r'simulate-(ecosystem|pizzaria)\.py'], capture_output=True, text=True).stdout
+    out = subprocess.run(['pgrep', '-af', r'simulate-(ecosystem|pizzaria|teatro)\.py'], capture_output=True, text=True).stdout
     found = []
     for ln in out.splitlines():
         pid_s, _, cmd = ln.partition(' ')
@@ -139,7 +141,8 @@ def build_parser():
     ap.add_argument('--eco', default='', help='argumentos do simulate-ecosystem.py, entre aspas')
     ap.add_argument('--pizzaria', default='', help='argumentos do simulate-pizzaria.py, entre aspas')
     # atalhos mais usados da pizzaria
-    ap.add_argument('--stage', action='store_true', help='(pizzaria) TEATRO')
+    ap.add_argument('--stage', action='store_true', help='(pizzaria) TEATRO de 3 telas (antigo)')
+    ap.add_argument('--theater', action='store_true', help='TEATRO de 6 telas: a pizzaria deixa a dona e Dani/Léo/Tito para as telas e liga o alimentador (Helena, corridas)')
     ap.add_argument('--manual', action='store_true', help='(pizzaria) você atende a loja')
     ap.add_argument('--manual-drivers', default='', help='(pizzaria) motoristas que você mexe na mão, ex.: dani,leo')
     ap.add_argument('--stage-speed', type=float, help='(pizzaria) velocidade da Dani no Teatro')
@@ -147,11 +150,17 @@ def build_parser():
     return ap
 
 
+def THEATER_PIZZA_ARGS(drivers=''):
+    """A pizzaria no TEATRO: a dona e os motoristas à mão e um ritmo de pedidos que uma pessoa (a tela) consegue atender."""
+    return ['--theater', '--manual-drivers', drivers or 'dani,leo,tito', '--burst', '2', '--every', '40', '--appts-every', '150', '--chat-every', '30', '--featured-every', '120']
+
+
 def pizzaria_shortcuts(a):
     out = []
     if a.stage: out.append('--stage')
+    if a.theater: out += THEATER_PIZZA_ARGS(a.manual_drivers)
     if a.manual: out.append('--manual')
-    if a.manual_drivers: out += ['--manual-drivers', a.manual_drivers]
+    if a.manual_drivers and not a.theater: out += ['--manual-drivers', a.manual_drivers]
     if a.stage_speed is not None: out += ['--stage-speed', str(a.stage_speed)]
     return out
 
@@ -184,6 +193,9 @@ def run(a):
         if k == 'pizzaria':
             args += pizzaria_shortcuts(a)
         children[k] = Child(k, args)
+    # o alimentador do Teatro existe sempre, mas só roda quando o Teatro está ligado
+    children['teatro'] = Child('teatro', [])
+    children['teatro'].wanted = bool(a.theater)
     started = time.time()
     quitting = {'v': False}
 
@@ -193,7 +205,8 @@ def run(a):
     signal.signal(signal.SIGTERM, bye)
 
     for c in children.values():
-        c.start()
+        if c.wanted:
+            c.start()
     ctl_pos = 0
     try:
         while not quitting['v']:

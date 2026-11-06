@@ -2,6 +2,7 @@
 //
 // "DIRETOR DE TELA" — SÓ no ambiente LOCAL de desenvolvimento e SÓ dentro de um quadro da página /tres-telas. Recebe comandos (postMessage) da página-mãe e age no app como
 // uma pessoa: mostra um cursor que anda até o botão, faz o toque (ondinha), rola a página devagar, digita letra por letra e narra o que está fazendo numa etiqueta.
+// A "câmera" (zoom que acompanha a ação) mora na página-mãe: aqui só se avisa onde está a ação (postMessage `cam`).
 // Nada daqui existe em produção/staging: `isLocalDevOnly()` desliga tudo e o componente nem renderiza fora de um iframe.
 'use client'
 
@@ -20,6 +21,8 @@ export type DirCmd =
     | { op: 'text' }
     | { op: 'list' }
     | { op: 'caption'; text: string | null }
+    | { op: 'prep' }
+    | { op: 'devpos'; lat: number | null; lng: number | null }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const visible = (el: Element) => {
@@ -92,6 +95,8 @@ export default function ScreenDirector() {
         const moveTo = async (x: number, y: number) => {
             pos.current = { x, y }
             setCur((c) => ({ ...c, x, y }))
+            // "câmera": a página-mãe leva o zoom do quadro até onde está a ação (e volta ao normal sozinha quando para)
+            window.parent.postMessage({ dir: 'cam', x, y, z: 1.55 }, '*')
             await sleep(650)
         }
         const toEl = async (el: HTMLElement, noScroll?: boolean) => {
@@ -131,6 +136,20 @@ export default function ScreenDirector() {
                 switch (cmd.op) {
                     case 'goto': reply(id, true); window.location.assign(cmd.path); return
                     case 'caption': setCaption(cmd.text); return reply(id, true)
+                    // PREPARO: dispensa as avaliações ANTIGAS que já estavam pendentes (centenas, no banco de teste), para o roteiro começar limpo; as que chegarem depois aparecem e o roteiro as resolve
+                    // GPS DE TESTE: o motorista "está" nesse ponto (lido por lib/nativeGeolocation); null desliga
+                    case 'devpos': { if (cmd.lat == null || cmd.lng == null) localStorage.removeItem('iuser_dev_pos'); else localStorage.setItem('iuser_dev_pos', `${cmd.lat},${cmd.lng}`); return reply(id, true) }
+                    case 'prep': {
+                        const sb = (window as any).__supabase
+                        const { data: { user } } = await sb.auth.getUser()
+                        if (!user) return reply(id, true, 0)
+                        const merge = (key: string, ids: string[]) => { const cur: string[] = JSON.parse(localStorage.getItem(key) || '[]'); localStorage.setItem(key, JSON.stringify(Array.from(new Set([...cur, ...ids])))) }
+                        const { data: rides } = await sb.from('ride_requests').select('id').or(`requester_id.eq.${user.id},driver_id.eq.${user.id}`).eq('status', 'completed').limit(3000)
+                        const { data: orders } = await sb.from('orders').select('id').eq('buyer_id', user.id).limit(3000)
+                        merge('dismissed_ride_reviews', (rides || []).map((r: any) => r.id))
+                        merge('dismissed_reviews', (orders || []).map((o: any) => o.id))
+                        return reply(id, true, (rides || []).length + (orders || []).length)
+                    }
                     case 'text': return reply(id, true, (document.body.innerText || '').slice(0, 80000))
                     case 'list': {
                         const items = Array.from(document.querySelectorAll<HTMLElement>('button, a, [role=button], input, textarea, select')).filter(visible).map((el) => {

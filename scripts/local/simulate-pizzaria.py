@@ -18,6 +18,8 @@ mesma) atende:
     MESMO caminho do app (complete_ride). --manual-drivers dani deixa a Dani para a pessoa mexer na mão (/entregas). --employees volta aos motoboys da loja.
   - AVALIAÇÕES: depois da entrega a LOJA avalia o motorista iUser (ride_reviews) e o cliente avalia a compra (product_reviews). `--once rate` avalia de uma vez tudo que está pendente.
   Com --manual só chegam pedidos/agendamentos (nada é atendido): quem atende é a pessoa, pelo app. --no-couriers volta ao jeito antigo (pronto → entregue).
+  --theater (TEATRO DE 6 TELAS, página /tres-telas): a DONA da loja (conta admin-teste) e os motoristas de --manual-drivers (dani,leo,tito) agem pelas telas; os clientes seguem
+  chegando (pedidos, agendamentos e conversas) e o simulador só cuida do que não tem tela (os outros motoristas, o repasse, a avaliação da cliente em destaque).
 O simulador do ecossistema (simulate-ecosystem.py) NÃO mexe nessa loja.
 
   node scripts/local/seed-pizzaria.mjs                       # (uma vez) cria a loja, o cardápio e os serviços
@@ -70,7 +72,7 @@ COURIERS = []
 IUSER_DRIVERS = []
 DRV = {}   # estado em memória de cada motorista iUser (posição, quando saiu, quando entregou o último)
 EAGER = {'dani': 0.85, 'leo': 0.6, 'rafa': 0.75, 'tito': 0.45}   # disposição de cada um para aceitar uma entrega que aparece
-CFG = {'stage': False, 'stage_grace': 30.0, 'stage_speed': 5.0, 'mode': 'iuser', 'manual_drivers': [], 'couriers': True, 'bag': 6.0, 'max_stops': 5, 'reach': 3.5, 'wait': 45.0, 'load': 20.0, 'scale': 6.0, 'drive_kmh': 60.0, 'app': os.environ.get('APP_URL', 'http://localhost:3100')}
+CFG = {'theater': False, 'stage': False, 'stage_grace': 30.0, 'stage_speed': 5.0, 'mode': 'iuser', 'manual_drivers': [], 'couriers': True, 'bag': 6.0, 'max_stops': 5, 'reach': 3.5, 'wait': 45.0, 'load': 20.0, 'scale': 6.0, 'drive_kmh': 60.0, 'app': os.environ.get('APP_URL', 'http://localhost:3100')}
 FEATURED_EMAIL = 'cliente-007@staging.iuser.test'   # a cliente que a página /tres-telas acompanha (pede com frequência)
 FEATURED = None
 STORE_POS = (-8.7580, -63.8995)
@@ -843,6 +845,17 @@ def featured_order():
 
 def cycle_tick(speed):
     fns = [attend_orders, attend_appointments, attend_service_cycle, review_featured]
+    if CFG['theater']:
+        # TEATRO DE 6 TELAS: a dona atende pelas telas (nada de aceitar/preparar/responder aqui) e a loja é quem avalia o motorista (também pela tela)
+        fns = [review_featured]
+        if CFG['mode'] == 'iuser':
+            fns += [drivers_accept, drivers_run, settle_dues]
+        for fn in fns:
+            try:
+                fn(speed)
+            except Exception as e:  # noqa: BLE001
+                log(f"  ✗ {fn.__name__}: {str(e).splitlines()[0][:140]}")
+        return
     if CFG['mode'] == 'iuser':
         fns += [drivers_accept, drivers_run, rate_deliveries, settle_dues]
     elif CFG['couriers']:
@@ -890,13 +903,14 @@ def main():
     ap.add_argument('--featured-every', type=float, default=55.0, help='segundos entre um pedido e outro da cliente em destaque (cliente-007)')
     ap.add_argument('--employees', action='store_true', help='usa os motoboys da loja (tabela employees) em vez dos motoristas iUser')
     ap.add_argument('--manual-drivers', default='', help='motoristas iUser que NÃO são simulados (a pessoa mexe na mão em /entregas), ex.: dani,leo')
-    ap.add_argument('--stage', action='store_true', help='TEATRO: a Dani (motorista), a Gabriela (cliente) e o dono são conduzidos pelas telas de /tres-telas; o simulador não atende os pedidos dela nem a corrida da Dani')
+    ap.add_argument('--theater', action='store_true', help='TEATRO DE 6 TELAS: a dona (admin-teste) e os motoristas de --manual-drivers agem pelas telas de /tres-telas; clientes, agendamentos e conversas seguem chegando')
+    ap.add_argument('--stage', action='store_true', help='TEATRO (3 telas, antigo): a Dani (motorista), a Gabriela (cliente) e o dono são conduzidos pelas telas de /tres-telas; o simulador não atende os pedidos dela nem a corrida da Dani')
     ap.add_argument('--stage-speed', type=float, default=5.0, help='TEATRO: velocidade da Dani no mapa (5 = 5x a de uma moto na cidade)')
     ap.add_argument('--drive-kmh', type=float, default=60.0, help='velocidade dos motoristas iUser pelas ruas (km/h); menor = dá para acompanhar o trajeto inteiro no mapa')
     ap.add_argument('--no-couriers', action='store_true', help='sem motoboys: entrega vai direto de pronto para entregue')
     ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick', 'featured', 'rate'])
     a = ap.parse_args()
-    CFG.update(mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()] or (['*'] if a.stage else []), stage=a.stage, stage_speed=a.stage_speed, couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale, drive_kmh=a.drive_kmh)
+    CFG.update(theater=a.theater, mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()] or (['*'] if a.stage else []), stage=a.stage, stage_speed=a.stage_speed, couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale, drive_kmh=a.drive_kmh)
     load()
     if a.once:
         return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order, 'rate': lambda: (rate_everything(), review_featured())}[a.once])
@@ -914,7 +928,9 @@ def main():
         threading.Thread(target=mover_thread, args=(stop,), daemon=True).start()   # os motoristas andam pelas ruas, uma posição por segundo
     if a.stage:
         log('TEATRO ligado: os motoristas, a Gabriela e o dono agem pelas telas (/tres-telas); o simulador cuida do resto da cidade.')
-    if not a.manual:
+    if a.theater:
+        log(f"TEATRO DE 6 TELAS ligado: a dona e os motoristas ({', '.join(CFG['manual_drivers']) or 'nenhum'}) agem pelas telas (/tres-telas); os clientes seguem pedindo, agendando e conversando.")
+    if not a.manual or a.theater:
         loop(a.chat_every, customer_asks, stop)
         loop(5, lambda: cycle_tick(a.speed), stop)
     try:

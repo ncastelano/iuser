@@ -108,6 +108,24 @@ MANUAL_OWNERS = ('c86da741-189b-4eab-a347-08166081b31a',)
 MANUAL_SQL = ','.join(f"'{x}'" for x in MANUAL_OWNERS)
 # Motoristas que entregam para a Pizzaria Forno de Ouro (seed-entregadores.mjs) agem só pelo simulador da pizzaria; entrega de loja (order_id) também
 PIZZA_DRIVERS_SQL = "(select u.id from auth.users u where u.email like 'entregador-%@staging.iuser.test')"
+# Com o TEATRO ligado (página /tres-telas), quem conduz a motorista de corridas (Eva) e a dona da pizzaria (admin-teste, que também é motorista) são as TELAS: este simulador não mexe nelas.
+THEATER_SLUGS = ('rede-eva-administradora', 'admin-teste')
+_theater_cache = {'at': 0.0, 'on': False}
+
+
+def theater_drivers_sql():
+    """Lista (SQL) das contas que o Teatro conduz pelas telas; vazia quando o Teatro está desligado."""
+    now = time.time()
+    if now - _theater_cache['at'] > 5:
+        _theater_cache['at'] = now
+        try:
+            st = json.loads(open(os.path.expanduser('~/.iuser-sim/status.json')).read())
+            _theater_cache['on'] = '--theater' in (st.get('sims', {}).get('pizzaria', {}).get('args') or [])
+        except Exception:  # noqa: BLE001
+            _theater_cache['on'] = False
+    if not _theater_cache['on']:
+        return '(select id from profiles where false)'
+    return "(select id from profiles where \"profileSlug\" in (" + ','.join(f"'{x}'" for x in THEATER_SLUGS) + "))"
 
 
 # ---------------------------------------------------------------- ações das pessoas
@@ -491,6 +509,7 @@ def drive_rides():
     if pend:
         free = q_local(("""select dp.driver_id as id, p.name from driver_pricing dp join profiles p on p.id = dp.driver_id where dp.driver_mode_active and dp.driver_id not in (__R__)
             and dp.driver_id not in """ + PIZZA_DRIVERS_SQL + """
+            and dp.driver_id not in """ + theater_drivers_sql() + """
             and not exists (select 1 from ride_requests r where r.driver_id = dp.driver_id and r.status = 'accepted')
             and (select count(*) from ride_applications a where a.applicant_id = dp.driver_id and a.status = 'pending') < 2 order by random() limit 6""").replace('__R__', RESERVED_SQL))
         for d in free:
@@ -514,7 +533,7 @@ def drive_rides():
             log(f"  ✗ escolha de motorista falhou: {str(e).splitlines()[0][:110]}")
     # 3) corridas aceitas andam um passo por tick
     for r in q_local("""select id, driver_id, requester_id, destination_lat, destination_lng, driver_en_route, driver_arrived_at is not null as arrived, ride_started_at is not null as started
-        from ride_requests where status = 'accepted' and driver_id is not null and order_id is null"""):
+        from ride_requests where status = 'accepted' and driver_id is not null and order_id is null and driver_id not in """ + theater_drivers_sql()):
         did, rid = r['driver_id'], r['id']
         try:
             if not r['driver_en_route']:

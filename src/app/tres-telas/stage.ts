@@ -1,26 +1,32 @@
 // src/app/tres-telas/stage.ts — o "palco" da página /tres-telas (só LOCAL): fala com o ScreenDirector de cada quadro (postMessage) e roda os roteiros.
+// SEIS telas, cada uma uma pessoa e um papel: a dona da pizzaria, o motorista fixo dela, dois entregadores do iUser (de qualquer loja), a Helena (perfil + loja) e um motorista de corridas.
 import type { DirCmd, DirTarget } from '@/components/dev/ScreenDirector'
 
-export type Who = 'owner' | 'client' | 'driver'
+export type Who = 'owner' | 'fixed' | 'courier1' | 'courier2' | 'helena' | 'ride'
+export const WHO: Who[] = ['owner', 'fixed', 'courier1', 'courier2', 'helena', 'ride']
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 export const rnd = (a: number, b: number) => a + Math.random() * (b - a)
 export const pick = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)]
+const blank = <T,>(v: T) => Object.fromEntries(WHO.map((w) => [w, v])) as Record<Who, T>
 
 export class Stage {
-    frames: Record<Who, HTMLIFrameElement | null> = { owner: null, client: null, driver: null }
-    ready: Record<Who, { path: string; at: number } | null> = { owner: null, client: null, driver: null }
+    frames: Record<Who, HTMLIFrameElement | null> = blank<HTMLIFrameElement | null>(null)
+    ready: Record<Who, { path: string; at: number } | null> = blank<{ path: string; at: number } | null>(null)
     private pend = new Map<number, { ok: (v: any) => void; err: (e: Error) => void }>()
     private seq = 1
     stopped = false
     gen = 0   // cada vez que o teatro liga, uma nova "geração" de roteiros; as antigas se encerram sozinhas
     onLog: (who: Who, msg: string) => void = () => {}
+    /** a "câmera": o diretor de um quadro avisa onde está a ação (x, y dentro do quadro) e a página leva o zoom até lá */
+    onCam: (who: Who, x: number, y: number, z: number) => void = () => {}
 
     private onMessage = (e: MessageEvent) => {
         const d = e.data
         if (!d || !d.dir) return
-        const who = (Object.keys(this.frames) as Who[]).find((k) => this.frames[k]?.contentWindow === e.source)
+        const who = WHO.find((k) => this.frames[k]?.contentWindow === e.source)
         if (!who) return
         if (d.dir === 'ready') this.ready[who] = { path: d.path, at: Date.now() }
+        if (d.dir === 'cam') this.onCam(who, Number(d.x) || 0, Number(d.y) || 0, Number(d.z) || 1)
         if (d.dir === 'res') {
             const p = this.pend.get(d.id)
             if (!p) return
@@ -60,6 +66,10 @@ export class Stage {
     type(who: Who, target: DirTarget, text: string) { return this.call(who, { op: 'type', target, text }, 20000 + text.length * 250) }
     scroll(who: Who, by: number, ms = 1000) { return this.call(who, { op: 'scroll', by, ms }) }
     has(who: Who, target: DirTarget) { return this.call(who, { op: 'has', target }) as Promise<boolean> }
+    /** dispensa as avaliações antigas pendentes (só as que já existem) e recarrega a tela */
+    async prep(who: Who) { const n = await this.soft(who, { op: 'prep' }); if (n) await this.goto(who, this.where(who) || '/') }
+    /** GPS de teste (só local): o motorista "está" nesse ponto */
+    devpos(who: Who, lat: number | null, lng: number | null) { return this.soft(who, { op: 'devpos', lat, lng }) }
     caption(who: Who, text: string | null) { return this.soft(who, { op: 'caption', text }) }
     text(who: Who) { return this.call(who, { op: 'text' }) as Promise<string> }
     where(who: Who) { return this.ready[who]?.path || '' }
