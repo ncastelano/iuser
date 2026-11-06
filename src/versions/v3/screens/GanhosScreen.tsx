@@ -12,6 +12,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import { brlFromCents, loadMonthEarnings, recentCompleted, rideCents, rideMoment, summarize, type EarningPeriod, type EarningRow } from '@/modules/earnings'
 import { Shimmer } from '@/components/Skeleton'
+import Header from '@/components/Header'
 
 const PERIODS: { key: EarningPeriod; label: string; title: string }[] = [
     { key: 'day', label: 'Hoje', title: 'Ganhos de hoje' },
@@ -38,20 +39,26 @@ export default function GanhosScreen() {
     const recent = useMemo(() => (rows ? recentCompleted(rows, 10) : []), [rows])
     const cur = PERIODS.find((p) => p.key === period)!
     const bucket = summary?.[period]
+    // Voltar: de onde a pessoa veio (o atalho do painel, a barra do motorista...); sem histórico, o painel do motorista
+    const goBack = () => { if (typeof window !== 'undefined' && window.history.length > 1) router.back(); else router.push('/painel-motorista') }
     const card = { background: colors.background, border: `1px solid ${colors.border}`, boxShadow: '0 4px 14px rgba(0,0,0,0.07)' } as const
 
     if (!loading && !userId) {
         return (
+            <div className="space-y-3">
+            <Header title="Ganhos" showBack onBack={goBack} />
             <div className="rounded-3xl p-8 text-center flex flex-col items-center gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                 <Wallet size={34} style={{ color: '#f97316' }} />
                 <p className="text-base font-black">Entre na sua conta para ver seus ganhos</p>
                 <Link href="/login" className="text-xs font-black underline" style={{ color: colors.accent }}>Entrar</Link>
+            </div>
             </div>
         )
     }
 
     return (
         <div className="pb-8 space-y-3">
+            <Header title="Ganhos" showBack onBack={goBack} />
             <div className="flex gap-2 pt-2">
                 {PERIODS.map((p) => (
                     <button key={p.key} onClick={() => setPeriod(p.key)} className="flex-1 h-10 rounded-full text-xs font-black active:scale-95 transition"
