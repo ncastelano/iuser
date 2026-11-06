@@ -11,6 +11,7 @@ import { ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, type VehicleKind 
 import { computeRideTariffs, type RideTariffSource } from '@/lib/rideTariffs'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { NewRideAlertCard } from '@/components/NewRideAlertCard'
+import { isAlertRedundant } from '@/lib/alertSuppression'
 
 // Global, montado em providers.tsx: com o modo motorista ligado, toca o som e
 // avisa (toast com atalho) quando um pedido de corrida novo entra, em QUALQUER
@@ -50,7 +51,7 @@ export function DriverRideAlertListener() {
                     if (ride.requester_id === userId) return
                     if (ride.status && ride.status !== 'pending') return
                     if (ride.vehicle_type && !rideAcceptsAnyVehicle(ride.vehicle_type) && !acceptableVehicleTypes.has(ride.vehicle_type)) return
-                    if (pathRef.current?.startsWith('/aceitar-corridas') || pathRef.current?.startsWith('/entregas')) return   // as duas páginas já mostram as corridas/entregas abertas
+                    if (isAlertRedundant('new_ride', pathRef.current)) return   // a página já mostra as corridas/entregas abertas (lib/alertSuppression)
                     if (pricing.alert_sound_enabled !== false) playNotificationSound('new_ride')
                     const short = (a?: string) => (a || '').split(',')[0]
                     const description = ride.origin_address ? `${short(ride.origin_address)} → ${short(ride.destination_address)}` : undefined

@@ -88,6 +88,22 @@ self.addEventListener('push', (event) => {
     )
     return
   }
+  // Corrida nova com o app aberto e visível numa página que JÁ MOSTRA as corridas/entregas: a lista está na tela, o aparelho não repete.
+  // (mesmos prefixos de src/lib/alertSuppression.ts, ALERT_SEEN_ON.new_ride — `npm run test:alert-suppression` confere)
+  if (data.rideAlert) {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        const watching = clientList.some((c) => {
+          try {
+            const p = new URL(c.url).pathname
+            return c.visibilityState === 'visible' && ['/aceitar-corridas', '/entregas'].some((x) => p === x || p.startsWith(x + '/'))
+          } catch (e) { return false }
+        })
+        return watching ? undefined : showPushNotification(data)
+      })
+    )
+    return
+  }
   event.waitUntil(showPushNotification(data))
 })
 

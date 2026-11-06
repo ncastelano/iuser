@@ -10,6 +10,7 @@ import { useState, type ReactNode } from 'react'
 import { ArrowRight, Bike, Car, ChevronDown, Clock, Flame, TrendingUp, Truck, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import SlideToConfirm from '@/components/SlideToConfirm'
 import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs } from '@/lib/rideSpecs'
 import type { VehicleType } from '@/lib/rideVehicle'
@@ -72,9 +73,16 @@ interface RideSummaryCardProps {
     onOpenChange?: (open: boolean) => void
     /** faixa extra no topo (ex.: "Chamou você") */
     topBadge?: ReactNode
+    /** candidatar DESLIZANDO (/aceitar-corridas): no lugar do botão grande aparece o deslizar, que se candidata pelo valor do card; "Detalhes" é só para ver melhor */
+    onApply?: () => void | Promise<void>
+    applying?: boolean
+    /** por que não dá para se candidatar agora (ex.: valor ainda aproximado): aparece no lugar do deslizar */
+    applyBlocked?: string | null
+    /** o dedo está no deslizar (a página trava a ordem da lista enquanto isso, para o card não trocar debaixo do dedo) */
+    onInteract?: (active: boolean) => void
 }
 
-export function RideSummaryCard({ ride, requester, price, approx = false, reference, fromPassenger, totalMin, toPickup, trip, thumb, onOpen, details, ctaLabel = 'Ver corrida e me candidatar', open: openProp, onOpenChange, topBadge }: RideSummaryCardProps) {
+export function RideSummaryCard({ ride, requester, price, approx = false, reference, fromPassenger, totalMin, toPickup, trip, thumb, onOpen, details, ctaLabel = 'Ver corrida e me candidatar', open: openProp, onOpenChange, topBadge, onApply, applying = false, applyBlocked = null, onInteract }: RideSummaryCardProps) {
     const { colors } = useTheme()
     const [openOwn, setOpenOwn] = useState(false)
     const open = openProp ?? openOwn
@@ -149,9 +157,13 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                     </p>
                 )}
 
-                <button onClick={onOpen} className="h-12 rounded-full text-white text-[14px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition" style={{ background: hot ? GRADIENT : ORANGE }}>
-                    {ctaLabel} <ArrowRight size={17} />
-                </button>
+                {onApply ? (
+                    <SlideToConfirm label={`Deslize para se candidatar · ${brl(price)}`} ariaLabel={`Candidatar por ${brl(price)}`} busy={applying} blocked={applyBlocked} onConfirm={onApply} onDragChange={onInteract} />
+                ) : (
+                    <button onClick={onOpen} className="h-12 rounded-full text-white text-[14px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition" style={{ background: hot ? GRADIENT : ORANGE }}>
+                        {ctaLabel} <ArrowRight size={17} />
+                    </button>
+                )}
 
                 <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex items-center justify-center gap-1 text-[12px] font-bold py-0.5" style={{ color: colors.textSecondary }}>
                     {open ? 'Esconder detalhes' : 'Detalhes'} <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />

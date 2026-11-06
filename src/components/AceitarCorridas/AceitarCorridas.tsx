@@ -318,6 +318,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const [highlightRideId, setHighlightRideId] = useState<string | null>(null)
     // qual card está com o "Detalhes" aberto (o botão grande do card abre; o link da home também)
     const [expandedRideId, setExpandedRideId] = useState<string | null>(null)
+    // o dedo está no "deslizar para se candidatar" de um card: a lista também não reordena enquanto isso
+    const [slidingRideId, setSlidingRideId] = useState<string | null>(null)
     const focusedRef = useRef(false)
     const { userId: contextUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
@@ -777,15 +779,12 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             }
         })
 
-        // Corrida nova desde a última leitura: toca o alerta (se o motorista
-        // não silenciou em /painel-motorista). A primeira leitura só marca o
-        // que já existia, sem tocar.
+        // Corrida nova desde a última leitura: toca o som (se o motorista não silenciou em /painel-motorista). A primeira leitura só marca o
+        // que já existia, sem tocar. SEM aviso escrito: a corrida nova aparece na própria lista, que a pessoa está vendo (e, fora dela, o
+        // aviso global `DriverRideAlertListener` cuida — ver lib/alertSuppression).
         const newIds = cards.filter((c) => !knownRideIdsRef.current.has(c.id))
         if (knownRideIdsRef.current.size > 0 || firstLoadDoneRef.current) {
-            if (newIds.length > 0) {
-                if (alertSoundRef.current) playRideAlertSound()
-                toast.info(newIds.length === 1 ? 'Nova corrida disponível!' : `${newIds.length} novas corridas disponíveis!`)
-            }
+            if (newIds.length > 0 && alertSoundRef.current) playRideAlertSound()
         }
         knownRideIdsRef.current = new Set(cards.map((c) => c.id))
         firstLoadDoneRef.current = true
@@ -1086,7 +1085,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const orderCards = (list: { id: string; rank: number; node: ReactNode }[]): ReactNode[] => {
         const byRank = [...list].sort((a, b) => b.rank - a.rank)
         let ordered = byRank
-        if (expandedRideId) {
+        if (expandedRideId || slidingRideId) {
             // trava a ordem que a pessoa estava vendo quando abriu; corrida nova entra no FIM, a que sumiu sai
             if (!frozenOrderRef.current) frozenOrderRef.current = lastOrderRef.current
             const frozen = frozenOrderRef.current
@@ -1471,6 +1470,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             <main className={embedded ? '' : 'relative z-10 min-h-dvh'}>
                 {!embedded && (
                     <Header
+                        pinned
                         title="Aceitar corrida"
                         showBack={true}
                         onBack={() => router.back()}
@@ -1665,7 +1665,10 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                                         Chamou você
                                                     </span>
                                                 ) : undefined}
-                                                ctaLabel="Ver detalhes e me candidatar"
+                                                onApply={() => applyToRide(ride, price)}
+                                                applying={applyingId === ride.id}
+                                                onInteract={(on) => setSlidingRideId(on ? ride.id : null)}
+                                                applyBlocked={!fromPassenger && rq.shownKind === 'platform' && pickup.state !== 'ready' ? 'Libere sua localização para ver o valor e se candidatar' : null}
                                                 open={expandedRideId === ride.id}
                                                 onOpenChange={(o) => setExpandedRideId(o ? ride.id : null)}
                                                 onOpen={() => setExpandedRideId(ride.id)}
