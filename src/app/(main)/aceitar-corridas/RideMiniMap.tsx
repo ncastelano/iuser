@@ -46,6 +46,16 @@ function encodePolyline(coords: [number, number][]): string {
     return output
 }
 
+/** diagonal (graus) da caixa que contém os pontos: serve só para comparar tamanhos */
+function bboxDiag(pts: [number, number][]): number {
+    if (pts.length === 0) return 0
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const [x, y] of pts) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y) }
+    return Math.hypot(maxX - minX, maxY - minY)
+}
+/** o trecho do motorista só entra na imagem se não "afastar" o mapa a ponto de a corrida virar um risco */
+const DRIVER_FRAME_MAX_RATIO = 2.2
+
 interface RideMiniMapProps {
     originLng: number
     originLat: number
@@ -73,6 +83,7 @@ export const MAP_TRANSITION_KEY = 'iuser-map-transition'
 export default function RideMiniMap({ originLng, originLat, destLng, destLat, stops = [], driverLng, driverLat, onExpand, onInfo, compact = false, transition = true, thumb = false }: RideMiniMapProps) {
     const { colors } = useTheme()
     const [overlayStr, setOverlayStr] = useState<string | null>(null)
+    const [driverShown, setDriverShown] = useState(false)
     // tamanho real do quadro: a imagem é pedida NA MESMA proporção, senão o object-cover corta o trajeto
     const [box, setBox] = useState<{ w: number; h: number } | null>(null)
     const [failed, setFailed] = useState(false)
@@ -132,15 +143,18 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
             const overlays: string[] = []
             let nextToPickupKm: number | null = null
             let nextToPickupMin: number | null = null
+            let driverOverlay: string | null = null
+            let driverCoords: [number, number][] = []
 
             if (hasDriver) {
                 const leg = await fetchRoute([driverLng as number, driverLat as number], [originLng, originLat])
                 nextToPickupKm = leg.distanceKm
                 nextToPickupMin = leg.durationMin
+                driverCoords = leg.coords
                 // Desloca as duas pernas pra lados opostos: se o motorista tiver
                 // que ir e voltar pelo mesmo trecho de rua, as duas cores ficam
                 // lado a lado no mapa em vez de uma cobrir a outra.
-                overlays.push(`path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(offsetPolyline(leg.coords, 5)))})`)
+                driverOverlay = `path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(offsetPolyline(leg.coords, 5)))})`
             }
 
             // Com paradas, soma cada perna (partida→parada1→parada2→chegada)
@@ -152,15 +166,24 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
                 distanceKm: legs.reduce((sum, leg) => sum + leg.distanceKm, 0),
                 durationMin: legs.reduce((sum, leg) => sum + leg.durationMin, 0),
             }
+
+            // ENQUADRAMENTO: o foco é a corrida. Motorista longe (ex.: 12 km até buscar numa corrida de 2 km) afastaria o mapa
+            // até a corrida virar um risco; nesse caso o trecho dele fica fora da imagem (os km/min dele seguem no card).
+            const tripDiag = bboxDiag([...trip.coords, [originLng, originLat], [destLng, destLat]])
+            const withDriverDiag = bboxDiag([...trip.coords, ...driverCoords, [originLng, originLat], [destLng, destLat], [driverLng as number, driverLat as number]])
+            const showDriver = hasDriver && driverOverlay !== null && tripDiag > 0 && withDriverDiag <= tripDiag * DRIVER_FRAME_MAX_RATIO
+
+            if (showDriver && driverOverlay) overlays.push(driverOverlay)
             overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(offsetPolyline(trip.coords, -5)))})`)
 
-            if (hasDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
+            if (showDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
             overlays.push(`pin-s+22c55e(${originLng},${originLat})`)
             for (const s of stops) overlays.push(`pin-s+${STOP_COLOR}(${s.lng},${s.lat})`)
             overlays.push(`pin-s+ef4444(${destLng},${destLat})`)
 
             if (!cancelled) {
                 setOverlayStr(overlays.join(','))
+                setDriverShown(showDriver)
                 setToPickupKm(nextToPickupKm)
                 setToPickupMin(nextToPickupMin)
                 setTripKm(trip.distanceKm)
@@ -228,7 +251,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
             </div>
             {!compact && (<>
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                {hasDriver && (
+                {driverShown && (
                     <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: `#${TO_PICKUP_COLOR}` }} />
                         Você
