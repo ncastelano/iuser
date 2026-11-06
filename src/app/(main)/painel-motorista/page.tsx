@@ -29,6 +29,7 @@ import { callAdminApi } from '@/lib/callAdminApi'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useInsideShell } from '@/components/InsideShell'
 import DriverPanelHome from '@/components/v3/DriverPanelHome'
+import { announceDriverMode } from '@/lib/driverMode'
 import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
@@ -677,6 +678,7 @@ function PainelMotoristaContent() {
             if (error) throw error
 
             setDriverModeActive(next)
+            announceDriverMode(next)   // o aviso de corrida nova liga/desliga na hora (e os cartões abertos saem ao desligar)
             if (next) {
                 toast.success('Modo motorista ligado!')
                 sendFirstDriverPosition(user.id)
@@ -809,7 +811,7 @@ function PainelMotoristaContent() {
             { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
             ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
             { id: 'entregas', label: 'Entregas', icon: Bike, isActive: false, onClick: () => router.push('/entregas'), badge: null },
-            { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: rideSummary.rides + rideSummary.deliveries > 0 ? { count: rideSummary.rides + rideSummary.deliveries } : null },
+            { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides + rideSummary.deliveries > 0 ? { count: rideSummary.rides + rideSummary.deliveries } : null },
             // "Me candidatei" só aparece quando tem algo nela (candidatura pendente) ou há corrida aceita.
             ...(rideSummary.candidacies > 0 || rideSummary.hasAccepted ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null }] : []),
             {
@@ -886,6 +888,7 @@ function PainelMotoristaContent() {
                                     hasAccepted={rideSummary.hasAccepted}
                                     goTab={setActiveTab}
                                     onDeliveries={() => router.push('/entregas')}
+                                    onEarnings={() => router.push('/ganhos')}
                                     vehicleLabel={carModel.trim() ? `${VEHICLE_KIND_LABELS[vehicleKind]} · ${carModel.trim()}${carPlate.trim() ? ` · ${carPlate.trim().toUpperCase()}` : ''}` : null}
                                     vehicles={(Object.entries(vehiclesByKind) as [VehicleKind, VehicleRow][])
                                         .filter(([, v]) => v?.car_model?.trim())

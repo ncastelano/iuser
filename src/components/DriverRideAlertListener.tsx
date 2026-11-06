@@ -1,7 +1,7 @@
 // components/DriverRideAlertListener.tsx
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
@@ -14,6 +14,7 @@ import { haversineKm } from '@/lib/mapboxRoute'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { NewRideAlertCard, type AlertOption } from '@/components/NewRideAlertCard'
 import { isAlertRedundant } from '@/lib/alertSuppression'
+import { onDriverMode } from '@/lib/driverMode'
 import { effectiveTimeRate, loadDefaultMinHourly, loadEarningGoal, loadMinRideFare, loadRideMinimum, platformFloor, round2, timeFare } from '@/modules/negotiation'
 
 const rideKindOf = (ride: { vehicle_type?: string | null }) => kindForRideType((ride.vehicle_type as VehicleType) || 'carro')
@@ -28,6 +29,13 @@ export function DriverRideAlertListener() {
     const router = useRouter()
     const pathRef = useRef(pathname)
     pathRef.current = pathname
+    // cartões que já estão na tela: ao desligar o modo motorista eles saem; ligar/desligar refaz a escuta na hora
+    const shownRef = useRef<(string | number)[]>([])
+    const [modeTick, setModeTick] = useState(0)
+    useEffect(() => onDriverMode((active) => {
+        if (!active) { shownRef.current.forEach((id) => toast.dismiss(id)); shownRef.current = [] }
+        setModeTick((n) => n + 1)
+    }), [])
 
     useEffect(() => {
         if (!userId) return
@@ -53,12 +61,15 @@ export function DriverRideAlertListener() {
 
             channel = supabase
                 .channel(`driver-new-ride-alert-${userId}`)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_offers' }, (payload) => {
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_offers' }, async (payload) => {
                     const ride = payload.new as RideTariffSource & { id: string; requester_id?: string; status?: string; origin_address?: string; destination_address?: string; offered_price?: number | null }
                     if (ride.requester_id === userId) return
                     if (ride.status && ride.status !== 'pending') return
                     if (ride.vehicle_type && !rideAcceptsAnyVehicle(ride.vehicle_type) && !acceptableVehicleTypes.has(ride.vehicle_type)) return
                     if (isAlertRedundant('new_ride', pathRef.current)) return   // a página já mostra as corridas/entregas abertas (lib/alertSuppression)
+                    // MODO MOTORISTA DESLIGADO = nenhum aviso: confere de novo AGORA (a escuta pode ter sido montada com o modo ligado e a pessoa desligar depois, em outro aparelho ou aba)
+                    const { data: modeNow } = await supabase.from('driver_pricing').select('driver_mode_active').eq('driver_id', userId).maybeSingle()
+                    if (cancelled || !modeNow?.driver_mode_active) return
                     if (pricing.alert_sound_enabled !== false) playNotificationSound('new_ride')
                     const short = (a?: string) => (a || '').split(',')[0]
                     const description = ride.origin_address ? `${short(ride.origin_address)} → ${short(ride.destination_address)}` : undefined
@@ -88,7 +99,7 @@ export function DriverRideAlertListener() {
                         ...(customPrice != null ? [{ key: 'km' as const, label: 'Por km', value: customPrice, tag: 'sua tarifa' }] : []),
                         ...(timePrice != null ? [{ key: 'time' as const, label: 'Por tempo', value: timePrice, tag: ownRate ? 'sua tarifa' : 'padrão iUser' }] : []),
                     ]
-                    toast.custom((toastId) => (
+                    const shownId = toast.custom((toastId) => (
                         <NewRideAlertCard
                             rideId={ride.id}
                             originAddress={ride.origin_address}
@@ -105,6 +116,7 @@ export function DriverRideAlertListener() {
                             onDetails={() => { toast.dismiss(toastId); router.push(`/aceitar-corridas?ride=${ride.id}`) }}
                         />
                     ), { duration: 30000, title: 'Nova corrida disponível!', icon: '🚗' })
+                    shownRef.current = [...shownRef.current.slice(-4), shownId]
 
                     // Além do toast (só existe enquanto o app está aberto), dispara
                     // também a notificação na barra do sistema na hora, direto pelo
@@ -134,7 +146,7 @@ export function DriverRideAlertListener() {
             cancelled = true
             if (channel) supabase.removeChannel(channel)
         }
-    }, [userId, router, pathname])
+    }, [userId, router, pathname, modeTick])
 
     return null
 }
