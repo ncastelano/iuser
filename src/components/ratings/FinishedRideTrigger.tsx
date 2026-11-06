@@ -31,6 +31,9 @@ export function FinishedRideTrigger() {
             .select('id, requester_id, driver_id, order_id')
             .or(`requester_id.eq.${userId},driver_id.eq.${userId}`)
             .eq('status', 'completed')
+            // só as mais recentes: a API devolve no máximo 1.000 linhas, e quem tem muito histórico via corridas já avaliadas como "pendentes"
+            .order('created_at', { ascending: false })
+            .limit(300)
 
         if (!completedRides || completedRides.length === 0) {
             setPending([])
@@ -38,12 +41,19 @@ export function FinishedRideTrigger() {
             return
         }
 
-        const { data: myReviews } = await supabase
-            .from('ride_reviews')
-            .select('ride_request_id')
-            .eq('reviewer_id', userId)
+        // avaliações só dessas corridas (e não "todas as minhas": passa de 1.000 linhas e o corte da API deixava corrida avaliada como pendente)
+        const myReviews: { ride_request_id: string }[] = []
+        const rideIds = completedRides.map((r) => r.id)
+        for (let i = 0; i < rideIds.length; i += 150) {
+            const { data } = await supabase
+                .from('ride_reviews')
+                .select('ride_request_id')
+                .eq('reviewer_id', userId)
+                .in('ride_request_id', rideIds.slice(i, i + 150))
+            if (data) myReviews.push(...data)
+        }
 
-        const reviewedIds = new Set((myReviews || []).map((r) => r.ride_request_id))
+        const reviewedIds = new Set(myReviews.map((r) => r.ride_request_id))
         const dismissedIds = new Set(JSON.parse(localStorage.getItem('dismissed_ride_reviews') || '[]'))
 
         // Entrega de pedido de loja: quem avalia é o cliente (a compra); o motorista não é chamado a avaliar a cada entrega da central de entregas
