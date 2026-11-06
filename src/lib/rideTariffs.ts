@@ -7,6 +7,7 @@
 import {
     computeSuggestedPrice,
     computeConditionExtras,
+    computeRideExtras,
     getCustomPricing,
     PLATFORM_DEFAULT_PRICING_BY_VEHICLE,
     type DriverPricing,
@@ -35,7 +36,7 @@ export interface RideTariffSource {
 // preferredPrice: o valor do plano que o motorista escolheu (pricing_mode) —
 // "Minha tarifa" só se ele estiver nela, senão a Tarifa iUser, mesmo que ele
 // ainda tenha valores próprios salvos de antes.
-export function computeRideTariffs(ride: RideTariffSource, pricing: DriverPricingRow): { platformPrice: number; customPrice: number | null; preferredPrice: number; customShape: DriverPricing | null; useCustom: boolean } {
+export function computeRideTariffs(ride: RideTariffSource, pricing: DriverPricingRow): { platformPrice: number; customPrice: number | null; preferredPrice: number; customShape: DriverPricing | null; useCustom: boolean; timeRate: number | null; timeExtras: number } {
     const rideKind = kindForRideType(ride.vehicle_type || 'carro')
     const rideType: RideRequestType = ride.ride_type || 'pessoa'
     const flags: RideConditionFlags = {
@@ -63,5 +64,7 @@ export function computeRideTariffs(ride: RideTariffSource, pricing: DriverPricin
         preferredPrice: pricing.pricing_mode === 'custom' && customPrice != null ? customPrice : platformPrice,
         customShape,
         useCustom: pricing.pricing_mode === 'custom' && customPrice != null,
+        timeRate: customShape?.pricePerMinute ?? null,
+        timeExtras: customShape ? computeRideExtras(rideType, flags, customShape) : 0,
     }
 }

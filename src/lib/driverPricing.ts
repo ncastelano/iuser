@@ -28,6 +28,8 @@ export interface DriverPricing {
     pricePerKmAfterBase: number
     extraFees: DriverExtraFees
     conditionExtraFees: DriverConditionExtraFees
+    /** "Minha tarifa por tempo": R$ por minuto de trabalho (ir buscar + corrida). null/ausente = o motorista não definiu (só a tarifa própria dele tem; a da plataforma não) */
+    pricePerMinute?: number | null
 }
 
 // Flags da corrida que podem gerar cobrança extra por condição — um
@@ -102,6 +104,7 @@ export interface DriverPricingRow {
     base_distance_km: number | null
     base_fee: number | null
     price_per_km_after_base: number | null
+    price_per_minute?: number | null
     extra_fee_pessoa?: number | null
     extra_fee_animal?: number | null
     extra_fee_objeto?: number | null
@@ -124,6 +127,7 @@ export function getEffectivePricing(row: DriverPricingRow, vehicleKind: VehicleK
         baseDistanceKm: row.base_distance_km ?? platformDefault.baseDistanceKm,
         baseFee: row.base_fee ?? platformDefault.baseFee,
         pricePerKmAfterBase: row.price_per_km_after_base ?? platformDefault.pricePerKmAfterBase,
+        pricePerMinute: row.price_per_minute ?? null,
         extraFees: {
             pessoa: row.extra_fee_pessoa ?? PLATFORM_DEFAULT_EXTRA_FEES.pessoa,
             animal: row.extra_fee_animal ?? PLATFORM_DEFAULT_EXTRA_FEES.animal,
@@ -158,6 +162,13 @@ export function computeConditionExtras(ride: RideConditionFlags, fees: DriverCon
     if (ride.delivery_location && ride.delivery_location !== 'portaria') total += fees.entrega_interna
     if (ride.wants_air_conditioning) total += fees.ar_condicionado
     return total
+}
+
+// Os extras da corrida (tipo: animal/objeto... + condições marcadas no pedido), os mesmos nas tarifas por km e por tempo.
+export function computeRideExtras(rideType: RideRequestType | undefined, ride: RideConditionFlags | undefined, pricing: DriverPricing): number {
+    const rideTypeExtra = rideType ? pricing.extraFees[rideType] : 0
+    const conditionExtra = ride ? computeConditionExtras(ride, pricing.conditionExtraFees) : 0
+    return rideTypeExtra + conditionExtra
 }
 
 // rideType e ride são opcionais pra permitir uma prévia genérica (sem

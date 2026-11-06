@@ -1,7 +1,7 @@
 // Testes das regras puras da negociação de corridas (src/modules/negotiation/domain.ts). Rodar: npm run test:negotiation
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText, rideValuation, valuationRank, fareParts } from '../src/modules/negotiation/domain.ts'
+import { validateAmount, parseMoney, totalMinutes, perHour, hourlyFloor, suggestedFare, belowMinimum, belowMinimumText, parseHourlyCheck, quickValues, midpoint, offerFromRow, secondsLeft, isExpired, clock, currentOffer, whoMustRespond, roundsLeft, negotiationError, platformFloor, belowPlatformFloor, platformFloorText, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, minPerMinuteProblem, capProblem, fareDriver, fareDriverText, rideValuation, valuationRank, fareParts, timeFare } from '../src/modules/negotiation/domain.ts'
 
 test('valor válido: positivo e até R$ 100.000', () => {
     assert.equal(validateAmount(12.5), null)
@@ -160,4 +160,14 @@ test('valor de cada trecho: ir buscar + a corrida = o total, sempre', () => {
     assert.deepEqual(fareParts(19.55, 0), { pickup: null, trip: 19.55, total: 19.55 })
     assert.deepEqual(fareParts(5, 8), { pickup: 5, trip: 0, total: 5 })                         // nunca negativo
     assert.deepEqual(fareParts(null, 3), { pickup: null, trip: null, total: null })
+})
+
+test('Minha tarifa por tempo: minutos de trabalho × valor por minuto do motorista + extras; sem valor definido ou sem minutos não há', () => {
+    assert.equal(timeFare(37, 1), 37)                       // 37 min × R$ 1,00
+    assert.equal(timeFare(37, 1.2, 3), 47.4)                // + R$ 3,00 de extras (animal, condomínio...)
+    assert.equal(timeFare(38, 0.8), 30.4)                   // = o mínimo da plataforma por minuto
+    assert.equal(timeFare(10.5, 0.9), 9.45)
+    assert.equal(timeFare(37, 0), null); assert.equal(timeFare(37, null), null); assert.equal(timeFare(37, undefined), null)
+    assert.equal(timeFare(null, 1), null); assert.equal(timeFare(0, 1), null); assert.equal(timeFare(-5, 1), null)
+    assert.equal(timeFare(10, 1, -4), 10)                   // extra negativo nunca desconta
 })

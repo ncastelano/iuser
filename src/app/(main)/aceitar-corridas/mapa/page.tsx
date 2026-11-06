@@ -172,6 +172,8 @@ interface OfferData {
     customPrice: number | null
     customShape: DriverPricing | null
     useCustom: boolean
+    timeRate: number | null
+    timeExtras: number
 }
 
 const SHEET_MIN_VH = 22
@@ -328,14 +330,14 @@ function AceitarCorridasMapaContent() {
                 r.requester_id ? getProfileRideRatingsBatch(supabase, [r.requester_id]) : Promise.resolve(new Map()),
                 supabase
                     .from('driver_pricing')
-                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado')
+                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado')
                     .eq('driver_id', userId)
                     .maybeSingle(),
                 r.store_id ? supabase.from('stores').select('name').eq('id', r.store_id).maybeSingle() : Promise.resolve({ data: null }),
             ])
             if (cancelled) return
             await loadPlatformTariffs(supabase)
-            const { platformPrice, customPrice, customShape, useCustom } = computeRideTariffs(
+            const { platformPrice, customPrice, customShape, useCustom, timeRate, timeExtras } = computeRideTariffs(
                 r as Parameters<typeof computeRideTariffs>[0],
                 (pricing ? pricing : { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }) as Parameters<typeof computeRideTariffs>[1]
             )
@@ -353,6 +355,8 @@ function AceitarCorridasMapaContent() {
                 customPrice,
                 customShape,
                 useCustom,
+                timeRate,
+                timeExtras,
             })
         })()
         return () => { cancelled = true }
@@ -883,6 +887,8 @@ function AceitarCorridasMapaContent() {
                                 pickup={pickupFee}
                                 customPrice={offer.customPrice}
                                 valueFromOwn={offer.useCustom}
+                                timeRate={offer.timeRate}
+                                timeExtras={offer.timeExtras}
                                 customPickup={offer.ride.offered_price == null && offer.customShape && pickupFee.state === 'ready' ? computePickupFee(offer.customShape, pickupFee.km) : 0}
                                 toPickup={{ km: routeKm, min: routeMin, hasGps: !!driverCoords }}
                                 trip={{ km: shownTripKm, min: shownTripMin }}

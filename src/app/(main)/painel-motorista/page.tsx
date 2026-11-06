@@ -103,6 +103,8 @@ function PainelMotoristaContent() {
     const [baseDistanceKm, setBaseDistanceKm] = useState('5')
     const [baseFee, setBaseFee] = useState('7')
     const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
+    // "Minha tarifa por tempo": R$ por minuto de trabalho (ir buscar + corrida). Vazio = não definida.
+    const [pricePerMinute, setPricePerMinute] = useState('')
     // A tarifa da plataforma vem do banco (Admin → Tarifas); isso força o redesenho quando ela chega
     const [tariffsVersion, setTariffsVersion] = useState(0)
     const [extraFeePessoa, setExtraFeePessoa] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.pessoa))
@@ -266,7 +268,7 @@ function PainelMotoristaContent() {
 
         const { data } = await supabase
             .from('driver_pricing')
-            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
             .eq('driver_id', userId)
             .maybeSingle()
 
@@ -276,6 +278,7 @@ function PainelMotoristaContent() {
             if (data.base_distance_km != null) setBaseDistanceKm(String(data.base_distance_km))
             if (data.base_fee != null) setBaseFee(String(data.base_fee))
             if (data.price_per_km_after_base != null) setPricePerKmAfterBase(String(data.price_per_km_after_base))
+            if (data.price_per_minute != null) setPricePerMinute(String(data.price_per_minute))
             if (data.extra_fee_pessoa != null) setExtraFeePessoa(String(data.extra_fee_pessoa))
             if (data.extra_fee_animal != null) setExtraFeeAnimal(String(data.extra_fee_animal))
             if (data.extra_fee_objeto != null) setExtraFeeObjeto(String(data.extra_fee_objeto))
@@ -563,6 +566,7 @@ function PainelMotoristaContent() {
         base_distance_km: customTouched ? (parseFloat(baseDistanceKm) || 0) : null,
         base_fee: customTouched ? (parseFloat(baseFee) || 0) : null,
         price_per_km_after_base: customTouched ? (parseFloat(pricePerKmAfterBase) || 0) : null,
+        price_per_minute: customTouched && (parseFloat(pricePerMinute) || 0) > 0 ? Math.min(20, Math.round(parseFloat(pricePerMinute) * 100) / 100) : null,
         extra_fee_pessoa: customTouched ? (parseFloat(extraFeePessoa) || 0) : null,
         extra_fee_animal: customTouched ? (parseFloat(extraFeeAnimal) || 0) : null,
         extra_fee_objeto: customTouched ? (parseFloat(extraFeeObjeto) || 0) : null,
@@ -1085,6 +1089,24 @@ function PainelMotoristaContent() {
                                         </div>
                                     </div>
                                     {tariffSummary}
+                                    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${colors.border}` }}>
+                                        <label className={labelCls}>Minha tarifa por tempo (R$ por minuto)</label>
+                                        <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            min="0"
+                                            max="20"
+                                            step="0.05"
+                                            value={pricePerMinute}
+                                            onChange={(e) => setPricePerMinute(e.target.value)}
+                                            placeholder="Ex.: 1,00 (vazio = não definida)"
+                                            className={inputCls}
+                                            style={fieldStyle}
+                                        />
+                                        <p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>
+                                            Cobra os minutos de trabalho (ir buscar + a corrida) mais os extras abaixo. É o seu 3º valor, ao lado da Tarifa iUser e da sua tarifa por km: em cada corrida você escolhe qual propor. O mínimo da plataforma e o seu ganho mínimo por hora também valem para ele. A espera na parada não entra aqui: é regra do iUser.
+                                        </p>
+                                    </div>
                                 </div>
                             )}
 

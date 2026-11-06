@@ -7,7 +7,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **42 migrations**: `20261130000000` até `20261130000041` (lista no Anexo A). |
+| **Faltam na produção** | **43 migrations**: `20261130000000` até `20261130000042` (lista no Anexo A). |
 | **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
@@ -177,6 +177,7 @@ Ordem de aplicação = ordem da tabela. "Rollback" é o arquivo em `supabase/rol
 | 39 | `ride_negotiation_notices` | Avisos da negociação na ilha e no push: 4 tipos novos em `profile_notifications` (o CHECK é refeito com a lista completa) e o gatilho `trg_ping_live_push` ganha os tipos. Depende da `...38`; aplique ANTES do código. Rollback `ride_negotiation_notices_rollback.sql`. |
 | 40 | `store_digital_summary` | Resumo do digital no Painel da loja: a função de leitura `get_store_digital_summary` (só o dono; só números). Só LEITURA, nada novo é gravado; sem ela o bloco Digital do painel simplesmente não aparece. Aplique ANTES do código. Rollback `store_digital_summary_rollback.sql`. |
 | 41 | `digital_order_notices` | Avisos da ilha para pedido digital: a loja recebe "Pedido digital novo" (libere o acesso) e o cliente "Acesso liberado" no lugar de "Pedido novo"/"Pedido entregue". Refaz o CHECK dos tipos de `profile_notifications` e o gatilho dos pedidos (`trg_notify_order_events`, só ganha o ramo digital). Depende da `...04`; aplique ANTES do código. Rollback `digital_order_notices_rollback.sql` (volta o gatilho ao da `...04`). |
+| 42 | `ride_time_tariff_and_waits` | Espera na corrida e tarifa por tempo: coluna `driver_pricing.price_per_minute` (a 3ª tarifa do motorista), tabelas `ride_wait_settings` (valor por minuto, minutos grátis e limite: SEMPRE do iUser) e `ride_waits`, funções `request_ride_wait`/`respond_ride_wait`/`end_ride_wait`/`get_ride_waits`/`get_ride_wait_settings`/`admin_set_ride_wait`, gatilho que fecha a espera quando a corrida conclui ou cancela, e 4 tipos novos de aviso (`ride_wait_*`: refaz o CHECK de `profile_notifications`, **mantendo os digitais da `...41`**, e o gatilho do push). Depende da `...38`, `...39` e `...41`; aplique ANTES do código (o painel do motorista grava `price_per_minute` e as telas chamam as funções). Rollback `ride_time_tariff_and_waits_rollback.sql` (apaga as esperas registradas). |
 
 ⚠ = muda o comportamento de algo que o código antigo já usa (seção 4).
 

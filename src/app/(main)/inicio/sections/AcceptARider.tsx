@@ -9,7 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, describeTripFare, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, computeRideExtras, describeTripFare, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { perHour as perHourOfMinutes } from '@/modules/negotiation/domain'
 import { rideQuote } from '@/lib/rideQuote'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
@@ -207,7 +207,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             // Visitante (sem login) também vê as corridas abertas: assim ele sabe que
             // tem corrida pra pegar. Sem conta não tem driver_pricing nem candidatura
             // própria, então vale a tarifa iUser e nada é filtrado por "já me candidatei".
-            let pricingRow: { pricing_mode: any; base_distance_km: any; base_fee: any; price_per_km_after_base: any } | null = null
+            let pricingRow: { pricing_mode: any; base_distance_km: any; base_fee: any; price_per_km_after_base: any; price_per_minute?: any } | null = null
             let appliedIds = new Set<string>()
             // Mesma regra do quadro de /aceitar-corridas: só as corridas do veículo que a pessoa tem cadastrado (carro não vê entrega de moto).
             // Sem veículo cadastrado, qualquer tipo.
@@ -219,7 +219,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 // cadastrada ainda): quem não tem driver_pricing vê o valor pela tarifa iUser.
                 const { data } = await supabase
                     .from('driver_pricing')
-                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, live_lat, live_lng')
+                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, live_lat, live_lng')
                     .eq('driver_id', userId)
                     .maybeSingle()
                 pricingRow = data
@@ -699,6 +699,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                     customPrice={customShape ? tripFare(customShape, q.tripKm) : null}
                                     customPickup={ride.offered_price == null && customShape && route ? computePickupFee(customShape, route.km) : 0}
                                     valueFromOwn={useCustom}
+                                    timeRate={customShape?.pricePerMinute ?? null}
+                                    timeExtras={customShape ? computeRideExtras(rideType, flags, customShape) : 0}
                                     onApply={() => goToRide(ride.id)}
                                     minHourly={ride.offered_price != null ? null : minHourly}
                                     minPerMinute={ride.offered_price != null ? 0 : minPerMinute}

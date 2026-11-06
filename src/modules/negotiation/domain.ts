@@ -124,6 +124,12 @@ export function fareParts(total: number | null | undefined, pickupAmount: number
     return { pickup, trip: round2(total - (pickup ?? 0)), total: round2(total) }
 }
 
+/** "Minha tarifa por TEMPO" (o 3º valor da corrida): os minutos de trabalho (ir buscar + corrida) × o valor por minuto do motorista + os extras da corrida (tipo e condições, os mesmos da tarifa por km). Sem os minutos ou sem valor por minuto definido = null (a tarifa por tempo "não está definida"). */
+export function timeFare(minutes: number | null | undefined, ratePerMinute: number | null | undefined, extras = 0): number | null {
+    if (!minutes || !(minutes > 0) || !ratePerMinute || !(ratePerMinute > 0)) return null
+    return round2(minutes * ratePerMinute + Math.max(0, extras || 0))
+}
+
 /** Nenhuma corrida abaixo do piso da plataforma (piso 0 = sem regra) */
 export const belowPlatformFloor = (amount: number | null | undefined, floor: number): boolean => floor > 0 && amount != null && amount < floor
 

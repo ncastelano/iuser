@@ -26,7 +26,7 @@ import { DRIVER_RESERVED_TEXT, brl, remainingLabel } from '@/modules/delivery-se
 import DriverReceiptConfirm from '@/components/DeliveryPayment/DriverReceiptConfirm'
 import DriverPayoutPix from '@/components/DeliveryPayment/DriverPayoutPix'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computePickupFee, describeTripFare, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computeRideExtras, computePickupFee, describeTripFare, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
@@ -559,7 +559,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         const [{ data: pricingRow }, { data: profile }, { data: vehicleRows }] = await Promise.all([
             !contextUserId ? noRow : supabase
                 .from('driver_pricing')
-                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
+                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
                 .eq('driver_id', contextUserId)
                 .maybeSingle(),
             !contextUserId ? noRow : supabase
@@ -1532,6 +1532,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             customPrice={tripCustomPrice}
                                             customPickup={ride.offered_price == null && ride.customTariff && pickupKm != null ? computePickupFee(ride.customTariff, pickupKm) : 0}
                                             valueFromOwn={ride.useOwnTariff}
+                                            timeRate={ride.customTariff?.pricePerMinute ?? null}
+                                            timeExtras={ride.customTariff ? computeRideExtras(ride.ride_type, flagsOfRide, ride.customTariff) : 0}
                                             applying={applyingId === ride.id}
                                             onApply={(price) => applyToRide(ride, price)}
                                             onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
