@@ -1,7 +1,7 @@
 // app/(main)/aceitar-corridas/RideMiniMap.tsx
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/app/contexts/theme'
 import { Expand } from 'lucide-react'
@@ -72,7 +72,9 @@ export const MAP_TRANSITION_KEY = 'iuser-map-transition'
 
 export default function RideMiniMap({ originLng, originLat, destLng, destLat, stops = [], driverLng, driverLat, onExpand, onInfo, compact = false, transition = true, thumb = false }: RideMiniMapProps) {
     const { colors } = useTheme()
-    const [imgUrl, setImgUrl] = useState<string | null>(null)
+    const [overlayStr, setOverlayStr] = useState<string | null>(null)
+    // tamanho real do quadro: a imagem é pedida NA MESMA proporção, senão o object-cover corta o trajeto
+    const [box, setBox] = useState<{ w: number; h: number } | null>(null)
     const [failed, setFailed] = useState(false)
     const [toPickupKm, setToPickupKm] = useState<number | null>(null)
     const [toPickupMin, setToPickupMin] = useState<number | null>(null)
@@ -81,6 +83,33 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
     const hasDriver = driverLng != null && driverLat != null
     const wrapRef = useRef<HTMLDivElement>(null)
     const [flight, setFlight] = useState<{ rect: DOMRect; go: boolean } | null>(null)
+
+    useEffect(() => {
+        const el = wrapRef.current
+        if (!el) return
+        const measure = () => {
+            // arredonda de 20 em 20 px: redimensionar um pouco não refaz a imagem à toa
+            const w = Math.round(el.clientWidth / 20) * 20
+            const h = Math.round(el.clientHeight / 20) * 20
+            if (w < 40 || h < 40) return
+            setBox((b) => (b && b.w === w && b.h === h ? b : { w, h }))
+        }
+        measure()
+        const ro = new ResizeObserver(measure)
+        ro.observe(el)
+        return () => ro.disconnect()
+    }, [thumb])
+
+    const imgUrl = useMemo(() => {
+        if (!overlayStr || !box) return null
+        const w = Math.min(640, Math.max(40, box.w))
+        const h = Math.min(640, Math.max(40, box.h))
+        // folga em cima maior (o pino é alto) e laterais proporcionais ao quadro: o trajeto inteiro cabe sempre
+        const top = Math.round(Math.min(46, h * 0.3))
+        const bottom = Math.round(Math.min(26, h * 0.16))
+        const side = Math.round(Math.min(40, w * 0.1))
+        return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlayStr}/auto/${w}x${h}@2x?padding=${top},${side},${bottom},${side}&access_token=${MAPBOX_TOKEN}`
+    }, [overlayStr, box])
 
     // "Ver no mapa": o mini mapa cresce até a tela cheia e só então navega — na
     // página do mapa o card sobe de baixo, parecendo que o mapa abriu pra trás.
@@ -130,9 +159,8 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
             for (const s of stops) overlays.push(`pin-s+${STOP_COLOR}(${s.lng},${s.lat})`)
             overlays.push(`pin-s+ef4444(${destLng},${destLat})`)
 
-            const url = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlays.join(',')}/auto/${thumb ? '260x170@2x?padding=22' : '500x220@2x?padding=40'}&access_token=${MAPBOX_TOKEN}`
             if (!cancelled) {
-                setImgUrl(url)
+                setOverlayStr(overlays.join(','))
                 setToPickupKm(nextToPickupKm)
                 setToPickupMin(nextToPickupMin)
                 setTripKm(trip.distanceKm)
@@ -151,7 +179,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
 
     if (thumb) {
         return (
-            <div className="w-full h-full relative overflow-hidden" style={{ background: `${colors.border}30` }}>
+            <div ref={wrapRef} className="w-full h-full relative overflow-hidden" style={{ background: `${colors.border}30` }}>
                 {imgUrl && <img src={imgUrl} alt="Trajeto da corrida" className="w-full h-full object-cover" onError={() => setFailed(true)} />}
             </div>
         )
@@ -179,7 +207,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
                 />,
                 document.body
             )}
-            <div ref={wrapRef} className="w-full rounded-xl overflow-hidden relative" style={{ height: compact ? 104 : 120, background: `${colors.border}30` }}>
+            <div ref={wrapRef} className="w-full rounded-xl overflow-hidden relative" style={{ height: compact ? 132 : 150, background: `${colors.border}30` }}>
                 {imgUrl ? (
                     <img src={imgUrl} alt="Trajeto da corrida" className="w-full h-full object-cover" onError={() => setFailed(true)} />
                 ) : (
