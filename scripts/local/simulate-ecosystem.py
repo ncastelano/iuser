@@ -558,11 +558,32 @@ def drive_rides():
             elif not r['started']:
                 as_user(did, f"update ride_requests set ride_started_at = now() where id = {esc(rid)}::uuid;"); step = 'corrida iniciada'
             else:
-                as_user(did, f"select complete_ride({esc(rid)}::uuid, {r['destination_lat']}, {r['destination_lng']});"); step = 'CORRIDA CONCLUÍDA'
-                rate_ride(rid, did, r['requester_id'])
+                # PARADAS NO MEIO DA CORRIDA: o passageiro pede tempo de espera, o motorista aprova, passa um tempo e alguém encerra. A espera JÁ vale R$ 3,00 ao ser aprovada
+                # (cobre 3 min) e, passando disso, R$ 0,60 por minuto — algumas duram mais de 3 min de propósito para o valor da corrida crescer. A corrida só termina sem espera aberta.
+                w = q_local(f"select id, status, extract(epoch from (now() - coalesce(started_at, requested_at)))::int as age from ride_waits where ride_request_id = {esc(rid)}::uuid and status in ('requested','active') limit 1")
+                n_waits = int(q_local(f"select count(*)::int as n from ride_waits where ride_request_id = {esc(rid)}::uuid")[0]['n'])
+                if w:
+                    wid = w[0]['id']; age = int(w[0]['age'] or 0)
+                    goal = 45 + (int(wid.replace('-', '')[:6], 16) % 60) if int(wid.replace('-', '')[6:8], 16) % 100 < 60 else 200 + (int(wid.replace('-', '')[:6], 16) % 100)   # 60%: 45–105 s; 40%: 200–300 s
+                    if w[0]['status'] == 'requested':
+                        ok = (int(wid.replace('-', '')[8:10], 16) % 10) != 0                      # 90% o motorista aprova
+                        as_user(did, f"select respond_ride_wait({esc(wid)}::uuid, {'true' if ok else 'false'});"); step = 'espera APROVADA (já vale R$ 3,00)' if ok else 'espera recusada'
+                    elif age >= goal:
+                        by = R.choice([did, r['requester_id']])
+                        as_user(by, f"select end_ride_wait({esc(wid)}::uuid);"); step = f'espera encerrada ({age} s)'
+                    else:
+                        continue
+                elif n_waits == 0 and R.random() < 0.5:
+                    as_user(r['requester_id'], f"select request_ride_wait({esc(rid)}::uuid, 'stop', {esc(R.choice(STOP_NOTES))});"); step = 'passageiro pediu uma PARADA'
+                else:
+                    as_user(did, f"select complete_ride({esc(rid)}::uuid, {r['destination_lat']}, {r['destination_lng']});"); step = 'CORRIDA CONCLUÍDA'
+                    rate_ride(rid, did, r['requester_id'])
             log(f"  🚦 corrida {rid[:8]}: {step}")
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ corrida {rid[:8]} ({'' if r['driver_en_route'] else 'saída'}): {str(e).splitlines()[0][:120]}")
+
+
+STOP_NOTES = ['Comprar água', 'Passar na farmácia', 'Pegar uma encomenda', 'Caixa eletrônico', 'Buscar alguém', 'Comprar um lanche']
 
 
 def rate_ride(rid, driver, passenger):

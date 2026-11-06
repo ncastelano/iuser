@@ -155,6 +155,8 @@ function animateMarkerTo(m: mapboxgl.Marker, to: [number, number], duration = 70
 
 interface AcceptedRideMapDetail {
     id: string
+    /** o valor combinado (congelado quando o passageiro escolheu o motorista) */
+    agreed_price?: number | null
     vehicle_type: VehicleType
     origin_address: string
     destination_address: string
@@ -179,7 +181,7 @@ interface AcceptedRideMapDetail {
 
 // Só as colunas que a oferta pública tem (sem etapas do motorista, que só existem depois do aceite)
 const PREVIEW_RIDE_SELECT = 'id, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop2_address, stop2_lat, stop2_lng, distance_km, duration_min'
-const ACCEPTED_RIDE_SELECT = 'id, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_lat, stop2_lng, stop2_reached_at, driver_en_route, driver_arrived_at, ride_started_at, distance_km, duration_min'
+const ACCEPTED_RIDE_SELECT = 'id, agreed_price, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_lat, stop2_lng, stop2_reached_at, driver_en_route, driver_arrived_at, ride_started_at, distance_km, duration_min'
 
 // Mesmas colunas do card de /aceitar-corridas (quem pediu, o que leva, pagamento...).
 const OFFER_SELECT = 'id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, stop1_address, stop2_address, offered_price, order_id, store_id'
@@ -1037,7 +1039,7 @@ function AceitarCorridasMapaContent() {
                                     </button>
                                 )}
 
-                                <RideWaitBox rideId={acceptedRide.id} role="driver" rideStarted={!!acceptedRide.ride_started_at} rideActive />
+                                <RideWaitBox rideId={acceptedRide.id} role="driver" rideStarted={!!acceptedRide.ride_started_at} rideActive basePrice={acceptedRide.agreed_price != null ? Number(acceptedRide.agreed_price) : null} />
 
                                 <div className="flex items-center gap-2">
                                     {/* Chat só com o carro parado: quem dirige não conversa */}

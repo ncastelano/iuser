@@ -16,7 +16,7 @@ export default function DevDriveChip({ on, speed, onChange }: { on: boolean; spe
             >
                 <Car size={12} /> {on ? 'Simulando' : 'Simulação desligada'}
             </button>
-            {on && ([1, 3, 6] as const).map((v) => (
+            {on && ([1, 3, 6, 10, 20] as const).map((v) => (
                 <button key={v} onClick={() => { setDevDriveSpeed(v); onChange(on, v) }} className={btn} style={{ background: speed === v ? '#f97316' : 'transparent' }}>{v}×</button>
             ))}
         </div>

@@ -17,17 +17,17 @@ const KEY_ON = 'iuser_dev_drive'
 const KEY_SPEED = 'iuser_dev_drive_speed'
 const KEY_POS = 'iuser_dev_pos'
 const KEY_MARK = 'iuser_dev_pos_sim'
-/** ~40 km/h: dá para acompanhar a corrida de ~3 km em alguns minutos; o chip acelera 3× e 6× */
+/** ~40 km/h: dá para acompanhar a corrida de ~3 km em alguns minutos; o chip acelera 3×, 6×, 10× e 20× */
 const BASE_M_PER_S = 11
 
 export const devDriveAvailable = (): boolean => typeof window !== 'undefined' && isLocalDevOnly() && window.parent === window
 export const devDriveEnabled = (): boolean => devDriveAvailable() && window.localStorage.getItem(KEY_ON) !== '0'
 export const devDriveSpeed = (): number => {
     const v = devDriveAvailable() ? Number(window.localStorage.getItem(KEY_SPEED)) : 1
-    return v === 3 || v === 6 ? v : 1
+    return v === 3 || v === 6 || v === 10 || v === 20 ? v : 1
 }
 export function setDevDriveEnabled(on: boolean) { try { if (on) window.localStorage.removeItem(KEY_ON); else window.localStorage.setItem(KEY_ON, '0') } catch { /* sem storage */ } }
-export function setDevDriveSpeed(v: 1 | 3 | 6) { try { window.localStorage.setItem(KEY_SPEED, String(v)) } catch { /* sem storage */ } }
+export function setDevDriveSpeed(v: 1 | 3 | 6 | 10 | 20) { try { window.localStorage.setItem(KEY_SPEED, String(v)) } catch { /* sem storage */ } }
 
 interface Path { key: string; pts: LngLat[]; cum: number[]; dist: number }
 

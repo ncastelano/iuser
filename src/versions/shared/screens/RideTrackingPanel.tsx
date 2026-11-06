@@ -874,7 +874,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
 
             {/* Tempo de espera (embarque, parada, desembarque): o passageiro pede, o motorista aprova e o relógio anda para os dois */}
             {ride.status === 'accepted' && driver && (
-                <RideWaitBox rideId={ride.id} role="passenger" rideStarted={!!ride.ride_started_at} rideActive />
+                <RideWaitBox rideId={ride.id} role="passenger" rideStarted={!!ride.ride_started_at} rideActive basePrice={ride.agreed_price ?? driver?.proposedPrice ?? null} />
             )}
 
             {/* Chat com o motorista, enquanto a corrida está aceita */}

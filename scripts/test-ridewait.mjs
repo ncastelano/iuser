@@ -47,8 +47,9 @@ test('textos: relógio, dinheiro, minutos grátis que faltam, regra e linha do h
     assert.equal(clock(0), '0:00'); assert.equal(clock(75), '1:15'); assert.equal(clock(3723), '1:02:03'); assert.equal(clock(-3), '0:00')
     assert.equal(centsToBrl(250), 'R$ 2,50'); assert.equal(centsToBrl(5), 'R$ 0,05'); assert.equal(centsToBrl(-1), 'R$ 0,00')
     assert.equal(graceLeft(100, 180), 80); assert.equal(graceLeft(200, 180), 0)
-    assert.equal(ruleText(180, 50), 'Os primeiros 3 min de cada espera são grátis; depois R$ 0,50 por minuto.')
-    assert.equal(ruleText(0, 50), 'Cada espera é cobrada: R$ 0,50 por minuto.')
+    assert.equal(ruleText(180, 60, 300), 'Cada espera vale R$ 3,00 (já cobre os primeiros 3 min); depois, R$ 0,60 por minuto. Cobrado depois, junto com a corrida.')
+    assert.equal(ruleText(180, 50), 'Os primeiros 3 min de cada espera são grátis; depois R$ 0,50 por minuto. Cobrado depois, junto com a corrida.')   // sem valor inicial (esperas antigas)
+    assert.equal(ruleText(0, 50), 'Cada espera é cobrada: R$ 0,50 por minuto. Cobrado depois, junto com a corrida.')
     assert.equal(waitLine(w({ status: 'ended', seconds: 480, feeCents: 250, note: 'comprar água' }), T0), 'Parada · 8 min 00 s · R$ 2,50 (comprar água)')
 })
 test('nota: sem espaços nas pontas e até 80 caracteres', () => {
@@ -69,7 +70,7 @@ test('erros do banco viram frases em português', () => {
 })
 
 test('regras do admin: validação, exemplo de valor e leitura do banco', () => {
-    const ok = { ratePerMinute: 0.5, graceMinutes: 3, maxMinutes: 120 }
+    const ok = { baseFee: 3, ratePerMinute: 0.6, graceMinutes: 3, maxMinutes: 120 }
     assert.equal(waitSettingsProblem(ok), null)
     assert.match(waitSettingsProblem({ ...ok, ratePerMinute: 25 }), /R\$ 20,00/)
     assert.match(waitSettingsProblem({ ...ok, ratePerMinute: -1 }), /R\$ 20,00/)
@@ -77,9 +78,26 @@ test('regras do admin: validação, exemplo de valor e leitura do banco', () => 
     assert.match(waitSettingsProblem({ ...ok, graceMinutes: 2.5 }), /inteiro/)
     assert.match(waitSettingsProblem({ ...ok, maxMinutes: 4 }), /5 e 480/)
     assert.match(waitSettingsProblem({ ...ok, maxMinutes: NaN }), /números/)
-    assert.equal(waitSettingsProblem({ ratePerMinute: 0, graceMinutes: 0, maxMinutes: 5 }), null)     // espera grátis é uma escolha válida
-    assert.equal(exampleWaitCents(10, ok), 350)             // (10 - 3) min × R$ 0,50 = R$ 3,50
-    assert.equal(exampleWaitCents(2, ok), 0)
-    assert.deepEqual(settingsFromJson({ rate_per_minute: '1.00', grace_minutes: 5, max_minutes: 60 }), { ratePerMinute: 1, graceMinutes: 5, maxMinutes: 60 })
+    assert.equal(waitSettingsProblem({ baseFee: 0, ratePerMinute: 0, graceMinutes: 0, maxMinutes: 5 }), null)     // espera grátis é uma escolha válida
+    assert.equal(exampleWaitCents(10, ok), 720)             // R$ 3,00 + (10 - 3) min × R$ 0,60 = R$ 7,20
+    assert.equal(exampleWaitCents(2, ok), 300)              // dentro dos 3 min: só o valor inicial
+    assert.equal(exampleWaitCents(0, ok), 300)              // ao aprovar JÁ vale R$ 3,00
+    assert.match(waitSettingsProblem({ ...ok, baseFee: 101 }), /R\$ 100,00/)
+    assert.deepEqual(settingsFromJson({ rate_per_minute: '1.00', base_fee: '2.50', grace_minutes: 5, max_minutes: 60 }), { baseFee: 2.5, ratePerMinute: 1, graceMinutes: 5, maxMinutes: 60 })
     assert.deepEqual(settingsFromJson(null), DEFAULT_WAIT_SETTINGS)
+})
+
+test('NOVA REGRA: ao acionar já vale R$ 3,00 (cobre 3 min); depois R$ 0,60 por minuto; cobrado depois', () => {
+    assert.equal(waitFeeCents(0, 180, 60, 300), 300)         // acabou de aprovar
+    assert.equal(waitFeeCents(179, 180, 60, 300), 300)
+    assert.equal(waitFeeCents(180, 180, 60, 300), 300)       // exatamente os 3 min
+    assert.equal(waitFeeCents(240, 180, 60, 300), 360)       // 1 min depois: + R$ 0,60
+    assert.equal(waitFeeCents(480, 180, 60, 300), 600)       // 8 min: R$ 3,00 + 5 min × R$ 0,60 = R$ 6,00 (o mesmo número do banco)
+    assert.equal(waitFeeCents(3600, 180, 60, 300), 3720)   // 1 h: R$ 3,00 + 57 min × R$ 0,60 = R$ 37,20
+    const nw = w({ baseCents: 300, rateCents: 60 })
+    assert.equal(waitFeeNow(nw, T0), 300)                    // em andamento, 0 s: já são R$ 3,00
+    assert.equal(waitFeeNow(nw, T0 + 480_000), 600)
+    assert.equal(waitFeeNow(w({ status: 'requested', startedAt: null, baseCents: 300 }), T0), 0)   // pedida e ainda não aprovada: nada
+    assert.equal(totalWaitCents([w({ id: 'a', status: 'ended', baseCents: 300, feeCents: 300, seconds: 60 }), nw], T0 + 480_000), 300 + 600)   // as esperas se somam, cada uma com o seu valor inicial
+    assert.equal(waitFeeCents(481, 180, 50), 251)            // regra antiga (sem valor inicial) continua igual
 })

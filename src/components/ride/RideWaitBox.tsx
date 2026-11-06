@@ -3,7 +3,7 @@
 // TEMPO DE ESPERA da corrida, igual para o passageiro e para o motorista (mesmo cartão, só mudam os botões):
 //  • o PASSAGEIRO pede ("Pedir tempo de espera": embarque antes de a corrida começar; parada ou desembarque depois, com um recado opcional);
 //  • o MOTORISTA aprova (ou recusa) — só então o relógio começa, para os dois, com o valor subindo ao vivo;
-//  • qualquer um dos dois encerra; as esperas da corrida se somam, cada uma com os seus minutos grátis.
+//  • qualquer um dos dois encerra; as esperas da corrida se somam, cada uma com o seu valor inicial.
 // O valor por minuto e os minutos grátis são SEMPRE do iUser (Admin → Tarifas) e a conta de verdade é do banco; aqui só se mostra
 // (a mesma conta roda na tela para o valor subir a cada segundo — src/modules/ridewait). O iUser não movimenta esse dinheiro: soma-se ao valor da corrida.
 'use client'
@@ -31,9 +31,11 @@ interface RideWaitBoxProps {
     rideActive: boolean
     /** nome de quem pediu, para a frase do motorista */
     passengerName?: string | null
+    /** o valor combinado da corrida: com espera correndo ou já feita a caixa mostra "Corrida R$ X + espera R$ Y = R$ Z" (a espera é cobrada DEPOIS, junto com a corrida) */
+    basePrice?: number | null
 }
 
-export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerName }: RideWaitBoxProps) {
+export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerName, basePrice = null }: RideWaitBoxProps) {
     const { colors } = useTheme()
     const [view, setView] = useState<RideWaitsView | null>(null)
     const [loaded, setLoaded] = useState(false)
@@ -94,6 +96,12 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
                 <p className="text-[13px] font-black flex-1" style={{ color: colors.textPrimary }}>Tempo de espera</p>
                 {total > 0 && <span className="text-[12px] font-black tabular-nums" style={{ color: colors.textPrimary }}>{centsToBrl(total)}</span>}
             </div>
+            {total > 0 && basePrice != null && basePrice > 0 && (
+                <p className="text-[12px] font-bold -mt-1 tabular-nums" style={{ color: colors.textSecondary }}>
+                    Corrida {centsToBrl(Math.round(basePrice * 100))} + espera {centsToBrl(total)} = <strong style={{ color: GREEN }}>{centsToBrl(Math.round(basePrice * 100) + total)}</strong>
+                    <span className="font-semibold"> · cobrado depois, junto com a corrida</span>
+                </p>
+            )}
 
             {/* ===== EM ANDAMENTO: o relógio e o valor, para os dois ===== */}
             {open?.status === 'active' && (
@@ -101,7 +109,7 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
                     <p className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>{WAIT_KIND_LABEL[open.kind]}{open.note ? ` · ${open.note}` : ''}</p>
                     <p className="text-[34px] font-black leading-none tabular-nums mt-1" style={{ color: colors.textPrimary }}>{clock(secs)}</p>
                     <p className="text-[12px] font-black mt-1.5" style={{ color: free > 0 ? GREEN : ORANGE }}>
-                        {free > 0 ? `Grátis por mais ${clock(free)}` : `Cobrando ${centsToBrl(waitFeeNow(open, now, view.offsetMs))}`}
+                        {free > 0 ? `Já vale ${centsToBrl(waitFeeNow(open, now, view.offsetMs))} · cobre mais ${clock(free)}` : `Cobrando ${centsToBrl(waitFeeNow(open, now, view.offsetMs))}`}
                     </p>
                     <button onClick={() => run('end', () => endRideWait(open.id), 'Espera encerrada')} disabled={busy != null}
                         className="mt-2.5 w-full h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-60"
@@ -117,7 +125,7 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
                     <p className="text-[13px] leading-snug" style={{ color: colors.textPrimary }}>
                         <strong>{passengerName || 'O passageiro'}</strong> pediu para você esperar · <strong>{WAIT_KIND_LABEL[open.kind]}</strong>{open.note ? ` (${open.note})` : ''}
                     </p>
-                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>{ruleText(view.graceSeconds, view.rateCents)} Ao aprovar, o relógio começa para os dois.</p>
+                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>{ruleText(view.graceSeconds, view.rateCents, view.baseCents)} Ao aprovar, o relógio começa para os dois.</p>
                     <div className="flex gap-2">
                         <button onClick={() => run('yes', () => respondRideWait(open.id, true), 'Espera aprovada: o relógio começou')} disabled={busy != null}
                             className="flex-1 h-11 rounded-full text-[13px] font-black text-white flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-60" style={{ background: ORANGE }}>
@@ -159,7 +167,7 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
                         <input value={note} onChange={(e) => setNote(e.target.value.slice(0, WAIT_NOTE_MAX))} maxLength={WAIT_NOTE_MAX}
                             placeholder={kind === 'pickup' ? 'Ex.: descendo do apartamento' : kind === 'dropoff' ? 'Ex.: pegando as sacolas' : 'Ex.: comprar água na farmácia'}
                             className="h-10 rounded-xl px-3 text-[13px] outline-none" style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }} />
-                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>{ruleText(view.graceSeconds, view.rateCents)} O motorista precisa aprovar.</p>
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>{ruleText(view.graceSeconds, view.rateCents, view.baseCents)} O motorista precisa aprovar.</p>
                         <div className="flex gap-2">
                             <button onClick={() => run('ask', async () => { await requestRideWait(rideId, kind, cleanNote(note)); setAsking(false); setNote('') }, 'Pedido enviado ao motorista')} disabled={busy != null}
                                 className="flex-1 h-11 rounded-full text-[13px] font-black text-white flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-60" style={{ background: ORANGE }}>
