@@ -47,6 +47,8 @@ import { getProfileRideRatingsBatch } from '@/lib/rideReviews'
 import { MAP_TRANSITION_KEY } from '../RideMiniMap'
 import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
+import { devDriveAvailable, devDriveEnabled, devDriveSpeed, useDevDrive } from '@/lib/devDrive'
+import DevDriveChip from '@/components/dev/DevDriveChip'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -396,15 +398,23 @@ function AceitarCorridasMapaContent() {
         }
     }
 
+    // MOTORISTA DE TESTE (só LOCAL): o carro anda sozinho pelas ruas, no lugar do GPS do aparelho (ver lib/devDrive)
+    const [simOn, setSimOn] = useState(false)
+    const [simSpeed, setSimSpeed] = useState(1)
+    const [simAvailable, setSimAvailable] = useState(false)
+    useEffect(() => { setSimAvailable(devDriveAvailable()); setSimOn(devDriveEnabled()); setSimSpeed(devDriveSpeed()) }, [])
+
     // ===== POSIÇÃO AO VIVO DO MOTORISTA =====
     useEffect(() => {
+        if (simOn && !isPreview) return
         const watch = watchNativePosition(
             (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
             () => toast.error('Não conseguimos acessar sua localização. Ative o GPS pra navegar.'),
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
         )
         return () => watch.clear()
-    }, [])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [simOn])
 
     // ===== ORIENTAÇÃO POR VOZ (mesma lógica de ../page.tsx) =====
     const voiceNavPhase: 'pickup' | 'trip' | null = !acceptedRide || isPreview
@@ -461,6 +471,32 @@ function AceitarCorridasMapaContent() {
         }
         return null
     })()
+
+    // O carro de teste anda até a partida (depois de "Ir até o ponto de partida") e, depois de "Iniciar corrida", até cada parada e o destino
+    const simTarget = (() => {
+        if (!acceptedRide || isPreview) return null
+        if (voiceNavPhase === 'pickup' && acceptedRide.origin_lat != null && acceptedRide.origin_lng != null) return { lng: acceptedRide.origin_lng, lat: acceptedRide.origin_lat, key: `${acceptedRide.id}:pickup` }
+        if (currentTripLeg) return { lng: currentTripLeg.lng, lat: currentTripLeg.lat, key: `${acceptedRide.id}:${currentTripLeg.kind}` }
+        return null
+    })()
+    // acabou de tocar em "Iniciar corrida" sem o carro ter chegado na partida: ele aparece na partida e segue dali
+    const simSnap = (() => {
+        if (!acceptedRide || isPreview || !acceptedRide.ride_started_at || acceptedRide.origin_lat == null || acceptedRide.origin_lng == null) return null
+        if (Date.now() - new Date(acceptedRide.ride_started_at).getTime() > 8000) return null
+        if (driverCoords && haversineKm(driverCoords, [acceptedRide.origin_lng, acceptedRide.origin_lat]) * 1000 <= 150) return null
+        return { lng: acceptedRide.origin_lng, lat: acceptedRide.origin_lat, key: `${acceptedRide.id}:snap-start` }
+    })()
+    useDevDrive({
+        on: simOn && simAvailable && !isPreview,
+        speed: simSpeed,
+        userId: userId ?? null,
+        ready: !!acceptedRide,
+        pos: driverCoords,
+        setPos: setDriverCoords,
+        target: simTarget,
+        origin: acceptedRide && acceptedRide.origin_lat != null && acceptedRide.origin_lng != null ? [acceptedRide.origin_lng, acceptedRide.origin_lat] : null,
+        snap: simSnap,
+    })
 
     // ===== MAPA: cria uma vez, com o alvo inicial =====
     useEffect(() => {
@@ -853,6 +889,12 @@ function AceitarCorridasMapaContent() {
                         </span>
                     </div>
                 </div>
+
+                {simAvailable && !isPreview && (
+                    <div className="absolute z-10 left-4" style={{ top: 76 }}>
+                        <DevDriveChip on={simOn} speed={simSpeed} onChange={(o, v) => { setSimOn(o); setSimSpeed(v) }} />
+                    </div>
+                )}
 
                 <button
                     onClick={recenter}

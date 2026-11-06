@@ -548,7 +548,7 @@ def drive_rides():
             log(f"  ✗ escolha de motorista falhou: {str(e).splitlines()[0][:110]}")
     # 3) corridas aceitas andam um passo por tick
     for r in q_local("""select id, driver_id, requester_id, destination_lat, destination_lng, driver_en_route, driver_arrived_at is not null as arrived, ride_started_at is not null as started
-        from ride_requests where status = 'accepted' and driver_id is not null and order_id is null and driver_id not in """ + theater_drivers_sql()):
+        from ride_requests where status = 'accepted' and driver_id is not null and order_id is null and driver_id not in (""" + RESERVED_SQL + """) and driver_id not in """ + theater_drivers_sql()):
         did, rid = r['driver_id'], r['id']
         try:
             if not r['driver_en_route']:
