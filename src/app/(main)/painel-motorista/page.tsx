@@ -1,7 +1,7 @@
 // app/(main)/painel-motorista/page.tsx
 'use client'
 
-import { useEffect, useState, useMemo, useCallback, Suspense } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -323,7 +323,9 @@ function PainelMotoristaContent() {
         } else if (searchParams.get('aba') === 'veiculo') {
             setActiveTab('veiculo')
         } else if (searchParams.get('aba') === 'plano') {
-            setActiveTab('plano')   // /painel-motorista?aba=plano&veiculo=carro: a aba da tarifa (tarifa personalizada) daquele veículo
+            setActiveTab('plano')   // /painel-motorista?aba=plano&veiculo=carro: a aba da tarifa daquele veículo
+            // &modo=personalizada (vindo de "Por km / Por tempo: definir" nos cards da corrida): abre já na TARIFA PERSONALIZADA, não na da plataforma
+            if (searchParams.get('modo') === 'personalizada') { setPricingMode('custom'); setCustomTouched(true) }
         }
 
         const { data: reviewRows } = await supabase
@@ -700,6 +702,18 @@ function PainelMotoristaContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [customTouched, vehicleKind, tariffsVersion])
 
+    // &secao=km|tempo: rola até essa parte da tarifa (uma vez)
+    const scrolledToSection = useRef(false)
+    useEffect(() => {
+        const sec = searchParams.get('secao')
+        if (activeTab !== 'plano' || !sec || scrolledToSection.current) return
+        const t = setTimeout(() => {
+            const el = document.getElementById(`tarifa-${sec}`)
+            if (el) { scrolledToSection.current = true; el.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+        }, 700)
+        return () => clearTimeout(t)
+    }, [activeTab, pricingMode, searchParams])
+
     const previewDistance = 10
     const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
     const activePricing = pricingMode === 'platform'
@@ -1047,7 +1061,7 @@ function PainelMotoristaContent() {
                                 </button>
                             </div>
 
-                            <div className="flex items-center gap-2 mt-1">
+                            <div id="tarifa-km" className="flex items-center gap-2 mt-1 scroll-mt-24">
                                 <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por distância (km)</span>
                                 <span className="flex-1 h-px" style={{ background: colors.border }} />
                             </div>
@@ -1096,7 +1110,7 @@ function PainelMotoristaContent() {
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-2 mt-1">
+                            <div id="tarifa-tempo" className="flex items-center gap-2 mt-1 scroll-mt-24">
                                 <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por tempo</span>
                                 <span className="flex-1 h-px" style={{ background: colors.border }} />
                             </div>

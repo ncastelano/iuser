@@ -704,7 +704,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                     onApply={() => goToRide(ride.id)}
                                     minHourly={ride.offered_price != null ? null : minHourly}
                                     minPerMinute={ride.offered_price != null ? 0 : minPerMinute}
-                                    onEditTariff={ride.offered_price != null ? undefined : () => { startNavProgress(); router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}`) }}
+                                    onEditTariff={ride.offered_price != null ? undefined : (section) => { startNavProgress(); router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}&modo=personalizada&secao=${section ?? 'km'}`) }}
                                     toPickup={{ km: route?.km ?? null, min: route?.min ?? null, hasGps: pos != null }}
                                     trip={{ km: q.tripKm, min: trip?.min ?? ride.duration_min }}
                                     miniMap={hasCoords ? (

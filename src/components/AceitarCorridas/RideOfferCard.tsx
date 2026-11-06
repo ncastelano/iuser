@@ -108,7 +108,8 @@ interface RideOfferCardProps {
     minHourly?: number | null
     protection?: 'warn' | 'block'
     // Tocar em "Minha tarifa" abre a tarifa personalizada do motorista (onde ele muda os valores); mandar a proposta por ela é pelo "outro" ou pelo botão da sugestão
-    onEditTariff?: () => void
+    /** abre a Tarifa PERSONALIZADA do painel do motorista, já na parte pedida (km ou tempo) */
+    onEditTariff?: (section?: 'km' | 'tempo') => void
     // Valor mínimo da plataforma por minuto de trabalho (Admin → Tarifas): nenhum valor sai abaixo de minutos × isto (0/undefined = sem regra)
     minPerMinute?: number
     // Só LEITURA (a prévia da home): mostra os mesmos valores, mas não manda proposta daqui; quem decide é a página da corrida (use `after` para o botão que leva até lá)
@@ -474,7 +475,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             onClick={() => {
                                 // "Minha tarifa" (definida ou não) leva à tarifa personalizada; só a SUGESTÃO do iUser (ainda não é tarifa dele) manda a proposta
                                 if (iuserSuggestion != null && myFare == null) onApply(iuserSuggestion)
-                                else onEditTariff?.()
+                                else onEditTariff?.('km')
                             }}
                             disabled={applying || (iuserSuggestion != null && myFare == null && blocked(iuserSuggestion)) || (iuserSuggestion == null && myFare == null && !onEditTariff)}
                             className="flex-1 min-w-0 rounded-xl px-2 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
@@ -495,7 +496,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             )}
                         </button>
                         <button
-                            onClick={() => onEditTariff?.()}
+                            onClick={() => onEditTariff?.('tempo')}
                             disabled={applying || !onEditTariff}
                             className="flex-1 min-w-0 rounded-xl px-2 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
                             style={myTime != null ? { background: TIME_GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}

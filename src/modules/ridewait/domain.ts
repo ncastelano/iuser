@@ -145,7 +145,8 @@ export function waitError(err: { message?: string; hint?: string | null } | null
         too_many_waits: 'Esta corrida já teve muitos pedidos de espera.',
         already_answered: 'Esse pedido já foi respondido.',
         wait_not_active: 'O desconto vale só enquanto a espera está em andamento.',
-        above_ceiling: 'Só dá para diminuir: o valor do iUser é o teto.',
+        above_ceiling: 'O valor inicial pode ter desconto, mas não passar do valor do iUser.',
+        below_floor: 'O valor por minuto não pode ficar abaixo do mínimo do iUser.',
         invalid_amount: 'Digite valores válidos.',
     }
     return (err?.hint && map[err.hint]) || err?.message || 'Não deu certo. Tente de novo.'
@@ -173,10 +174,13 @@ export function settingsFromJson(j: any): WaitSettings {
     return { baseFee: n(j?.base_fee, DEFAULT_WAIT_SETTINGS.baseFee), ratePerMinute: n(j?.rate_per_minute, DEFAULT_WAIT_SETTINGS.ratePerMinute), graceMinutes: n(j?.grace_minutes, DEFAULT_WAIT_SETTINGS.graceMinutes), maxMinutes: n(j?.max_minutes, DEFAULT_WAIT_SETTINGS.maxMinutes) }
 }
 
-// ===== DESCONTO DO MOTORISTA NA ESPERA =====
-/** O valor do iUser é o TETO: o motorista só diminui. Esta espera tem desconto? */
-export const hasDiscount = (w: RideWait): boolean =>
-    (w.listBaseCents != null && (w.baseCents ?? 0) < w.listBaseCents) || (w.listRateCents != null && (w.rateCents ?? 0) < w.listRateCents)
+// ===== VALOR DA ESPERA AJUSTADO PELO MOTORISTA =====
+// O valor INICIAL pode ganhar desconto (nunca passa do valor do iUser). O valor POR MINUTO nunca fica abaixo do mínimo do iUser (R$ 0,60): o motorista pode pôr o SEU, acima dele (até R$ 20,00).
+export const MAX_WAIT_RATE_CENTS = 2000
+/** Esta espera tem desconto no valor inicial? */
+export const hasDiscount = (w: RideWait): boolean => w.listBaseCents != null && (w.baseCents ?? 0) < w.listBaseCents
+/** Esta espera usa um valor por minuto do motorista (acima do mínimo do iUser)? */
+export const hasOwnRate = (w: RideWait): boolean => w.listRateCents != null && (w.rateCents ?? 0) > w.listRateCents
 
 /** "3,00" / "3.5" / "R$ 0,6" → centavos (null se não é um valor) */
 export function parseCents(text: string): number | null {
@@ -185,12 +189,13 @@ export function parseCents(text: string): number | null {
     return Math.round(Number(t) * 100)
 }
 
-/** Confere o desconto digitado contra o teto do iUser; devolve o motivo em português ou null se vale */
+/** Confere o que o motorista digitou: inicial até o do iUser (desconto), por minuto do mínimo do iUser até R$ 20; devolve o motivo em português ou null se vale */
 export function discountProblem(baseCents: number | null, rateCents: number | null, listBaseCents: number, listRateCents: number): string | null {
-    if (baseCents == null || rateCents == null) return 'Digite os dois valores (pode ser 0,00).'
+    if (baseCents == null || rateCents == null) return 'Digite os dois valores.'
     if (baseCents < 0 || rateCents < 0) return 'Os valores não podem ser negativos.'
-    if (baseCents > listBaseCents) return `O valor inicial não pode passar de ${centsToBrl(listBaseCents)} (o do iUser).`
-    if (rateCents > listRateCents) return `O valor por minuto não pode passar de ${centsToBrl(listRateCents)} (o do iUser).`
+    if (baseCents > listBaseCents) return `O valor inicial pode ter desconto, mas não passar de ${centsToBrl(listBaseCents)} (o do iUser).`
+    if (rateCents < listRateCents) return `O valor por minuto não pode ficar abaixo de ${centsToBrl(listRateCents)} (o mínimo do iUser).`
+    if (rateCents > MAX_WAIT_RATE_CENTS) return `O valor por minuto fica entre ${centsToBrl(listRateCents)} e ${centsToBrl(MAX_WAIT_RATE_CENTS)}.`
     return null
 }
 

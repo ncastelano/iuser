@@ -16,7 +16,7 @@ import { toast } from '@/lib/toast'
 import {
     WAIT_KIND_LABEL, WAIT_NOTE_MAX, centsToBrl, cleanNote, clock, endRideWait, graceLeft, kindsForPhase, loadRideWaits, openWait, requestRideWait, respondRideWait,
     ruleText, totalWaitCents, waitFeeNow, waitLine, waitSeconds, type RideWaitsView, type WaitKind,
-    setRideWaitDiscount, discountProblem, hasDiscount, parseCents, ruleLine,
+    setRideWaitDiscount, discountProblem, hasDiscount, hasOwnRate, parseCents, ruleLine,
 } from '@/modules/ridewait'
 
 const ORANGE = '#f97316'
@@ -122,6 +122,7 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
                             <p className="text-[11px] font-bold flex-1 leading-snug" style={{ color: colors.textSecondary }}>
                                 {role === 'driver' ? 'Meu valor de tempo' : 'Valor do tempo'}: <span style={{ color: colors.textPrimary }}>{ruleLine(open)}</span>
                                 {hasDiscount(open) && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black text-white" style={{ background: GREEN }}>com desconto</span>}
+                                {hasOwnRate(open) && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black text-white" style={{ background: ORANGE }}>valor do motorista</span>}
                             </p>
                             {role === 'driver' && !editing && (
                                 <button onClick={() => { setEBase(((open.baseCents ?? 0) / 100).toFixed(2).replace('.', ',')); setERate(((open.rateCents ?? 0) / 100).toFixed(2).replace('.', ',')); setEditing(true) }}
@@ -138,20 +139,20 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
                                 <div className="mt-2 flex flex-col gap-2">
                                     <div className="flex gap-2">
                                         <label className="flex-1 min-w-0">
-                                            <span className="block text-[10px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>Valor inicial (R$)</span>
+                                            <span className="block text-[10px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>Valor inicial (R$) · desconto</span>
                                             <input value={eBase} onChange={(e) => setEBase(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))} inputMode="decimal" className="w-full h-10 px-3 rounded-xl text-[14px] font-black outline-none" style={{ background: colors.background, border: `1.5px solid ${colors.border}`, color: colors.textPrimary }} />
                                         </label>
                                         <label className="flex-1 min-w-0">
-                                            <span className="block text-[10px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>Por minuto (R$)</span>
+                                            <span className="block text-[10px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>Por minuto (R$) · mín. {centsToBrl(open.listRateCents ?? open.rateCents ?? 0)}</span>
                                             <input value={eRate} onChange={(e) => setERate(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))} inputMode="decimal" className="w-full h-10 px-3 rounded-xl text-[14px] font-black outline-none" style={{ background: colors.background, border: `1.5px solid ${colors.border}`, color: colors.textPrimary }} />
                                         </label>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5">
                                         <button onClick={() => quick(listBase, listRate)} className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>Valor do iUser</button>
-                                        <button onClick={() => quick(Math.round(listBase / 2), Math.round(listRate / 2))} className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>50% de desconto</button>
-                                        <button onClick={() => quick(0, 0)} className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>Sem cobrar</button>
+                                        <button onClick={() => quick(Math.round(listBase / 2), listRate)} className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>50% no inicial</button>
+                                        <button onClick={() => quick(0, listRate)} className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>Sem valor inicial</button>
                                     </div>
-                                    <p className="text-[10px]" style={{ color: problem ? '#b45309' : colors.textSecondary }}>{problem ?? `Só dá para diminuir: o valor do iUser é o teto (${centsToBrl(listBase)} inicial e ${centsToBrl(listRate)} por minuto). Vale para esta espera.`}</p>
+                                    <p className="text-[10px]" style={{ color: problem ? '#b45309' : colors.textSecondary }}>{problem ?? `O valor inicial pode ter desconto (até ${centsToBrl(listBase)}); o valor por minuto não fica abaixo de ${centsToBrl(listRate)} (mínimo do iUser) e pode ser o seu, maior. Vale para esta espera.`}</p>
                                     <div className="flex gap-2">
                                         <button onClick={() => setEditing(false)} className="h-9 px-4 rounded-full text-[12px] font-black" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>Cancelar</button>
                                         <button disabled={!!problem || busy != null} onClick={() => run('disc', async () => { await setRideWaitDiscount(open.id, nb as number, nr as number); setEditing(false) }, 'Valor do tempo atualizado')}

@@ -239,6 +239,8 @@ function AceitarCorridasMapaContent() {
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideMapDetail | null>(null)
     const [myVehicleKinds, setMyVehicleKinds] = useState<VehicleKind[]>(['carro'])
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
+    // o valor INICIAL da corrida (combinado): o preço congelado ao escolher o motorista ou, na falta dele, a proposta aceita
+    const [proposedFallback, setProposedFallback] = useState<number | null>(null)
     const [following, setFollowing] = useState(!isPreview)
     const [offer, setOffer] = useState<OfferData | null>(null)
     // Vindo de "Ver no mapa" na lista: a imagem do mini mapa (que acabou de crescer
@@ -418,6 +420,14 @@ function AceitarCorridasMapaContent() {
             setApplying(false)
         }
     }
+
+    useEffect(() => {
+        if (!acceptedRide || isPreview || acceptedRide.agreed_price != null || !userId) { setProposedFallback(null); return }
+        let alive = true
+        void supabase.from('ride_applications').select('proposed_price').eq('ride_request_id', acceptedRide.id).eq('applicant_id', userId).eq('status', 'accepted').maybeSingle()
+            .then(({ data }) => { if (alive) setProposedFallback(data?.proposed_price != null ? Number(data.proposed_price) : null) })
+        return () => { alive = false }
+    }, [acceptedRide?.id, acceptedRide?.agreed_price, isPreview, userId])   // eslint-disable-line react-hooks/exhaustive-deps
 
     // MOTORISTA DE TESTE (só LOCAL): o carro anda sozinho pelas ruas, no lugar do GPS do aparelho (ver lib/devDrive)
     const [simOn, setSimOn] = useState(false)
@@ -918,6 +928,7 @@ function AceitarCorridasMapaContent() {
                 : !acceptedRide.ride_started_at
                     ? 'Você chegou na partida'
                     : `Indo para: ${navTarget?.label ?? 'Chegada'}${navStats}`
+    const ridePrice: number | null = acceptedRide.agreed_price != null ? Number(acceptedRide.agreed_price) : proposedFallback
     const shownTripKm = acceptedRide.distance_km ?? tripKm
     const shownTripMin = acceptedRide.duration_min ?? tripMin
 
@@ -1004,6 +1015,13 @@ function AceitarCorridasMapaContent() {
                         <MapPin size={12} className="flex-shrink-0 mt-0.5" />
                         <span>{routeLine}</span>
                     </div>
+                    {/* O VALOR INICIAL da corrida (combinado), sempre à vista; a espera, quando existe, soma-se a ele logo abaixo */}
+                    {ridePrice != null && (
+                        <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2" style={{ background: '#16a34a14', border: '1px solid #16a34a55' }}>
+                            <span className="text-[12px] font-bold" style={{ color: colors.textSecondary }}>Valor da corrida (combinado)</span>
+                            <strong className="text-[15px] tabular-nums" style={{ color: '#16a34a' }}>R$ {ridePrice.toFixed(2).replace('.', ',')}</strong>
+                        </div>
+                    )}
 
                     <div className="flex flex-col gap-2 mt-3">
                         {(
@@ -1039,7 +1057,7 @@ function AceitarCorridasMapaContent() {
                                     </button>
                                 )}
 
-                                <RideWaitBox rideId={acceptedRide.id} role="driver" rideStarted={!!acceptedRide.ride_started_at} rideActive basePrice={acceptedRide.agreed_price != null ? Number(acceptedRide.agreed_price) : null} />
+                                <RideWaitBox rideId={acceptedRide.id} role="driver" rideStarted={!!acceptedRide.ride_started_at} rideActive basePrice={ridePrice} />
 
                                 <div className="flex items-center gap-2">
                                     {/* Chat só com o carro parado: quem dirige não conversa */}

@@ -1611,7 +1611,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         minHourly={ride.order_id ? null : earningGoal.minHourly}
                                         protection={earningGoal.protection}
                                         minPerMinute={ride.order_id ? 0 : minPerMinute}
-                                        onEditTariff={ride.order_id ? undefined : () => router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}`)}
+                                        onEditTariff={ride.order_id ? undefined : (section) => router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}&modo=personalizada&secao=${section ?? 'km'}`)}
                                         toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
                                         trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
                                         onSkip={() => skipRide(ride.id)}
