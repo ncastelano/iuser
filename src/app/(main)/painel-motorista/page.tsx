@@ -31,7 +31,7 @@ import { useInsideShell } from '@/components/InsideShell'
 import DriverPanelHome from '@/components/v3/DriverPanelHome'
 import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
-import { timeRateFloor } from '@/modules/negotiation/domain'
+import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
 
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 const ORANGE_V3 = '#f97316'
@@ -570,7 +570,7 @@ function PainelMotoristaContent() {
         base_distance_km: customTouched ? (parseFloat(baseDistanceKm) || 0) : null,
         base_fee: customTouched ? (parseFloat(baseFee) || 0) : null,
         price_per_km_after_base: customTouched ? (parseFloat(pricePerKmAfterBase) || 0) : null,
-        price_per_minute: customTouched && (parseFloat(pricePerMinute) || 0) > 0 ? Math.min(20, Math.round(parseFloat(pricePerMinute) * 100) / 100) : null,
+        price_per_minute: customTouched && (parseFloat(pricePerMinute) || 0) > 0 ? Math.min(20, Math.round(parseFloat(pricePerMinute) * 10000) / 10000) : null,
         extra_fee_pessoa: customTouched ? (parseFloat(extraFeePessoa) || 0) : null,
         extra_fee_animal: customTouched ? (parseFloat(extraFeeAnimal) || 0) : null,
         extra_fee_objeto: customTouched ? (parseFloat(extraFeeObjeto) || 0) : null,
@@ -587,9 +587,16 @@ function PainelMotoristaContent() {
     const timeFloor = timeRateFloor(defaultHourly)
     const timeEntered = parseFloat(String(pricePerMinute).replace(',', '.')) || 0
     const timeBelowFloor = pricingMode === 'custom' && timeEntered > 0 && timeEntered < timeFloor
+    // a lista em R$ POR HORA (do mínimo para cima); "Outro valor" abre um campo, também com o mínimo
+    const [timeOther, setTimeOther] = useState(false)
+    const [timeOtherText, setTimeOtherText] = useState('')
+    const hourlyList = hourlyOptions(defaultHourly)
+    const hourlyNow = timeEntered > 0 ? rateToHourly(timeEntered) : defaultHourly
+    const hourlySelect = timeOther || !hourlyList.includes(hourlyNow) ? 'outro' : String(hourlyNow)
+    const pickHourly = (hourly: number) => { setCustomTouched(true); setPricePerMinute(hourly <= defaultHourly ? '' : String(hourlyToRate(hourly))) }
     const handleSave = async () => {
         if (timeBelowFloor) {
-            toast.error(`A tarifa por tempo não pode ser menor que R$ ${timeFloor.toFixed(2).replace('.', ',')} por minuto (R$ ${defaultHourly.toLocaleString('pt-BR')} por hora, o mínimo do iUser). Só dá para aumentar.`)
+            toast.error(`A tarifa por tempo não pode ser menor que R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o mínimo do iUser). Só dá para aumentar.`)
             setActiveTab('plano')
             return
         }
@@ -1128,30 +1135,52 @@ function PainelMotoristaContent() {
                             </div>
                             {pricingMode === 'custom' ? (
                                 <div className={cardCls} style={cardStyle}>
-                                    <label className={labelCls}>Minha tarifa por tempo (R$ por minuto)</label>
-                                    <input
-                                        type="number"
-                                        inputMode="decimal"
-                                        min={timeFloor}
-                                        max="20"
-                                        step="0.01"
-                                        value={pricePerMinute}
-                                        onChange={(e) => setPricePerMinute(e.target.value)}
-                                        placeholder={`Mínimo ${timeFloor.toFixed(2).replace('.', ',')} (vazio = o padrão do iUser)`}
+                                    <label className={labelCls}>Minha tarifa por tempo (R$ por hora)</label>
+                                    <select
+                                        value={hourlySelect}
+                                        onChange={(e) => {
+                                            if (e.target.value === 'outro') { setTimeOther(true); setTimeOtherText(String(hourlyNow)); return }
+                                            setTimeOther(false)
+                                            pickHourly(Number(e.target.value))
+                                        }}
                                         className={inputCls}
                                         style={{ ...fieldStyle, ...(timeBelowFloor ? { border: '1.5px solid #ef4444' } : {}) }}
-                                    />
+                                        aria-label="Minha tarifa por tempo, em reais por hora"
+                                    >
+                                        {hourlyList.map((h) => (
+                                            <option key={h} value={String(h)}>R$ {h.toLocaleString('pt-BR')} por hora{h === defaultHourly ? ' · padrão do iUser' : ''}</option>
+                                        ))}
+                                        <option value="outro">Outro valor…</option>
+                                    </select>
+                                    {hourlySelect === 'outro' && (
+                                        <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            min={defaultHourly}
+                                            step="1"
+                                            value={timeOtherText}
+                                            onChange={(e) => {
+                                                setTimeOtherText(e.target.value)
+                                                const h = parseFloat(e.target.value.replace(',', '.'))
+                                                setCustomTouched(true)
+                                                setPricePerMinute(h > 0 ? String(hourlyToRate(h)) : '')
+                                            }}
+                                            placeholder={`R$ por hora (mínimo ${defaultHourly.toLocaleString('pt-BR')})`}
+                                            className={`${inputCls} mt-2`}
+                                            style={{ ...fieldStyle, ...(timeBelowFloor ? { border: '1.5px solid #ef4444' } : {}) }}
+                                        />
+                                    )}
                                     <p className={`${v3 ? 'text-xs' : 'text-[11px]'} font-bold mt-1.5`} style={{ color: timeBelowFloor ? '#ef4444' : colors.textSecondary }}>
                                         {timeBelowFloor
-                                            ? `Abaixo do mínimo: R$ ${timeEntered.toFixed(2).replace('.', ',')} por minuto = R$ ${Math.round(timeEntered * 60)} por hora. Use pelo menos R$ ${timeFloor.toFixed(2).replace('.', ',')} por minuto.`
-                                            : `Mínimo R$ ${timeFloor.toFixed(2).replace('.', ',')} por minuto (R$ ${defaultHourly.toLocaleString('pt-BR')} por hora, do iUser). Só dá para aumentar.`}
+                                            ? `Abaixo do mínimo: R$ ${rateToHourly(timeEntered).toLocaleString('pt-BR')} por hora. Use pelo menos R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o mínimo do iUser).`
+                                            : `Mínimo R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o padrão do iUser): só dá para aumentar. R$ ${hourlyNow.toLocaleString('pt-BR')} por hora = R$ ${hourlyToRate(hourlyNow).toFixed(2).replace('.', ',')} por minuto.`}
                                     </p>
                                     <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-1.5`} style={{ color: colors.textSecondary }}>
                                         Cobra os minutos de trabalho (ir buscar + a corrida). É o seu 3º valor, ao lado da Tarifa iUser e da tarifa por km: em cada corrida você escolhe qual propor. O mínimo do iUser por minuto e o seu ganho mínimo por hora (abaixo) também valem para ele.
                                     </p>
-                                    {(parseFloat(pricePerMinute) || 0) > 0 && !timeBelowFloor && (
+                                    {!timeBelowFloor && (
                                         <p className={`${v3 ? 'text-xs' : 'text-[11px]'} font-bold mt-1`} style={{ color: '#16a34a' }}>
-                                            Ex.: uma corrida de 20 min de trabalho = R$ {(20 * (parseFloat(pricePerMinute) || 0)).toFixed(2).replace('.', ',')} (R$ {Math.round(60 * (parseFloat(pricePerMinute) || 0))} por hora)
+                                            Ex.: uma corrida de 20 min de trabalho = R$ {(20 * hourlyToRate(hourlyNow)).toFixed(2).replace('.', ',')}
                                         </p>
                                     )}
                                     <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-1`} style={{ color: colors.textSecondary }}>A espera na parada não entra aqui: é regra do iUser.</p>

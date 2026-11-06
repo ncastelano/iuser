@@ -58,13 +58,21 @@ export function suggestedFare(distanceFare: number, floor: number | null): numbe
 /** Padrão: R$ 40 por hora de trabalho (ir buscar + corrida), para quem não definiu o próprio. O valor de verdade mora no banco (Admin → Tarifas); cada motorista pode mudar o dele. */
 export const DEFAULT_MIN_HOURLY = 40
 
-/** O MENOR valor por minuto que o motorista pode pôr na "Minha tarifa por tempo": o ganho mínimo por hora do iUser ÷ 60, arredondado PARA CIMA em centavos (R$ 40/h → R$ 0,67). Só dá para mudar para cima. */
-export const timeRateFloor = (hourly: number): number => (hourly > 0 ? Math.ceil((hourly / 60) * 100 - 1e-9) / 100 : 0)
+/** O motorista escolhe a "Minha tarifa por tempo" em R$ POR HORA (mínimo = o ganho mínimo por hora do iUser, R$ 40) e só muda para CIMA; guardamos por minuto com 4 casas (R$ 40/h = R$ 0,6667/min) para a conta fechar certa. */
+export const hourlyToRate = (hourly: number): number => Math.round((hourly / 60) * 10000) / 10000
+export const rateToHourly = (rate: number): number => Math.round(rate * 60 * 100) / 100
+/** O menor valor por minuto aceito: o padrão por hora ÷ 60 (R$ 40/h → R$ 0,6667/min) */
+export const timeRateFloor = (hourly: number): number => (hourly > 0 ? hourlyToRate(hourly) : 0)
 /** O valor por minuto que VALE: o próprio do motorista, mas nunca abaixo do piso (se o admin subir o padrão, o valor antigo já não fica abaixo dele) */
 export const effectiveTimeRate = (own: number | null | undefined, hourly: number): number | null => {
     const floor = timeRateFloor(hourly)
     const o = own != null && own > 0 ? own : null
     return o != null ? Math.max(o, floor) : floor > 0 ? floor : null
+}
+/** As opções da lista "R$ por hora": do mínimo (o padrão do iUser) para cima */
+export function hourlyOptions(defaultHourly: number): number[] {
+    const base = [40, 45, 50, 55, 60, 70, 80, 90, 100, 120, 150, 200]
+    return Array.from(new Set([defaultHourly, ...base.filter((v) => v > defaultHourly)])).sort((x, y) => x - y)
 }
 
 // ===== VALOR MÍNIMO DA PLATAFORMA (por minuto de trabalho) =====
