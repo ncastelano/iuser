@@ -54,6 +54,9 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 import RideMapDialog from '@/app/(main)/aceitar-corridas/RideMapDialog'
 import { RideOfferCard } from './RideOfferCard'
+import { RideSummaryCard } from './RideSummaryCard'
+import { rideQuote } from '@/lib/rideQuote'
+import { rideValuation, valuationRank } from '@/modules/negotiation/domain'
 import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from './LocationAskDialog'
 import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { submitRideApplication } from '@/lib/rideApplication'
@@ -313,6 +316,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const focusRideId = searchParams.get('ride')
     const focusTab = searchParams.get('tab')
     const [highlightRideId, setHighlightRideId] = useState<string | null>(null)
+    // qual card está com o "Detalhes" aberto (o botão grande do card abre; o link da home também)
+    const [expandedRideId, setExpandedRideId] = useState<string | null>(null)
     const focusedRef = useRef(false)
     const { userId: contextUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
@@ -1065,6 +1070,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         focusedRef.current = true
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
         setHighlightRideId(focusRideId)
+        setExpandedRideId(focusRideId)
         setTimeout(() => setHighlightRideId(null), 3000)
     }, [focusRideId, loading, rides, candidacies, activeTab])
 
@@ -1510,58 +1516,115 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 const pickup = pickupKm != null
                                     ? { state: 'ready' as const, km: pickupKm, amount: pickupAmount, from: (gpsStatus === 'granted' ? 'gps' : 'saved') as 'gps' | 'saved' }
                                     : { state: (gpsStatus === 'asking' ? 'waiting' : 'missing') as 'waiting' | 'missing' }
-                                return (
-                                    <div
-                                        key={ride.id}
-                                        id={`ride-card-${ride.id}`}
-                                        className="rounded-2xl p-3.5 overflow-hidden relative transition-shadow duration-500"
-                                        style={{ background: surf, border: highlightRideId === ride.id || (ride.preferred_driver_id && ride.preferred_driver_id === contextUserId) ? '1px solid #f97316' : bd, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
-                                    >
-                                        {ride.preferred_driver_id && ride.preferred_driver_id === contextUserId && (
-                                            <span className="inline-flex items-center gap-1 mb-2 text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
-                                                Chamou você
-                                            </span>
-                                        )}
-                                        <RideOfferCard
-                                            ride={ride}
-                                            requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
-                                            storeName={ride.storeName}
-                                            platformPrice={tripPlatformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
-                                            pickup={pickup}
-                                            tripFareNote={ride.hasDistance && tripKmForNote != null ? describeTripFare(tripKmForNote, platformShape) : undefined}
-                                            customPrice={tripCustomPrice}
-                                            customPickup={ride.offered_price == null && ride.customTariff && pickupKm != null ? computePickupFee(ride.customTariff, pickupKm) : 0}
-                                            valueFromOwn={ride.useOwnTariff}
-                                            timeRate={ride.customTariff?.pricePerMinute ?? null}
-                                            timeExtras={ride.customTariff ? computeRideExtras(ride.ride_type, flagsOfRide, ride.customTariff) : 0}
-                                            applying={applyingId === ride.id}
-                                            onApply={(price) => applyToRide(ride, price)}
-                                            onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
-                                            minHourly={ride.order_id ? null : earningGoal.minHourly}
-                                            protection={earningGoal.protection}
-                                            minPerMinute={ride.order_id ? 0 : minPerMinute}
-                                            onEditTariff={ride.order_id ? undefined : () => router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}`)}
-                                            toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
-                                            trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
-                                            onSkip={() => skipRide(ride.id)}
-                                            miniMap={ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null ? (
-                                                <RideMiniMap
-                                                    compact
-                                                    originLat={ride.origin_lat}
-                                                    originLng={ride.origin_lng}
-                                                    destLat={ride.destination_lat}
-                                                    destLng={ride.destination_lng}
-                                                    stops={rideStopsOf(ride)}
-                                                    driverLat={driverCoords ? driverCoords[1] : null}
-                                                    driverLng={driverCoords ? driverCoords[0] : null}
-                                                    onExpand={() => router.push(`/aceitar-corridas/mapa?ride=${ride.id}`)}
-                                                    onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [ride.id]: i }))}
-                                                />
-                                            ) : null}
-                                        />
-                                    </div>
+
+                                // O valor do card enxuto sai da MESMA conta do Canal do Motorista da home (lib/rideQuote)
+                                const rq = rideQuote<DriverPricing>({
+                                    offeredPrice: ride.offered_price != null ? Number(ride.offered_price) : null,
+                                    distanceKm: ride.distance_km, routeKm: routeKm ?? null,
+                                    platformShape, customShape: ride.customTariff ?? null, useCustom: ride.useOwnTariff,
+                                    pickupKm, pickupMin: info?.toPickupMin ?? null,
+                                    tripMin: info?.tripMin ?? ride.duration_min ?? (ride.distance_km != null ? (ride.distance_km / 40) * 60 : null),
+                                    minHourly: ride.offered_price != null ? null : earningGoal.minHourly,
+                                    minPerMinute: ride.order_id ? 0 : minPerMinute,
+                                    tripFare: (shape, km) => km != null
+                                        ? computeSuggestedPrice(km, shape, ride.ride_type, flagsOfRide)
+                                        : shape.baseFee + shape.extraFees[ride.ride_type] + computeConditionExtras(flagsOfRide, shape.conditionExtraFees),
+                                    pickupFee: (shape, km) => computePickupFee(shape, km),
+                                })
+                                const fromPassenger = ride.offered_price == null && ride.passenger_offer != null
+                                const price = fromPassenger ? Number(ride.passenger_offer) : rq.shown
+                                const valuation = rideValuation(fromPassenger && !ride.order_id ? price : null, rq.platform)
+                                const hasCoords = ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null
+                                const calledMe = !!ride.preferred_driver_id && ride.preferred_driver_id === contextUserId
+
+                                // O card completo, com TODOS os botões (candidatar, contraproposta, pular), mora no "Detalhes"
+                                const details = (
+                                    <RideOfferCard
+                                        ride={ride}
+                                        requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                        storeName={ride.storeName}
+                                        platformPrice={tripPlatformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
+                                        pickup={pickup}
+                                        tripFareNote={ride.hasDistance && tripKmForNote != null ? describeTripFare(tripKmForNote, platformShape) : undefined}
+                                        customPrice={tripCustomPrice}
+                                        customPickup={ride.offered_price == null && ride.customTariff && pickupKm != null ? computePickupFee(ride.customTariff, pickupKm) : 0}
+                                        valueFromOwn={ride.useOwnTariff}
+                                        timeRate={ride.customTariff?.pricePerMinute ?? null}
+                                        timeExtras={ride.customTariff ? computeRideExtras(ride.ride_type, flagsOfRide, ride.customTariff) : 0}
+                                        applying={applyingId === ride.id}
+                                        onApply={(price) => applyToRide(ride, price)}
+                                        onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
+                                        minHourly={ride.order_id ? null : earningGoal.minHourly}
+                                        protection={earningGoal.protection}
+                                        minPerMinute={ride.order_id ? 0 : minPerMinute}
+                                        onEditTariff={ride.order_id ? undefined : () => router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}`)}
+                                        toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
+                                        trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
+                                        onSkip={() => skipRide(ride.id)}
+                                        miniMap={hasCoords ? (
+                                            <RideMiniMap
+                                                compact
+                                                originLat={ride.origin_lat as number}
+                                                originLng={ride.origin_lng as number}
+                                                destLat={ride.destination_lat as number}
+                                                destLng={ride.destination_lng as number}
+                                                stops={rideStopsOf(ride)}
+                                                driverLat={driverCoords ? driverCoords[1] : null}
+                                                driverLng={driverCoords ? driverCoords[0] : null}
+                                                onExpand={() => router.push(`/aceitar-corridas/mapa?ride=${ride.id}`)}
+                                                onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [ride.id]: i }))}
+                                            />
+                                        ) : null}
+                                    />
                                 )
-                            })}
+
+                                return {
+                                    rank: valuationRank(valuation.tier),
+                                    node: (
+                                        <div
+                                            key={ride.id}
+                                            id={`ride-card-${ride.id}`}
+                                            className="rounded-3xl transition-shadow duration-500"
+                                            style={{ boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : undefined }}
+                                        >
+                                            <RideSummaryCard
+                                                ride={ride}
+                                                requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                                price={price}
+                                                approx={!fromPassenger && rq.shownKind === 'platform' && pickup.state !== 'ready'}
+                                                reference={rq.platform}
+                                                fromPassenger={fromPassenger}
+                                                totalMin={rq.minutes}
+                                                toPickup={{ km: pickupKm, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
+                                                trip={{ km: rq.tripKm, min: info?.tripMin ?? ride.duration_min }}
+                                                thumb={hasCoords ? (
+                                                    <RideMiniMap
+                                                        thumb
+                                                        originLat={ride.origin_lat as number}
+                                                        originLng={ride.origin_lng as number}
+                                                        destLat={ride.destination_lat as number}
+                                                        destLng={ride.destination_lng as number}
+                                                        stops={rideStopsOf(ride)}
+                                                        driverLat={driverCoords ? driverCoords[1] : null}
+                                                        driverLng={driverCoords ? driverCoords[0] : null}
+                                                        onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [ride.id]: i }))}
+                                                    />
+                                                ) : undefined}
+                                                topBadge={calledMe ? (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
+                                                        Chamou você
+                                                    </span>
+                                                ) : undefined}
+                                                ctaLabel="Ver detalhes e me candidatar"
+                                                open={expandedRideId === ride.id}
+                                                onOpenChange={(o) => setExpandedRideId(o ? ride.id : null)}
+                                                onOpen={() => setExpandedRideId(ride.id)}
+                                                details={details}
+                                            />
+                                        </div>
+                                    ),
+                                }
+                            }).sort((a, b) => b.rank - a.rank).map((c) => c.node)}
                         </div>
                     )}
 

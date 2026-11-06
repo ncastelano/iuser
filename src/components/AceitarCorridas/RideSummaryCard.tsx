@@ -63,13 +63,22 @@ interface RideSummaryCardProps {
     /** miniatura do mapa (RideMiniMap thumb) */
     thumb?: ReactNode
     onOpen: () => void
-    /** o card completo, só leitura (RideOfferCard viewOnly): aparece no "Detalhes" */
+    /** o card completo (na home só leitura, em /aceitar-corridas com os botões de candidatar): aparece no "Detalhes" */
     details: ReactNode
+    /** texto do botão grande (padrão: "Ver corrida e me candidatar") */
+    ctaLabel?: string
+    /** "Detalhes" controlado por quem usa (ex.: /aceitar-corridas abre pelo botão grande ou pelo link da home); sem isso o card cuida sozinho */
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    /** faixa extra no topo (ex.: "Chamou você") */
+    topBadge?: ReactNode
 }
 
-export function RideSummaryCard({ ride, requester, price, approx = false, reference, fromPassenger, totalMin, toPickup, trip, thumb, onOpen, details }: RideSummaryCardProps) {
+export function RideSummaryCard({ ride, requester, price, approx = false, reference, fromPassenger, totalMin, toPickup, trip, thumb, onOpen, details, ctaLabel = 'Ver corrida e me candidatar', open: openProp, onOpenChange, topBadge }: RideSummaryCardProps) {
     const { colors } = useTheme()
-    const [open, setOpen] = useState(false)
+    const [openOwn, setOpenOwn] = useState(false)
+    const open = openProp ?? openOwn
+    const setOpen = (fn: boolean | ((v: boolean) => boolean)) => { const next = typeof fn === 'function' ? fn(open) : fn; if (onOpenChange) onOpenChange(next); else setOpenOwn(next) }
     const isStore = !!ride.order_id
     const { tier, extra } = fromPassenger && !isStore ? rideValuation(price, reference) : { tier: 'none' as const, extra: 0 }
     const hot = tier === 'great'
@@ -93,6 +102,7 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                 </div>
             )}
 
+            {topBadge && <div className="px-4 pt-3">{topBadge}</div>}
             <div className="p-4 flex flex-col gap-3">
                 {/* quem pediu, em uma linha */}
                 <div className="flex items-center gap-2.5">
@@ -140,7 +150,7 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                 )}
 
                 <button onClick={onOpen} className="h-12 rounded-full text-white text-[14px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition" style={{ background: hot ? GRADIENT : ORANGE }}>
-                    Ver corrida e me candidatar <ArrowRight size={17} />
+                    {ctaLabel} <ArrowRight size={17} />
                 </button>
 
                 <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex items-center justify-center gap-1 text-[12px] font-bold py-0.5" style={{ color: colors.textSecondary }}>
