@@ -36,7 +36,7 @@ export interface RideQuote {
     platformTrip: number
     /** Tarifa iUser com o deslocamento até a partida */
     platform: number
-    /** Minha tarifa (com o piso por hora quando o motorista tem mínimo); null = o motorista não tem tarifa própria */
+    /** Minha tarifa (corrida + deslocamento até a partida, com o piso por hora quando o motorista tem mínimo); null = o motorista não tem tarifa própria */
     custom: number | null
     /** o que o card destaca como "você pode ganhar" */
     shown: number
@@ -58,7 +58,9 @@ export function rideQuote<Shape>(i: RideQuoteInput<Shape>): RideQuote {
     const platformMin = i.offeredPrice != null ? 0 : platformFloor(minutes, i.minPerMinute)
     const platform = round2(Math.max(platformTrip + pickupAmount, platformMin))
     const floor = hourlyFloor(minutes, i.minHourly)
-    const custom = i.customShape ? round2(Math.max(suggestedFare(i.tripFare(i.customShape, tripKm), floor), platformMin)) : null
+    // Minha tarifa soma o deslocamento até a partida pelo valor por km da tarifa PRÓPRIA (a Tarifa iUser faz o mesmo pela dela)
+    const customPickup = i.customShape && i.pickupKm != null ? i.pickupFee(i.customShape, i.pickupKm) : 0
+    const custom = i.customShape ? round2(Math.max(suggestedFare(i.tripFare(i.customShape, tripKm) + customPickup, floor), platformMin)) : null
 
     let shown = platform
     let shownKind: RideQuote['shownKind'] = 'platform'

@@ -697,6 +697,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                     pickup={pickup}
                                     tripFareNote={usesPlatformTariff && !route && q.tripKm != null ? describeTripFare(q.tripKm, platformShape) : undefined}
                                     customPrice={customShape ? tripFare(customShape, q.tripKm) : null}
+                                    customPickup={ride.offered_price == null && customShape && route ? computePickupFee(customShape, route.km) : 0}
                                     onApply={() => goToRide(ride.id)}
                                     minHourly={ride.offered_price != null ? null : minHourly}
                                     minPerMinute={ride.offered_price != null ? 0 : minPerMinute}

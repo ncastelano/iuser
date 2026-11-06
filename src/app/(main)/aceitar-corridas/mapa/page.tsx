@@ -38,7 +38,7 @@ import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { kindForRideType, type VehicleType, type VehicleKind } from '@/lib/rideVehicle'
-import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, computePickupFee } from '@/lib/driverPricing'
+import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, computePickupFee, type DriverPricing } from '@/lib/driverPricing'
 import { computeRideTariffs } from '@/lib/rideTariffs'
 import { submitRideApplication } from '@/lib/rideApplication'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -169,6 +169,7 @@ interface OfferData {
     storeName: string | null
     platformPrice: number
     customPrice: number | null
+    customShape: DriverPricing | null
 }
 
 const SHEET_MIN_VH = 22
@@ -332,7 +333,7 @@ function AceitarCorridasMapaContent() {
             ])
             if (cancelled) return
             await loadPlatformTariffs(supabase)
-            const { platformPrice, customPrice } = computeRideTariffs(
+            const { platformPrice, customPrice, customShape } = computeRideTariffs(
                 r as Parameters<typeof computeRideTariffs>[0],
                 (pricing ? pricing : { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }) as Parameters<typeof computeRideTariffs>[1]
             )
@@ -348,6 +349,7 @@ function AceitarCorridasMapaContent() {
                 storeName: (storeRes.data as { name: string } | null)?.name || null,
                 platformPrice,
                 customPrice,
+                customShape,
             })
         })()
         return () => { cancelled = true }
@@ -877,6 +879,7 @@ function AceitarCorridasMapaContent() {
                                 platformPrice={offer.platformPrice + (pickupFee.state === 'ready' ? pickupFee.amount : 0)}
                                 pickup={pickupFee}
                                 customPrice={offer.customPrice}
+                                customPickup={offer.ride.offered_price == null && offer.customShape && pickupFee.state === 'ready' ? computePickupFee(offer.customShape, pickupFee.km) : 0}
                                 toPickup={{ km: routeKm, min: routeMin, hasGps: !!driverCoords }}
                                 trip={{ km: shownTripKm, min: shownTripMin }}
                                 applying={applying}

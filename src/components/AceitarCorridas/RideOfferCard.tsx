@@ -74,6 +74,8 @@ interface RideOfferCardProps {
     // Valores: sem onApply (ou com footer) a seção de tarifas não aparece.
     platformPrice?: number
     customPrice?: number | null
+    // O que a tarifa PRÓPRIA do motorista cobra pelo deslocamento até a partida (km × o valor por km dele), já calculado por quem chama; soma em "Minha tarifa". 0/undefined = sem deslocamento (sem posição, ou entrega de loja)
+    customPickup?: number
     applying?: boolean
     onApply?: (price: number) => void
     // Entrega de loja: propor a Minha tarifa (o cliente decide). O valor é recalculado no servidor.
@@ -126,7 +128,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, minPerMinute = 0, compact = false, pickup, tripFareNote, viewOnly = false, after }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice: customTripPrice = null, customPickup = 0, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, minPerMinute = 0, compact = false, pickup, tripFareNote, viewOnly = false, after }: RideOfferCardProps) {
     const { colors } = useTheme()
     // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
     const v3 = useInsideShell()
@@ -152,6 +154,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const platFloor = ride.order_id || ride.offered_price != null ? 0 : platformFloor(minutesTotal, minPerMinute)
     const raise = (v: number) => (platFloor > 0 ? Math.max(v, platFloor) : v)
     platformPrice = raise(platformPrice)
+    // Minha tarifa = a corrida pela tarifa dele + o deslocamento até a partida pelo valor por km dele (igual à Tarifa iUser, que também soma o deslocamento)
+    const customPrice = customTripPrice != null ? round2(customTripPrice + (customPickup > 0 ? customPickup : 0)) : null
     const myFare = customPrice != null ? raise(suggestedFare(customPrice, floor)) : null
     // O piso do ganho mínimo SUBIU a tarifa só quando ele é maior que a tarifa por distância (comparando já arredondado, senão uma diferença de centavos acusa "no seu mínimo" sem o piso ter feito nada)
     const floorRaised = customPrice != null && ((floor != null && floor > round2(customPrice)) || (platFloor > 0 && platFloor > round2(customPrice)))
@@ -468,6 +472,9 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             </span>
                             {(myFare ?? iuserSuggestion) != null && perHour((myFare ?? iuserSuggestion) as number) != null && (
                                 <span className="block text-[9px] leading-tight font-semibold" style={{ color: myFare != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>≈ R$ {perHour((myFare ?? iuserSuggestion) as number)}/h{myFareDriver === 'platform' ? ' · mínimo da plataforma' : myFareDriver === 'hourly' ? ' · seu ganho mínimo' : ''}</span>
+                            )}
+                            {myFare != null && customPickup > 0 && (
+                                <span className="block text-[9px] leading-tight mt-0.5" style={{ color: 'rgba(255,255,255,0.85)' }}>inclui {brl(customPickup)} até a partida</span>
                             )}
                             {onEditTariff && myFare != null && (
                                 <span className="block text-[9px] leading-tight font-bold mt-0.5 underline" style={{ color: 'rgba(255,255,255,0.9)' }}>toque para editar</span>
