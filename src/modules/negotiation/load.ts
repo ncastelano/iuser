@@ -1,6 +1,6 @@
 // src/modules/negotiation/load.ts — fala com o banco (ofertas, contrapropostas, ganho mínimo). A validação de verdade mora nas funções do banco.
 import { supabase } from '@/lib/supabase/client'
-import { DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, negotiationError, offerFromRow, parseHourlyCheck, type HourlyCheck, type PriceOffer } from './domain'
+import { DEFAULT_MIN_HOURLY, DEFAULT_MIN_PER_MINUTE, DEFAULT_MIN_PER_MINUTE_CAP, negotiationError, offerFromRow, parseHourlyCheck, type HourlyCheck, type PriceOffer } from './domain'
 
 export class NegotiationError extends Error {
     hint: string | null
@@ -42,10 +42,32 @@ export async function loadOffers(applicationIds: string[]): Promise<PriceOffer[]
 }
 
 // ===== GANHO MÍNIMO POR HORA (PRIVADO) =====
-export interface EarningGoal { minHourly: number | null; protection: 'warn' | 'block' }
+export interface EarningGoal {
+    /** o que vale para o motorista: o dele, ou o padrão do iUser quando ele não definiu */
+    minHourly: number | null
+    protection: 'warn' | 'block'
+    /** true = não é do motorista, é o padrão do iUser */
+    isDefault?: boolean
+    /** o padrão do iUser (R$/h) */
+    defaultHourly?: number
+}
+let defHourlyCache: { at: number; value: number } | null = null
+/** O ganho mínimo por hora PADRÃO do iUser (Admin → Tarifas). Guardado 5 min; se não carregar, vale R$ 40. */
+export async function loadDefaultMinHourly(): Promise<number> {
+    if (defHourlyCache && Date.now() - defHourlyCache.at < 300_000) return defHourlyCache.value
+    const { data, error } = await supabase.rpc('get_default_min_hourly')
+    const v = !error && data != null && Number.isFinite(Number(data)) && Number(data) > 0 ? Number(data) : DEFAULT_MIN_HOURLY
+    defHourlyCache = { at: Date.now(), value: v }
+    return v
+}
+export function forgetDefaultMinHourly() { defHourlyCache = null }
 export async function loadEarningGoal(driverId: string): Promise<EarningGoal> {
-    const { data } = await supabase.from('driver_earning_goals').select('min_hourly, protection').eq('driver_id', driverId).maybeSingle()
-    return { minHourly: data?.min_hourly != null ? Number(data.min_hourly) : null, protection: data?.protection === 'block' ? 'block' : 'warn' }
+    const [{ data }, def] = await Promise.all([
+        supabase.from('driver_earning_goals').select('min_hourly, protection').eq('driver_id', driverId).maybeSingle(),
+        loadDefaultMinHourly(),
+    ])
+    const own = data?.min_hourly != null ? Number(data.min_hourly) : null
+    return { minHourly: own ?? def, protection: data?.protection === 'block' ? 'block' : 'warn', isDefault: own == null, defaultHourly: def }
 }
 export async function saveEarningGoal(driverId: string, goal: EarningGoal): Promise<void> {
     const { error } = await supabase.from('driver_earning_goals').upsert({ driver_id: driverId, min_hourly: goal.minHourly, protection: goal.protection, updated_at: new Date().toISOString() }, { onConflict: 'driver_id' })

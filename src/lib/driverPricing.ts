@@ -55,8 +55,8 @@ export interface RideConditionFlags {
 // candidatar, não há tarifa própria pra usar ainda).
 export const PLATFORM_DEFAULT_EXTRA_FEES: DriverExtraFees = {
     pessoa: 0,
-    animal: 5,
-    objeto: 3,
+    animal: 0,
+    objeto: 0,
 }
 
 export const PLATFORM_DEFAULT_CONDITION_EXTRA_FEES: DriverConditionExtraFees = {

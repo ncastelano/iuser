@@ -9,7 +9,7 @@ import { ShieldCheck, TrendingUp } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { toast } from '@/lib/toast'
-import { loadEarningGoal, parseMoney, saveEarningGoal, validateAmount } from '@/modules/negotiation'
+import { DEFAULT_MIN_HOURLY, loadEarningGoal, parseMoney, saveEarningGoal, validateAmount } from '@/modules/negotiation'
 
 export default function DriverEarningGoalCard({ driverId }: { driverId: string | null }) {
     const { colors } = useTheme()
@@ -18,13 +18,18 @@ export default function DriverEarningGoalCard({ driverId }: { driverId: string |
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState<{ v: string; p: 'warn' | 'block' } | null>(null)
+    // o padrão do iUser (R$/h) vale enquanto a pessoa não definir o dela; o campo fica vazio e mostra o padrão
+    const [defaultHourly, setDefaultHourly] = useState(DEFAULT_MIN_HOURLY)
+    const [usingDefault, setUsingDefault] = useState(true)
 
     useEffect(() => {
         if (!driverId) { setLoading(false); return }
         let alive = true
         void loadEarningGoal(driverId).then((g) => {
             if (!alive) return
-            const v = g.minHourly != null ? String(g.minHourly).replace('.', ',') : ''
+            const own = !g.isDefault && g.minHourly != null
+            const v = own ? String(g.minHourly).replace('.', ',') : ''
+            setDefaultHourly(g.defaultHourly ?? DEFAULT_MIN_HOURLY); setUsingDefault(!own)
             setValue(v); setProtection(g.protection); setSaved({ v, p: g.protection }); setLoading(false)
         }).catch(() => { if (alive) setLoading(false) })
         return () => { alive = false }
@@ -45,7 +50,8 @@ export default function DriverEarningGoalCard({ driverId }: { driverId: string |
         try {
             await saveEarningGoal(driverId, { minHourly, protection })
             setSaved({ v: value, p: protection })
-            toast.success(minHourly ? `Ganho mínimo salvo: R$ ${minHourly.toLocaleString('pt-BR')}/h` : 'Ganho mínimo desligado')
+            setUsingDefault(!minHourly)
+            toast.success(minHourly ? `Ganho mínimo salvo: R$ ${minHourly.toLocaleString('pt-BR')}/h` : `Voltou ao padrão do iUser: R$ ${defaultHourly.toLocaleString('pt-BR')}/h`)
         } catch (e: any) {
             toast.error(e?.message || 'Não foi possível salvar')
         } finally { setSaving(false) }
@@ -59,25 +65,30 @@ export default function DriverEarningGoalCard({ driverId }: { driverId: string |
                 <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f973161f', color: '#f97316' }}><TrendingUp size={20} /></span>
                 <div className="min-w-0">
                     <h3 className="text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>Meu ganho mínimo por hora</h3>
-                    <p className="text-[11px] leading-snug" style={{ color: colors.textSecondary }}>Opcional e só seu: o passageiro nunca vê. Contamos o tempo de ir buscar mais a corrida.</p>
+                    <p className="text-[11px] leading-snug" style={{ color: colors.textSecondary }}>Só seu: o passageiro nunca vê. Contamos o tempo de ir buscar mais a corrida.</p>
                 </div>
             </div>
 
             {loading ? <div className="flex justify-center py-3"><Spinner size={18} color={colors.accent} /></div> : (
                 <>
+                    <p className="text-[12px] leading-snug rounded-xl px-3 py-2" style={{ background: usingDefault ? '#f973161a' : `${colors.border}30`, color: colors.textPrimary }}>
+                        {usingDefault
+                            ? <>Hoje vale o <strong>padrão do iUser: R$ {defaultHourly.toLocaleString('pt-BR')} por hora</strong>. Escreva outro valor para usar o seu.</>
+                            : <>Vale o <strong>seu</strong> valor. Apague e salve para voltar ao padrão do iUser (R$ {defaultHourly.toLocaleString('pt-BR')}/h).</>}
+                    </p>
                     <label className="block">
                         <span className="block text-[11px] font-bold mb-1" style={{ color: colors.textSecondary }}>Quanto você quer ganhar, no mínimo, por hora de trabalho? (R$)</span>
                         <input
                             inputMode="decimal"
                             value={value}
                             onChange={(e) => setValue(e.target.value.replace(/[^\d.,]/g, '').slice(0, 7))}
-                            placeholder="Ex: 50"
+                            placeholder={`Padrão do iUser: ${defaultHourly.toLocaleString('pt-BR')}`}
                             className="w-full px-4 py-3 rounded-full text-sm font-black outline-none"
                             style={{ background: colors.background, border: `1.5px solid ${colors.border}`, color: colors.textPrimary }}
                         />
                     </label>
 
-                    {value.trim() && (
+                    {(value.trim() || usingDefault) && (
                         <div className="flex flex-col gap-2">
                             <p className="text-[11px] font-black flex items-center gap-1.5" style={{ color: colors.textSecondary }}><ShieldCheck size={13} /> Proteção do ganho mínimo</p>
                             <button onClick={() => setProtection('warn')} className="rounded-2xl p-3 text-left transition active:scale-[0.99]" style={opt(protection === 'warn')}>
@@ -92,7 +103,7 @@ export default function DriverEarningGoalCard({ driverId }: { driverId: string |
                     )}
 
                     <button onClick={save} disabled={saving || !dirty} className="w-full h-11 rounded-full text-sm font-black text-white disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
-                        {saving ? <Spinner size={14} /> : dirty ? 'Salvar ganho mínimo' : 'Salvo'}
+                        {saving ? <Spinner size={14} /> : dirty ? 'Salvar ganho mínimo' : (usingDefault ? 'Usando o padrão do iUser' : 'Salvo')}
                     </button>
                 </>
             )}

@@ -54,6 +54,10 @@ export function suggestedFare(distanceFare: number, floor: number | null): numbe
     return round2(Math.max(distanceFare, floor))
 }
 
+// ===== GANHO MÍNIMO POR HORA PADRÃO DO iUSER =====
+/** Padrão: R$ 40 por hora de trabalho (ir buscar + corrida), para quem não definiu o próprio. O valor de verdade mora no banco (Admin → Tarifas); cada motorista pode mudar o dele. */
+export const DEFAULT_MIN_HOURLY = 40
+
 // ===== VALOR MÍNIMO DA PLATAFORMA (por minuto de trabalho) =====
 /** Padrão: R$ 0,80 por minuto (= R$ 48 por hora). O valor de verdade mora no banco (Admin → Tarifas); este só vale até ele carregar. */
 export const DEFAULT_MIN_PER_MINUTE = 0.8

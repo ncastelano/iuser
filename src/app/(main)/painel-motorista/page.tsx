@@ -1047,6 +1047,10 @@ function PainelMotoristaContent() {
                                 </button>
                             </div>
 
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por distância (km)</span>
+                                <span className="flex-1 h-px" style={{ background: colors.border }} />
+                            </div>
                             {pricingMode === 'platform' ? (
                                 <div className={cardCls} style={cardStyle}>
                                     {tariffSummary}
@@ -1089,27 +1093,50 @@ function PainelMotoristaContent() {
                                         </div>
                                     </div>
                                     {tariffSummary}
-                                    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${colors.border}` }}>
-                                        <label className={labelCls}>Minha tarifa por tempo (R$ por minuto)</label>
-                                        <input
-                                            type="number"
-                                            inputMode="decimal"
-                                            min="0"
-                                            max="20"
-                                            step="0.05"
-                                            value={pricePerMinute}
-                                            onChange={(e) => setPricePerMinute(e.target.value)}
-                                            placeholder="Ex.: 1,00 (vazio = não definida)"
-                                            className={inputCls}
-                                            style={fieldStyle}
-                                        />
-                                        <p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>
-                                            Cobra os minutos de trabalho (ir buscar + a corrida) mais os extras abaixo. É o seu 3º valor, ao lado da Tarifa iUser e da sua tarifa por km: em cada corrida você escolhe qual propor. O mínimo da plataforma e o seu ganho mínimo por hora também valem para ele. A espera na parada não entra aqui: é regra do iUser.
-                                        </p>
-                                    </div>
                                 </div>
                             )}
 
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por tempo</span>
+                                <span className="flex-1 h-px" style={{ background: colors.border }} />
+                            </div>
+                            {pricingMode === 'custom' ? (
+                                <div className={cardCls} style={cardStyle}>
+                                    <label className={labelCls}>Minha tarifa por tempo (R$ por minuto)</label>
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        min="0"
+                                        max="20"
+                                        step="0.05"
+                                        value={pricePerMinute}
+                                        onChange={(e) => setPricePerMinute(e.target.value)}
+                                        placeholder="Ex.: 1,00 (vazio = não definida)"
+                                        className={inputCls}
+                                        style={fieldStyle}
+                                    />
+                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-1.5`} style={{ color: colors.textSecondary }}>
+                                        Cobra os minutos de trabalho (ir buscar + a corrida). É o seu 3º valor, ao lado da Tarifa iUser e da tarifa por km: em cada corrida você escolhe qual propor. O mínimo do iUser por minuto e o seu ganho mínimo por hora (abaixo) também valem para ele.
+                                    </p>
+                                    {(parseFloat(pricePerMinute) || 0) > 0 && (
+                                        <p className={`${v3 ? 'text-xs' : 'text-[11px]'} font-bold mt-1`} style={{ color: '#16a34a' }}>
+                                            Ex.: uma corrida de 20 min de trabalho = R$ {(20 * (parseFloat(pricePerMinute) || 0)).toFixed(2).replace('.', ',')} (R$ {Math.round(60 * (parseFloat(pricePerMinute) || 0))} por hora)
+                                        </p>
+                                    )}
+                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-1`} style={{ color: colors.textSecondary }}>A espera na parada não entra aqui: é regra do iUser.</p>
+                                </div>
+                            ) : (
+                                <p className={`${v3 ? 'text-xs' : 'text-[11px]'} px-1`} style={{ color: colors.textSecondary }}>
+                                    Na tarifa da plataforma o tempo vale o mínimo do iUser por minuto. Para ter o seu valor por minuto, escolha a Tarifa Personalizada acima.
+                                </p>
+                            )}
+
+                            <DriverEarningGoalCard driverId={userId} />
+
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Extras</span>
+                                <span className="flex-1 h-px" style={{ background: colors.border }} />
+                            </div>
                             <div
                                 className={cardCls}
                                 style={cardStyle}
@@ -1157,7 +1184,7 @@ function PainelMotoristaContent() {
                                                 type="number"
                                                 value={extraFeeAnimal}
                                                 onChange={(e) => setExtraFeeAnimal(e.target.value)}
-                                                placeholder="5"
+                                                placeholder="0"
                                                 className={inputCls}
                                                 style={fieldStyle}
                                             />
@@ -1168,7 +1195,7 @@ function PainelMotoristaContent() {
                                                 type="number"
                                                 value={extraFeeObjeto}
                                                 onChange={(e) => setExtraFeeObjeto(e.target.value)}
-                                                placeholder="3"
+                                                placeholder="0"
                                                 className={inputCls}
                                                 style={fieldStyle}
                                             />
@@ -1217,8 +1244,6 @@ function PainelMotoristaContent() {
                                     </div>
                                 )}
                             </div>
-
-                            <DriverEarningGoalCard driverId={userId} />
 
                             <button
                                 onClick={showActivationWizard ? handleWizardPricingContinue : handleSave}

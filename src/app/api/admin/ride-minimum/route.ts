@@ -10,6 +10,14 @@ export async function POST(req: Request) {
     const admin = await requireSuperAdmin(req)
     if (!admin) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
     const body = await req.json().catch(() => ({}))
+    // `hourly` muda o ganho mínimo por HORA padrão do iUser (R$ 40 por padrão; cada motorista pode definir o dele)
+    if (body?.hourly !== undefined) {
+        const h = Number(body.hourly)
+        if (!Number.isFinite(h) || h < 1 || h > 1000) return NextResponse.json({ error: 'Valor inválido: use de R$ 1 a R$ 1.000 por hora' }, { status: 400 })
+        const { data, error } = await supabaseAdmin.rpc('admin_set_default_min_hourly', { p_value: h, p_admin: admin.id })
+        if (error) return NextResponse.json({ error: error.code === '22023' ? error.message : 'Não foi possível salvar. Tente de novo.' }, { status: error.code === '22023' ? 400 : 500 })
+        return NextResponse.json({ ok: true, value: data })
+    }
     // `cap` muda o TETO do mínimo (padrão R$ 1,00 por minuto); `value` muda o mínimo, que nunca passa do teto. O banco confere de novo.
     const isCap = body?.cap !== undefined
     const n = Number(isCap ? body.cap : body?.value)

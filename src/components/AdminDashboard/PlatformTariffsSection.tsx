@@ -16,7 +16,7 @@ import type { ThemeColors } from '@/app/contexts/theme'
 import { PLATFORM_TARIFF_COLUMNS, loadPlatformTariffs, type PlatformTariffRow } from '@/lib/platformTariffs'
 import { computeHourlyEarnings, explainSuggestedPrice, type DriverPricing } from '@/lib/driverPricing'
 import type { VehicleKind } from '@/lib/rideVehicle'
-import { capProblem, forgetRideMinimum, loadRideMinimum, loadRideMinimumCap, minPerMinuteProblem } from '@/modules/negotiation'
+import { capProblem, forgetDefaultMinHourly, forgetRideMinimum, loadDefaultMinHourly, loadRideMinimum, loadRideMinimumCap, minPerMinuteProblem } from '@/modules/negotiation'
 
 const VEHICLES: { kind: VehicleKind; label: string; icon: typeof Car }[] = [
     { kind: 'carro', label: 'Carro', icon: Car },
@@ -66,6 +66,24 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
     const [cap, setCap] = useState<number | null>(null)
     const [capInput, setCapInput] = useState('')
     const [savingCap, setSavingCap] = useState(false)
+    // Ganho mínimo por HORA padrão do iUser: vale para o motorista que não definiu o dele (ele pode mudar em Tarifa → Meu ganho mínimo por hora)
+    const [defHourly, setDefHourly] = useState('')
+    const [savedDefHourly, setSavedDefHourly] = useState<number | null>(null)
+    const [savingDefHourly, setSavingDefHourly] = useState(false)
+    useEffect(() => { void loadDefaultMinHourly().then((v) => { setSavedDefHourly(v); setDefHourly(String(v).replace('.', ',')) }) }, [])
+    const saveDefHourly = async () => {
+        const v = num(defHourly)
+        if (!(v >= 1 && v <= 1000)) { toast.error('Use um valor entre R$ 1 e R$ 1.000 por hora'); return }
+        setSavingDefHourly(true)
+        try {
+            await callAdminApi('/api/admin/ride-minimum', { hourly: v })
+            forgetDefaultMinHourly()
+            setSavedDefHourly(v)
+            toast.success(`Ganho mínimo padrão: R$ ${v.toLocaleString('pt-BR')} por hora`)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar o ganho mínimo padrão')
+        } finally { setSavingDefHourly(false) }
+    }
     useEffect(() => {
         void loadRideMinimum().then((v) => { setSavedMin(v); setMinPerMinute(String(v).replace('.', ',')) })
         void loadRideMinimumCap().then((v) => { setCap(v); setCapInput(String(v).replace('.', ',')) })
@@ -213,6 +231,15 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
                     </div>
                     <button onClick={saveCap} disabled={savingCap || cap === null || num(capInput) === cap} className="px-4 py-2.5 rounded-xl text-xs font-black disabled:opacity-50 flex items-center gap-1.5" style={{ background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
                         {savingCap ? <Spinner size={14} /> : <Save size={14} />} Salvar teto
+                    </button>
+                </div>
+                <div className="flex items-end gap-2 pt-2" style={{ borderTop: `1px solid ${colors.border}` }}>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                        <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>Ganho mínimo por HORA padrão do iUser (R$) — vale para quem não definiu o dele; cada motorista pode mudar</span>
+                        <input type="text" inputMode="decimal" value={defHourly} onChange={(e) => setDefHourly(e.target.value.replace(/[^\d.,]/g, '').slice(0, 7))} style={inputStyle} />
+                    </div>
+                    <button onClick={saveDefHourly} disabled={savingDefHourly || savedDefHourly === null || num(defHourly) === savedDefHourly} className="px-4 py-2.5 rounded-xl text-xs font-black disabled:opacity-50 flex items-center gap-1.5" style={{ background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
+                        {savingDefHourly ? <Spinner size={14} /> : <Save size={14} />} Salvar padrão
                     </button>
                 </div>
             </div>

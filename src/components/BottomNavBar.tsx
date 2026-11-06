@@ -97,6 +97,20 @@ function ModeButton({ mode, open, colors }: { mode: ModeButtonProps; open: boole
     )
 }
 
+/** O cartão de aviso (ex.: "Nova corrida disponível!") CRESCE de baixo para cima, de dentro da barra, em vez de aparecer de uma vez */
+function ExpandUp({ children }: { children: ReactNode }) {
+    const [open, setOpen] = useState(false)
+    useEffect(() => {
+        const r = requestAnimationFrame(() => requestAnimationFrame(() => setOpen(true)))
+        return () => cancelAnimationFrame(r)
+    }, [])
+    return (
+        <div className="grid" style={{ gridTemplateRows: open ? '1fr' : '0fr', transition: 'grid-template-rows 480ms cubic-bezier(0.2, 0.8, 0.2, 1)' }}>
+            <div className="min-h-0 overflow-hidden">{children}</div>
+        </div>
+    )
+}
+
 export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartExpanded = false, onCartPage = false, mode, hub, player = null, message = null, extras = [], customCard = null, onDismiss, onGo, onCart }: {
     colors: any
     /** As quatro abas que acompanham o modo (Explorar + três); a quinta, Eu, é o botão do modo */
@@ -137,7 +151,7 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
     const money = cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
     return (
         <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM, zIndex: raised || hubOpen || playerFull ? 75 : 40 }}>
-            {customCard && <div className="max-w-md w-full mx-auto px-3 pointer-events-auto">{customCard}</div>}
+            {customCard && <ExpandUp><div className="max-w-md w-full mx-auto px-3 pointer-events-auto">{customCard}</div></ExpandUp>}
             <div className="max-w-md w-full mx-auto px-3">
                 {/* Uma peça só e sólida: a faixa de cima é só uma área da própria barra, sem divisória */}
                 <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : `1px solid ${colors.border}`, boxShadow: hubOpen || playerFull ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease, box-shadow 480ms ease' }}>
