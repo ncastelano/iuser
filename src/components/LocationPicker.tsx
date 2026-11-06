@@ -40,6 +40,64 @@ interface LocationPickerProps {
     askRadarVisibility?: boolean
 }
 
+
+// ===== BUSCA POR PARTES: número → rua → estado → cidade (com sugestões enquanto escreve) =====
+const UFS: [string, string][] = [
+    ['AC', 'Acre'], ['AL', 'Alagoas'], ['AP', 'Amapá'], ['AM', 'Amazonas'], ['BA', 'Bahia'], ['CE', 'Ceará'], ['DF', 'Distrito Federal'],
+    ['ES', 'Espírito Santo'], ['GO', 'Goiás'], ['MA', 'Maranhão'], ['MT', 'Mato Grosso'], ['MS', 'Mato Grosso do Sul'], ['MG', 'Minas Gerais'],
+    ['PA', 'Pará'], ['PB', 'Paraíba'], ['PR', 'Paraná'], ['PE', 'Pernambuco'], ['PI', 'Piauí'], ['RJ', 'Rio de Janeiro'],
+    ['RN', 'Rio Grande do Norte'], ['RS', 'Rio Grande do Sul'], ['RO', 'Rondônia'], ['RR', 'Roraima'], ['SC', 'Santa Catarina'],
+    ['SP', 'São Paulo'], ['SE', 'Sergipe'], ['TO', 'Tocantins'],
+]
+const ufName = (uf: string) => UFS.find(([k]) => k === uf)?.[1] || ''
+
+interface AddrSuggestion {
+    id: string
+    kind: 'address' | 'city'
+    label: string
+    lat: number
+    lng: number
+    street: string
+    city: string
+    uf: string
+}
+
+/** Sugestões do Mapbox (mesmo serviço e token do resto do app). Falha = lista vazia, nunca erro na tela. */
+async function fetchAddrSuggestions(kind: 'address' | 'city', q: { number: string; street: string; uf: string; city: string }): Promise<AddrSuggestion[]> {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    if (!token) return []
+    const stateName = ufName(q.uf)
+    const text = kind === 'address'
+        ? [`${q.street.trim()}${q.number.trim() ? ' ' + q.number.trim() : ''}`, q.city.trim(), stateName].filter(Boolean).join(', ')
+        : [q.city.trim(), stateName].filter(Boolean).join(', ')
+    if (!text) return []
+    try {
+        const types = kind === 'address' ? 'address,poi' : 'place'
+        const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?access_token=${token}&language=pt&limit=5&country=br&autocomplete=true&types=${types}`)
+        if (!res.ok) return []
+        const data = await res.json()
+        return (data.features || []).map((f: any, i: number): AddrSuggestion => {
+            const ctx: any[] = f.context || []
+            const own = (f.id || '').startsWith('place.') ? [{ id: f.id, text: f.text }] : []
+            const place = [...ctx, ...own].find((c) => String(c.id).startsWith('place.'))
+            const region = [...ctx, ...(String(f.id).startsWith('region.') ? [f] : [])].find((c) => String(c.id).startsWith('region.'))
+            const short = String(region?.short_code || '').replace('BR-', '').toUpperCase()
+            return {
+                id: `${f.id}-${i}`,
+                kind,
+                label: f.place_name || f.text,
+                lng: f.center?.[0],
+                lat: f.center?.[1],
+                street: kind === 'address' ? String(f.text || '') : '',
+                city: String(place?.text || ''),
+                uf: UFS.some(([k]) => k === short) ? short : '',
+            }
+        }).filter((x: AddrSuggestion) => Number.isFinite(x.lat) && Number.isFinite(x.lng))
+    } catch {
+        return []
+    }
+}
+
 const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()
 const reverseGeocodeCache: Map<string, string> = new Map()
 
@@ -494,6 +552,65 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
             performSearch(searchQuery)
         }
     }, [performSearch, searchQuery])
+
+
+    // ===== BUSCA POR PARTES (número → rua → estado → cidade) =====
+    const [sNumber, setSNumber] = useState('')
+    const [sStreet, setSStreet] = useState('')
+    const [sUF, setSUF] = useState('')
+    const [sCity, setSCity] = useState('')
+    const [suggs, setSuggs] = useState<AddrSuggestion[]>([])
+    const [suggsLoading, setSuggsLoading] = useState(false)
+    const suggTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const suggSeqRef = useRef(0)
+
+    const askSuggestions = useCallback((kind: 'address' | 'city', q: { number: string; street: string; uf: string; city: string }) => {
+        if (suggTimerRef.current) clearTimeout(suggTimerRef.current)
+        const enough = kind === 'address' ? q.street.trim().length >= 3 : q.city.trim().length >= 2
+        if (!enough) { suggSeqRef.current++; setSuggs([]); setSuggsLoading(false); return }
+        setSuggsLoading(true)
+        const seq = ++suggSeqRef.current
+        suggTimerRef.current = setTimeout(async () => {
+            const list = await fetchAddrSuggestions(kind, q)
+            if (seq !== suggSeqRef.current) return   // chegou uma digitação mais nova: descarta esta resposta
+            setSuggs(list)
+            setSuggsLoading(false)
+        }, 350)
+    }, [])
+
+    const pickSuggestion = useCallback((sg: AddrSuggestion) => {
+        suggSeqRef.current++
+        setSuggs([])
+        setSuggsLoading(false)
+        setError('')
+        if (sg.city) setSCity(sg.city)
+        if (sg.uf) setSUF(sg.uf)
+        if (sg.kind === 'city') {
+            // escolheu a cidade: refaz as sugestões de rua já com a cidade e o estado certos
+            if (sStreet.trim().length >= 3) {
+                askSuggestions('address', { number: sNumber, street: sStreet, uf: sg.uf || sUF, city: sg.city })
+            }
+            return
+        }
+        if (sg.street) setSStreet(sg.street)
+        if (sNumber.trim()) setNewNumber(sNumber.trim())
+        setSelectedPosition({ lat: sg.lat, lng: sg.lng })
+        setNewAddress(sg.label)
+        flyTo(sg.lat, sg.lng)
+    }, [sNumber, sStreet, sUF, askSuggestions, flyTo])
+
+    // "Ir" / Enter: usa a 1ª sugestão da rua (ou busca na hora se ainda não chegou)
+    const searchByParts = useCallback(async () => {
+        if (sStreet.trim().length < 3) { setError('Escreva o nome da rua.'); return }
+        setLoading(true)
+        setError('')
+        const list = suggs.length > 0 && suggs[0].kind === 'address'
+            ? suggs
+            : await fetchAddrSuggestions('address', { number: sNumber, street: sStreet, uf: sUF, city: sCity })
+        setLoading(false)
+        if (list.length === 0) { setError('Endereço não encontrado. Confira a rua, a cidade e o estado.'); return }
+        pickSuggestion(list[0])
+    }, [sStreet, sNumber, sUF, sCity, suggs, pickSuggestion])
 
     // 🗺️ INICIALIZAR MAPA
     const initializeMap = useCallback(async () => {
@@ -972,37 +1089,111 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                             {method === 'search' && (
                                 <>
                                     <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textPrimary }}>
-                                        Escreva a localização e aperte <strong>Enter</strong> ou clique em <strong>"Ir"</strong> para buscar
+                                        Preencha na ordem: <strong>número</strong>, <strong>rua</strong>, <strong>estado</strong> e <strong>cidade</strong>. As sugestões aparecem enquanto você escreve.
                                     </p>
-                                    <div className="flex gap-2 mb-3">
-                                        <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
-                                            style={{ background: `${colors.surface}88`, backdropFilter: 'blur(10px)', border: `1px solid ${colors.border}` }}
-                                        >
-                                            <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.surface}88` }}>
-                                                <Search size={14} color={colors.textPrimary} />
+                                    <div className="space-y-2 mb-2">
+                                        <div className="flex gap-2">
+                                            <div className="w-[84px] flex-shrink-0">
+                                                <label className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60" style={{ color: colors.textPrimary }}>1 · Número</label>
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    value={sNumber}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value.slice(0, 8)
+                                                        setSNumber(v)
+                                                        if (sStreet.trim().length >= 3) askSuggestions('address', { number: v, street: sStreet, uf: sUF, city: sCity })
+                                                    }}
+                                                    placeholder="123"
+                                                    aria-label="Número"
+                                                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold outline-none"
+                                                    style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                    autoFocus
+                                                />
                                             </div>
-                                            <input
-                                                type="text"
-                                                value={searchQuery}
-                                                onChange={(e) => setSearchQuery(e.target.value)}
-                                                onKeyDown={handleSearchKeyDown}
-                                                placeholder="Digite o endereço..."
-                                                className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
-                                                style={{ color: colors.textPrimary }}
-                                                disabled={loading}
-                                                autoFocus
-                                            />
-                                            <button
-                                                onClick={() => performSearch(searchQuery)}
-                                                disabled={loading || !searchQuery.trim()}
-                                                className="px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 disabled:opacity-50"
-                                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)' }}
-                                            >
-                                                {loading ? '...' : 'Ir'}
-                                            </button>
+                                            <div className="flex-1 min-w-0">
+                                                <label className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60" style={{ color: colors.textPrimary }}>2 · Rua</label>
+                                                <div className="flex items-center rounded-xl pl-2.5" style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}` }}>
+                                                    <Search size={13} color={colors.textSecondary} className="flex-shrink-0" />
+                                                    <input
+                                                        type="text"
+                                                        value={sStreet}
+                                                        onChange={(e) => {
+                                                            setSStreet(e.target.value)
+                                                            askSuggestions('address', { number: sNumber, street: e.target.value, uf: sUF, city: sCity })
+                                                        }}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchByParts() } }}
+                                                        placeholder="Nome da rua"
+                                                        aria-label="Rua"
+                                                        className="flex-1 min-w-0 bg-transparent outline-none ml-1.5 py-2 pr-2.5 text-xs font-semibold"
+                                                        style={{ color: colors.textPrimary }}
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
-
+                                        <div className="flex gap-2">
+                                            <div className="w-[84px] flex-shrink-0">
+                                                <label className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60" style={{ color: colors.textPrimary }}>3 · Estado</label>
+                                                <select
+                                                    value={sUF}
+                                                    onChange={(e) => {
+                                                        setSUF(e.target.value)
+                                                        if (sStreet.trim().length >= 3) askSuggestions('address', { number: sNumber, street: sStreet, uf: e.target.value, city: sCity })
+                                                    }}
+                                                    aria-label="Estado"
+                                                    className="w-full px-2 py-2 rounded-xl text-xs font-semibold outline-none"
+                                                    style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                >
+                                                    <option value="">UF</option>
+                                                    {UFS.map(([k, n]) => <option key={k} value={k}>{k} · {n}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <label className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60" style={{ color: colors.textPrimary }}>4 · Cidade</label>
+                                                <input
+                                                    type="text"
+                                                    value={sCity}
+                                                    onChange={(e) => {
+                                                        setSCity(e.target.value)
+                                                        askSuggestions('city', { number: sNumber, street: sStreet, uf: sUF, city: e.target.value })
+                                                    }}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchByParts() } }}
+                                                    placeholder="Nome da cidade"
+                                                    aria-label="Cidade"
+                                                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold outline-none"
+                                                    style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={searchByParts}
+                                            disabled={loading || sStreet.trim().length < 3}
+                                            className="w-full py-2 rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
+                                            style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)' }}
+                                        >
+                                            {loading ? 'Procurando...' : 'Procurar endereço'}
+                                        </button>
                                     </div>
+
+                                    {(suggsLoading || suggs.length > 0) && (
+                                        <div className="rounded-xl overflow-hidden mb-3" style={{ border: `1px solid ${colors.border}`, background: `${colors.surface}cc` }}>
+                                            {suggsLoading && suggs.length === 0 && (
+                                                <p className="px-3 py-2.5 text-[11px] opacity-60" style={{ color: colors.textPrimary }}>Buscando sugestões...</p>
+                                            )}
+                                            {suggs.map((sg) => (
+                                                <button
+                                                    key={sg.id}
+                                                    type="button"
+                                                    onClick={() => pickSuggestion(sg)}
+                                                    className="w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-black/5 transition"
+                                                    style={{ borderBottom: `1px solid ${colors.border}` }}
+                                                >
+                                                    <MapPin size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />
+                                                    <span className="text-[11px] font-semibold leading-snug" style={{ color: colors.textPrimary }}>{sg.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </>
                             )}
 
