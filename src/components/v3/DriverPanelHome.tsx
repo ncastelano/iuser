@@ -140,19 +140,24 @@ export default function DriverPanelHome({
                 )}
             </section>
 
-            {/* Atalhos do dia a dia */}
+            {/* Atalhos: os MESMOS itens das abas do painel (menos o próprio Painel) + Ganhos; os selos seguem as abas (corridas só aparecem online) */}
             <div className="grid grid-cols-4 gap-2 -mt-3">
                 {([
-                    ...(onEarnings ? [{ k: 'ganhos', label: 'Ganhos', icon: Wallet, go: onEarnings }] : []),
-                    ...(onDeliveries ? [{ k: 'entregas', label: 'Entregas', icon: Bike, go: onDeliveries }] : []),
-                    { k: 'veiculo', label: 'Veículo', icon: Car, go: () => goTab('veiculo') },
-                    { k: 'tarifa', label: 'Tarifa', icon: TrendingUp, go: () => goTab('plano') },
+                    ...(onEarnings ? [{ k: 'ganhos', label: 'Ganhos', icon: Wallet, go: onEarnings, badge: 0, badgeColor: ORANGE }] : []),
+                    ...(onDeliveries ? [{ k: 'entregas', label: 'Entregas', icon: Bike, go: onDeliveries, badge: 0, badgeColor: ORANGE }] : []),
+                    ...(hasAccepted ? [{ k: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, go: () => (acceptedIsDelivery && onDeliveries ? onDeliveries() : goTab('aceita')), badge: 0, badgeColor: '#16a34a' }] : []),
+                    { k: 'solicitacoes', label: 'Solicitações', icon: Radar, go: () => goTab('solicitacoes'), badge: driverModeActive ? rides + deliveries : 0, badgeColor: '#ef4444' },
+                    ...(candidacies > 0 || hasAccepted ? [{ k: 'candidaturas', label: 'Me candidatei', icon: Hand, go: () => goTab('candidaturas'), badge: candidacies, badgeColor: '#ef4444' }] : []),
+                    { k: 'veiculo', label: 'Veículo', icon: Car, go: () => goTab('veiculo'), badge: driverStatus === 'incomplete' ? (missingCount || 1) : 0, badgeColor: '#eab308' },
+                    { k: 'tarifa', label: 'Tarifa', icon: TrendingUp, go: () => goTab('plano'), badge: 0, badgeColor: ORANGE },
+                    { k: 'avaliacoes', label: 'Avaliações', icon: Star, go: () => goTab('avaliacoes'), badge: 0, badgeColor: ORANGE },
                 ]).map((it) => {
                     const Icon = it.icon
                     return (
-                        <button key={it.k} onClick={it.go} className="rounded-2xl py-3 flex flex-col items-center gap-1.5 transition active:scale-95" style={{ background: soft }}>
+                        <button key={it.k} onClick={it.go} className="relative rounded-2xl py-3 px-1 flex flex-col items-center gap-1.5 transition active:scale-95" style={{ background: soft }}>
+                            {it.badge > 0 && <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: it.badgeColor }}>{it.badge > 99 ? '99+' : it.badge}</span>}
                             <span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${ORANGE}1f`, color: ORANGE }}><Icon size={18} /></span>
-                            <span className="text-[11px] font-black" style={{ color: colors.textPrimary }}>{it.label}</span>
+                            <span className="text-[11px] font-black leading-tight text-center" style={{ color: colors.textPrimary }}>{it.label}</span>
                         </button>
                     )
                 })}
