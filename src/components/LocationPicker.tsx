@@ -1457,7 +1457,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                             <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Você pode mudar isso quando quiser em Painel do perfil → Visível no Radar.</p>
                             <div className="flex flex-col gap-2">
                                 {([
-                                    { value: true, icon: <Radio size={18} />, title: 'Aparecer no Radar', text: 'Você e seus serviços aparecem no mapa do Radar, perto de quem procura.' },
+                                    { value: true, icon: <Radio size={18} />, title: 'Aparecer no Radar', text: 'Você aparece no mapa do Radar, perto de quem procura.' },
                                     { value: false, icon: <Home size={18} />, title: 'Só salvar meu endereço', text: 'Fica guardado para os pedidos que você fizer nas lojas. Ninguém vê você no Radar.' },
                                 ] as const).map((o) => {
                                     const on = radarChoice === o.value

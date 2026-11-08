@@ -31,7 +31,6 @@ import LocationPicker from '@/components/LocationPicker'
 import RadarLocationPrompt from '@/components/radar/RadarLocationPrompt'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { parseCoords } from '@/lib/geoParse'
-import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 import type { UiVersion } from '@/versions/registry'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
@@ -475,9 +474,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         const load = async () => {
             const { data: storesData } = await supabase.from('stores').select(STORE_PUBLIC_SELECT)
             const { data: productsRaw } = await supabase.from('products').select('*')
-            // Perfis que desligaram "Aparecer no mapa" (ou "Mostrar no meu perfil") não entram com os seus serviços
-            const hiddenOwners = await getProfilesHiddenFromMap((productsRaw || []).filter((p: any) => !p.store_id).map((p: any) => p.owner_id))
-            const productsData = (productsRaw || []).filter((p: any) => p.store_id || !p.owner_id || !hiddenOwners.has(p.owner_id))
+            // "Visível no Radar" é só da PESSOA (filtro Pessoas): serviço e produto seguem a regra de cada um (ativo + local próprio)
+            const productsData = productsRaw || []
             const { data: profilesList } = await supabase.from('profiles').select('id, profileSlug')
 
             const mappedStores = (storesData || []).map(s => ({
