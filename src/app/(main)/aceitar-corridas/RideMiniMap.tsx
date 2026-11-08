@@ -177,8 +177,20 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
             if (showDriver && driverOverlay) overlays.push(driverOverlay)
             overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(offsetPolyline(trip.coords, -5)))})`)
 
-            // A MINIATURA (thumb) é pequena: os pinos cobriam a rota, então nela fica só a linha do trajeto; o mapa maior mantém os pinos
-            if (!thumb) {
+            // A MINIATURA (thumb) é pequena: os pinos cobriam a rota, então nela ficam só a linha do trajeto e duas BOLINHAS (partida verde, chegada vermelha, com contorno
+            // branco) para saber onde começa e onde termina; o mapa maior mantém os pinos. O Static API não tem marcador menor que o pino, então a bolinha é um pequeno
+            // CÍRCULO (anel de pontos preenchido) cujo raio é uma fração da rota (o mapa se enquadra pela rota, então a bolinha tem o mesmo tamanho na miniatura em qualquer distância).
+            if (thumb) {
+                const r = Math.max(0.00005, tripDiag * 0.028)
+                const ring = (lng: number, lat: number): string => {
+                    const pts: [number, number][] = []
+                    for (let i = 0; i <= 16; i++) { const a = (i / 16) * Math.PI * 2; pts.push([lng + (r * Math.cos(a)) / Math.max(0.2, Math.cos((lat * Math.PI) / 180)), lat + r * Math.sin(a)]) }
+                    return encodeURIComponent(encodePolyline(pts))
+                }
+                // `path-{traço}+{cor do traço}-{opacidade}+{cor do preenchimento}-{opacidade}`: anel branco por baixo e a cor por cima
+                overlays.push(`path-5+ffffff-1+ffffff-1(${ring(originLng, originLat)})`, `path-1+22c55e-1+22c55e-1(${ring(originLng, originLat)})`)
+                overlays.push(`path-5+ffffff-1+ffffff-1(${ring(destLng, destLat)})`, `path-1+ef4444-1+ef4444-1(${ring(destLng, destLat)})`)
+            } else {
                 if (showDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
                 overlays.push(`pin-s+22c55e(${originLng},${originLat})`)
                 for (const s of stops) overlays.push(`pin-s+${STOP_COLOR}(${s.lng},${s.lat})`)
