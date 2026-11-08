@@ -49,6 +49,7 @@
     "test:people": "node --test scripts/test-people.mjs",
     "test:outdoor": "node --test scripts/test-outdoor.mjs",
     "test:points": "node --test scripts/test-points.mjs",
+    "test:scroll-lock": "node --test scripts/test-body-scroll-lock.mjs",
     "test:search": "node --test scripts/test-search.mjs",
     "test:negotiation": "node --test scripts/test-negotiation.mjs",
     "test:ride-quote": "node --test scripts/test-ride-quote.mjs",

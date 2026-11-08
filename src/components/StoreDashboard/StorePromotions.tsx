@@ -16,6 +16,7 @@ import {
     COMBO_ERROR_TEXT, DISCOUNT_SHORTCUTS, comboDiscount, comboTotal, deleteCombo, describeItems, listComboCandidates, listStoreCombos, priceForDiscountPct, saveCombo,
     setComboActive, validateCombo, uploadComboImage, comboImageUrl, type CandidateItem, type StoreCombo,
 } from '@/modules/promotions'
+import { lockBodyScroll } from '@/lib/bodyScrollLock'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const ORANGE = '#f97316'
@@ -149,9 +150,8 @@ function ComboDialog({ storeId, combo, onClose, onSaved }: { storeId: string; co
     useEffect(() => { setMounted(true) }, [])
     useEffect(() => { listComboCandidates(storeId).then(setItems).catch(() => setItems([])) }, [storeId])
     useEffect(() => {
-        const prev = document.body.style.overflow
-        document.body.style.overflow = 'hidden'
-        return () => { document.body.style.overflow = prev }
+        const unlock = lockBodyScroll()
+        return () => unlock()
     }, [])
 
     const byId = useMemo(() => new Map((items || []).map((i) => [i.id, i])), [items])

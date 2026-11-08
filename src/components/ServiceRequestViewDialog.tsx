@@ -17,6 +17,7 @@ import { askedAgo, getItemIcon, getItemLabel, shortAddress, type BoardItem } fro
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { formatDistance } from '@/lib/radarNearest'
+import { lockBodyScroll } from '@/lib/bodyScrollLock'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -82,9 +83,8 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
         if (!isMine) trackServiceRequestView(item.id)
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (zoomRef.current !== null) setZoomIdx(null); else onClose() } }
         window.addEventListener('keydown', onKey)
-        const prev = document.body.style.overflow
-        document.body.style.overflow = 'hidden'
-        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
+        const unlock = lockBodyScroll()
+        return () => { window.removeEventListener('keydown', onKey); unlock() }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [item.id])
 

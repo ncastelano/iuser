@@ -33,6 +33,7 @@ import { activityBadge, isActivityPath, pathOfAba, smartAba, type AtividadeAba }
 import { BarKindProvider } from '@/versions/v3/bar/kind'
 import { activeBarKey, barKindOf, isOwnVehiclePage, barPathOf, barTabsFor, type BarKey } from '@/versions/v3/bar/domain'
 import { LAST_ABA_KEY } from '@/versions/v3/screens/AtividadeTabs'
+import { lockBodyScroll } from '@/lib/bodyScrollLock'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -426,9 +427,8 @@ export default function ModeShell({ children }: {
         if (!drawerOpen) return
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false) }
         window.addEventListener('keydown', onKey)
-        const prev = document.body.style.overflow
-        document.body.style.overflow = 'hidden'
-        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
+        const unlock = lockBodyScroll()
+        return () => { window.removeEventListener('keydown', onKey); unlock() }
     }, [drawerOpen])
     // O topo responde ao modo escolhido no menu: loja (logo + nome), motorista (foto do carro + modelo e placa),
     // prestador (foto do perfil + "Modo prestador") ou o perfil de sempre.

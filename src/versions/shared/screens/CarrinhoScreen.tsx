@@ -2274,7 +2274,31 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                                                             })}
                                                         </div>
 
-                                                        {/* Complete o pedido: o que mais dessa loja sai */}
+                                                        {/* Resumo e finalizar */}
+                                                        <div className="p-3.5" style={{ borderTop: `1px solid ${colors.border}`, background: `${colors.border}20` }}>
+                                                            <div className="flex items-center justify-between text-xs" style={{ color: colors.textSecondary }}>
+                                                                <span>Subtotal</span>
+                                                                <span className="font-black" style={{ color: colors.textPrimary }}>R$ {itemsTotal.toFixed(2)}</span>
+                                                            </div>
+                                                            {shipping && (
+                                                                <p className="mt-0.5 text-[11px] flex items-center gap-1" style={{ color: bagDeliveryEstimate.fee === 0 && canDelivery ? '#16a34a' : colors.textSecondary }}>
+                                                                    <Truck size={11} /> {shipping}
+                                                                </p>
+                                                            )}
+                                                            <button
+                                                                onClick={startCheckout}
+                                                                disabled={!isStoreOpen}
+                                                                className="mt-3 w-full h-12 rounded-full font-black text-sm text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-60"
+                                                                style={{ background: isStoreOpen ? GRADIENT : colors.border, color: isStoreOpen ? '#fff' : colors.textSecondary, boxShadow: isStoreOpen ? '0 6px 18px #f9731655' : 'none' }}
+                                                            >
+                                                                {isStoreOpen ? <>Finalizar pedido · R$ {itemsTotal.toFixed(2)}</> : <>Loja fechada{nextOpening ? ` · abre ${nextOpening.time}` : ''}</>}
+                                                            </button>
+                                                            <button onClick={() => router.push(`/${slug}`)} className="mt-2 w-full text-xs font-black py-1.5" style={{ color: colors.accent }}>
+                                                                Mais de {details?.name || 'essa loja'}
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Complete o pedido: sugestão do que mais dessa loja poderia entrar — fica DEPOIS de "Mais de <loja>", não no meio do carrinho */}
                                                         {suggestions.length > 0 && (
                                                             <div className="pt-1 pb-3" style={{ borderTop: `1px solid ${colors.border}` }}>
                                                                 <p className="px-3.5 pt-2.5 pb-1.5 text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Complete seu pedido</p>
@@ -2306,30 +2330,6 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                                                                 </div>
                                                             </div>
                                                         )}
-
-                                                        {/* Resumo e finalizar */}
-                                                        <div className="p-3.5" style={{ borderTop: `1px solid ${colors.border}`, background: `${colors.border}20` }}>
-                                                            <div className="flex items-center justify-between text-xs" style={{ color: colors.textSecondary }}>
-                                                                <span>Subtotal</span>
-                                                                <span className="font-black" style={{ color: colors.textPrimary }}>R$ {itemsTotal.toFixed(2)}</span>
-                                                            </div>
-                                                            {shipping && (
-                                                                <p className="mt-0.5 text-[11px] flex items-center gap-1" style={{ color: bagDeliveryEstimate.fee === 0 && canDelivery ? '#16a34a' : colors.textSecondary }}>
-                                                                    <Truck size={11} /> {shipping}
-                                                                </p>
-                                                            )}
-                                                            <button
-                                                                onClick={startCheckout}
-                                                                disabled={!isStoreOpen}
-                                                                className="mt-3 w-full h-12 rounded-full font-black text-sm text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-60"
-                                                                style={{ background: isStoreOpen ? GRADIENT : colors.border, color: isStoreOpen ? '#fff' : colors.textSecondary, boxShadow: isStoreOpen ? '0 6px 18px #f9731655' : 'none' }}
-                                                            >
-                                                                {isStoreOpen ? <>Finalizar pedido · R$ {itemsTotal.toFixed(2)}</> : <>Loja fechada{nextOpening ? ` · abre ${nextOpening.time}` : ''}</>}
-                                                            </button>
-                                                            <button onClick={() => router.push(`/${slug}`)} className="mt-2 w-full text-xs font-black py-1.5" style={{ color: colors.accent }}>
-                                                                Mais de {details?.name || 'essa loja'}
-                                                            </button>
-                                                        </div>
                                                     </div>
 
                                                     {/* Finalizar: folha por cima (receber → pagar → confirmar), mesma regra de sempre */}
