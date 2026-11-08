@@ -1069,6 +1069,13 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                         </div>
                                     </div>
 
+                                    {/* Só números: qualquer rua tem um nº 2933, então o mapa devolve a que achar mais provável — pede a rua junto */}
+                                    {/^\d{1,7}$/.test(searchQuery.trim()) && (
+                                        <p className="text-[11px] leading-snug mb-2 px-3 py-2 rounded-xl" style={{ background: '#f9731614', color: colors.textPrimary, border: '1px solid #f9731640' }}>
+                                            Só o número acha a rua que o mapa achar mais provável. Escreva também o nome da rua, em qualquer ordem: <strong>{searchQuery.trim()} Nome da rua</strong> ou <strong>Rua Nome {searchQuery.trim()}</strong>.
+                                        </p>
+                                    )}
+
                                     {(suggsLoading || suggs.length > 0) && (
                                         <div className="rounded-xl overflow-hidden mb-3" style={{ border: `1px solid ${colors.border}`, background: `${colors.surface}cc` }}>
                                             {suggsLoading && suggs.length === 0 && (
