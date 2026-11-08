@@ -115,12 +115,13 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
         if (!overlayStr || !box) return null
         const w = Math.min(640, Math.max(40, box.w))
         const h = Math.min(640, Math.max(40, box.h))
-        // folga em cima maior (o pino é alto) e laterais proporcionais ao quadro: o trajeto inteiro cabe sempre
-        const top = Math.round(Math.min(46, h * 0.3))
-        const bottom = Math.round(Math.min(26, h * 0.16))
-        const side = Math.round(Math.min(40, w * 0.1))
+        // folga em cima maior (o pino é alto) e laterais proporcionais ao quadro: o trajeto inteiro cabe sempre.
+        // Na miniatura não há pinos: a folga é igual dos quatro lados e pequena, para a rota ocupar o quadro.
+        const top = thumb ? Math.round(Math.min(14, h * 0.14)) : Math.round(Math.min(46, h * 0.3))
+        const bottom = thumb ? Math.round(Math.min(14, h * 0.14)) : Math.round(Math.min(26, h * 0.16))
+        const side = thumb ? Math.round(Math.min(16, w * 0.1)) : Math.round(Math.min(40, w * 0.1))
         return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlayStr}/auto/${w}x${h}@2x?padding=${top},${side},${bottom},${side}&access_token=${MAPBOX_TOKEN}`
-    }, [overlayStr, box])
+    }, [overlayStr, box, thumb])
 
     // "Ver no mapa": o mini mapa cresce até a tela cheia e só então navega — na
     // página do mapa o card sobe de baixo, parecendo que o mapa abriu pra trás.
@@ -176,10 +177,13 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
             if (showDriver && driverOverlay) overlays.push(driverOverlay)
             overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(offsetPolyline(trip.coords, -5)))})`)
 
-            if (showDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
-            overlays.push(`pin-s+22c55e(${originLng},${originLat})`)
-            for (const s of stops) overlays.push(`pin-s+${STOP_COLOR}(${s.lng},${s.lat})`)
-            overlays.push(`pin-s+ef4444(${destLng},${destLat})`)
+            // A MINIATURA (thumb) é pequena: os pinos cobriam a rota, então nela fica só a linha do trajeto; o mapa maior mantém os pinos
+            if (!thumb) {
+                if (showDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
+                overlays.push(`pin-s+22c55e(${originLng},${originLat})`)
+                for (const s of stops) overlays.push(`pin-s+${STOP_COLOR}(${s.lng},${s.lat})`)
+                overlays.push(`pin-s+ef4444(${destLng},${destLat})`)
+            }
 
             if (!cancelled) {
                 setOverlayStr(overlays.join(','))
@@ -196,7 +200,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
 
         return () => { cancelled = true }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [originLng, originLat, destLng, destLat, stopsKey, driverLng, driverLat, hasDriver])
+    }, [originLng, originLat, destLng, destLat, stopsKey, driverLng, driverLat, hasDriver, thumb])
 
     if (failed) return null
 
