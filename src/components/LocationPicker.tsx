@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/contexts/theme'
-import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio, Trash2, ChevronRight } from 'lucide-react'
+import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio, Trash2, ChevronRight, Building2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -42,23 +42,27 @@ interface LocationPickerProps {
 
 
 // ===== SUGESTÕES ENQUANTO ESCREVE (um campo só) =====
-// O campo de endereço é UM só, livre ("Av. Calama 1234, Porto Velho"); enquanto a pessoa escreve aparecem lugares sugeridos (Mapbox, o mesmo serviço e token do resto do app).
+// O campo de endereço é UM só, livre ("Av. Calama 1234, Porto Velho", "Hospital 9 de Julho", "Porto Velho Shopping"); enquanto a pessoa escreve aparecem lugares e endereços sugeridos.
+// Fonte principal: Mapbox SEARCH BOX (mesmo token do resto do app; conhece estabelecimentos — hospitais, mercados, lojas, shoppings — o que o Geocoding comum não faz em Porto Velho).
+// A busca vira uma "sessão" (o token de sessão liga as sugestões à escolha final; é assim que o Mapbox cobra). Se o Search Box falhar, cai no Geocoding de sempre.
+type PlaceKind = 'poi' | 'address' | 'area'
 interface PlaceSuggestion {
     id: string
-    /** nome do lugar (a rua, o estabelecimento, o bairro) */
+    /** nome do lugar (o estabelecimento, a rua, o bairro) */
     title: string
     /** o resto do endereço (bairro, cidade, estado) */
     sub: string
     label: string
-    lat: number
-    lng: number
+    kind: PlaceKind
+    /** o Search Box só dá a posição ao escolher (retrieve); o Geocoding de reserva já traz */
+    lat?: number
+    lng?: number
 }
 
-/** Sugestões para o que foi escrito. `near` puxa os resultados para perto de onde a pessoa está. Falha = lista vazia, nunca erro na tela. */
-async function fetchPlaceSuggestions(text: string, near?: { lat: number; lng: number } | null): Promise<PlaceSuggestion[]> {
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
-    const q = text.trim()
-    if (!token || q.length < 3) return []
+const kindOf = (t: string): PlaceKind => (t === 'poi' ? 'poi' : t === 'address' || t === 'street' ? 'address' : 'area')
+const cleanBR = (v: string) => v.replace(/,\s*Brasil$/i, '')
+
+async function fetchGeocodingSuggestions(q: string, token: string, near?: { lat: number; lng: number } | null): Promise<PlaceSuggestion[]> {
     try {
         const prox = near ? `&proximity=${near.lng},${near.lat}` : ''
         const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${token}&language=pt&limit=6&country=br&autocomplete=true&types=address,poi,neighborhood,locality,place${prox}`)
@@ -68,10 +72,54 @@ async function fetchPlaceSuggestions(text: string, near?: { lat: number; lng: nu
             const title = String(f.text || '')
             const full = String(f.place_name || title)
             const sub = full.startsWith(title) ? full.slice(title.length).replace(/^,\s*/, '') : full
-            return { id: `${f.id}-${i}`, title, sub: sub.replace(/,\s*Brasil$/i, ''), label: full, lng: f.center?.[0], lat: f.center?.[1] }
+            const type = String((f.place_type || [])[0] || '')
+            return { id: `g-${f.id}-${i}`, title, sub: cleanBR(sub), label: full, kind: type === 'poi' ? 'poi' : type === 'address' ? 'address' : 'area', lng: f.center?.[0], lat: f.center?.[1] }
         }).filter((x: PlaceSuggestion) => Number.isFinite(x.lat) && Number.isFinite(x.lng) && x.title)
     } catch {
         return []
+    }
+}
+
+/** Sugestões para o que foi escrito. `near` puxa os resultados para perto de onde a pessoa está. Falha = lista vazia, nunca erro na tela. */
+async function fetchPlaceSuggestions(text: string, near: { lat: number; lng: number } | null | undefined, session: string): Promise<PlaceSuggestion[]> {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    const q = text.trim()
+    if (!token || q.length < 3) return []
+    try {
+        const prox = near ? `&proximity=${near.lng},${near.lat}` : ''
+        const res = await fetch(`https://api.mapbox.com/search/searchbox/v1/suggest?q=${encodeURIComponent(q)}&access_token=${token}&session_token=${session}&language=pt&country=br&limit=8&types=poi,address,street,neighborhood,locality,place${prox}`)
+        if (!res.ok) return fetchGeocodingSuggestions(q, token, near)
+        const data = await res.json()
+        const list: PlaceSuggestion[] = (data.suggestions || []).map((s: any): PlaceSuggestion => {
+            const kind = kindOf(String(s.feature_type || ''))
+            const where = cleanBR(String(s.place_formatted || ''))
+            // estabelecimento: "rua, número, bairro, cidade"; o resto: só bairro, cidade e estado
+            const sub = kind === 'poi' ? cleanBR(String(s.full_address || [s.address, s.place_formatted].filter(Boolean).join(', '))) : where
+            return { id: String(s.mapbox_id), title: String(s.name || ''), sub, label: cleanBR(String(s.full_address || `${s.name}, ${where}`)), kind }
+        }).filter((x: PlaceSuggestion) => x.id && x.title)
+        return list.length > 0 ? list : fetchGeocodingSuggestions(q, token, near)
+    } catch {
+        return fetchGeocodingSuggestions(q, token, near)
+    }
+}
+
+/** Ao escolher uma sugestão do Search Box: a posição e o nome final (fecha a sessão de busca) */
+async function retrievePlace(sg: PlaceSuggestion, session: string): Promise<{ lat: number; lng: number; label: string } | null> {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    if (!token) return null
+    try {
+        const res = await fetch(`https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(sg.id)}?access_token=${token}&session_token=${session}&language=pt`)
+        if (!res.ok) return null
+        const f = (await res.json()).features?.[0]
+        const [lng, lat] = f?.geometry?.coordinates || []
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+        const p = f.properties || {}
+        const full = cleanBR(String(p.full_address || [p.address, p.place_formatted].filter(Boolean).join(', ') || sg.label))
+        // estabelecimento mostra o nome na frente do endereço ("Hospital de Base Dr. Ary Pinheiro, Rua ..., Porto Velho")
+        const label = sg.kind === 'poi' && p.name && !full.startsWith(String(p.name)) ? `${p.name}, ${full}` : full
+        return { lat, lng, label }
+    } catch {
+        return null
     }
 }
 
@@ -528,6 +576,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     const [suggsLoading, setSuggsLoading] = useState(false)
     const suggTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const suggSeqRef = useRef(0)
+    // uma "sessão de busca" do Mapbox vai das primeiras letras até a escolha; depois da escolha começa outra
+    const searchSessionRef = useRef<string>('')
+    const searchSession = () => (searchSessionRef.current ||= (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `s-${Date.now()}-${Math.random().toString(36).slice(2)}`))
 
     const askSuggestions = useCallback((text: string) => {
         if (suggTimerRef.current) clearTimeout(suggTimerRef.current)
@@ -536,27 +587,37 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         const seq = ++suggSeqRef.current
         suggTimerRef.current = setTimeout(async () => {
             // sem local salvo, as sugestões se aproximam de Porto Velho (o mesmo ponto de partida do radar); é só uma preferência, as de outras cidades continuam aparecendo
-            const list = await fetchPlaceSuggestions(text, savedPosition || { lat: -8.7612, lng: -63.9004 })
+            const list = await fetchPlaceSuggestions(text, savedPosition || { lat: -8.7612, lng: -63.9004 }, searchSession())
             if (seq !== suggSeqRef.current) return   // chegou uma digitação mais nova: descarta esta resposta
             setSuggs(list)
             setSuggsLoading(false)
         }, 300)
     }, [savedPosition])
 
-    const pickSuggestion = useCallback((sg: PlaceSuggestion) => {
+    const pickSuggestion = useCallback(async (sg: PlaceSuggestion) => {
         suggSeqRef.current++
         setSuggs([])
         setSuggsLoading(false)
         setError('')
+        let pos = Number.isFinite(sg.lat) && Number.isFinite(sg.lng) ? { lat: sg.lat as number, lng: sg.lng as number, label: sg.label } : null
+        if (!pos) {
+            setLoading(true)
+            pos = await retrievePlace(sg, searchSession())
+            setLoading(false)
+            searchSessionRef.current = ''   // a escolha fecha a sessão
+        } else {
+            searchSessionRef.current = ''
+        }
+        if (!pos) { setError('Não consegui abrir esse lugar. Tente outro.'); return }
         setSearchQuery('')
-        setSelectedPosition({ lat: sg.lat, lng: sg.lng })
-        setNewAddress(sg.label)
-        flyTo(sg.lat, sg.lng)
+        setSelectedPosition({ lat: pos.lat, lng: pos.lng })
+        setNewAddress(pos.label)
+        flyTo(pos.lat, pos.lng)
     }, [flyTo])
 
     // "Ir" / Enter: usa a 1ª sugestão que está na tela; se ainda não chegou nenhuma, busca o texto na hora (como sempre foi)
     const submitSearch = useCallback(() => {
-        if (suggs.length > 0) { pickSuggestion(suggs[0]); return }
+        if (suggs.length > 0) { void pickSuggestion(suggs[0]); return }
         performSearch(searchQuery)
     }, [suggs, pickSuggestion, performSearch, searchQuery])
 
@@ -1037,7 +1098,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                             {method === 'search' && (
                                 <>
                                     <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textPrimary }}>
-                                        Escreva o endereço (rua, número, bairro ou cidade): as sugestões aparecem enquanto você escreve. Toque numa delas ou aperte <strong>Enter</strong>.
+                                        Escreva um endereço ou o nome de um lugar (rua e número, bairro, hospital, mercado, loja...): as sugestões aparecem enquanto você escreve. Toque numa delas ou aperte <strong>Enter</strong>.
                                     </p>
                                     <div className="flex gap-2 mb-2">
                                         <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
@@ -1051,7 +1112,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                                 value={searchQuery}
                                                 onChange={(e) => { setSearchQuery(e.target.value); askSuggestions(e.target.value) }}
                                                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitSearch() } }}
-                                                placeholder="Ex.: Av. Calama 1234, Porto Velho"
+                                                placeholder="Ex.: Av. Calama 1234 ou Hospital de Base"
                                                 aria-label="Endereço"
                                                 className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
                                                 style={{ color: colors.textPrimary }}
@@ -1089,7 +1150,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                                     className="w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-black/5 transition"
                                                     style={{ borderBottom: i < suggs.length - 1 ? `1px solid ${colors.border}` : 'none' }}
                                                 >
-                                                    <MapPin size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />
+                                                    {sg.kind === 'poi'
+                                                        ? <Building2 size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#2563eb' }} />
+                                                        : <MapPin size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />}
                                                     <span className="min-w-0">
                                                         <span className="block text-[12px] font-black leading-snug truncate" style={{ color: colors.textPrimary }}>{sg.title}</span>
                                                         {sg.sub && <span className="block text-[10.5px] leading-snug opacity-70 truncate" style={{ color: colors.textPrimary }}>{sg.sub}</span>}

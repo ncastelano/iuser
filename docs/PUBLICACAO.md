@@ -7,7 +7,7 @@ Levantado em **2026-11-02**. Fonte dos fatos: execuções reais dos workflows no
 | | Estado |
 |---|---|
 | **Banco de produção** | Já tem tudo até a `20261129` (aplicado em 19, 25 e 26/10 pelo workflow aprovado). Isso inclui a `20261123`, que **já liberou a 3.0 para todos**. |
-| **Faltam na produção** | **52 migrations**: `20261130000000` até `20261130000051` (lista no Anexo A; a `...51` é o motor único de pontuação, rollback `supabase/rollbacks/points_engine_rollback.sql`). |
+| **Faltam na produção** | **53 migrations**: `20261130000000` até `20261130000052` (lista no Anexo A; a `...51` é o motor único de pontuação, rollback `supabase/rollbacks/points_engine_rollback.sql`). |
 | **Banco de staging** | Tem as 18 primeiras (a `...17` entrou em 02/11 depois do conserto do CLI, execução 41460638773). A `...18` (limites de upload) entrou em 02/11. A `...19` (catálogo e registro de uploads) entrou em 02/11. A `...20` (autorização, cotas e bloqueios) entrou em 02/11. A `...21` (painel Admin → Uploads) entrou em 02/11. A `...22` (limpeza de arquivos sem uso) entra quando a `staging` receber o push. |
 | **Código** | A `main` está **123 commits atrás** da `staging` (357 arquivos, +21 mil / −2 mil linhas). |
 | **CI** | Verde nos últimos pushes da `staging`. |
