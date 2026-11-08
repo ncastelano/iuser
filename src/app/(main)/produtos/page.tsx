@@ -17,6 +17,7 @@ import { Spinner } from '@/components/Spinner'
 import { useInsideShell } from '@/components/InsideShell'
 import ListFilters, { type SortOption } from '@/components/ListFilters'
 import { loadProductCards, type ProductCard } from '../inicio/sections/ProductShowcase'
+import Outdoor from '@/components/outdoor/Outdoor'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const PAGE_SIZE = 24
@@ -116,6 +117,8 @@ function Produtos() {
                 />
 
                 <section className="px-4 md:px-6 mt-3 pb-24">
+                    {/* Outdoor Produtos: os produtos mais bem pontuados (some com o texto da busca) */}
+                    {!search.trim() && <Outdoor kind="produtos" className="mb-2" />}
                     <div className="mb-3">
                         <ListFilters
                             sorts={SORTS} sort={sort} onSort={setSort}

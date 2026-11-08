@@ -22,6 +22,7 @@ import { useInsideShell } from '@/components/InsideShell'
 import ListFilters, { type SortOption } from '@/components/ListFilters'
 import PageTabs, { type Tab } from '@/components/PageTabs'
 import { loadServiceCards, type ServiceCard } from '@/lib/serviceCards'
+import Outdoor from '@/components/outdoor/Outdoor'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const PAGE_SIZE = 24
@@ -133,6 +134,8 @@ function ServicosDisponiveis() {
                         </p>
                         <PageTabs tabs={typeTabs} />
                     </div>
+                    {/* Outdoor Serviços: os serviços mais bem pontuados (some com o texto da busca, para não competir com o resultado) */}
+                    {!search.trim() && <Outdoor kind="servicos" className="mb-2" />}
                     <div className="mb-3">
                         <ListFilters
                             sorts={SORTS} sort={sort} onSort={setSort}

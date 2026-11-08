@@ -32,6 +32,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import { resolveCategoria } from '@/lib/categorias'
 import { StoreCard, StoreCardSkeleton, type StoreCardData } from '@/components/StoreCard'
+import Outdoor from '@/components/outdoor/Outdoor'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -338,6 +339,8 @@ export default function AllStoreList() {
                 />
 
                 <section className="px-4 md:px-6 mt-2 pb-24">
+                    {/* Outdoor Lojas: as lojas mais bem pontuadas (some com o texto da busca) */}
+                    {!searchQuery.trim() && <Outdoor kind="lojas" className="mb-3" />}
                     {/* FILTROS POR CATEGORIA */}
                     {categories.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-4">
