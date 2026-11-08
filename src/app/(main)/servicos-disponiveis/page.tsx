@@ -5,11 +5,13 @@
 // `?tipo=profissionais` mostra só os serviços de pessoas ("Ver todas" de Profissionais no /comprar) e `?tipo=agendar` só os de lojas
 // ("Ver todas" de Serviços para agendar). Em cima da lista, uma linha de filtros no desenho do /lojas: categoria (só serviços de loja),
 // ordenação e "Abertas" (lojas) / "Online" (profissionais).
+// É também o destino do "ver serviços" de "Quem já oferece serviço" (home): tem o mesmo título e um seletor visível Todos · Profissionais · Lojas
+// (antes esse botão ia para /solicitar-servico, que é o formulário/mapa de PEDIR um serviço — outra coisa) e o botão "Publicar o seu serviço".
 'use client'
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowDown, ArrowUp, Clock, Eye, Star, Wrench } from 'lucide-react'
+import { ArrowDown, ArrowUp, Clock, Eye, LayoutGrid, Plus, Star, Store, User, Wrench } from 'lucide-react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
@@ -18,6 +20,7 @@ import ListingRowCard from '@/components/ListingRowCard'
 import { Spinner } from '@/components/Spinner'
 import { useInsideShell } from '@/components/InsideShell'
 import ListFilters, { type SortOption } from '@/components/ListFilters'
+import PageTabs, { type Tab } from '@/components/PageTabs'
 import { loadServiceCards, type ServiceCard } from '@/lib/serviceCards'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -93,6 +96,14 @@ function ServicosDisponiveis() {
     useEffect(() => { setShown(PAGE_SIZE) }, [search, category, onlyNow, sort])
     useEffect(() => { setCategory('todas'); setOnlyNow(false) }, [tipoParam])
 
+    // O tipo vai no endereço (?tipo=), então o voltar do navegador e o compartilhar mantêm a escolha
+    const goTipo = (t: 'profissionais' | 'agendar' | null) => router.replace(t ? `/servicos-disponiveis?tipo=${t}` : '/servicos-disponiveis')
+    const typeTabs: Tab[] = [
+        { id: 'todos', label: 'Todos', icon: LayoutGrid, isActive: !tipo, onClick: () => goTipo(null) },
+        { id: 'profissionais', label: 'Profissionais', icon: User, isActive: tipoParam === 'profissionais', onClick: () => goTipo('profissionais') },
+        { id: 'agendar', label: 'Lojas', icon: Store, isActive: tipoParam === 'agendar', onClick: () => goTipo('agendar') },
+    ]
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -114,6 +125,14 @@ function ServicosDisponiveis() {
                 />
 
                 <section className="px-4 md:px-6 mt-3 pb-24">
+                    {/* Título e seletor do que se está vendo: a lista toda, só pessoas ou só lojas */}
+                    <div className="mb-2">
+                        <h1 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>{tipo ? tipo.title : 'Quem já oferece serviço'}</h1>
+                        <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                            {tipo ? (tipo.kind === 'Pessoa' ? 'Profissionais que atendem por aqui' : 'Lojas com serviço para agendar') : 'Profissionais e lojas prontos para te atender'}
+                        </p>
+                        <PageTabs tabs={typeTabs} />
+                    </div>
                     <div className="mb-3">
                         <ListFilters
                             sorts={SORTS} sort={sort} onSort={setSort}
@@ -152,6 +171,14 @@ function ServicosDisponiveis() {
                                     />
                                 ))}
                             </div>
+                            {/* Mesmo convite do fim da seção da home */}
+                            <button
+                                onClick={() => router.push(profileSlug ? '/meus-servicos' : '/login')}
+                                className="mt-5 w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition active:scale-95"
+                                style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                            >
+                                <Plus size={16} /> Tem um serviço? Publique o seu
+                            </button>
                             {shown < filtered.length && (
                                 <div className="flex justify-center mt-5">
                                     <button
