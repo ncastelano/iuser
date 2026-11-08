@@ -10,7 +10,7 @@ import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } fro
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
     Store as StoreIcon, Car, User, ChevronRight, ChevronDown, X, RotateCcw, ShoppingBag, LayoutDashboard, Check, Plus, Pencil, Bike,
-    Search, MapPin, Users, MessagesSquare, MessageCircle, ClipboardList, Wallet, Bell,
+    Search, MapPin, Users, MessagesSquare, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -29,7 +29,7 @@ import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import { miniHidden, subtitleOf } from '@/modules/player'
 import { switchVersion, versionLabel } from '@/versions/client'
-import { isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
+import { NOTIFICATIONS_PATH, isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
 import { BarKindProvider } from '@/versions/v3/bar/kind'
 import { activeBarKey, barKindOf, isOwnVehiclePage, barPathOf, barTabsFor, type BarKey } from '@/versions/v3/bar/domain'
 import { LAST_ABA_KEY } from '@/versions/v3/screens/AtividadeTabs'
@@ -74,35 +74,70 @@ function modePath(mode: string, data: DrawerData): string {
     return '/'
 }
 
-// ===== MENU DE MODOS (o hub; desenho aprovado em /paginateste): uma lista de cards IGUAIS (um por modo), uma linha de botões iguais para o modo
-// escolhido e o rodapé. Escolher um card seleciona o modo e abre a página dele, como sempre.
+// ===== MENU DE MODOS (o hub; desenho aprovado em /paginateste): uma lista de cartões IGUAIS, um por modo. CADA CARTÃO É COMPLETO: o cabeçalho (foto, nome, subtítulo, ✓),
+// as fichinhas de NOTIFICAÇÃO do que é daquele modo (conversas, carrinho, pedidos...) e, no modo escolhido, os botões dele (Ver perfil/Painel, Ver loja/Editar/Painel...).
+// Escolher um cartão (tocar no cabeçalho) seleciona o modo e abre a página dele, como sempre.
 const MODE_COLOR = { user: '#3b82f6', store: '#f97316', car: '#16a34a' } as const
 
-/** Um modo: foto (ou ícone colorido), nome, subtítulo e, à direita, o ✓ do modo escolhido */
-function ModeCard({ selected, kind, image, title, desc, dot, onClick }: {
+/** Uma fichinha de notificação do cartão: ícone, número e nome, na cor do assunto; leva ao lugar dele */
+interface ModeChip { key: string; icon: ReactNode; count: number; label: string; color: string; onClick: () => void }
+interface ModeAction { label: string; icon: ReactNode; onClick: () => void; solid?: boolean }
+
+function ModeChips({ items }: { items: ModeChip[] }) {
+    const shown = items.filter((c) => c.count > 0)
+    if (shown.length === 0) return null
+    return (
+        <div className="flex flex-wrap gap-1.5">
+            {shown.map((c) => (
+                <button
+                    key={c.key}
+                    onClick={c.onClick}
+                    className="h-7 pl-1.5 pr-2.5 rounded-full flex items-center gap-1.5 text-[11px] font-black transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                    style={{ background: `${c.color}1f`, color: c.color }}
+                >
+                    <span className="min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-white text-[10px] leading-none" style={{ background: c.color }}>{c.count > 99 ? '99+' : c.count}</span>
+                    {c.icon}<span>{c.label}</span>
+                </button>
+            ))}
+        </div>
+    )
+}
+
+/** Um modo: foto (ou ícone colorido), nome, subtítulo e, à direita, o ✓ do modo escolhido; embaixo, no mesmo cartão, as fichinhas de notificação e os botões do modo escolhido */
+function ModeCard({ selected, kind, image, title, desc, dot, onClick, chips, actions }: {
     selected: boolean; kind: keyof typeof MODE_COLOR; image?: string | null; title: string; desc?: string; dot?: string; onClick: () => void
+    chips?: ModeChip[]; actions?: ModeAction[] | null
 }) {
     const Icon = kind === 'store' ? StoreIcon : kind === 'car' ? Car : User
+    const hasChips = (chips || []).some((c) => c.count > 0)
+    const hasActions = selected && !!actions && actions.length > 0
     return (
-        <button
-            onClick={onClick}
-            aria-pressed={selected}
-            className="w-full flex items-center gap-3 p-2.5 rounded-2xl text-left transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-            style={{ border: `1.5px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, background: selected ? '#f9731612' : 'transparent' }}
-        >
-            <span className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden" style={{ background: image ? 'var(--hub-soft)' : MODE_COLOR[kind] }}>
-                {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : <Icon size={18} />}
-            </span>
-            <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-black leading-tight truncate">{title}</span>
-                {desc && (
-                    <span className="flex items-center gap-1.5 text-[11px] opacity-80 truncate mt-0.5">
-                        {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}<span className="truncate">{desc}</span>
-                    </span>
-                )}
-            </span>
-            {selected ? <Check size={17} className="flex-shrink-0" style={{ color: '#f97316' }} /> : <ChevronRight size={16} className="flex-shrink-0 opacity-60" />}
-        </button>
+        <div className="w-full rounded-2xl overflow-hidden transition" style={{ border: `1.5px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, background: selected ? '#f9731612' : 'transparent' }}>
+            <button
+                onClick={onClick}
+                aria-pressed={selected}
+                className="w-full flex items-center gap-3 p-2.5 text-left transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f97316]"
+            >
+                <span className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden" style={{ background: image ? 'var(--hub-soft)' : MODE_COLOR[kind] }}>
+                    {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : <Icon size={18} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-black leading-tight truncate">{title}</span>
+                    {desc && (
+                        <span className="flex items-center gap-1.5 text-[11px] opacity-80 truncate mt-0.5">
+                            {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}<span className="truncate">{desc}</span>
+                        </span>
+                    )}
+                </span>
+                {selected ? <Check size={17} className="flex-shrink-0" style={{ color: '#f97316' }} /> : <ChevronRight size={16} className="flex-shrink-0 opacity-60" />}
+            </button>
+            {(hasChips || hasActions) && (
+                <div className="px-2.5 pb-2.5 flex flex-col gap-2">
+                    {hasChips && <ModeChips items={chips!} />}
+                    {hasActions && <ModeActions items={actions!} />}
+                </div>
+            )}
+        </div>
     )
 }
 
@@ -122,7 +157,7 @@ function ModeCta({ kind, title, desc, onClick }: { kind: keyof typeof MODE_COLOR
 }
 
 /** A linha de botões iguais do modo escolhido (2 ou 3, mesma largura e altura) */
-function ModeActions({ items }: { items: { label: string; icon: ReactNode; onClick: () => void; solid?: boolean }[] }) {
+function ModeActions({ items }: { items: ModeAction[] }) {
     return (
         <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
             {items.map((it) => (
@@ -154,7 +189,7 @@ function HubHeader({ title, sub, onClose }: { title: string; sub?: string; onClo
     )
 }
 
-function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, onSelect, onGo, onSwitchVersion }: {
+function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts, onSelect, onGo, onSwitchVersion }: {
     onSwitchVersion: () => Promise<void>
     /** Pedidos de cada loja (novos, em preparo, prontos) */
     storeOrders: Record<string, { pending: number; preparing: number; ready: number; services: number }>
@@ -163,70 +198,60 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, onSelec
     active: string
     slug: string | null
     avatarUrl: string | null | undefined
+    /** O que pede atenção, por modo: conversas não lidas da caixa de cada um ('perfil' e o id de cada loja), carrinho, pedidos da pessoa e notificações do perfil */
+    counts: { rooms: Record<string, number>; cart: number; orders: { pending: number; preparing: number; ready: number }; notifs: number }
     onSelect: (mode: string) => void; onGo: (path: string) => void
 }) {
-    const ordersLine = (id: string) => {
-        const o = storeOrders[id] || { pending: 0, preparing: 0, ready: 0, services: 0 }
+    const ic = (I: typeof User) => <I size={12} className="flex-shrink-0" />
+    const act = (I: typeof User) => <I size={14} className="flex-shrink-0" />
+
+    // PESSOA: o que é da conta pessoal
+    const myOrders = counts.orders.pending + counts.orders.preparing + counts.orders.ready
+    const personChips: ModeChip[] = [
+        { key: 'chat', icon: ic(MessageCircle), count: counts.rooms.perfil || 0, label: (counts.rooms.perfil || 0) === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo('/atividade?aba=conversas') },
+        { key: 'cart', icon: ic(ShoppingCart), count: counts.cart, label: 'no carrinho', color: '#f97316', onClick: () => onGo('/atividade?aba=carrinho') },
+        { key: 'orders', icon: ic(Package), count: myOrders, label: myOrders === 1 ? 'pedido' : 'pedidos', color: counts.orders.ready > 0 ? '#a855f7' : '#16a34a', onClick: () => onGo('/atividade?aba=pedidos') },
+        { key: 'notifs', icon: ic(Bell), count: counts.notifs, label: counts.notifs === 1 ? 'notificação' : 'notificações', color: '#ef4444', onClick: () => onGo(NOTIFICATIONS_PATH) },
+    ]
+    const personActions: ModeAction[] = [
+        ...(slug ? [{ label: 'Ver perfil', icon: act(User), onClick: () => onGo(`/${slug}`) }] : []),
+        { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onSelect('perfil'), solid: true },
+    ]
+    // LOJA: pedidos, serviços e a caixa de conversas dela
+    const storeChips = (st: DrawerData['stores'][number]): ModeChip[] => {
+        const o = storeOrders[st.id] || { pending: 0, preparing: 0, ready: 0, services: 0 }
         const going = o.preparing + o.ready
-        return {
-            o, going,
-            text: o.pending + o.services > 0
-                ? [o.pending > 0 ? `${o.pending} ${o.pending === 1 ? 'pedido novo' : 'pedidos novos'}` : '', o.services > 0 ? `${o.services} ${o.services === 1 ? 'serviço' : 'serviços'}` : '', going > 0 ? `${going} em andamento` : ''].filter(Boolean).join(' · ')
-                : going > 0 ? `${going} ${going === 1 ? 'pedido em andamento' : 'pedidos em andamento'}` : 'Pedidos',
-        }
+        const orders = `/painel-loja/${encodeURIComponent(st.slug)}/pedidos`
+        const unread = counts.rooms[st.id] || 0
+        return [
+            { key: 'new', icon: ic(ShoppingBag), count: o.pending, label: o.pending === 1 ? 'pedido novo' : 'pedidos novos', color: '#22c55e', onClick: () => onGo(orders) },
+            { key: 'svc', icon: ic(Bell), count: o.services, label: o.services === 1 ? 'serviço' : 'serviços', color: '#14b8a6', onClick: () => onGo(orders) },
+            { key: 'going', icon: ic(Package), count: going, label: 'em andamento', color: o.ready > 0 ? '#a855f7' : '#eab308', onClick: () => onGo(orders) },
+            { key: 'chat', icon: ic(MessageCircle), count: unread, label: unread === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo(`/atividade?aba=conversas&sala=${encodeURIComponent(st.slug)}`) },
+        ]
     }
-    const selStore = data.stores.find((st) => active === `loja:${st.slug}`)
-    const selVehicle = data.vehicles.find((v) => active === `motorista:${v.slug}`)
-    const actions: { label: string; icon: ReactNode; onClick: () => void; solid?: boolean }[] | null =
-        active === 'perfil' ? [
-            ...(slug ? [{ label: 'Ver perfil', icon: <User size={14} className="flex-shrink-0" />, onClick: () => onGo(`/${slug}`) }] : []),
-            { label: 'Painel', icon: <LayoutDashboard size={14} className="flex-shrink-0" />, onClick: () => onSelect('perfil'), solid: true },
-        ] : selStore ? [
-            { label: 'Ver loja', icon: <StoreIcon size={14} className="flex-shrink-0" />, onClick: () => onGo(`/${selStore.slug}`) },
-            { label: 'Editar', icon: <Pencil size={14} className="flex-shrink-0" />, onClick: () => onGo(`/editar-loja/${encodeURIComponent(selStore.slug)}`) },
-            { label: 'Painel', icon: <LayoutDashboard size={14} className="flex-shrink-0" />, onClick: () => onSelect(`loja:${selStore.slug}`), solid: true },
-        ] : selVehicle ? [
-            { label: 'Veículo', icon: <Car size={14} className="flex-shrink-0" />, onClick: () => onGo(`/${selVehicle.slug}`) },
-            { label: 'Entregas', icon: <Bike size={14} className="flex-shrink-0" />, onClick: () => onGo('/entregas') },
-            { label: 'Painel', icon: <LayoutDashboard size={14} className="flex-shrink-0" />, onClick: () => onGo('/painel-motorista'), solid: true },
-        ] : null
+    const storeActions = (st: DrawerData['stores'][number]): ModeAction[] => [
+        { label: 'Ver loja', icon: act(StoreIcon), onClick: () => onGo(`/${st.slug}`) },
+        { label: 'Editar', icon: act(Pencil), onClick: () => onGo(`/editar-loja/${encodeURIComponent(st.slug)}`) },
+        { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onSelect(`loja:${st.slug}`), solid: true },
+    ]
+    const vehicleActions = (v: DrawerData['vehicles'][number]): ModeAction[] => [
+        { label: 'Veículo', icon: act(Car), onClick: () => onGo(`/${v.slug}`) },
+        { label: 'Entregas', icon: act(Bike), onClick: () => onGo('/entregas') },
+        { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onGo('/painel-motorista'), solid: true },
+    ]
     return (
         <div className="w-full flex flex-col gap-2 px-3.5 pb-3.5">
             {/* Pessoa */}
-            <ModeCard selected={active === 'perfil'} kind="user" image={avatarUrl} title="Pessoa" desc={`${slug ? `@${slug} · ` : ''}comprar, contratar, publicar`} onClick={() => onSelect('perfil')} />
+            <ModeCard selected={active === 'perfil'} kind="user" image={avatarUrl} title="Pessoa" desc={`${slug ? `@${slug} · ` : ''}comprar, contratar, publicar`} onClick={() => onSelect('perfil')} chips={personChips} actions={personActions} />
             {/* Lojas */}
             {data.stores.length > 0 ? data.stores.map((st) => {
-                const { text, o } = ordersLine(st.id)
-                return <ModeCard key={st.id} selected={active === `loja:${st.slug}`} kind="store" image={st.logo} title={st.name} desc={`Modo loja · ${st.open ? 'Aberta agora' : 'Fechada agora'}${o.pending + o.services > 0 ? ` · ${o.pending + o.services} ${o.pending + o.services === 1 ? 'novo' : 'novos'}` : ''}`} dot={st.open ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`loja:${st.slug}`)} />
+                return <ModeCard key={st.id} selected={active === `loja:${st.slug}`} kind="store" image={st.logo} title={st.name} desc={`Modo loja · ${st.open ? 'Aberta agora' : 'Fechada agora'}`} dot={st.open ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`loja:${st.slug}`)} chips={storeChips(st)} actions={storeActions(st)} />
             }) : <ModeCta kind="store" title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} />}
             {/* Motorista: um card por veículo */}
             {data.vehicles.length > 0 ? data.vehicles.map((v) => (
-                <ModeCard key={v.slug} selected={active === `motorista:${v.slug}`} kind="car" image={v.photo} title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`} desc={`Modo motorista · ${data.driverActive ? 'ativado' : 'desligado'}`} dot={data.driverActive ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`motorista:${v.slug}`)} />
+                <ModeCard key={v.slug} selected={active === `motorista:${v.slug}`} kind="car" image={v.photo} title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`} desc={`Modo motorista · ${data.driverActive ? 'ativado' : 'desligado'}`} dot={data.driverActive ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`motorista:${v.slug}`)} actions={vehicleActions(v)} />
             )) : <ModeCta kind="car" title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />}
-
-            {/* O que fazer no modo escolhido: botões iguais (e, na loja, os pedidos) */}
-            {actions && <div className="pt-1"><ModeActions items={actions} /></div>}
-            {selStore && (() => {
-                const { text, o } = ordersLine(selStore.id)
-                return (
-                    <button
-                        onClick={() => onGo(`/painel-loja/${encodeURIComponent(selStore.slug)}/pedidos`)}
-                        className="w-full h-10 px-3 rounded-full flex items-center gap-2.5 text-xs font-black transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                        style={{ border: '1px solid var(--hub-line)' }}
-                    >
-                        <ShoppingBag size={16} className="flex-shrink-0" />
-                        <span className="flex-1 text-left truncate">{text}</span>
-                        {o.pending + o.services > 0
-                            ? (
-                                <span className="flex items-center gap-1 flex-shrink-0">
-                                    {o.pending > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#22c55e' }}>{o.pending > 99 ? '99+' : o.pending}</span>}
-                                    {o.services > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] flex items-center justify-center text-white" style={{ background: '#14b8a6' }}>{o.services > 99 ? '99+' : o.services}</span>}
-                                </span>
-                            )
-                            : <ChevronRight size={14} className="flex-shrink-0 opacity-70" />}
-                    </button>
-                )
-            })()}
             <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
     )
@@ -422,6 +447,31 @@ export default function ModeShell({ children }: {
         return () => { cancelled = true; clearInterval(t) }
     }, [drawerOpen, storeIdsKey])
 
+    // O que pede atenção em cada modo (as fichinhas dos cartões do menu): conversas não lidas da caixa de cada um e as notificações do perfil. Só carrega com o menu aberto.
+    const [hubCounts, setHubCounts] = useState<{ rooms: Record<string, number>; notifs: number }>({ rooms: {}, notifs: 0 })
+    useEffect(() => {
+        if (!userId || !drawerOpen) return
+        let cancelled = false
+        const withUnread = (rows: unknown) => ((rows as { unread: number }[] | null) || []).reduce((a, r) => a + (r.unread > 0 ? 1 : 0), 0)
+        const load = async () => {
+            const rooms: Record<string, number> = {}
+            const ids = storeIdsKey ? storeIdsKey.split(',') : []
+            const [{ data: mine }, { data: notifs }] = await Promise.all([
+                supabase.rpc('get_my_conversations', { p_scope: 'profile' }),
+                supabase.rpc('get_my_notifications', { p_limit: 100 }),
+            ])
+            rooms.perfil = withUnread(mine)
+            await Promise.all(ids.map(async (id) => {
+                const { data } = await supabase.rpc('get_my_conversations', { p_scope: 'store', p_store: id })
+                rooms[id] = withUnread(data)
+            }))
+            if (!cancelled) setHubCounts({ rooms, notifs: ((notifs as { read_at: string | null }[] | null) || []).filter((n) => !n.read_at).length })
+        }
+        void load()
+        const t = setInterval(() => { if (!document.hidden) void load() }, 20_000)
+        return () => { cancelled = true; clearInterval(t) }
+    }, [userId, drawerOpen, storeIdsKey])
+
     // Fecha com ESC e trava a rolagem da página enquanto o menu está aberto
     useEffect(() => {
         if (!drawerOpen) return
@@ -597,6 +647,7 @@ export default function ModeShell({ children }: {
                     storeOrders={storeOrders}
                     slug={profileSlug}
                     avatarUrl={avatarUrl}
+                    counts={{ rooms: hubCounts.rooms, cart: topCart, orders: orderCounts, notifs: hubCounts.notifs }}
                     onSelect={selectMode}
                     onGo={goAndClose}
                     onSwitchVersion={onSwitchVersion}
