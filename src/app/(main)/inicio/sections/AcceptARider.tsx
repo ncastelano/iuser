@@ -91,9 +91,11 @@ interface AcceptARiderProps {
     // subir esse componente na frente de Categorias enquanto durar, do
     // mesmo jeito que o Motorista Particular já faz.
     onUrgentChange?: (urgent: boolean) => void
+    /** As corridas disponíveis numa FILEIRA horizontal (rola para o lado) em vez de uma embaixo da outra: ocupa menos altura na home (usado na 3.0) */
+    horizontal?: boolean
 }
 
-export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARiderProps) {
+export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = false }: AcceptARiderProps) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
@@ -655,6 +657,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
                 {openRides.length > 0 && (
                     <div className="flex flex-col gap-3">
+                        {/* `horizontal`: os cartões numa fileira que rola para o lado (sangra até a borda: -mx-4 px-4) em vez de empilhar; `contents` mantém a coluna de sempre */}
+                        <div className={horizontal ? 'flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4 pb-1 items-start scroll-pl-4 scroll-pr-4' : 'contents'} style={horizontal ? { WebkitOverflowScrolling: 'touch' } : undefined}>
                         {openRides.map(({ ride, requester, platformShape, customShape, useCustom, flags }) => {
                             // O valor sai da MESMA conta de /aceitar-corridas (lib/rideQuote): rota do mapa, deslocamento, tarifa própria e piso por hora
                             const route = pos ? pickupById[ride.id] : undefined
@@ -749,7 +753,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                     />
                                 ),
                             }
-                        }).sort((a, b) => b.rank - a.rank).map((c) => c.node)}
+                        }).sort((a, b) => b.rank - a.rank).map((c) => horizontal
+                            ? <div key={String(c.node.key)} className="flex-shrink-0 snap-start w-[min(86vw,340px)]">{c.node}</div>
+                            : c.node)}
+                        </div>
 
                         {openRidesTotal > openRides.length && (
                             <button

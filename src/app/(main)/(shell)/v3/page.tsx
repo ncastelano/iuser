@@ -874,7 +874,7 @@ export default function ModeloInicialPage() {
 
                         {/* Canal do Motorista: as corridas abertas e quanto cada uma paga (a mesma seção da home 2.0) — é por aqui que quem quer dirigir vê o que pode ganhar */}
                         <div className="mt-8">
-                            <AcceptARider />
+                            <AcceptARider horizontal />
                         </div>
 
                         {/* ===== 2. CATEGORIAS — as que já têm loja em destaque; as vazias convidam a abrir a primeira ===== */}
