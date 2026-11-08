@@ -9,6 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import DigitalCards from '@/components/digital/DigitalCards'
 import { loadDigitalShowcase, SHOWCASE_FILTERS, type ShowcaseItem } from '@/modules/digital'
+import Outdoor from '@/components/outdoor/Outdoor'
 
 export default function DigitaisPage() {
     const { colors } = useTheme()
@@ -45,6 +46,8 @@ export default function DigitaisPage() {
                     <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar curso, aula ou loja" className="flex-1 bg-transparent outline-none text-sm" style={{ color: colors.textPrimary }} />
                     {q && <button type="button" onClick={() => setQ('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={16} /></button>}
                 </div>
+
+                {!q && <Outdoor kind="digitais" />}
 
                 <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
                     {SHOWCASE_FILTERS.map((f) => {

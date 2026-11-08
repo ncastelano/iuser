@@ -2,8 +2,8 @@
 // Sem React nem rede; testado em scripts/test-outdoor.mjs (npm run test:outdoor).
 // Cada tipo tem a sua regra de pontos NO BANCO (get_outdoor / outdoor_rules); aqui só ficam nomes, cores, destinos e formatação.
 
-export type OutdoorKind = 'lojas' | 'pessoas' | 'servicos' | 'produtos' | 'imoveis'
-export const OUTDOOR_KINDS: OutdoorKind[] = ['lojas', 'pessoas', 'servicos', 'produtos', 'imoveis']
+export type OutdoorKind = 'lojas' | 'pessoas' | 'servicos' | 'produtos' | 'digitais' | 'imoveis' | 'motoristas'
+export const OUTDOOR_KINDS: OutdoorKind[] = ['lojas', 'pessoas', 'servicos', 'produtos', 'digitais', 'imoveis', 'motoristas']
 
 export interface OutdoorItem {
     id: string
@@ -38,7 +38,9 @@ export const OUTDOOR_INFO: Record<OutdoorKind, OutdoorKindInfo> = {
     pessoas:  { title: 'Outdoor iUser',    subtitle: 'Os perfis com mais pontos do iUser',  color: '#8b5cf6', bucket: 'avatars',        seeAll: '/social',    shape: 'circle' },
     servicos: { title: 'Outdoor Serviços', subtitle: 'Os serviços mais bem pontuados',      color: '#0d9488', bucket: 'product-images', seeAll: '/servicos-disponiveis', shape: 'square' },
     produtos: { title: 'Outdoor Produtos', subtitle: 'Os produtos mais bem pontuados',      color: '#ef4444', bucket: 'product-images', seeAll: '/produtos',  shape: 'square' },
+    digitais: { title: 'Outdoor Digitais', subtitle: 'Os cursos, músicas e programas mais bem pontuados', color: '#7c3aed', bucket: 'product-images', seeAll: '/digitais', shape: 'square' },
     imoveis:  { title: 'Outdoor Imóveis',  subtitle: 'Os imóveis mais bem pontuados',       color: '#2563eb', bucket: 'product-images', seeAll: null,         shape: 'square' },
+    motoristas: { title: 'Outdoor Motoristas', subtitle: 'Os motoristas mais bem pontuados', color: '#16a34a', bucket: 'avatars',        seeAll: null,         shape: 'circle' },
 }
 
 /** A linha de get_outdoor → item. Linha sem id, sem nome ou sem slug é descartada. */
@@ -54,10 +56,12 @@ export function outdoorFromRow(r: Record<string, any> | null | undefined): Outdo
 export function outdoorHref(kind: OutdoorKind, item: OutdoorItem): string | null {
     switch (kind) {
         case 'lojas':
-        case 'pessoas': return `/${item.slug}`
+        case 'pessoas':
+        case 'motoristas': return `/${item.slug}`   // motorista: o @ do veículo (a página pública do motorista)
         case 'imoveis': return `/imoveis/${item.slug}`
         case 'servicos':
-        case 'produtos': return item.ownerSlug ? `/${item.ownerSlug}/${item.slug}` : null
+        case 'produtos':
+        case 'digitais': return item.ownerSlug ? `/${item.ownerSlug}/${item.slug}` : null
     }
 }
 

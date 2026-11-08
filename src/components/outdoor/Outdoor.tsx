@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { Crown, Info, X } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { signedPoints } from '@/modules/points'
 import { loadOutdoor, loadOutdoorRules, outdoorImageUrl, OUTDOOR_INFO, outdoorHref, medalOf, pointsLabel, type OutdoorItem, type OutdoorKind, type Medal } from '@/modules/outdoor'
 
 const MEDAL: Record<Medal, { ring: string; glow: string; text: string }> = {
@@ -70,8 +71,8 @@ function RulesSheet({ kind, onClose }: { kind: OutdoorKind; onClose: () => void 
                             {rules.map((r) => (
                                 <li key={r.label} className="flex items-center gap-3 rounded-2xl px-3 py-2.5" style={{ background: `${colors.border}30` }}>
                                     <span className="flex-1 text-sm font-bold leading-snug">{r.label}</span>
-                                    <span className="text-xs font-black px-2 py-1 rounded-full text-white whitespace-nowrap" style={{ background: info.color }}>
-                                        {r.points >= 1 ? `+${r.points.toLocaleString('pt-BR')}` : `+${r.points.toLocaleString('pt-BR')} (cada ${Math.round(1 / r.points)})`}
+                                    <span className="text-xs font-black px-2 py-1 rounded-full text-white whitespace-nowrap" style={{ background: r.points < 0 ? '#dc2626' : info.color }}>
+                                        {signedPoints(r.points)}
                                     </span>
                                 </li>
                             ))}

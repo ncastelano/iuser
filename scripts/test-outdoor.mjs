@@ -19,6 +19,13 @@ test('destino de cada tipo', () => {
     assert.equal(outdoorHref('imoveis', base), '/imoveis/x')
     assert.equal(outdoorHref('produtos', base), null)
     assert.equal(outdoorHref('servicos', { ...base, ownerSlug: 'dono' }), '/dono/x')
+    assert.equal(outdoorHref('digitais', { ...base, ownerSlug: 'loja' }), '/loja/x')
+    assert.equal(outdoorHref('digitais', base), null)
+    assert.equal(outdoorHref('motoristas', base), '/x')   // o @ do veículo
+})
+test('são sete Outdoors, cada um com o seu tipo', () => {
+    assert.deepEqual([...OUTDOOR_KINDS].sort(), ['digitais', 'imoveis', 'lojas', 'motoristas', 'pessoas', 'produtos', 'servicos'])
+    assert.equal(new Set(OUTDOOR_KINDS.map((k) => OUTDOOR_INFO[k].title)).size, 7)
 })
 test('medalhas: só os três primeiros', () => {
     assert.deepEqual([1, 2, 3, 4, 0].map(medalOf), ['gold', 'silver', 'bronze', null, null])

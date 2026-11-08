@@ -29,6 +29,7 @@ import { rideValuation, valuationRank } from '@/modules/negotiation/domain'
 import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from '@/components/AceitarCorridas/LocationAskDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import Outdoor from '@/components/outdoor/Outdoor'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -506,6 +507,9 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     <ViewServicesButton label="Ativar modo motorista" onClick={goToPainel} />
                 )}
             </div>
+
+            {/* Outdoor Motoristas: os mais bem pontuados (corridas, entregas e notas); some se ninguém pontuou */}
+            <Outdoor kind="motoristas" className="mb-4" />
 
             {driverModeActive && (
                 <div className="flex gap-2 mb-4">
