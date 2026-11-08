@@ -10,7 +10,7 @@ import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } fro
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
     Store as StoreIcon, Car, User, ChevronRight, ChevronDown, X, RotateCcw, ShoppingBag, LayoutDashboard, Check, Plus, Pencil, Bike,
-    Search, MapPin, Users, MessagesSquare, MessageCircle, ClipboardList, Wallet,
+    Search, MapPin, Users, MessagesSquare, MessageCircle, ClipboardList, Wallet, Bell,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -29,7 +29,7 @@ import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import { miniHidden, subtitleOf } from '@/modules/player'
 import { switchVersion, versionLabel } from '@/versions/client'
-import { activityBadge, isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
+import { isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
 import { BarKindProvider } from '@/versions/v3/bar/kind'
 import { activeBarKey, barKindOf, isOwnVehiclePage, barPathOf, barTabsFor, type BarKey } from '@/versions/v3/bar/domain'
 import { LAST_ABA_KEY } from '@/versions/v3/screens/AtividadeTabs'
@@ -616,7 +616,7 @@ export default function ModeShell({ children }: {
 
     // As abas da barra (Explorar + três do modo): para onde cada uma leva e o selo
     const ICON: Record<BarKey, ReactNode> = {
-        home: <Search size={22} />, radar: <MapPin size={22} />, people: <Users size={22} />, activity: <MessagesSquare size={22} />,
+        home: <Search size={22} />, radar: <MapPin size={22} />, people: <Users size={22} />, activity: <Bell size={22} />,
         panel: <LayoutDashboard size={22} />, orders: <ClipboardList size={22} />, chat: <MessageCircle size={22} />,
         rides: <Car size={22} />, deliveries: <Bike size={22} />, earnings: <Wallet size={22} />,
     }
@@ -635,12 +635,18 @@ export default function ModeShell({ children }: {
         const path = barPathOf(key, barStore)
         if (path) go(path)
     }
+    // O botão ATIVIDADE é o SININHO (mesmo tamanho e estilo dos outros ícones) com os selos EM CIMA, cada um na sua cor: mensagens não lidas (verde), pedidos em andamento
+    // (verde; roxo se há um pronto) e itens no carrinho (laranja). Tocar leva ao que pede atenção (smartAba).
+    const activityBadges = [
+        { count: topUnread, color: '#16a34a' },
+        { count: orderCounts.pending + orderCounts.preparing + orderCounts.ready, color: orderCounts.ready > 0 ? '#a855f7' : '#16a34a' },
+        { count: topCart, color: '#f97316' },
+    ]
     const barTabs: BarTab[] = barTabsFor(barKind).map((def) => {
-        const badge = def.key === 'activity' ? activityBadge(topUnread, orderCounts)
-            : def.key === 'orders' ? { count: barStoreNew, color: '#22c55e' }
+        const badge = def.key === 'orders' ? { count: barStoreNew, color: '#22c55e' }
             : def.key === 'chat' ? { count: topUnread, color: '#16a34a' }
             : null
-        return { key: def.key, label: def.label, icon: ICON[def.key], active: barActive === def.key, onClick: () => openTab(def.key), badge: badge?.count || 0, badgeColor: badge?.color, pulse: def.key === 'activity' && (badge?.count || 0) > 0 }
+        return { key: def.key, label: def.label, icon: ICON[def.key], active: barActive === def.key, onClick: () => openTab(def.key), badge: badge?.count || 0, badgeColor: badge?.color, badges: def.key === 'activity' && userId ? activityBadges : undefined }
     })
 
     return (

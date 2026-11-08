@@ -1,12 +1,12 @@
 // src/versions/v3/screens/AtividadeTabs.tsx
 //
-// A fileira de subabas da ATIVIDADE (aba da barra da 3.0): Conversas · Pedidos · Carrinho · Biblioteca · Avisos. É um CONTROLE SEGMENTADO (uma trilha só, a aba atual
+// A fileira de subabas da ATIVIDADE (aba da barra da 3.0): Conversas · Pedidos · Carrinho · Biblioteca (as notificações do perfil ficam no painel do perfil, pelo sininho da barra). É um CONTROLE SEGMENTADO (uma trilha só, a aba atual
 // "levanta" nela, ícone em cima e nome embaixo), de propósito diferente das pílulas das salas de conversa logo abaixo, para não parecerem duas fileiras iguais.
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, GraduationCap, MessageCircle, Package, ShoppingCart } from 'lucide-react'
+import { GraduationCap, MessageCircle, Package, ShoppingCart } from 'lucide-react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import { useChatUnread } from '@/hooks/useChatUnread'
@@ -16,7 +16,7 @@ import { ATIVIDADE_ABAS, pathOfAba, type AtividadeAba } from '../atividade'
 import { useBarKind } from '../bar/kind'
 
 export const LAST_ABA_KEY = 'iuser_atividade_last'
-const ICONS = { conversas: MessageCircle, pedidos: Package, carrinho: ShoppingCart, biblioteca: GraduationCap, avisos: Bell } as const
+const ICONS = { conversas: MessageCircle, pedidos: Package, carrinho: ShoppingCart, biblioteca: GraduationCap } as const
 
 export default function AtividadeTabs({ aba }: { aba: AtividadeAba }) {
     const router = useRouter()

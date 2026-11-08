@@ -107,6 +107,14 @@ export default function ProfileDashboard({
     const [loading, setLoading] = useState(true)
     const [initialLoadDone, setInitialLoadDone] = useState(false)
 
+    // ?secao=notificacoes (o sininho da barra da 3.0): rola até as notificações assim que o perfil carrega e de novo quando o conteúdo de cima termina de abrir (a altura muda)
+    useEffect(() => {
+        if (!profile?.id || new URLSearchParams(window.location.search).get('secao') !== 'notificacoes') return
+        const go = () => document.getElementById('notificacoes-do-perfil')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+        const timers = [setTimeout(go, 400), setTimeout(go, 1600)]
+        return () => timers.forEach(clearTimeout)
+    }, [profile?.id])
+
     const [orders, setOrders] = useState<any[]>([])
     const [metrics, setMetrics] = useState({
         daily: { spent: 0, orders: 0 },
@@ -1413,8 +1421,8 @@ export default function ProfileDashboard({
             {/* ===== VISITANTES DO PERFIL — logo abaixo dos botões ===== */}
             {visitantesNode}
 
-            {/* ===== NOTIFICAÇÕES DO PERFIL — tudo o que acontece com o perfil ===== */}
-            <div className="mb-6">
+            {/* ===== NOTIFICAÇÕES DO PERFIL — tudo o que acontece com o perfil (o sininho da barra da 3.0 leva aqui: ?secao=notificacoes) ===== */}
+            <div id="notificacoes-do-perfil" className="mb-6" style={{ scrollMarginTop: 'calc(var(--shell-top, 0px) + 12px)' }}>
                 <ProfileNotification userId={profile.id} />
             </div>
 

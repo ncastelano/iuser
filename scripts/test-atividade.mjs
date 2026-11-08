@@ -1,12 +1,12 @@
 // Testes das regras puras da aba Atividade da barra da 3.0 (src/versions/v3/atividade/domain.ts). Rodar: npm run test:atividade
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ATIVIDADE_ABAS, abaOfLocation, activityBadge, carrinhoTabOf, isActivityPath, legacyTarget, pathOfAba, smartAba } from '../src/versions/v3/atividade/domain.ts'
+import { ATIVIDADE_ABAS, NOTIFICATIONS_PATH, abaOfLocation, activityBadge, carrinhoTabOf, isActivityPath, isLegacyAvisos, legacyTarget, pathOfAba, smartAba } from '../src/versions/v3/atividade/domain.ts'
 
 const none = { pending: 0, preparing: 0, ready: 0 }
 
 test('uma página só: cada subaba é /atividade?aba=...', () => {
-    assert.deepEqual(ATIVIDADE_ABAS.map((a) => a.key), ['conversas', 'pedidos', 'carrinho', 'biblioteca', 'avisos'])
+    assert.deepEqual(ATIVIDADE_ABAS.map((a) => a.key), ['conversas', 'pedidos', 'carrinho', 'biblioteca'])   // as notificações saíram: moram no painel do perfil
     for (const a of ATIVIDADE_ABAS) assert.equal(pathOfAba(a.key), `/atividade?aba=${a.key}`)
 })
 
@@ -22,9 +22,9 @@ test('a subaba aberta sai do ?aba=', () => {
     assert.equal(abaOfLocation('/atividade', 'biblioteca'), 'biblioteca')
     assert.equal(abaOfLocation('/atividade', 'digital'), 'biblioteca')
     assert.equal(abaOfLocation('/atividade', 'carrinho'), 'carrinho')
-    assert.equal(abaOfLocation('/atividade', 'avisos'), 'avisos')
-    assert.equal(abaOfLocation('/atividade'), 'avisos')                  // sem ?aba=: os avisos (como era)
-    assert.equal(abaOfLocation('/atividade', 'qualquer'), 'avisos')
+    assert.equal(abaOfLocation('/atividade', 'avisos'), null)            // as notificações não são mais uma subaba (a tela redireciona)
+    assert.equal(abaOfLocation('/atividade'), null)                      // sem ?aba=: nenhuma escolhida (a tela abre a que pede atenção)
+    assert.equal(abaOfLocation('/atividade', 'qualquer'), null)
     assert.equal(abaOfLocation('/conversas'), 'conversas')               // endereços antigos
     assert.equal(abaOfLocation('/carrinho'), 'carrinho')
     assert.equal(abaOfLocation('/carrinho', 'pedidos'), 'pedidos')
@@ -68,4 +68,11 @@ test('o selo da barra soma mensagens e pedidos; roxo se há pedido pronto', () =
     assert.deepEqual(activityBadge(3, { pending: 1, preparing: 1, ready: 0 }), { count: 5, color: '#16a34a' })
     assert.deepEqual(activityBadge(2, { pending: 0, preparing: 0, ready: 1 }), { count: 3, color: '#a855f7' })
     assert.equal(activityBadge(-4, none).count, 0)
+})
+
+test('as notificações do perfil moram no painel do perfil; o endereço antigo é reconhecido para redirecionar', () => {
+    assert.equal(NOTIFICATIONS_PATH, '/painel-perfil?secao=notificacoes')
+    assert.equal(isLegacyAvisos('avisos'), true)
+    assert.equal(isLegacyAvisos('pedidos'), false)
+    assert.equal(isLegacyAvisos(null), false)
 })

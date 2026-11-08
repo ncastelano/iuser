@@ -1,18 +1,23 @@
 // src/versions/v3/atividade/domain.ts
 //
-// ATIVIDADE (a aba da barra da 3.0): "o que está acontecendo comigo?" — conversas, pedidos, carrinho, biblioteca e avisos num lugar só.
-// Regra pura (sem React): UMA página só, /atividade?aba=conversas|pedidos|carrinho|biblioteca|avisos (os links antigos /carrinho e /conversas continuam valendo:
-// na 3.0 levam para cá), e a barra decide para qual subaba levar. Testes: scripts/test-atividade.mjs.
+// ATIVIDADE (a aba da barra da 3.0): "o que está acontecendo comigo?" — conversas, pedidos, carrinho e biblioteca num lugar só.
+// Regra pura (sem React): UMA página só, /atividade?aba=conversas|pedidos|carrinho|biblioteca (os links antigos /carrinho e /conversas continuam valendo:
+// na 3.0 levam para cá), e a barra decide para qual subaba levar. As NOTIFICAÇÕES DO PERFIL não são mais uma subaba: moram no painel do perfil
+// (NOTIFICATIONS_PATH) e a barra chega a elas pelo SININHO, o 4º ícone do botão Atividade. Testes: scripts/test-atividade.mjs.
 
-export type AtividadeAba = 'conversas' | 'pedidos' | 'carrinho' | 'biblioteca' | 'avisos'
+export type AtividadeAba = 'conversas' | 'pedidos' | 'carrinho' | 'biblioteca'
 
 export const ATIVIDADE_ABAS: { key: AtividadeAba; label: string; path: string }[] = [
     { key: 'conversas', label: 'Conversas', path: '/atividade?aba=conversas' },
     { key: 'pedidos', label: 'Pedidos', path: '/atividade?aba=pedidos' },
     { key: 'carrinho', label: 'Carrinho', path: '/atividade?aba=carrinho' },
     { key: 'biblioteca', label: 'Biblioteca', path: '/atividade?aba=biblioteca' },
-    { key: 'avisos', label: 'Avisos', path: '/atividade?aba=avisos' },
 ]
+
+/** As notificações do perfil moram no painel do perfil (o sininho da barra leva para lá; o antigo /atividade?aba=avisos também) */
+export const NOTIFICATIONS_PATH = '/painel-perfil?secao=notificacoes'
+/** O `?aba=` antigo das notificações: a tela redireciona para NOTIFICATIONS_PATH */
+export const isLegacyAvisos = (abaParam?: string | null): boolean => abaParam === 'avisos'
 
 export const pathOfAba = (aba: AtividadeAba): string => ATIVIDADE_ABAS.find((a) => a.key === aba)!.path
 
@@ -24,7 +29,8 @@ export function isActivityPath(pathname: string): boolean {
     return p === '/atividade' || p === '/carrinho' || p === '/conversas'
 }
 
-/** Qual subaba está aberta, pelo endereço e pelo `?aba=` (pedidos e avaliações = Pedidos; digital = Biblioteca; sem `?aba=` na página, Avisos) */
+/** Qual subaba está aberta, pelo endereço e pelo `?aba=` (pedidos e avaliações = Pedidos; digital = Biblioteca). Sem `?aba=` (ou com um valor que não existe) a página
+ *  Atividade não tem subaba escolhida: `null` — quem usa decide (a tela abre a que pede atenção). */
 export function abaOfLocation(pathname: string, abaParam?: string | null): AtividadeAba | null {
     const p = clean(pathname)
     if (p === '/conversas') return 'conversas'
@@ -33,8 +39,7 @@ export function abaOfLocation(pathname: string, abaParam?: string | null): Ativi
         if (abaParam === 'pedidos' || abaParam === 'avaliacoes') return 'pedidos'
         if (abaParam === 'biblioteca' || abaParam === 'digital') return 'biblioteca'
         if (abaParam === 'carrinho') return 'carrinho'
-        if (abaParam === 'avisos') return 'avisos'
-        return p === '/carrinho' ? 'carrinho' : 'avisos'
+        return p === '/carrinho' ? 'carrinho' : null
     }
     return null
 }

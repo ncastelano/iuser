@@ -43,8 +43,10 @@ const PlayerGlyph = ({ kind, size }: { kind: BarPlayer['kind']; size: number }) 
 /** O menu de modos (hub): vive DENTRO da barra e cresce para cima a partir dela — a barra vira o cartão, não aparece outro por cima. */
 export interface BarHub { open: boolean; label: string; /** variáveis de tema do conteúdo (--hub-*) */ vars: CSSProperties; children: ReactNode }
 
-/** Uma aba da barra (a casca decide quais, por modo; aqui só se desenha): ícone, nome, se é a página atual e o selo */
-export interface BarTab { key: string; label: string; icon: ReactNode; active: boolean; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean }
+/** Uma aba da barra (a casca decide quais, por modo; aqui só se desenha): ícone, nome, se é a página atual e o selo.
+ *  `badges` = uma fileirinha de selos pequenos EM CIMA do ícone (cada um com a sua cor), no estilo dos selos das abas do cabeçalho da 2.0; `badge` = um selo só no canto. */
+export interface BarBadge { count: number; color: string }
+export interface BarTab { key: string; label: string; icon: ReactNode; active: boolean; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; badges?: BarBadge[] }
 
 /** Um aviso do sistema (toast) mostrado na faixa */
 export interface BarMessage { id: string | number; text: string; description?: string; icon?: string; glyph: string; color: string; action?: { label: string; onClick: () => void } }
@@ -59,8 +61,8 @@ export function stripVisible({ onCartPage, cartExpanded, cartCount, extras = 0 }
 }
 
 // Botão da barra: ícone dentro de uma pílula (laranja quando é a página atual) + nome embaixo + (selo de quantidade)
-function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, colors, children }: {
-    active: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; colors: any; children: ReactNode
+function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, badges = [], colors, children }: {
+    active: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; badges?: BarBadge[]; colors: any; children: ReactNode
 }) {
     return (
         <button onClick={onClick} aria-label={label} aria-current={active ? 'page' : undefined} className="relative flex-1 min-w-0 h-full flex flex-col items-center justify-center gap-[3px] transition active:scale-90">
@@ -72,11 +74,22 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
                         {badge > 99 ? '99+' : badge}
                     </span>
                 )}
+                {/* selos EM CIMA do ícone (como as bolinhas das abas do cabeçalho da 2.0): uma fileira centralizada, cada selo na sua cor */}
+                {badges.some((b) => b.count > 0) && (
+                    <span className="absolute left-1/2 -translate-x-1/2 -top-[10px] flex gap-[2px] pointer-events-none">
+                        {badges.filter((b) => b.count > 0).map((b, i) => (
+                            <span key={i} className="min-w-4 h-4 px-[3px] rounded-full text-white text-[8px] font-black leading-none flex items-center justify-center" style={{ background: b.color, boxShadow: `0 0 0 1.5px ${colors.background}` }}>
+                                {b.count > 99 ? '99+' : b.count}
+                            </span>
+                        ))}
+                    </span>
+                )}
             </span>
             <span className="text-[10.5px] leading-none truncate max-w-full px-0.5" style={{ fontWeight: active ? 900 : 700, color: active ? '#f97316' : colors.textSecondary }}>{label}</span>
         </button>
     )
 }
+
 
 /** O modo ativo: a foto do modo (perfil, loja ou motorista) e, no canto, o selinho do tipo */
 export interface ModeButtonProps { avatar: ReactNode; kind: 'user' | 'store' | 'car'; label: string; onOpen: () => void }
@@ -250,7 +263,7 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                     </div>
                     <div className="flex items-stretch px-1.5" style={{ height: BAR_H, borderTop: `1px solid ${hubOpen || playerFull ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
                         {tabs.map((t) => (
-                            <BarButton key={t.key} colors={colors} active={t.active} label={t.label} onClick={t.onClick} badge={t.badge} badgeColor={t.badgeColor} pulse={t.pulse}>
+                            <BarButton key={t.key} colors={colors} active={t.active} label={t.label} onClick={t.onClick} badge={t.badge} badgeColor={t.badgeColor} pulse={t.pulse} badges={t.badges}>
                                 {t.icon}
                             </BarButton>
                         ))}
