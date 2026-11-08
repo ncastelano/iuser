@@ -1346,7 +1346,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     }
     // menu do filtro (mais/menos vistos, vendidos...) — o mesmo nas duas versões
     const rankMenuNode = showRankMenu ? (
-<div className="absolute right-0 top-full mt-2 w-64 max-h-[46vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5">
+<div className={`absolute right-0 ${v3 ? 'top-full mt-2' : 'bottom-full mb-2'} w-64 max-h-[46vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5`}>
                                 {RANK_GROUPS.filter(g => !g.storesOnly || mode === 'lojas').map(g => (
                                     <div key={g.id} className="px-3 py-1.5">
                                         <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">{g.title}</p>
@@ -1389,9 +1389,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 .radar-v3 .mapboxgl-ctrl-bottom-left {
                     margin-bottom: 136px !important;
                 }
+                /* 2.0: o Outdoor e o filtro ficam no rodapé; os controles do mapa e a logo sobem acima deles */
                 .mapboxgl-ctrl-bottom-right,
                 .mapboxgl-ctrl-bottom-left {
-                    margin-bottom: 85px !important;
+                    margin-bottom: calc(178px + var(--staging-banner-h, 0px)) !important;
                 }
                 .mapboxgl-ctrl-group button {
                     background: white !important;
@@ -1442,23 +1443,6 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 className="absolute inset-0 w-full h-full"
                 style={{ background: '#111', isolation: 'isolate' }}
             />
-
-            {/* BOTÃO HOME - VOLTAR PARA O INÍCIO (CANTO INFERIOR DIREITO). Na 3.0 o menu de cima já leva ao início. */}
-            {!v3 && <div className="absolute bottom-10 right-10 z-50">
-                <button
-                    onClick={() => router.push('/')}
-                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                    style={{
-                        background: 'linear-gradient(135deg, #f97316 0%, #dc2626 100%)',
-                        color: '#ffffff',
-                        border: `2px solid #f97316`,
-                        boxShadow: `0 8px 24px #f9731660`,
-                    }}
-                    aria-label="Voltar ao início"
-                >
-                    <Home size={24} />
-                </button>
-            </div>}
 
             {/* Varredura de satélite (abertura): linha de luz, rastro e ondas do avatar, por cima do mapa */}
             <div ref={scanOverlayRef} className="absolute inset-0 pointer-events-none" style={{ zIndex: 12 }} />
@@ -1529,9 +1513,9 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             ) : (
             <div className="absolute top-0 left-0 right-0 z-20">
                 <Header
-                    title="iUser"
-                    showBack={false}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
+                    title="Radar"
+                    showBack
+                    onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
                     tabs={radarTabs}
@@ -1592,7 +1576,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             {/* Cluster Header */}
             {clusterItems && clusterLocation && (
-                <div className={`absolute ${v3 ? 'top-[158px]' : 'top-[210px]'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30`}>
+                <div className={`absolute ${v3 ? 'top-[158px]' : 'top-[170px]'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30`}>
                     <div className="bg-yellow-500 rounded-2xl px-4 py-3 shadow-lg flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Building2 className="w-5 h-5 text-white" />
@@ -1658,7 +1642,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             {/* Horizontal List — do mais visto ao menos visto (esquerda → direita) */}
             {filtered.length > 0 && !clusterItems && !selectedItem && (
-                <div className={`absolute ${v3 ? 'top-1 z-[55]' : 'top-[190px] z-20'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
+                <div className={`absolute ${v3 ? 'top-1 z-[55]' : 'z-20 flex flex-col'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(v3 ? {} : { bottom: 'calc(12px + var(--staging-banner-h, 0px))' }), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
                     <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
                             const rank = idx < 3 && mode !== 'motoristas' ? idx + 1 : 0
@@ -1721,7 +1705,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     </div>
 
                     {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos. Motoristas ficam do mais perto pro mais longe, sem filtro. */}
-                    {mode !== 'motoristas' && <div className="flex justify-end relative -mt-1">
+                    {mode !== 'motoristas' && <div className={`flex justify-end relative ${v3 ? '-mt-1' : 'order-first mb-1.5'}`}>
                         <button
                             onClick={() => setShowRankMenu(v => !v)}
                             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow-lg"
@@ -2097,7 +2081,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 (grupo branco arredondado com sombra), posicionado logo acima
                 deles pra parecer um botão a mais do mesmo conjunto. */}
             {mapReady && (
-                <div className="absolute z-30" style={{ bottom: '267px', right: '10px' }}>
+                <div className="absolute z-30" style={{ bottom: v3 ? '267px' : 'calc(360px + var(--staging-banner-h, 0px))', right: '10px' }}>
                     <div className="bg-white rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.2)] overflow-hidden">
                         <button
                             onClick={toggleMapStyle}
