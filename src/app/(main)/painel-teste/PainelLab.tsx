@@ -6,7 +6,7 @@
 // Aprovado o desenho, ele vira o `StoreDashboard view="painel"` da 3.0 (e esta página pode ser apagada).
 'use client'
 
-import { ReactNode, useMemo, useState } from 'react'
+import { ReactNode, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
     Bike, CalendarDays, Check, ChevronRight, ClipboardList, CreditCard, Crown, Gift, GraduationCap, HandCoins, Heart, Info, MessageCircle, Megaphone,
     Package, Flame, Trophy, Share2, ShoppingBag, Sparkles, Star, Store, Tag, Timer, Truck, Users, Wallet, X, Clock, Eye, Settings, Plus, Zap, Banknote,
@@ -58,7 +58,7 @@ export default function PainelLab() {
     const [notas, setNotas] = useState(true)
     const [versao, setVersao] = useState<'nova' | 'atual'>('nova')
     const [aberta, setAberta] = useState(true)
-    const [saindo, setSaindo] = useState<number | null>(null)                       // pedido que está saindo da etapa (animação)
+    const flip = useRef<Map<string, DOMRect> | null>(null)                          // posições ANTES da mudança (FLIP: o que mudou de lugar desliza do antigo ao novo)
     const [chegou, setChegou] = useState<{ id: number; k: number } | null>(null)     // pedido que acabou de chegar na etapa nova
     const [bump, setBump] = useState<{ fase: Fase; k: number } | null>(null)         // contador que deve dar o pulo
     const [pedidos, setPedidos] = useState<Pedido[]>(PEDIDOS)
@@ -109,7 +109,7 @@ export default function PainelLab() {
         if (calmo) return pedidos.filter((p) => p.id === 8 || p.id === 11)
         return pedidos
     }, [pedidos, nova, calmo])
-    const conta = (f: Fase) => lista.filter((p) => p.fase === f && p.id !== saindo).length
+    const conta = (f: Fase) => lista.filter((p) => p.fase === f).length
     const novosProd = temProdutos ? conta('novo') : 0
     const svcNovos = temServicos && !nova ? (calmo ? 0 : servicos) : 0
 
@@ -126,23 +126,44 @@ export default function PainelLab() {
         return a
     }, [novosProd, svcNovos, calmo, nova, temProdutos])
 
+    /** fotografa a posição de tudo que pode mudar de lugar; depois da mudança, `useLayoutEffect` anima do antigo ao novo */
+    function medir() {
+        const m = new Map<string, DOMRect>()
+        document.querySelectorAll<HTMLElement>('[data-flip]').forEach((el) => m.set(el.dataset.flip!, el.getBoundingClientRect()))
+        flip.current = m
+    }
     function avancar(id: number) {
-        if (saindo !== null) return
         const ordem: Fase[] = ['novo', 'preparando', 'pronto', 'caminho']
         const p0 = pedidos.find((x) => x.id === id)
         if (!p0) return
         const prox = ordem[ordem.indexOf(p0.fase) + 1]
         if (!prox) return
-        setSaindo(id)                                    // 1) a linha desliza para fora e o número da etapa antiga cai
-        setTimeout(() => {
-            setPedidos((ps) => { const mv = ps.find((x) => x.id === id); return mv ? [{ ...mv, fase: prox }, ...ps.filter((x) => x.id !== id)] : ps })
-            setSaindo(null)
-            setChegou({ id, k: Date.now() })             // 2) entra no topo da etapa nova, com brilho, e o número dela dá o pulo
-            setBump({ fase: prox, k: Date.now() })
-            setTimeout(() => setChegou((c) => (c && c.id === id ? null : c)), 1600)
-        }, 280)
+        medir()
+        setPedidos((ps) => { const mv = ps.find((x) => x.id === id); return mv ? [{ ...mv, fase: prox }, ...ps.filter((x) => x.id !== id)] : ps })   // vai para o TOPO da etapa nova
+        setChegou({ id, k: Date.now() })
+        setTimeout(() => setBump({ fase: prox, k: Date.now() }), 520)      // o número da etapa nova dá o pulo quando o cartão chega
+        setTimeout(() => setChegou((c) => (c && c.id === id ? null : c)), 1900)
     }
-    function recusar(id: number) { setPedidos((ps) => ps.filter((p) => p.id !== id)) }
+    function recusar(id: number) { medir(); setPedidos((ps) => ps.filter((p) => p.id !== id)) }
+    useLayoutEffect(() => {
+        const antes = flip.current
+        if (!antes) return
+        flip.current = null
+        const movido = chegou?.id
+        document.querySelectorAll<HTMLElement>('[data-flip]').forEach((el) => {
+            const o = antes.get(el.dataset.flip!)
+            if (!o) return
+            const n = el.getBoundingClientRect()
+            const dx = o.left - n.left, dy = o.top - n.top
+            if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
+            const voando = el.dataset.flip === `p${movido}`
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+            el.animate(voando
+                ? [{ transform: `translate(${dx}px,${dy}px) scale(1.04)`, boxShadow: '0 16px 36px rgba(0,0,0,.3)', zIndex: 30 }, { transform: 'translate(0,0) scale(1.04)', boxShadow: '0 16px 36px rgba(0,0,0,.3)', zIndex: 30, offset: 0.85 }, { transform: 'none', boxShadow: '0 0 0 rgba(0,0,0,0)', zIndex: 30 }]
+                : [{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'none' }],
+            { duration: voando ? 640 : 520, easing: 'cubic-bezier(.22,.9,.28,1)' })
+        })
+    }, [pedidos]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // no dia MOVIMENTADO os números vêm do mesmo extrato da página "Abrir o extrato completo" (nada se contradiz); nos outros dias, exemplos próprios
     const mov = !nova && !calmo
@@ -244,8 +265,6 @@ export default function PainelLab() {
                 : (
                     <>
                         <style>{`
-                            @keyframes labSai { 0% { transform: translateX(0); opacity: 1; max-height: 90px } 60% { transform: translateX(46px); opacity: 0 } 100% { transform: translateX(46px); opacity: 0; max-height: 0; margin: 0; padding-top: 0; padding-bottom: 0; border-width: 0 } }
-                            @keyframes labEntra { 0% { transform: translateY(-16px) scale(.96); opacity: 0 } 60% { transform: translateY(2px) scale(1.01); opacity: 1 } 100% { transform: none; opacity: 1 } }
                             @keyframes labPulo { 0% { transform: scale(1) } 35% { transform: scale(1.45) } 100% { transform: scale(1) } }
                             @keyframes labBrilho { 0% { box-shadow: 0 0 0 0 var(--lab-cor) } 40% { box-shadow: 0 0 0 5px var(--lab-cor) } 100% { box-shadow: 0 0 0 0 transparent } }
                             @media (prefers-reduced-motion: reduce) { .lab-anim { animation: none !important } }
@@ -269,11 +288,11 @@ export default function PainelLab() {
                         <div className="space-y-3">
                             {fasesAtivas.map((f) => {
                                 const todos = lista.filter((p) => p.fase === f.k)
-                                const n = todos.filter((p) => p.id !== saindo).length
+                                const n = todos.length
                                 const cor = f.cor === C.preparando ? '#ca8a04' : f.cor
                                 return (
                                     <div key={f.k} id={`ped-sec-${f.k}`}>
-                                        <div className="flex items-center gap-2 mb-1.5">
+                                        <div data-flip={`h${f.k}`} className="relative flex items-center gap-2 mb-1.5">
                                             <span className="w-2.5 h-2.5 rounded-full" style={{ background: cor }} />
                                             <p className="text-[12px] font-black uppercase tracking-wider" style={{ color: cor }}>{f.nome}</p>
                                             <span key={bump?.fase === f.k ? bump.k : 0} className="lab-anim min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-black text-white flex items-center justify-center" style={{ background: n ? cor : `${colors.border}`, animation: bump?.fase === f.k ? 'labPulo .55s ease-out' : undefined }}>{n}</span>
@@ -282,7 +301,7 @@ export default function PainelLab() {
                                         {todos.length > 0 && (
                                             <div className="space-y-2">
                                                 {todos.slice(0, 2).map((p) => (
-                                                    <div key={p.id} className="lab-anim rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2 overflow-hidden" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${cor}`, ['--lab-cor' as string]: `${cor}66`, animation: p.id === saindo ? 'labSai .28s ease-in forwards' : chegou?.id === p.id ? 'labEntra .5s ease-out, labBrilho 1.4s ease-out' : undefined }}>
+                                                    <div key={p.id} data-flip={`p${p.id}`} className="lab-anim relative rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2 overflow-hidden" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${cor}`, ['--lab-cor' as string]: `${cor}66`, animation: chegou?.id === p.id ? 'labBrilho 1.5s ease-out .5s' : undefined }}>
                                                         <div className="min-w-0 flex-1">
                                                             <p className="text-[13px] font-black leading-tight truncate">{p.quem} <span className="font-semibold" style={{ color: colors.textSecondary }}>· {p.hora}</span></p>
                                                             <p className="text-[12px] leading-tight truncate mt-0.5">{p.item}{p.mais ? ` +${p.mais}` : ''}</p>
@@ -299,7 +318,7 @@ export default function PainelLab() {
                                                         </div>
                                                     </div>
                                                 ))}
-                                                {todos.length > 2 && <button onClick={() => ir('pedidos')} className="text-[12px] font-black flex items-center gap-1 pl-1" style={{ color: cor }}>Ver mais {todos.length - 2}<ChevronRight size={13} /></button>}
+                                                {todos.length > 2 && <button data-flip={`m${f.k}`} onClick={() => ir('pedidos')} className="relative text-[12px] font-black flex items-center gap-1 pl-1" style={{ color: cor }}>Ver mais {todos.length - 2}<ChevronRight size={13} /></button>}
                                             </div>
                                         )}
                                     </div>
