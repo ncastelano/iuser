@@ -6,7 +6,7 @@ import { ORDERS_PATH, ORDER_STRIP_COLORS, isActiveOrderStatus, orderStage, order
 const o = (over = {}) => ({ key: 'a', status: 'pending', storeName: 'Pizzaria', delivery: true, dispatch: null, ...over })
 
 test('cada etapa tem texto e a cor da paleta de pedidos', () => {
-    assert.deepEqual(orderStage(o({ status: 'pending' })), { text: 'Aguardando a loja', color: ORDER_STRIP_COLORS.sent, step: 1, pulse: true })
+    assert.deepEqual(orderStage(o({ status: 'pending' })), { text: 'Aguardando a loja', color: ORDER_STRIP_COLORS.sent, step: 1, icon: 'hourglass' })
     assert.equal(orderStage(o({ status: 'preparing' })).color, '#eab308')
     assert.equal(orderStage(o({ status: 'preparing' })).text, 'Preparando')
     assert.equal(orderStage(o({ status: 'ready', delivery: false })).text, 'Pronto para retirar')
@@ -21,6 +21,14 @@ test('pronto com entrega: acompanha o motorista', () => {
     assert.equal(r({ status: 'accepted', stage: 'at_store' }), 'Motorista na loja')
     assert.equal(r({ status: 'accepted', stage: 'in_transit' }), 'A caminho de você')
     assert.equal(orderStage(o({ status: 'ready', dispatch: { stage: 'in_transit' } })).step, 4)
+})
+
+test('cada etapa tem o seu ícone (nenhum repetido na linha do tempo)', () => {
+    const ic = (over) => orderStage(o(over)).icon
+    const seq = [ic({ status: 'pending' }), ic({ status: 'preparing' }), ic({ status: 'ready', dispatch: { status: 'searching' } }), ic({ status: 'ready', dispatch: { stage: 'to_store' } }), ic({ status: 'ready', dispatch: { stage: 'at_store' } }), ic({ status: 'ready', dispatch: { stage: 'in_transit' } })]
+    assert.deepEqual(seq, ['hourglass', 'chef', 'search', 'bike', 'store', 'truck'])
+    assert.equal(new Set(seq).size, seq.length)
+    assert.equal(ic({ status: 'ready', delivery: false }), 'package')
 })
 
 test('pedido finalizado, recusado ou cancelado SAI da faixa', () => {

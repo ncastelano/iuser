@@ -601,7 +601,7 @@ export default function ModeShell({ children }: {
     useEffect(() => (barShown && !compact ? registerIslandConsumer() : undefined), [barShown, compact])
     // A faixa da barra: o que está vivo além do carrinho e dos status (a corrida e os pedidos novos da loja)
     // + os PEDIDOS que EU fiz, em andamento (enviado → preparando → pronto/a caminho): ficam na faixa, na cor da etapa, até o pedido ser finalizado
-    const orderExtras: BarExtra[] = orderStripItems(myOrders).map((o) => ({ key: o.key, label: o.label, text: o.text, color: o.color, path: o.path, pulse: o.pulse, step: o.step, steps: 4 }))
+    const orderExtras: BarExtra[] = orderStripItems(myOrders).map((o) => ({ key: o.key, label: o.label, text: o.text, color: o.color, path: o.path, icon: o.icon, step: o.step, steps: 4 }))
     const barExtras: BarExtra[] = [...orderExtras, ...(live?.parts || []).filter((x) => x.key === 'ride' || x.key === 'store-p' || x.key === 'store-s').map((x) => ({ key: x.key as string, text: x.text, color: x.color, path: x.path || live!.path }))]
     // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
     const stripShown = barShown && stripVisible({ onCartPage, cartExpanded: cartStrip, cartCount: topCart, extras: barExtras.length })

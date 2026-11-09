@@ -10,7 +10,7 @@
 'use client'
 
 import { CSSProperties, ReactNode, useEffect, useState } from 'react'
-import { Car, ChevronDown, ChevronRight, GraduationCap, Music, Pause, Play, ShoppingCart, SkipBack, SkipForward, Store, User, X, Zap } from 'lucide-react'
+import { Bike, Car, ChefHat, ChevronDown, ChevronRight, GraduationCap, Hourglass, Music, PackageCheck, Pause, Play, Search, ShoppingCart, SkipBack, SkipForward, Store, Truck, User, X, Zap } from 'lucide-react'
 import { clock } from '@/modules/player/domain'
 
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
@@ -51,8 +51,8 @@ export interface BarTab { key: string; label: string; icon: ReactNode; active: b
 /** Um aviso do sistema (toast) mostrado na faixa */
 export interface BarMessage { id: string | number; text: string; description?: string; icon?: string; glyph: string; color: string; action?: { label: string; onClick: () => void } }
 /** Chip da faixa além do carrinho e dos status: a corrida, os pedidos novos da loja... (cada um na sua cor, levando ao seu lugar) */
-/** `label` = o nome da loja (pedido do cliente); `pulse` = o ponto pulsa (algo em andamento); `step`/`steps` = barrinha de progresso do pedido */
-export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; pulse?: boolean; step?: number; steps?: number }
+/** `label` = o nome da loja (pedido do cliente); `icon` = o ícone da etapa; `step`/`steps` = barrinha de progresso do pedido */
+export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; icon?: string; step?: number; steps?: number }
 
 /** A faixa de cima (fixa, sem contar o aviso passageiro) aparece quando há carrinho (páginas de compra) ou chips extras (corrida, pedidos da loja) — e o carrinho some dela na página do carrinho */
 export function stripVisible({ onCartPage, cartExpanded, cartCount, extras = 0 }: { onCartPage: boolean; cartExpanded: boolean; cartCount: number; extras?: number }): boolean {
@@ -60,6 +60,8 @@ export function stripVisible({ onCartPage, cartExpanded, cartCount, extras = 0 }
     if (onCartPage) return false
     return cartExpanded && cartCount > 0
 }
+
+const ORDER_ICONS: Record<string, typeof Store> = { hourglass: Hourglass, chef: ChefHat, package: PackageCheck, search: Search, bike: Bike, store: Store, truck: Truck }
 
 // Botão da barra: ícone dentro de uma pílula (laranja quando é a página atual) + nome embaixo + (selo de quantidade)
 function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, badges = [], colors, children }: {
@@ -259,9 +261,8 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                                 {extras.map((x) => x.label !== undefined ? (
                                     // pedido do cliente: sem moldura própria, a faixa toda está na cor da etapa — círculo cheio, loja em cima, etapa embaixo e a barrinha de progresso
                                     <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} aria-label={`${x.label ? x.label + ': ' : ''}${x.text}`} className="relative flex items-center gap-2.5 flex-shrink-0 min-h-[48px] py-1.5 pr-2 active:opacity-70 text-left">
-                                        <span className="relative flex w-7 h-7 flex-shrink-0">
-                                            {x.pulse && <span aria-hidden className="absolute inset-0 rounded-full animate-ping" style={{ background: x.color, opacity: 0.45 }} />}
-                                            <span className="relative w-7 h-7 rounded-full flex items-center justify-center text-white text-[13px] font-black" style={{ background: x.color }}>{x.step ? <span className="w-2.5 h-2.5 rounded-full bg-white" /> : '+'}</span>
+                                        <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[13px] font-black" style={{ background: x.color }}>
+                                            {(() => { const I = x.icon ? ORDER_ICONS[x.icon] : null; return I ? <I size={15} strokeWidth={2.4} /> : '+' })()}
                                         </span>
                                         <span className="min-w-0">
                                             {x.label && <span className="block text-[10.5px] leading-snug max-w-[200px] truncate" style={{ color: colors.textSecondary }}>{x.label}</span>}
