@@ -510,6 +510,21 @@ def drv_move(d, to):
     psql(['-c', f"update driver_pricing set live_lat = {to[0]}, live_lng = {to[1]}, live_updated_at = now() where driver_id = {esc(d['id'])}::uuid"])
 
 
+# Cada entregador MORA longe da loja (3 a 6 km): fora de uma entrega ele está em casa, então o deslocamento até a loja leva tempo de verdade (dá para acompanhar "chega em X min")
+HOMES = {'dani': (-8.7260, -63.8800), 'leo': (-8.7900, -63.9300), 'rafa': (-8.7430, -63.9330), 'tito': (-8.7790, -63.8680)}
+
+
+def send_drivers_home():
+    """Na partida do simulador cada entregador (sem entrega em andamento) amanhece em casa, não na loja."""
+    for d in IUSER_DRIVERS:
+        h = HOMES.get(d['key'])
+        if not h or is_manual(d) or drv_rides(d):
+            continue
+        if hav_km(drv_pos(d), h) > 0.3:
+            drv_move(d, h)
+    log('🏠 entregadores em casa: ' + ', '.join(f"{d['name'].split()[0]} a {hav_km(drv_pos(d), STORE_POS):.1f} km da loja" for d in IUSER_DRIVERS if d['key'] in HOMES and not is_manual(d)))
+
+
 # ---- movimento pelas RUAS: o motorista não pula de um ponto a outro; uma thread o leva pela rota do Mapbox, uma posição por segundo (dá para ver o trajeto inteiro no mapa)
 def _mapbox_token():
     for f in ('.env.local', '.env.development.local'):
@@ -676,6 +691,9 @@ def drivers_run(speed=1.0):
         if not rides:
             DRV.setdefault(d['id'], {}).pop('left', None)
             DRV[d['id']].pop('going_store', None)
+            home = HOMES.get(d['key'])
+            if home and not drv_moving(d) and hav_km(drv_pos(d), home) > 0.3:
+                drv_goto(d, home)   # sem entrega: volta para casa (ou fica por perto) — ninguém fica esperando na loja
             continue
         st = DRV.setdefault(d['id'], {})
         ids = ','.join(esc(r['id']) + '::uuid' for r in rides)
@@ -962,6 +980,7 @@ def main():
     loop(a.appts_every, make_appointment, stop)
     loop(a.featured_every, featured_order, stop)
     if CFG['mode'] == 'iuser':
+        send_drivers_home()
         loop(45, keep_drivers_online, stop)
         threading.Thread(target=mover_thread, args=(stop,), daemon=True).start()   # os motoristas andam pelas ruas, uma posição por segundo
     if a.stage:

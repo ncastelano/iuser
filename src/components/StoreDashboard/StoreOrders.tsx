@@ -52,10 +52,22 @@ function v2StateOf(phase: string): string {
     return 'searching'
 }
 /** Texto do entregador de um pedido (o que a loja precisa saber de relance): confirmado quem é, onde está, ou que ainda busca */
-function driverText(info: { stage?: string; driver?: string | null; freight: number; radius: number; v2State?: string | null; frozen?: number | null } | undefined, accepted: boolean): string {
+/** distância em linha reta entre dois pontos (km) */
+function kmBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+    const R = 6371, r = (x: number) => (x * Math.PI) / 180
+    const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng)
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2
+    return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+function driverText(info: { stage?: string; driver?: string | null; freight: number; radius: number; v2State?: string | null; frozen?: number | null; etaMin?: number | null } | undefined, accepted: boolean): string {
     if (info?.v2State) return storeV2Text(info as { freight: number; radius: number; v2State?: string | null; frozen?: number | null })
     if (accepted) {
         const quem = info?.driver ? info.driver.trim().split(' ')[0] : 'Entregador'
+        // ainda a caminho da loja: quanto falta para chegar (pela posição ao vivo dele)
+        if ((info?.stage === 'assigned' || info?.stage === 'to_store' || !info?.stage) && info?.etaMin != null) {
+            return info.etaMin <= 1 ? `${quem} está chegando na loja` : `${quem} chega em ~${info.etaMin} min`
+        }
         const m: Record<string, string> = { assigned: `${quem} vai buscar o pedido`, to_store: `${quem} a caminho da loja`, at_store: `${quem} está na loja esperando`, in_transit: `${quem} saiu para entregar` }
         return m[info?.stage || ''] || `${quem} vai buscar o pedido`
     }
@@ -179,8 +191,14 @@ export default function StoreOrders({
     const [iuserDeliveryEnabled, setIuserDeliveryEnabled] = useState(false)
     const [dispatchedOrderIds, setDispatchedOrderIds] = useState<Set<string>>(new Set())
     const [acceptedDispatchIds, setAcceptedDispatchIds] = useState<Set<string>>(new Set())
-    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { id: string; freight: number; radius: number; stage: string; v2State?: string | null; frozen?: number | null; driver?: string | null }>>(new Map())
+    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { id: string; freight: number; radius: number; stage: string; v2State?: string | null; frozen?: number | null; driver?: string | null; etaMin?: number | null }>>(new Map())
     const [callDriverOrder, setCallDriverOrder] = useState<any>(null)
+    // a posição dos entregadores muda: refaz o "chega em X min" a cada 20 s (com a aba à vista)
+    const [etaTick, setEtaTick] = useState(0)
+    useEffect(() => {
+        const t = setInterval(() => { if (!document.hidden) setEtaTick((n) => n + 1) }, 20000)
+        return () => clearInterval(t)
+    }, [])
     const [store, setStore] = useState<any>(null)
 
     useEffect(() => {
@@ -196,26 +214,38 @@ export default function StoreOrders({
             .then(({ data }) => {
                 setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string)))
                 setAcceptedDispatchIds(new Set((data || []).filter((r) => r.status === 'accepted' && !(r.flow_version === 2 && !isReleasedPhase(r.phase as string))).map((r) => r.order_id as string)))
-                const base = new Map((data || []).map((r) => [r.order_id as string, { id: r.id as string, freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null, driver: null as string | null }]))
+                const base = new Map((data || []).map((r) => [r.order_id as string, { id: r.id as string, freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null, driver: null as string | null, etaMin: null as number | null }]))
                 setDispatchInfo(base)
                 // quem é o entregador que aceitou (nome público): a loja precisa saber de relance quem vem buscar
                 const rideOf = new Map((data || []).filter((r) => r.status === 'accepted' && r.ride_request_id).map((r) => [r.ride_request_id as string, r.order_id as string]))
                 if (rideOf.size === 0) return
-                supabase.from('ride_requests').select('id, driver_id').in('id', Array.from(rideOf.keys())).then(async ({ data: rides }) => {
+                supabase.from('ride_requests').select('id, driver_id, origin_lat, origin_lng').in('id', Array.from(rideOf.keys())).then(async ({ data: rides }) => {
                     const driverIds = Array.from(new Set((rides || []).map((x) => x.driver_id as string).filter(Boolean)))
                     if (driverIds.length === 0) return
-                    const { data: profs } = await supabase.from('profiles').select('id, name').in('id', driverIds)
+                    const [{ data: profs }, { data: live }] = await Promise.all([
+                        supabase.from('profiles').select('id, name').in('id', driverIds),
+                        // posição ao vivo do entregador da corrida aceita (a loja é quem pediu a corrida, então o banco deixa ver)
+                        supabase.from('driver_pricing').select('driver_id, live_lat, live_lng, live_updated_at').in('driver_id', driverIds),
+                    ])
                     const nameOf = new Map((profs || []).map((p) => [p.id as string, p.name as string]))
+                    const posOf = new Map((live || []).map((l) => [l.driver_id as string, l]))
                     const next = new Map(base)
                     for (const x of rides || []) {
                         const oid = rideOf.get(x.id as string)
                         const cur = oid ? next.get(oid) : null
-                        if (oid && cur && x.driver_id) next.set(oid, { ...cur, driver: nameOf.get(x.driver_id as string) || null })
+                        if (!(oid && cur && x.driver_id)) continue
+                        // minutos até a loja: linha reta × 1,3 (ruas) a ~30 km/h; sem posição recente (3 min) não chuta
+                        const l = posOf.get(x.driver_id as string)
+                        const fresh = l?.live_lat != null && l?.live_lng != null && l?.live_updated_at && Date.now() - new Date(l.live_updated_at as string).getTime() < 3 * 60_000
+                        const km = fresh && x.origin_lat != null && x.origin_lng != null
+                            ? kmBetween({ lat: Number(l!.live_lat), lng: Number(l!.live_lng) }, { lat: Number(x.origin_lat), lng: Number(x.origin_lng) }) * 1.3
+                            : null
+                        next.set(oid, { ...cur, driver: nameOf.get(x.driver_id as string) || null, etaMin: km != null ? Math.max(1, Math.ceil((km / 30) * 60)) : null })
                     }
                     setDispatchInfo(next)
                 })
             })
-    }, [groupedOrders])
+    }, [groupedOrders, etaTick])
 
     const iuserDelivery = {
         enabled: iuserDeliveryEnabled,
