@@ -35,8 +35,8 @@ function diaDe(i: number): Ag[] {
 }
 const ST: Record<St, { l: string; c: string }> = { feito: { l: 'Feito', c: C.feito }, agora: { l: 'Agora', c: C.agora }, confirmado: { l: 'Confirmado', c: C.ok }, conferir: { l: 'Conferir entrada', c: C.ambar } }
 
-export default function AgendaPagina({ c, cor, onConfig }: { c: ThemeColors; cor: string; onConfig: () => void }) {
-    const [aba, setAba] = useState<'agenda' | 'pend' | 'hor'>('agenda')
+export default function AgendaPagina({ c, cor, onConfig, inicial = 'agenda' }: { c: ThemeColors; cor: string; onConfig: () => void; inicial?: 'agenda' | 'pend' | 'hor' }) {
+    const [aba, setAba] = useState<'agenda' | 'pend' | 'hor'>(inicial)
     const [dia, setDia] = useState(1)
     const [aberto, setAberto] = useState<string | null>('b')
     const [pend, setPend] = useState(3)

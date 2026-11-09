@@ -32,7 +32,7 @@ export const DESTINOS: Record<string, { tipo: Tipo; titulo: string; rota: string
 
 const ORANGE = '#f97316'
 
-interface Props { k: string; cor: string; icone: ReactNode; nova: boolean; on: boolean; setOn: (v: boolean) => void; entregaOn: boolean; onClose: () => void }
+interface Props { k: string; cor: string; icone: ReactNode; nova: boolean; on: boolean; setOn: (v: boolean) => void; entregaOn: boolean; onClose: () => void; agendaAba?: 'agenda' | 'pend' | 'hor' }
 
 export function Destino(p: Props) {
     const { colors } = useTheme()
@@ -294,7 +294,7 @@ function AgendaPag(p: Props & { c: Colors }) {
     const [cfg, setCfg] = useState(false)
     return (
         <>
-            <AgendaPagina c={p.c} cor={p.cor} onConfig={() => setCfg(true)} />
+            <AgendaPagina c={p.c} cor={p.cor} onConfig={() => setCfg(true)} inicial={p.agendaAba} />
             {cfg && <Destino {...p} k="agc" onClose={() => setCfg(false)} />}
         </>
     )

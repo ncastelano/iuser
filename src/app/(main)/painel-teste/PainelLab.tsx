@@ -13,39 +13,13 @@ import {
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { DESTINOS, Destino } from './Destinos'
+import Pagina from './Paginas'
+import Extrato, { resumo, diaNome } from './Extrato'
+import Balcao from './Balcao'
+import Editar from './Editar'
+import Compartilhar from './Compartilhar'
 
-const ORANGE = '#f97316'
-// paleta dos pedidos (a do app todo): novos = verde, preparando = amarelo, prontos = roxo, a caminho/finalizados = azul
-const C = { novo: '#22c55e', preparando: '#eab308', pronto: '#a855f7', caminho: '#3b82f6', servico: '#14b8a6', alerta: '#ef4444', ambar: '#f59e0b' }
-
-type Estado = 'movimentado' | 'tranquilo' | 'nova'
-type Modelo = 'mixed' | 'products' | 'services'
-type Fase = 'novo' | 'preparando' | 'pronto' | 'caminho'
-type Pedido = { id: number; quem: string; hora: string; valor: number; item: string; mais: number; entrega: string; fase: Fase }
-
-const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
-const PEDIDOS: Pedido[] = [
-    { id: 1, quem: '@carla-cavalcanti', hora: '23:21', valor: 69.8, item: 'Combo Casal', mais: 1, entrega: 'Tito vai buscar o pedido', fase: 'novo' },
-    { id: 2, quem: '@ana-barbosa', hora: '23:20', valor: 120.7, item: 'Pizza Portuguesa (grande)', mais: 2, entrega: 'Tito a caminho da loja', fase: 'novo' },
-    { id: 3, quem: '@joao-martins', hora: '23:19', valor: 119.3, item: 'Pizza Margherita (grande)', mais: 2, entrega: 'Rafa vai buscar o pedido', fase: 'novo' },
-    { id: 4, quem: '@gabriela-carvalho', hora: '23:18', valor: 183.7, item: 'Pizza Quatro Queijos (grande)', mais: 2, entrega: 'Rafa a caminho da loja', fase: 'novo' },
-    { id: 5, quem: '@breno-oliveira', hora: '23:18', valor: 256.5, item: 'Pizza Banana com Canela', mais: 3, entrega: 'Léo a caminho da loja', fase: 'novo' },
-    { id: 6, quem: '@mateus-pinto', hora: '23:12', valor: 173.8, item: 'Pizza Carne Seca com Abóbora', mais: 2, entrega: 'Dani está na loja esperando', fase: 'preparando' },
-    { id: 7, quem: '@marta-moura', hora: '23:09', valor: 98.9, item: 'Pizza Bacon com Cheddar', mais: 1, entrega: 'Cliente retira na loja', fase: 'preparando' },
-    { id: 8, quem: '@heitor-martins', hora: '23:05', valor: 142.0, item: 'Combo Doce e Salgada', mais: 0, entrega: 'Léo chega em ~6 min', fase: 'preparando' },
-    { id: 9, quem: '@sergio-rodrigues', hora: '22:58', valor: 87.5, item: 'Pizza Napolitana (grande)', mais: 1, entrega: 'Rafa chega em ~3 min', fase: 'pronto' },
-    { id: 10, quem: '@larissa-castro', hora: '22:55', valor: 64.9, item: 'Pizza Calabresa + Borda', mais: 0, entrega: 'Cliente retira na loja', fase: 'pronto' },
-    { id: 11, quem: '@pedro-lima', hora: '22:49', valor: 131.2, item: 'Pizza Filé com Cheddar', mais: 2, entrega: 'Tito saiu para entregar', fase: 'caminho' },
-    { id: 12, quem: '@bia-santos', hora: '22:44', valor: 76.0, item: 'Pizza Brigadeiro Gourmet', mais: 0, entrega: 'Dani saiu para entregar', fase: 'caminho' },
-]
-
-const FASES: { k: Fase; nome: string; cor: string; acao?: string }[] = [
-    { k: 'novo', nome: 'Novos', cor: C.novo, acao: 'Aceitar' },
-    { k: 'preparando', nome: 'Em preparo', cor: C.preparando, acao: 'Pronto' },
-    { k: 'pronto', nome: 'Prontos', cor: C.pronto, acao: 'Retirado' },
-    { k: 'caminho', nome: 'A caminho', cor: C.caminho },
-]
+import { ORANGE, C, brl, PEDIDOS, FASES, type Estado, type Modelo, type Fase, type Pedido } from './dados'
 
 const NOTAS: Record<string, { porque: string; era: string }> = {
     cabecalho: { porque: 'Quem tem loja abre o painel para saber “estou aberta? o que preciso fazer?”. Abrir/fechar a loja vira um toque, aqui em cima.', era: 'Estava em Editar loja → Horários; o painel só mostrava os 3 atalhos.' },
@@ -93,6 +67,23 @@ export default function PainelLab() {
     const [miss, setMiss] = useState<Record<string, boolean>>({})
     const [ger, setGer] = useState<Record<string, boolean>>({})
     const [aberto, setAberto] = useState<string | null>(null)
+    const [pagina, setPagina] = useState<string | null>(null)          // pedidos, repasses, digital, apoios, conversas, avaliacoes
+    const [extratoAb, setExtratoAb] = useState(false)
+    const [balcaoAb, setBalcaoAb] = useState(false)
+    const [editarAb, setEditarAb] = useState(false)
+    const [shareAb, setShareAb] = useState(false)
+    const [agendaAba, setAgendaAba] = useState<'agenda' | 'pend' | 'hor'>('agenda')
+    /** TODO destino do painel passa por aqui: página, folha, extrato, balcão, editar, compartilhar ou um atalho do Gerenciar */
+    const ir = (k: string) => {
+        if (k === 'age-pend') { setAgendaAba('pend'); setAberto('age'); return }
+        if (k === 'age') { setAgendaAba('agenda'); setAberto('age'); return }
+        if (['pedidos', 'repasses', 'digital', 'apoios', 'conversas', 'avaliacoes'].includes(k)) { setPagina(k); return }
+        if (k === 'extrato') { setExtratoAb(true); return }
+        if (k === 'balcao') { setBalcaoAb(true); return }
+        if (k === 'editar') { setEditarAb(true); return }
+        if (k === 'compartilhar') { setShareAb(true); return }
+        setAberto(k)
+    }
 
     const temProdutos = modelo !== 'services'
     const temServicos = modelo !== 'products'
@@ -111,14 +102,14 @@ export default function PainelLab() {
 
     // o que precisa de você
     const atencao = useMemo(() => {
-        const a: { cor: string; icone: ReactNode; titulo: string; sub: string; n?: number }[] = []
-        if (novosProd > 0) a.push({ cor: C.novo, icone: <ClipboardList size={17} />, n: novosProd, titulo: `${novosProd} ${novosProd === 1 ? 'pedido novo' : 'pedidos novos'}`, sub: 'Aceite para a loja começar a preparar' })
-        if (svcNovos > 0) a.push({ cor: C.servico, icone: <CalendarDays size={17} />, n: svcNovos, titulo: `${svcNovos} ${svcNovos === 1 ? 'pedido de serviço' : 'pedidos de serviço'}`, sub: 'Clientes esperando horário confirmado' })
-        if (!calmo && !nova && temProdutos) a.push({ cor: C.ambar, icone: <Banknote size={17} />, n: 1, titulo: '1 repasse para conferir', sub: 'Rafa diz que repassou R$ 85,00 do dinheiro da porta' })
-        if (!calmo && !nova) a.push({ cor: C.pronto, icone: <GraduationCap size={17} />, n: 2, titulo: '2 acessos digitais para liberar', sub: 'Pix informado — confira e libere o curso' })
-        if (!calmo && !nova) a.push({ cor: '#8b5cf6', icone: <Heart size={17} />, n: 1, titulo: '1 apoio para conferir', sub: 'Alguém mandou R$ 10,00 para a loja' })
-        if (!nova) a.push({ cor: '#16a34a', icone: <MessageCircle size={17} />, n: calmo ? 1 : 3, titulo: calmo ? '1 conversa não lida' : '3 conversas não lidas', sub: 'Clientes da loja' })
-        if (nova) a.push({ cor: C.alerta, icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse' })
+        const a: { cor: string; icone: ReactNode; titulo: string; sub: string; n?: number; ir: string; rotulo: string }[] = []
+        if (novosProd > 0) a.push({ cor: C.novo, icone: <ClipboardList size={17} />, n: novosProd, titulo: `${novosProd} ${novosProd === 1 ? 'pedido novo' : 'pedidos novos'}`, sub: 'Aceite para a loja começar a preparar', ir: 'pedidos', rotulo: 'Ver pedidos' })
+        if (svcNovos > 0) a.push({ cor: C.servico, icone: <CalendarDays size={17} />, n: svcNovos, titulo: `${svcNovos} ${svcNovos === 1 ? 'pedido de serviço' : 'pedidos de serviço'}`, sub: 'Clientes esperando horário confirmado', ir: 'age-pend', rotulo: 'Ver pendentes' })
+        if (!calmo && !nova && temProdutos) a.push({ cor: C.ambar, icone: <Banknote size={17} />, n: 1, titulo: '1 repasse para conferir', sub: 'Rafa diz que repassou R$ 85,00 do dinheiro da porta', ir: 'repasses', rotulo: 'Conferir' })
+        if (!calmo && !nova) a.push({ cor: C.pronto, icone: <GraduationCap size={17} />, n: 2, titulo: '2 acessos digitais para liberar', sub: 'Pix informado — confira e libere o curso', ir: 'digital', rotulo: 'Liberar' })
+        if (!calmo && !nova) a.push({ cor: '#8b5cf6', icone: <Heart size={17} />, n: 1, titulo: '1 apoio para conferir', sub: 'Alguém mandou R$ 10,00 para a loja', ir: 'apoios', rotulo: 'Conferir' })
+        if (!nova) a.push({ cor: '#16a34a', icone: <MessageCircle size={17} />, n: calmo ? 1 : 3, titulo: calmo ? '1 conversa não lida' : '3 conversas não lidas', sub: 'Clientes da loja', ir: 'conversas', rotulo: 'Responder' })
+        if (nova) a.push({ cor: C.alerta, icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse', ir: 'pag', rotulo: 'Cadastrar' })
         return a
     }, [novosProd, svcNovos, calmo, nova, temProdutos])
 
@@ -132,16 +123,22 @@ export default function PainelLab() {
     }
     function recusar(id: number) { setPedidos((ps) => ps.filter((p) => p.id !== id)) }
 
-    const vendas = { hoje: [calmo ? 212 : nova ? 0 : 1284.6, calmo ? 3 : nova ? 0 : 14], semana: [calmo ? 1890 : nova ? 0 : 7420, calmo ? 21 : nova ? 0 : 88], mes: [calmo ? 6400 : nova ? 0 : 23190, calmo ? 70 : nova ? 0 : 301] }[periodo]
+    // no dia MOVIMENTADO os números vêm do mesmo extrato da página "Abrir o extrato completo" (nada se contradiz); nos outros dias, exemplos próprios
+    const mov = !nova && !calmo
+    const rs = resumo(periodo)
+    const vendas = mov ? [rs.total, rs.vendas] : { hoje: [calmo ? 212 : 0, calmo ? 3 : 0], semana: [calmo ? 1890 : 0, calmo ? 21 : 0], mes: [calmo ? 2480 : 0, calmo ? 27 : 0] }[periodo]
     const FORMAS: [string, number, string][] = [['Pix', 0.5, '#22c55e'], ['Cartão', 0.33, '#3b82f6'], ['Dinheiro', 0.17, '#eab308']]
-    const parte = (nomes: string[], ps: number[]): [string, string, string, number][] => nomes.map((n, i) => [n, `${Math.max(0, Math.round(vendas[1] * ps[i]))} pedidos`, '', Math.round(vendas[0] * ps[i] * 100) / 100])
+    const formaVal = (n: string, p: number) => (mov ? rs.porForma[n as 'Pix' | 'Cartão' | 'Dinheiro'] : vendas[0] * p)
     const hojeLinhas: [string, string, string, number][] = nova ? [] : calmo
         ? [['21:40', '@marta-moura', 'Pix', 98.9], ['20:15', '@pedro-lima', 'Dinheiro', 64.9], ['19:30', '@bia-santos', 'Cartão', 48.2]]
-        : [['23:21', '@carla-cavalcanti', 'Pix', 69.8], ['23:20', '@ana-barbosa', 'Cartão', 120.7], ['23:19', '@joao-martins', 'Pix', 119.3], ['22:58', '@sergio-rodrigues', 'Dinheiro', 87.5], ['22:49', '@pedro-lima', 'Cartão', 131.2], ['22:44', '@bia-santos', 'Pix', 76.0]]
+        : resumo('hoje').lancs.slice(0, 6).map((l) => [l.hora, l.quem, l.forma, l.valor] as [string, string, string, number])
+    const parte = (nomes: string[], ps: number[]): [string, string, string, number][] => nomes.map((n, i) => [n, `${Math.max(0, Math.round(vendas[1] * ps[i]))} pedidos`, '', Math.round(vendas[0] * ps[i] * 100) / 100])
+    const grupos3 = (): [string, string, string, number][] => [[6, 8, 'Dias 7 a 9'], [3, 5, 'Dias 4 a 6'], [0, 2, 'Dias 1 a 3']].map(([a, b, nome]) => { const x = rs.porDia.filter((d) => d.dia >= (a as number) && d.dia <= (b as number)); return [nome as string, `${x.reduce((t, d) => t + d.n, 0)} lançamentos`, '', x.reduce((t, d) => t + d.total, 0)] })
     const linhasExtrato: [string, string, string, number][] = nova ? [] : periodo === 'hoje'
-        ? [...hojeLinhas, ['antes', `${Math.max(0, vendas[1] - hojeLinhas.length)} pedidos`, '', Math.round((vendas[0] - hojeLinhas.reduce((t, l) => t + l[3], 0)) * 100) / 100]]
-        : periodo === 'semana' ? parte(['Seg 09 (hoje)', 'Dom 08', 'Sáb 07', 'Sex 06', 'Qui 05', 'Qua 04', 'Ter 03'], [0.18, 0.12, 0.2, 0.17, 0.11, 0.1, 0.12])
-            : parte(['Dias 7 a 9', 'Dias 4 a 6', 'Dias 1 a 3'], [0.36, 0.34, 0.3])
+        ? [...hojeLinhas, ['antes', `${Math.max(0, (mov ? rs.lancs.length : vendas[1]) - hojeLinhas.length)} lançamentos`, '', Math.round((vendas[0] - hojeLinhas.reduce((t, l) => t + l[3], 0)) * 100) / 100]]
+        : mov ? (periodo === 'semana' ? rs.porDia.map((d) => [diaNome(d.dia), `${d.n} lançamentos`, '', d.total] as [string, string, string, number]) : grupos3())
+            : periodo === 'semana' ? parte(['Seg 09 (hoje)', 'Dom 08', 'Sáb 07', 'Sex 06', 'Qui 05', 'Qua 04', 'Ter 03'], [0.18, 0.12, 0.2, 0.17, 0.11, 0.1, 0.12])
+                : parte(['Dias 7 a 9', 'Dias 4 a 6', 'Dias 1 a 3'], [0.36, 0.34, 0.3])
     const ticket = vendas[1] ? vendas[0] / vendas[1] : 0
 
     const card = { background: colors.surface, border: `1px solid ${colors.border}` }
@@ -179,7 +176,7 @@ export default function PainelLab() {
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2">
                 {[['Ver loja', <Eye key="a" size={14} />], ['Compartilhar', <Share2 key="b" size={14} />], ['Editar', <Settings key="c" size={14} />]].map(([t, ic], i) => (
-                    <button key={String(t)} className="h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition"
+                    <button key={String(t)} onClick={() => (i === 1 ? ir('compartilhar') : i === 2 ? ir('editar') : undefined)} className="h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition"
                         style={i === 2 ? { background: ORANGE, color: '#fff' } : { background: `${colors.border}50`, color: colors.textPrimary }}>{ic as ReactNode}{t as string}</button>
                 ))}
             </div>
@@ -194,13 +191,13 @@ export default function PainelLab() {
     ) : (
         <div className="rounded-3xl overflow-hidden" style={card}>
             {atencao.map((a, i) => (
-                <button key={a.titulo} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                <button key={a.titulo} onClick={() => ir(a.ir)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
                     <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${a.cor}22`, color: a.cor }}>{a.icone}</span>
                     <span className="min-w-0 flex-1">
                         <span className="block text-[14px] font-black leading-tight">{a.titulo}</span>
                         <span className="block text-[11.5px] leading-snug" style={{ color: colors.textSecondary }}>{a.sub}</span>
                     </span>
-                    <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                    <span className="text-[11.5px] font-black flex items-center gap-0.5 flex-shrink-0" style={{ color: a.cor }}>{a.rotulo}<ChevronRight size={14} /></span>
                 </button>
             ))}
         </div>
@@ -262,7 +259,7 @@ export default function PainelLab() {
                                 ))}
                             </div>
                         )}
-                        <button className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40` }}>
+                        <button onClick={() => ir('pedidos')} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40` }}>
                             {doFase.length > 3 ? `Ver os outros ${doFase.length - 3} e o histórico` : 'Ver todos os pedidos e o histórico'}<ChevronRight size={14} />
                         </button>
                     </>
@@ -282,7 +279,7 @@ export default function PainelLab() {
                                 <button onClick={() => setServicos((n) => Math.max(0, n - 1))} className="h-8 px-3.5 rounded-full text-[12px] font-black text-white active:scale-95" style={{ background: C.servico }}>Aceitar</button>
                             </div>
                         ))}
-                        <button className="w-full mt-1 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40` }}>
+                        <button onClick={() => ir('age-pend')} className="w-full mt-1 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40` }}>
                             Ver todos os {svcNovos} pedidos de serviço<ChevronRight size={14} />
                         </button>
                     </div>
@@ -291,10 +288,11 @@ export default function PainelLab() {
         </div>
     )
 
+    const rh = resumo('hoje')
     const kpis = [
-        { l: 'Vendas hoje', v: calmo ? 'R$ 212' : nova ? 'R$ 0' : 'R$ 1.285', c: C.novo, ic: <Wallet size={13} /> },
-        { l: 'Pedidos', v: calmo ? '3' : nova ? '0' : '14', c: C.caminho, ic: <ClipboardList size={13} /> },
-        { l: 'Ticket', v: calmo ? 'R$ 71' : nova ? '—' : 'R$ 92', c: C.pronto, ic: <Tag size={13} /> },
+        { l: 'Vendas hoje', v: calmo ? 'R$ 212' : nova ? 'R$ 0' : brl(rh.total).replace(',00', ''), c: C.novo, ic: <Wallet size={13} /> },
+        { l: 'Pedidos', v: calmo ? '3' : nova ? '0' : String(rh.vendas), c: C.caminho, ic: <ClipboardList size={13} /> },
+        { l: 'Ticket', v: calmo ? 'R$ 71' : nova ? '—' : brl(rh.total / Math.max(1, rh.vendas)).replace(',00', ''), c: C.pronto, ic: <Tag size={13} /> },
         { l: 'Nota', v: nova ? '—' : '4,6 ★', c: C.preparando, ic: <Star size={13} /> },
         { l: 'Online agora', v: calmo ? '2' : nova ? '0' : '9', c: C.servico, ic: <Users size={13} /> },
     ]
@@ -328,7 +326,7 @@ export default function PainelLab() {
                         <div className="grid grid-cols-3 gap-1.5 mb-2.5">
                             {FORMAS.map(([n, p, k]) => (
                                 <div key={n} className="rounded-2xl px-2.5 py-2" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${k}` }}>
-                                    <p className="text-[10px] font-bold" style={{ color: k }}>{n}</p><p className="text-[13.5px] font-black leading-tight">{brl(vendas[0] * p)}</p>
+                                    <p className="text-[10px] font-bold" style={{ color: k }}>{n}</p><p className="text-[13.5px] font-black leading-tight">{brl(formaVal(n, p))}</p>
                                 </div>
                             ))}
                         </div>
@@ -343,7 +341,7 @@ export default function PainelLab() {
                             ))}
                         </div>
                         <p className="text-[11px] mt-2 leading-snug" style={{ color: colors.textSecondary }}>O iUser registra a venda; o dinheiro cai direto na sua conta (Pix, cartão ou na entrega).</p>
-                        <button className="w-full mt-2 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ border: `1px solid ${colors.border}` }}>Abrir o extrato completo<ChevronRight size={14} /></button>
+                        <button onClick={() => ir('extrato')} className="w-full mt-2 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ border: `1px solid ${colors.border}` }}>Abrir o extrato completo<ChevronRight size={14} /></button>
                     </div>
                 )}
             </div>
@@ -360,29 +358,29 @@ export default function PainelLab() {
                     <div className="min-w-0"><p className="text-[13px] font-black truncate">{q}</p><p className="text-[12px] truncate" style={{ color: colors.textSecondary }}>{s}</p></div>
                 </div>
             ))}
-            <button onClick={() => setAberto('age')} className="w-full h-10 text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ borderTop: `1px solid ${colors.border}`, color: ORANGE }}>Ver agenda · 1 na agenda · 220 feitos<ChevronRight size={14} /></button>
+            <button onClick={() => ir('age')} className="w-full h-10 text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ borderTop: `1px solid ${colors.border}`, color: ORANGE }}>Ver agenda · 1 na agenda · 220 feitos<ChevronRight size={14} /></button>
         </div>
     )
 
     const caixaBloco = (
         <div className="rounded-3xl p-3.5" style={card}>
             <div className="grid grid-cols-2 gap-2">
-                <Mini cor={C.ambar} titulo="A conferir" valor={calmo || nova ? 'R$ 0' : 'R$ 85,00'} sub={calmo || nova ? 'nenhum repasse' : '1 repasse do dinheiro da porta'} colors={colors} />
-                <Mini cor={C.novo} titulo="Recebido hoje" valor={calmo ? 'R$ 212' : nova ? 'R$ 0' : 'R$ 1.285'} sub="pedidos e entradas" colors={colors} />
-                {temProdutos && <Mini cor={C.caminho} titulo="Maquininha" valor={calmo || nova ? '—' : 'com Léo'} sub={calmo || nova ? 'nenhuma na rua' : 'devolver até 22h'} colors={colors} />}
-                <Mini cor="#8b5cf6" titulo="Apoios" valor={nova ? 'R$ 0' : 'R$ 10'} sub={nova ? 'nenhum ainda' : '1 a conferir'} colors={colors} />
+                <Mini cor={C.ambar} titulo="A conferir" valor={calmo || nova ? 'R$ 0' : 'R$ 85,00'} sub={calmo || nova ? 'nenhum repasse' : '1 repasse do dinheiro da porta'} colors={colors} onClick={() => ir('repasses')} />
+                <Mini cor={C.novo} titulo="Recebido hoje" valor={calmo ? 'R$ 212' : nova ? 'R$ 0' : brl(rh.total).replace(',00', '')} sub="pedidos e entradas" colors={colors} onClick={() => ir('extrato')} />
+                {temProdutos && <Mini cor={C.caminho} titulo="Maquininha" valor={calmo || nova ? '—' : 'com Léo'} sub={calmo || nova ? 'nenhuma na rua' : 'devolver até 22h'} colors={colors} onClick={() => ir('repasses')} />}
+                <Mini cor="#8b5cf6" titulo="Apoios" valor={nova ? 'R$ 0' : 'R$ 10'} sub={nova ? 'nenhum ainda' : '1 a conferir'} colors={colors} onClick={() => ir('apoios')} />
             </div>
         </div>
     )
 
     const digitalBloco = nova ? (
-        <div className="rounded-3xl p-3.5 flex items-center gap-3" style={{ border: `1.5px dashed ${colors.border}` }}>
+        <div role="button" onClick={() => ir('cat')} className="rounded-3xl p-3.5 flex items-center gap-3 cursor-pointer" style={{ border: `1.5px dashed ${colors.border}` }}>
             <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${C.pronto}22`, color: C.pronto }}><GraduationCap size={20} /></span>
             <div className="min-w-0 flex-1"><p className="text-[13.5px] font-black">Venda cursos, músicas e programas</p><p className="text-[11.5px]" style={{ color: colors.textSecondary }}>Sem entrega nem estoque. Comece por um produto grátis.</p></div>
             <ChevronRight size={16} style={{ color: colors.textSecondary }} />
         </div>
     ) : (
-        <div className="rounded-3xl p-3.5" style={card}>
+        <div role="button" onClick={() => ir('digital')} className="rounded-3xl p-3.5 cursor-pointer" style={card}>
             <div className="grid grid-cols-4 gap-1.5 text-center">
                 {[['Produtos', '10', C.pronto], ['Vendas', 'R$ 506', C.novo], ['Grátis', '0', C.caminho], ['Baixados', '0', C.servico]].map(([l, v, c]) => (
                     <div key={l}><p className="text-[16px] font-black leading-none" style={{ color: c }}>{v}</p><p className="text-[10px] font-bold mt-1" style={{ color: colors.textSecondary }}>{l}</p></div>
@@ -413,7 +411,7 @@ export default function PainelLab() {
             <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${colors.border}` }}>
                 <p className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>Gabriela Carvalho · há 3 d · Pizza Carne Seca com Abóbora</p>
                 <p className="text-[13px] font-semibold mt-0.5">“Adorei os ingredientes extras, ficou do jeito que pedi.”</p>
-                <button className="text-[12px] font-black mt-2 flex items-center gap-1" style={{ color: ORANGE }}>Ver todas as avaliações<ChevronRight size={13} /></button>
+                <button onClick={() => ir('avaliacoes')} className="text-[12px] font-black mt-2 flex items-center gap-1" style={{ color: ORANGE }}>Ver todas as avaliações<ChevronRight size={13} /></button>
             </div>
         </div>
     )
@@ -473,7 +471,7 @@ export default function PainelLab() {
                     const off = e === 'off'; const warn = e === 'warn'
                     const cor = off ? '#9ca3af' : warn ? C.alerta : g.cor
                     return (
-                        <button key={g.k + estado} onClick={() => setAberto(g.k)}
+                        <button key={g.k + estado} onClick={() => ir(g.k)}
                             className="relative rounded-2xl p-2.5 pt-3 text-left active:scale-95 transition overflow-hidden"
                             style={{ background: off ? `${colors.border}22` : `${cor}14`, border: `1.5px solid ${off ? colors.border : `${cor}${warn ? 'aa' : '66'}`}`, opacity: off ? 0.8 : 1 }}>
                             <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full" style={{ background: SELO[e].c, boxShadow: e === 'on' ? `0 0 0 3px ${SELO[e].c}33` : undefined }} />
@@ -523,7 +521,7 @@ export default function PainelLab() {
                     <p className="text-[11px] font-black uppercase tracking-wider mt-4 mb-1.5 flex items-center gap-2" style={{ color: colors.textSecondary }}>Falta no cadastro<span className="normal-case tracking-normal font-bold">{cadastro.length - faltaCad.length} de {cadastro.length} feitos</span></p>
                     <div className="flex flex-wrap gap-1.5">
                         {faltaCad.map((m) => (
-                            <button key={m.k} onClick={() => m.ir && setAberto(m.ir)} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: `${C.ambar}1f`, border: `1.5px solid ${C.ambar}`, color: '#b45309' }}>{m.t}<span className="text-[10.5px] px-1.5 rounded-full text-white" style={{ background: C.ambar }}>+{m.pts}</span><ChevronRight size={13} /></button>
+                            <button key={m.k} onClick={() => m.ir && ir(m.ir)} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: `${C.ambar}1f`, border: `1.5px solid ${C.ambar}`, color: '#b45309' }}>{m.t}<span className="text-[10.5px] px-1.5 rounded-full text-white" style={{ background: C.ambar }}>+{m.pts}</span><ChevronRight size={13} /></button>
                         ))}
                     </div>
                 </>
@@ -631,15 +629,23 @@ export default function PainelLab() {
                     )}
                 </div>
 
+                {pagina && <Pagina k={pagina} onClose={() => setPagina(null)} onIr={ir} />}
+                {extratoAb && <Extrato onClose={() => setExtratoAb(false)} />}
+                {balcaoAb && <Balcao onClose={() => setBalcaoAb(false)} />}
+                {editarAb && (
+                    <Editar onClose={() => setEditarAb(false)} onAbrir={ir} onCompartilhar={() => setShareAb(true)}
+                        itens={base.filter((g) => g.mostrar).map((g) => ({ k: g.k, t: g.t, ic: g.ic, cor: g.cor, texto: g.texto(estDe(g)), estado: estDe(g) }))} />
+                )}
                 {aberto && (() => {
                     const g = base.find((x) => x.k === aberto)!
-                    return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} />
+                    return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} agendaAba={agendaAba} />
                 })()}
+                {shareAb && <Compartilhar onClose={() => setShareAb(false)} />}
                 {/* botão fixo: venda no balcão (acima da barra do app) */}
                 {versao === 'nova' && !nova && temProdutos && (
                     <div className="fixed inset-x-0 bottom-0 flex justify-center pointer-events-none" style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
                         <div className="w-full max-w-md px-4 flex justify-end">
-                            <button className="pointer-events-auto h-12 px-5 rounded-full text-[13.5px] font-black text-white flex items-center gap-2 shadow-xl active:scale-95 transition" style={{ background: ORANGE, boxShadow: '0 10px 26px rgba(249,115,22,.45)' }}>
+                            <button onClick={() => ir('balcao')} className="pointer-events-auto h-12 px-5 rounded-full text-[13.5px] font-black text-white flex items-center gap-2 shadow-xl active:scale-95 transition" style={{ background: ORANGE, boxShadow: '0 10px 26px rgba(249,115,22,.45)' }}>
                                 <Plus size={18} /><ShoppingBag size={16} />Venda no balcão
                             </button>
                         </div>
@@ -648,9 +654,9 @@ export default function PainelLab() {
                 {/* a barra do modo loja (só para dar a medida do espaço) */}
                 <div className="fixed inset-x-0 bottom-0 flex justify-center pointer-events-none" style={{ paddingBottom: 'calc(10px + env(safe-area-inset-bottom))' }}>
                     <div className="w-full max-w-md px-3">
-                        <div className="rounded-[28px] flex items-center justify-around h-[68px] text-[10.5px] font-bold" style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: '0 10px 28px rgba(0,0,0,.14)' }}>
+                        <div className="pointer-events-auto rounded-[28px] flex items-center justify-around h-[68px] text-[10.5px] font-bold" style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: '0 10px 28px rgba(0,0,0,.14)' }}>
                             {[['Explorar', <Eye key="a" size={20} />, false], ['Painel', <Store key="b" size={20} />, true], ['Pedidos', <ClipboardList key="c" size={20} />, false], ['Conversas', <MessageCircle key="d" size={20} />, false], ['Pizzaria', <Gift key="e" size={20} />, false]].map(([l, ic, on]) => (
-                                <span key={String(l)} className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-2xl" style={on ? { background: `${ORANGE}1f`, color: ORANGE } : { color: colors.textSecondary }}>{ic as ReactNode}{l as string}</span>
+                                <button key={String(l)} onClick={() => (l === 'Pedidos' ? ir('pedidos') : l === 'Conversas' ? ir('conversas') : undefined)} className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-2xl" style={on ? { background: `${ORANGE}1f`, color: ORANGE } : { color: colors.textSecondary }}>{ic as ReactNode}{l as string}</button>
                             ))}
                         </div>
                     </div>
@@ -669,9 +675,9 @@ function Vazio({ titulo, texto, cor, caixa }: { titulo: string; texto: string; c
     )
 }
 
-function Mini({ cor, titulo, valor, sub, colors }: { cor: string; titulo: string; valor: string; sub: string; colors: { border: string; textSecondary: string; background: string } }) {
+function Mini({ cor, titulo, valor, sub, colors, onClick }: { cor: string; titulo: string; valor: string; sub: string; colors: { border: string; textSecondary: string; background: string }; onClick?: () => void }) {
     return (
-        <div className="rounded-2xl p-3" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${cor}` }}>
+        <div role={onClick ? 'button' : undefined} onClick={onClick} className="rounded-2xl p-3 text-left active:scale-[.98] transition" style={{ cursor: onClick ? 'pointer' : undefined, background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${cor}` }}>
             <p className="text-[10.5px] font-bold" style={{ color: cor }}>{titulo}</p>
             <p className="text-[17px] font-black leading-tight mt-0.5">{valor}</p>
             <p className="text-[10.5px] leading-tight mt-0.5" style={{ color: colors.textSecondary }}>{sub}</p>
