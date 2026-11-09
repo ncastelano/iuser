@@ -16,7 +16,7 @@ import { clock } from '@/modules/player/domain'
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 export const BAR_BOTTOM = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
 export const BAR_H = 64
-export const STRIP_H = 36
+export const STRIP_H = 48   // a faixa com o pedido em andamento tem duas linhas (loja e etapa); a página reserva essa altura embaixo
 /** A altura do mini-player (a linha de cima da barra quando há algo para continuar) */
 export const PLAYER_H = 57
 // Espaço que a barra ocupa (sem a faixa)
@@ -51,7 +51,8 @@ export interface BarTab { key: string; label: string; icon: ReactNode; active: b
 /** Um aviso do sistema (toast) mostrado na faixa */
 export interface BarMessage { id: string | number; text: string; description?: string; icon?: string; glyph: string; color: string; action?: { label: string; onClick: () => void } }
 /** Chip da faixa além do carrinho e dos status: a corrida, os pedidos novos da loja... (cada um na sua cor, levando ao seu lugar) */
-export interface BarExtra { key: string; text: string; color: string; path: string }
+/** `label` = o nome da loja (pedido do cliente); `pulse` = o ponto pulsa (algo em andamento); `step`/`steps` = barrinha de progresso do pedido */
+export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; pulse?: boolean; step?: number; steps?: number }
 
 /** A faixa de cima (fixa, sem contar o aviso passageiro) aparece quando há carrinho (páginas de compra) ou chips extras (corrida, pedidos da loja) — e o carrinho some dela na página do carrinho */
 export function stripVisible({ onCartPage, cartExpanded, cartCount, extras = 0 }: { onCartPage: boolean; cartExpanded: boolean; cartCount: number; extras?: number }): boolean {
@@ -161,13 +162,16 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
         const t = setTimeout(() => setRaised(false), 500)
         return () => clearTimeout(t)
     }, [hubOpen, playerFull])
+    // pedido do cliente em andamento: a faixa INTEIRA ganha a cor da etapa (fundo e borda), como no aviso de "avaliar"; vale a do mais adiantado (o 1º)
+    const orderExtras = extras.filter((x) => x.label !== undefined)
+    const accent = !message && orderExtras.length > 0 ? orderExtras[0].color : null
     const money = cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
     return (
         <nav aria-label="Navegação do iUser" className="fixed left-0 right-0 pointer-events-none flex flex-col gap-2" style={{ bottom: BAR_BOTTOM, zIndex: raised || hubOpen || playerFull ? 75 : 40 }}>
             {customCard && <ExpandUp><div className="max-w-md w-full mx-auto px-3 pointer-events-auto">{customCard}</div></ExpandUp>}
             <div className="max-w-md w-full mx-auto px-3">
                 {/* Uma peça só e sólida: a faixa de cima é só uma área da própria barra, sem divisória */}
-                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : `1px solid ${colors.border}`, boxShadow: hubOpen || playerFull ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease, box-shadow 480ms ease' }}>
+                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : accent && strip ? `2px solid ${accent}` : `1px solid ${colors.border}`, boxShadow: hubOpen || playerFull ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease, box-shadow 480ms ease' }}>
                     {/* MENU DE MODOS: cresce para cima de dentro da própria barra (mesma peça, mesma cor, mesmas bordas) */}
                     {hub && (
                         <div role="dialog" aria-label={hub.label} aria-hidden={!hubOpen}
@@ -231,7 +235,7 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                         )}
                     </div>
 
-                    <div aria-hidden={!strip} className="flex items-center gap-2 px-3.5 overflow-hidden" style={{ minHeight: strip ? STRIP_H : 0, height: strip ? undefined : 0, opacity: strip ? 1 : 0, background: message ? `${message.color}14` : `${colors.border}30`, transition: 'min-height 300ms ease, opacity 250ms ease, background 250ms ease' }}>
+                    <div aria-hidden={!strip} className="flex items-center gap-2 px-3.5 overflow-hidden" style={{ minHeight: strip ? STRIP_H : 0, height: strip ? undefined : 0, opacity: strip ? 1 : 0, background: message ? `${message.color}14` : accent ? `${accent}18` : `${colors.border}30`, transition: 'min-height 300ms ease, opacity 250ms ease, background 250ms ease' }}>
                         {message ? (
                             <div className="flex items-center gap-2.5 w-full py-1.5" role="status" aria-live="polite">
                                 <button onClick={onDismiss} aria-label="Dispensar aviso" className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
@@ -252,7 +256,21 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                                         <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
                                     </button>
                                 )}
-                                {extras.map((x) => (
+                                {extras.map((x) => x.label !== undefined ? (
+                                    // pedido do cliente: sem moldura própria, a faixa toda está na cor da etapa — círculo cheio, loja em cima, etapa embaixo e a barrinha de progresso
+                                    <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} aria-label={`${x.label ? x.label + ': ' : ''}${x.text}`} className="relative flex items-center gap-2.5 flex-shrink-0 min-h-[48px] py-1.5 pr-2 active:opacity-70 text-left">
+                                        <span className="relative flex w-7 h-7 flex-shrink-0">
+                                            {x.pulse && <span aria-hidden className="absolute inset-0 rounded-full animate-ping" style={{ background: x.color, opacity: 0.45 }} />}
+                                            <span className="relative w-7 h-7 rounded-full flex items-center justify-center text-white text-[13px] font-black" style={{ background: x.color }}>{x.step ? <span className="w-2.5 h-2.5 rounded-full bg-white" /> : '+'}</span>
+                                        </span>
+                                        <span className="min-w-0">
+                                            {x.label && <span className="block text-[10.5px] leading-snug max-w-[200px] truncate" style={{ color: colors.textSecondary }}>{x.label}</span>}
+                                            <span className="block text-[13px] font-black leading-snug" style={{ color: colors.textPrimary }}>{x.text}</span>
+                                        </span>
+                                        <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                        {x.step ? <span aria-hidden className="absolute left-0 bottom-0 h-[3px] rounded-full" style={{ width: `${Math.min(100, (x.step / (x.steps || 4)) * 100)}%`, background: x.color, transition: 'width 400ms ease' }} /> : null}
+                                    </button>
+                                ) : (
                                     <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
                                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: x.color }} />
                                         <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{x.text}</span>

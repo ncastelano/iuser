@@ -21,10 +21,12 @@ import { useChatUnread } from '@/hooks/useChatUnread'
 import { useOrderStatusCounts, type OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 import { useShellLive } from '@/hooks/useShellLive'
+import { useMyActiveOrders } from '@/hooks/useMyActiveOrders'
+import { orderStripItems } from '@/modules/orders'
 import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
 import { useShellCompact } from '@/lib/shellCompact'
 import { toastStyle } from '@/lib/toastStyle'
-import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarPlayer, type BarTab } from '@/components/BottomNavBar'
+import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarExtra, type BarPlayer, type BarTab } from '@/components/BottomNavBar'
 import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import { miniHidden, subtitleOf } from '@/modules/player'
@@ -348,6 +350,7 @@ export default function ModeShell({ children }: {
     // Selos do topo: não lidas do chat e itens do carrinho
     const topUnread = useChatUnread(userId)
     const orderCounts = useOrderStatusCounts(userId)
+    const myOrders = useMyActiveOrders(userId)
     const ordersActive = orderCounts.pending + orderCounts.preparing + orderCounts.ready
     const cartMap = useCartStore((st) => st.itemsByStore)
     const [cartReady, setCartReady] = useState(false)
@@ -597,7 +600,9 @@ export default function ModeShell({ children }: {
     const navH = 'calc(10px + env(safe-area-inset-top))'
     useEffect(() => (barShown && !compact ? registerIslandConsumer() : undefined), [barShown, compact])
     // A faixa da barra: o que está vivo além do carrinho e dos status (a corrida e os pedidos novos da loja)
-    const barExtras = (live?.parts || []).filter((x) => x.key === 'ride' || x.key === 'store-p' || x.key === 'store-s').map((x) => ({ key: x.key as string, text: x.text, color: x.color, path: x.path || live!.path }))
+    // + os PEDIDOS que EU fiz, em andamento (enviado → preparando → pronto/a caminho): ficam na faixa, na cor da etapa, até o pedido ser finalizado
+    const orderExtras: BarExtra[] = orderStripItems(myOrders).map((o) => ({ key: o.key, label: o.label, text: o.text, color: o.color, path: o.path, pulse: o.pulse, step: o.step, steps: 4 }))
+    const barExtras: BarExtra[] = [...orderExtras, ...(live?.parts || []).filter((x) => x.key === 'ride' || x.key === 'store-p' || x.key === 'store-s').map((x) => ({ key: x.key as string, text: x.text, color: x.color, path: x.path || live!.path }))]
     // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
     const stripShown = barShown && stripVisible({ onCartPage, cartExpanded: cartStrip, cartCount: topCart, extras: barExtras.length })
 

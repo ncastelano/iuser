@@ -1449,7 +1449,8 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
             const accent = rejected ? '#ef4444' : ({ pending: '#22c55e', preparing: '#eab308', ready: '#a855f7', paid: '#3b82f6' } as Record<string, string>)[order.status] || '#22c55e'
             const soft = `${colors.border}40`
             return (
-                <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                // pedido acontecendo agora: a BORDA do cartão ganha a cor da etapa (o resto do cartão fica como está); finalizado e recusado voltam à borda comum
+                <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: ['pending', 'preparing', 'ready'].includes(order.status) ? `2px solid ${accent}` : `1px solid ${colors.border}`, transition: 'border-color 300ms ease' }}>
                     <div className="p-3.5 flex items-center justify-between gap-3">
                         <h3 className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{order.storeName || order.store_name}</h3>
                         <span className="flex-shrink-0 text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: `${accent}22`, color: accent }}>

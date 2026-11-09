@@ -6,6 +6,9 @@
 import { supabase } from '@/lib/supabase/client'
 import type { CartItem } from '@/store/useCartStore'
 
+/** Evento do navegador: "meus pedidos mudaram" (o próprio cliente acabou de pedir) — quem acompanha pedidos atualiza na hora */
+export const ORDERS_CHANGED_EVENT = 'iuser-orders-changed'
+
 export interface CreatedStoreOrder {
     orderId: string
     checkoutId: string
@@ -65,6 +68,8 @@ export async function createStoreOrder(params: {
     })
     if (error || !data) throw new CreateStoreOrderError(error?.message || 'Erro ao criar pedido', error?.hint || undefined)
     const d = data as Record<string, any>
+    // avisa a casca (faixa e selos do app) NA HORA: a tabela `orders` não vai pelo tempo real, então sem isto o pedido só apareceria na próxima checagem
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(ORDERS_CHANGED_EVENT))
     return {
         orderId: d.order_id,
         checkoutId: d.checkout_id,
