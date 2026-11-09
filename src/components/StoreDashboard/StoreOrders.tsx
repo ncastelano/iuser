@@ -56,8 +56,8 @@ function driverText(info: { stage?: string; driver?: string | null; freight: num
     if (info?.v2State) return storeV2Text(info as { freight: number; radius: number; v2State?: string | null; frozen?: number | null })
     if (accepted) {
         const quem = info?.driver ? info.driver.trim().split(' ')[0] : 'Entregador'
-        const m: Record<string, string> = { assigned: `${quem} confirmado · vai buscar`, to_store: `${quem} indo à loja`, at_store: `${quem} na loja`, in_transit: `${quem} a caminho do cliente` }
-        return m[info?.stage || ''] || `${quem} confirmado`
+        const m: Record<string, string> = { assigned: `${quem} vai buscar o pedido`, to_store: `${quem} a caminho da loja`, at_store: `${quem} está na loja esperando`, in_transit: `${quem} saiu para entregar` }
+        return m[info?.stage || ''] || `${quem} vai buscar o pedido`
     }
     return `Buscando motorista${info ? ` · R$ ${info.freight.toFixed(2)} · até ${info.radius} km` : ''}`
 }
@@ -1518,7 +1518,10 @@ function OrderButton({
     // Conversa com quem comprou: abre (ou cria) o chat da loja com o cliente e vai direto pra dentro dele
     const router = useRouter()
     const [openingChat, setOpeningChat] = useState(false)
-    const canChat = !isInPerson && !!order.buyer_id
+    // conversar só depois de aceitar (pedido novo = só "Aceitar"); atribuir entregador só vale para entrega feita PELA loja (com o entregador iUser o motorista já vem do pedido, e retirada não tem entrega)
+    const canChat = !isInPerson && !!order.buyer_id && order.status !== 'pending'
+    const isDeliveryOrder = !!order.delivery_address && order.delivery_address !== 'Retirada no local'
+    const canAssign = !isInPerson && !isPaid && order.status !== 'rejected' && isDeliveryOrder && !iuserDelivery?.enabled
     const handleChatClick = async (e: React.MouseEvent) => {
         e.stopPropagation()
         e.preventDefault()
@@ -1566,6 +1569,11 @@ function OrderButton({
                                 {driverText(iuserDelivery.info?.get(order.id), !!iuserDelivery.acceptedIds?.has(order.id))}
                             </span>
                         )}
+                        {!isInPerson && !isPaid && order.status !== 'rejected' && !isDeliveryOrder && (
+                            <span className="self-start text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: `${themeColors.border}40`, color: themeColors.textSecondary }}>
+                                Cliente retira na loja
+                            </span>
+                        )}
                         {!isInPerson && !isPaid && order.status !== 'rejected' && iuserDelivery?.enabled && order.delivery_address && order.delivery_address !== 'Retirada no local' && !iuserDelivery.dispatchedIds.has(order.id) && (
                             <span className="self-start text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: '#f59e0b22', color: '#b45309' }}>
                                 Sem motorista{['preparing', 'ready'].includes(order.status) ? ' · toque no caminhão para chamar' : ' ainda'}
@@ -1596,7 +1604,7 @@ function OrderButton({
                                 <MessageCircle size={14} style={{ color: '#f97316' }} />
                             </button>
                         )}
-                        {!isInPerson && !isPaid && (
+                        {canAssign && (
                             <button onClick={handleAssignClick} className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90" style={{ background: `${themeColors.border}50` }} title="Atribuir entregador" type="button">
                                 <Send size={14} style={{ color: themeColors.textPrimary }} />
                             </button>
@@ -1704,7 +1712,7 @@ function OrderButton({
                             <MessageCircle size={14} style={{ color: statusColor }} />
                         </button>
                     )}
-                    {!isInPerson && !isPaid && (
+                    {canAssign && (
                         <button
                             onClick={handleAssignClick}
                             className="p-2 rounded-full transition-all duration-200 active:scale-90 flex-shrink-0"
