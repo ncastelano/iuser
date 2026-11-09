@@ -21,6 +21,7 @@ import RadarItemDetails from '@/components/radar/RadarItemDetails'
 import RadarDriverDetails from '@/components/radar/RadarDriverDetails'
 import { fetchRadarDrivers } from '@/lib/radarDrivers'
 import { mountMapAvatarMarker } from '@/components/MapAvatarMarker'
+import { cachedStoreLevels, levelOf, loadStoreLevels } from '@/modules/store-levels'
 import { vehicleGlyphSvg } from '@/lib/vehicleMarkerIcon'
 import { createRadarPulse, ensureRadarPulseStyles, type RadarPulse, type PulseEntry, type PulseState } from '@/components/radar/radarPulse'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
@@ -472,6 +473,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // LOAD DATA
     useEffect(() => {
         const load = async () => {
+            void loadStoreLevels()      // a escada dos níveis (moldura dos marcadores de loja) já em cache quando os marcadores forem desenhados
             const { data: storesData } = await supabase.from('stores').select(STORE_PUBLIC_SELECT)
             const { data: productsRaw } = await supabase.from('products').select('*')
             // "Visível no Radar" é só da PESSOA (filtro Pessoas): serviço e produto seguem a regra de cada um (ativo + local próprio)
@@ -865,6 +867,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                 // Pessoas e motoristas: avatar REDONDO, com a borda e o anel do perfil (MapAvatarMarker); lojas, produtos e serviços ficam quadrados
                 const asAvatar = !!(item.isPerson || item.isDriver)
+                // loja com NÍVEL: um anel na cor do nível por fora da borda de aberta/fechada (a borda segue dizendo se está aberta)
+                const lvl = mode === 'lojas' && !asAvatar ? levelOf(cachedStoreLevels(), item.store_level) : null
+                const lvlRing = lvl && lvl.level > 0 && lvl.colors.length > 0 ? `0 0 0 3px ${lvl.colors[0]}, ` : ''
+                const baseShadow = `${lvlRing}${rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'}`
                 inner.style.cssText = asAvatar ? `
                     width: ${boxSize}px;
                     height: ${boxSize}px;
@@ -880,7 +886,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     cursor: pointer;
                     background: white;
                     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                    box-shadow: ${rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'};
+                    box-shadow: ${baseShadow};
                 `
 
                 inner.onmouseenter = () => {
@@ -891,7 +897,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                 inner.onmouseleave = () => {
                     inner.style.transform = asAvatar ? 'scale(1)' : 'scale(1) rotate(0deg)'
-                    if (!asAvatar) inner.style.boxShadow = rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'
+                    if (!asAvatar) inner.style.boxShadow = baseShadow
                     el.style.zIndex = baseZ
                 }
 

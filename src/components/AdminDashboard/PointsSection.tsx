@@ -15,6 +15,7 @@ import type { ThemeColors } from '@/app/contexts/theme'
 import { AREA_INFO, POINTS_AREAS, type PointsArea } from '@/modules/points'
 import RulesPanel from './points/RulesPanel'
 import SignalsPanel from './points/SignalsPanel'
+import StoreLevelsPanel from './points/StoreLevelsPanel'
 import TotalPanel from './points/TotalPanel'
 import type { Overview } from './points/shared'
 
@@ -54,6 +55,7 @@ export default function PointsSection({ cardStyle, colors }: { cardStyle: React.
 
             {tab === 'pessoa' && <RulesPanel events={data.events} rules={data.rules} ranking={data.ranking} {...panelProps} />}
             {tab !== 'pessoa' && tab !== 'total' && <SignalsPanel key={tab} kind={tab} signals={data.signals} {...panelProps} />}
+            {tab === 'lojas' && <StoreLevelsPanel {...panelProps} />}
             {tab === 'total' && data.settings && <TotalPanel key={data.settings.refreshed_at || 'x'} settings={data.settings} {...panelProps} />}
         </div>
     )

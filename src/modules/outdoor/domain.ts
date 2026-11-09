@@ -16,6 +16,8 @@ export interface OutdoorItem {
     points: number
     /** colocação (1 = primeiro) */
     rank: number
+    /** nível da loja (só no Outdoor de lojas; 0 = sem moldura) */
+    level: number
 }
 
 export interface OutdoorKindInfo {
@@ -49,6 +51,7 @@ export function outdoorFromRow(r: Record<string, any> | null | undefined): Outdo
     return {
         id: String(r.id), slug: String(r.slug), ownerSlug: r.owner_slug ? String(r.owner_slug) : null, name: String(r.name),
         image: r.image ? String(r.image) : null, points: Math.max(0, Math.round(Number(r.points) || 0)), rank: Math.max(1, Math.round(Number(r.rank) || 0)),
+        level: Math.max(0, Math.round(Number(r.level) || 0)),
     }
 }
 

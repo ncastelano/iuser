@@ -8,6 +8,7 @@
 import { useState, type ReactNode } from 'react'
 import LinkLinesV3, { type LinkLine } from './LinkLinesV3'
 import type { StoreLink } from '@/lib/storeLinks'
+import StoreFrame from '@/components/store/StoreFrame'
 import {
     ArrowLeft, ShoppingBag, Calendar, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users,
 } from 'lucide-react'
@@ -18,6 +19,8 @@ export interface StoreHeaderV3Props {
     colors: any
     name: string
     imageUrl: string | null
+    /** nível da loja (`stores.store_level`): a moldura do nível vai por fora do anel de aberta/fechada */
+    level?: number
     description?: string | null
     isOpen: boolean
     statusText: string
@@ -84,9 +87,11 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                             <ArrowLeft size={20} />
                         </button>
                     )}
+                    <StoreFrame level={p.level} size={46} innerRadius={16} ring={3} bg={colors.background} className="flex-shrink-0">
                     <div className="flex-shrink-0 w-[46px] h-[46px] rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: colors.surface, outline: `2px solid ${statusColor}`, outlineOffset: 1 }}>
                         {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-xl font-black" style={{ color: ORANGE }}>{initial}</span>}
                     </div>
+                    </StoreFrame>
                     <div className="min-w-0 flex-1">
                         <h2 className="text-[17px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{p.name}</h2>
                         <button

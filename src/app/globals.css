@@ -393,3 +393,8 @@ html[data-iuser-theme="escuro-cinza"] [class*="text-orange-"]:not([data-keep-col
 }
 
 /* OUTDOOR: os logos ficam parados (a animação de subir e descer foi retirada por decisão do dono) */
+
+/* Moldura de nível da loja (components/store/StoreFrame): a chama do nível mais alto gira devagar atrás do logo */
+@keyframes storeFrameSpin {
+  to { transform: rotate(360deg); }
+}

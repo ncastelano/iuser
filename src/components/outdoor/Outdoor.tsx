@@ -12,6 +12,7 @@ import { Crown, Info, X } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { signedPoints } from '@/modules/points'
 import { loadOutdoor, loadOutdoorRules, outdoorImageUrl, OUTDOOR_INFO, outdoorHref, medalOf, pointsLabel, type OutdoorItem, type OutdoorKind, type Medal } from '@/modules/outdoor'
+import StoreFrame from '@/components/store/StoreFrame'
 
 const MEDAL: Record<Medal, { ring: string; glow: string; text: string }> = {
     gold:   { ring: '#facc15', glow: 'rgba(250,204,21,0.65)',  text: '#713f12' },
@@ -23,6 +24,17 @@ function Logo({ kind, item, size, medal, index }: { kind: OutdoorKind; item: Out
     const info = OUTDOOR_INFO[kind]
     const url = outdoorImageUrl(kind, item.image)
     const radius = info.shape === 'circle' ? '9999px' : `${Math.round(size * 0.26)}px`
+    // loja com NÍVEL: a moldura do nível no lugar da borda branca/medalha (a colocação já aparece no selo "1º" e na coroa)
+    if (kind === 'lojas' && item.level > 0) {
+        return (
+            <StoreFrame level={item.level} size={size} bg="#ffffff" className="flex-shrink-0">
+                <span className="relative block overflow-hidden" style={{ width: size, height: size, background: '#fff' }}>
+                    <span className="absolute inset-0 flex items-center justify-center font-black text-orange-500" style={{ fontSize: size * 0.4, background: 'linear-gradient(135deg,#ffedd5,#fee2e2)' }}>{item.name.replace('@', '').charAt(0).toUpperCase()}</span>
+                    {url && <img src={url} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />}
+                </span>
+            </StoreFrame>
+        )
+    }
     return (
         <span
             className="relative block flex-shrink-0 overflow-hidden"

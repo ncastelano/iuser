@@ -60,6 +60,7 @@ import { sanitizeStoreLinks, type StoreLink } from '@/lib/storeLinks'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
+import StoreFrame from '@/components/store/StoreFrame'
 
 interface StoreProps {
     ownerSlug: string
@@ -90,6 +91,8 @@ interface OwnerData {
     x?: string | null
     links?: StoreLink[]
     store_model?: StoreModel
+    /** nível da loja (moldura do logo; 0 = sem) */
+    store_level?: number
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -587,6 +590,7 @@ export function Store({
                 x: store.x,
                 links: sanitizeStoreLinks(store.links),
                 store_model: parseStoreModel(store.store_model),
+                store_level: Number(store.store_level) || 0,
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -1004,6 +1008,7 @@ export function Store({
                     colors={colors}
                     name={owner.name}
                     imageUrl={imageUrl}
+                    level={owner.store_level || 0}
                     description={owner.description}
                     isOpen={isStoreOpen}
                     statusText={statusText}
@@ -1075,6 +1080,7 @@ export function Store({
 
                 <div className="flex items-center gap-4">
                     <div className="flex-shrink-0">
+                        <StoreFrame level={owner.store_level || 0} size={80} innerRadius={16} ring={4} bg={colors.background}>
                         <div
                             className={`w-20 h-20 rounded-2xl p-[4px] ${isStoreOpen ? 'animate-pulse-glow-open' : 'animate-pulse-glow-closed'}`}
                             style={{
@@ -1093,6 +1099,7 @@ export function Store({
                                 )}
                             </div>
                         </div>
+                        </StoreFrame>
                     </div>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-black tracking-tight" style={{ color: colors.textPrimary }}>{owner.name}</h2>

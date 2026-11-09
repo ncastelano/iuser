@@ -8,7 +8,9 @@ test('linha do banco → item; sem id, nome ou slug é descartada', () => {
     assert.equal(outdoorFromRow({ id: 'a', name: 'Loja' }), null)
     assert.equal(outdoorFromRow({ slug: 'x', name: 'Loja' }), null)
     const i = outdoorFromRow({ id: 'a', slug: 'loja', name: 'Loja', image: 'l.png', points: '12.4', rank: 2 })
-    assert.deepEqual(i, { id: 'a', slug: 'loja', ownerSlug: null, name: 'Loja', image: 'l.png', points: 12, rank: 2 })
+    assert.deepEqual(i, { id: 'a', slug: 'loja', ownerSlug: null, name: 'Loja', image: 'l.png', points: 12, rank: 2, level: 0 })
+    assert.equal(outdoorFromRow({ id: 'a', slug: 's', name: 'N', level: 3 }).level, 3)      // o nível da loja (moldura) vem junto no Outdoor de lojas
+    assert.equal(outdoorFromRow({ id: 'a', slug: 's', name: 'N', level: -1 }).level, 0)
     assert.equal(outdoorFromRow({ id: 'a', slug: 's', name: 'N', points: -5, rank: 0 }).points, 0)
     assert.equal(outdoorFromRow({ id: 'a', slug: 's', name: 'N', rank: 0 }).rank, 1)
 })

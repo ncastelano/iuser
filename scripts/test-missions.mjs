@@ -1,7 +1,7 @@
 // Testes das regras puras das missões da loja (src/modules/missions/domain.ts). Rodar: npm run test:missions
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { missionsFromRow, splitMissions, todayRatio, outdoorLine, streakLabel, missionPath } from '../src/modules/missions/domain.ts'
+import { missionsFromRow, splitMissions, todayRatio, outdoorLine, streakLabel, missionPath, levelLine } from '../src/modules/missions/domain.ts'
 
 const row = {
     missions: [
@@ -52,4 +52,15 @@ test('linha do Outdoor: pontos das missões e posição; desligado diz isso', ()
 test('sequência e destino', () => {
     assert.equal(streakLabel(0), 'sem sequência ainda'); assert.equal(streakLabel(1), '1 dia seguido'); assert.equal(streakLabel(4), '4 dias seguidos')
     assert.equal(missionPath('pizzaria forno', 'dados'), '/editar-loja/pizzaria%20forno')
+})
+test('nível da loja: lido da resposta; frase com o que falta; some desligado ou sem dado', () => {
+    assert.equal(missionsFromRow(row).level, null)       // banco sem a migration dos níveis: sem bloco level
+    const m = missionsFromRow({ ...row, level: { enabled: true, level: 3, name: 'Estrela', next_name: 'Lenda', next_min: 4000, points: 1700 } })
+    assert.deepEqual(m.level, { enabled: true, level: 3, name: 'Estrela', nextName: 'Lenda', nextMin: 4000, points: 1700 })
+    assert.equal(levelLine(m.level), 'Nível 3 · Estrela · faltam 2.300 pontos para Lenda')
+    assert.equal(levelLine({ ...m.level, points: 3999 }), 'Nível 3 · Estrela · faltam 1 ponto para Lenda')
+    assert.equal(levelLine({ ...m.level, points: 4100 }), 'Nível 3 · Estrela · subindo para Lenda')
+    assert.equal(levelLine({ ...m.level, nextName: null }), 'Nível 3 · Estrela · nível máximo')
+    assert.equal(levelLine({ ...m.level, enabled: false }), null)
+    assert.equal(levelLine(null), null)
 })

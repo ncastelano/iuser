@@ -23,6 +23,16 @@ export interface MissionsOutdoor {
     stores: number
 }
 
+/** O nível da loja (a moldura do logo): vem do banco junto com as missões */
+export interface MissionsLevel {
+    enabled: boolean
+    level: number
+    name: string | null
+    nextName: string | null
+    nextMin: number
+    points: number
+}
+
 export interface StoreMissions {
     missions: Mission[]
     todayPoints: number
@@ -30,6 +40,8 @@ export interface StoreMissions {
     weekPoints: number
     streakDays: number
     outdoor: MissionsOutdoor
+    /** `null` quando a resposta não traz nível (banco sem a migration dos níveis) */
+    level: MissionsLevel | null
 }
 
 const int = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0 }
@@ -61,6 +73,9 @@ export function missionsFromRow(row: unknown): StoreMissions | null {
             rank: Math.max(1, int(r.outdoor.rank)),
             stores: int(r.outdoor.stores),
         },
+        level: r.level && typeof r.level === 'object'
+            ? { enabled: r.level.enabled === true, level: int(r.level.level), name: typeof r.level.name === 'string' ? r.level.name : null, nextName: typeof r.level.next_name === 'string' ? r.level.next_name : null, nextMin: int(r.level.next_min), points: int(r.level.points) }
+            : null,
     }
 }
 
@@ -95,4 +110,14 @@ export function streakLabel(days: number): string {
 export function missionPath(storeSlug: string, dest: string | null): string {
     void dest
     return `/editar-loja/${encodeURIComponent(storeSlug)}`
+}
+
+/** "Nível 3 · Estrela · faltam 2.300 pontos para Lenda" (`null` = nível desligado ou sem informação: a tela não mostra a linha) */
+export function levelLine(l: MissionsLevel | null): string | null {
+    if (!l || !l.enabled || !l.name) return null
+    const base = `Nível ${l.level} · ${l.name}`
+    if (!l.nextName) return `${base} · nível máximo`
+    const falta = Math.max(0, l.nextMin - l.points)
+    if (falta === 0) return `${base} · subindo para ${l.nextName}`       // já tem os pontos; o nível sobe na próxima rodada (até 5 min)
+    return `${base} · faltam ${falta.toLocaleString('pt-BR')} ${falta === 1 ? 'ponto' : 'pontos'} para ${l.nextName}`
 }

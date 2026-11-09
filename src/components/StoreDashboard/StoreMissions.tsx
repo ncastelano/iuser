@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight, Flame, Trophy } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
-import { loadStoreMissions, missionPath, outdoorLine, splitMissions, streakLabel, todayRatio, type StoreMissions as Data } from '@/modules/missions'
+import { levelLine, loadStoreMissions, missionPath, outdoorLine, splitMissions, streakLabel, todayRatio, type StoreMissions as Data } from '@/modules/missions'
 
 const ORANGE = '#f97316', GREEN = '#22c55e', AMBER = '#f59e0b'
 const REFRESH_MS = 60_000
@@ -49,6 +49,7 @@ export default function StoreMissions({ storeId, storeSlug }: { storeId: string;
                 <span className="h-7 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1" style={{ background: '#eab30826', color: '#a16207' }}><Flame size={12} />{streakLabel(data.streakDays)}</span>
             </div>
             <p className="text-[11.5px] font-semibold mt-2" style={{ color: colors.textSecondary }}>{outdoorLine(data.outdoor)}</p>
+            {levelLine(data.level) && <p className="text-[11.5px] font-black mt-1" style={{ color: ORANGE }}>{levelLine(data.level)}</p>}
 
             {daily.length > 0 && (
                 <>
