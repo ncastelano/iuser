@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import CallIuserDriverDialog from './CallIuserDriverDialog'
+import { etaMinutes, haversineKm } from '@/modules/deliveries'
 import { OrderModal } from '@/components/OrderModal'
 import { fetchOptimizedRoute } from '@/lib/mapboxRoute'
 import { ensureEmployeeAccessToken, buildCourierRouteMessage } from '@/lib/courierLink'
@@ -52,14 +53,6 @@ function v2StateOf(phase: string): string {
     return 'searching'
 }
 /** Texto do entregador de um pedido (o que a loja precisa saber de relance): confirmado quem é, onde está, ou que ainda busca */
-/** distância em linha reta entre dois pontos (km) */
-function kmBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-    const R = 6371, r = (x: number) => (x * Math.PI) / 180
-    const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng)
-    const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2
-    return 2 * R * Math.asin(Math.sqrt(h))
-}
-
 function driverText(info: { stage?: string; driver?: string | null; freight: number; radius: number; v2State?: string | null; frozen?: number | null; etaMin?: number | null } | undefined, accepted: boolean): string {
     if (info?.v2State) return storeV2Text(info as { freight: number; radius: number; v2State?: string | null; frozen?: number | null })
     if (accepted) {
@@ -237,10 +230,10 @@ export default function StoreOrders({
                         // minutos até a loja: linha reta × 1,3 (ruas) a ~30 km/h; sem posição recente (3 min) não chuta
                         const l = posOf.get(x.driver_id as string)
                         const fresh = l?.live_lat != null && l?.live_lng != null && l?.live_updated_at && Date.now() - new Date(l.live_updated_at as string).getTime() < 3 * 60_000
-                        const km = fresh && x.origin_lat != null && x.origin_lng != null
-                            ? kmBetween({ lat: Number(l!.live_lat), lng: Number(l!.live_lng) }, { lat: Number(x.origin_lat), lng: Number(x.origin_lng) }) * 1.3
+                        const eta = fresh && x.origin_lat != null && x.origin_lng != null
+                            ? etaMinutes(haversineKm({ lat: Number(l!.live_lat), lng: Number(l!.live_lng) }, { lat: Number(x.origin_lat), lng: Number(x.origin_lng) }))
                             : null
-                        next.set(oid, { ...cur, driver: nameOf.get(x.driver_id as string) || null, etaMin: km != null ? Math.max(1, Math.ceil((km / 30) * 60)) : null })
+                        next.set(oid, { ...cur, driver: nameOf.get(x.driver_id as string) || null, etaMin: eta })
                     }
                     setDispatchInfo(next)
                 })
