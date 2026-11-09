@@ -58,6 +58,7 @@ export default function PainelLab() {
     const [notas, setNotas] = useState(true)
     const [versao, setVersao] = useState<'nova' | 'atual'>('nova')
     const [aberta, setAberta] = useState(true)
+    const FLIP_MS = 1500                                                            // quanto dura a descida do cartão
     const flip = useRef<Map<string, DOMRect> | null>(null)                          // posições ANTES da mudança (FLIP: o que mudou de lugar desliza do antigo ao novo)
     const [chegou, setChegou] = useState<{ id: number; k: number } | null>(null)     // pedido que acabou de chegar na etapa nova
     const [bump, setBump] = useState<{ fase: Fase; k: number } | null>(null)         // contador que deve dar o pulo
@@ -126,6 +127,25 @@ export default function PainelLab() {
         return a
     }, [novosProd, svcNovos, calmo, nova, temProdutos])
 
+    /** a CÂMERA: enquanto o cartão voa, a página rola junto para ele ficar sempre no mesmo ponto da tela (o dedo/roda do mouse interrompe) */
+    function seguir(el: HTMLElement, topoInicial: number) {
+        let sp: HTMLElement | null = el.parentElement
+        while (sp && !(/(auto|scroll)/.test(getComputedStyle(sp).overflowY) && sp.scrollHeight > sp.clientHeight)) sp = sp.parentElement
+        const alvo = Math.min(Math.max(topoInicial, 150), window.innerHeight - 280)
+        let parou = false
+        const para = () => { parou = true }
+        window.addEventListener('wheel', para, { once: true, passive: true })
+        window.addEventListener('touchstart', para, { once: true, passive: true })
+        const t0 = performance.now()
+        const passo = () => {
+            if (parou || performance.now() - t0 > FLIP_MS + 150) return
+            const k = Math.min(1, (performance.now() - t0) / 600)                      // a câmera ENTRA suave: do ponto onde o cartão estava até o ponto de seguir
+            const d = el.getBoundingClientRect().top - (topoInicial + (alvo - topoInicial) * k)
+            if (Math.abs(d) > 0.5) { if (sp) sp.scrollTop += d; else window.scrollBy(0, d) }
+            requestAnimationFrame(passo)
+        }
+        requestAnimationFrame(passo)
+    }
     /** fotografa a posição de tudo que pode mudar de lugar; depois da mudança, `useLayoutEffect` anima do antigo ao novo */
     function medir() {
         const m = new Map<string, DOMRect>()
@@ -141,8 +161,8 @@ export default function PainelLab() {
         medir()
         setPedidos((ps) => { const mv = ps.find((x) => x.id === id); return mv ? [{ ...mv, fase: prox }, ...ps.filter((x) => x.id !== id)] : ps })   // vai para o TOPO da etapa nova
         setChegou({ id, k: Date.now() })
-        setTimeout(() => setBump({ fase: prox, k: Date.now() }), 520)      // o número da etapa nova dá o pulo quando o cartão chega
-        setTimeout(() => setChegou((c) => (c && c.id === id ? null : c)), 1900)
+        setTimeout(() => setBump({ fase: prox, k: Date.now() }), 1500)      // o número da etapa nova dá o pulo quando o cartão chega
+        setTimeout(() => setChegou((c) => (c && c.id === id ? null : c)), 3300)
     }
     function recusar(id: number) { medir(); setPedidos((ps) => ps.filter((p) => p.id !== id)) }
     useLayoutEffect(() => {
@@ -161,7 +181,8 @@ export default function PainelLab() {
             el.animate(voando
                 ? [{ transform: `translate(${dx}px,${dy}px) scale(1.04)`, boxShadow: '0 16px 36px rgba(0,0,0,.3)', zIndex: 30 }, { transform: 'translate(0,0) scale(1.04)', boxShadow: '0 16px 36px rgba(0,0,0,.3)', zIndex: 30, offset: 0.85 }, { transform: 'none', boxShadow: '0 0 0 rgba(0,0,0,0)', zIndex: 30 }]
                 : [{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'none' }],
-            { duration: voando ? 640 : 520, easing: 'cubic-bezier(.22,.9,.28,1)' })
+            { duration: voando ? FLIP_MS : 1200, easing: 'cubic-bezier(.45,0,.2,1)' })
+            if (voando) seguir(el, o.top)
         })
     }, [pedidos]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -301,7 +322,7 @@ export default function PainelLab() {
                                         {todos.length > 0 && (
                                             <div className="space-y-2">
                                                 {todos.slice(0, 2).map((p) => (
-                                                    <div key={p.id} data-flip={`p${p.id}`} className="lab-anim relative rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2 overflow-hidden" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${cor}`, ['--lab-cor' as string]: `${cor}66`, animation: chegou?.id === p.id ? 'labBrilho 1.5s ease-out .5s' : undefined }}>
+                                                    <div key={p.id} data-flip={`p${p.id}`} className="lab-anim relative rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2 overflow-hidden" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${cor}`, ['--lab-cor' as string]: `${cor}66`, animation: chegou?.id === p.id ? 'labBrilho 1.5s ease-out 1.5s backwards' : undefined }}>
                                                         <div className="min-w-0 flex-1">
                                                             <p className="text-[13px] font-black leading-tight truncate">{p.quem} <span className="font-semibold" style={{ color: colors.textSecondary }}>· {p.hora}</span></p>
                                                             <p className="text-[12px] leading-tight truncate mt-0.5">{p.item}{p.mais ? ` +${p.mais}` : ''}</p>
