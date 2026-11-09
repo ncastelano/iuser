@@ -145,7 +145,7 @@ def theater_drivers_sql():
 
 # ---------------------------------------------------------------- ações das pessoas
 def act_buy(p):
-    s = R.choice(POOL.stores)
+    s = R.choice([x for x in POOL.stores if x['owner_id'] not in MANUAL_OWNERS] or POOL.stores)   # a loja atendida À MÃO (pizzaria do admin) só recebe os pedidos do simulador dela
     goods = [g for g in POOL.goods if g['store_id'] == s['id']]
     if not goods:
         return 'sem produtos'

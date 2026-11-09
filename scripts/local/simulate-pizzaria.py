@@ -110,6 +110,13 @@ def load():
         log('(sem motoboys cadastrados: rode  node scripts/local/seed-motoboys.mjs  — entregas vão direto de pronto para entregue)')
 
 
+def keep_drivers_online():
+    """Os entregadores iUser simulados ficam À DISPOSIÇÃO o tempo todo: modo motorista ligado e localização ao vivo sempre recente (a posição vale 10 min nos apps)."""
+    ids = ','.join(esc(d['id']) + '::uuid' for d in IUSER_DRIVERS if not is_manual(d))
+    if ids:
+        psql(['-c', f"update driver_pricing set driver_mode_active = true, live_location_sync = true, live_updated_at = now() where driver_id in ({ids})"])
+
+
 def free_driver_slots():
     """Vagas livres nas mochilas dos entregadores iUser simulados: capacidade de cada um menos as entregas já aceitas e as que ainda procuram motorista (retidas)."""
     cap = sum(int(d['cap']) for d in IUSER_DRIVERS if not is_manual(d))
@@ -140,11 +147,11 @@ def make_order(c=None, force_delivery=False):
         chosen = R.sample(ids, min(len(ids), R.choice([0, 0, 1, 1, 2, 3]))) if ids else []
         items.append({'product_id': g['id'], 'quantity': R.choice([1, 1, 1, 2]) if g['category'] == 'Refrigerantes e bebidas' else 1,
                       'comment': R.choice(COMMENTS) if g['has_addons'] else None, 'addons': [{'id': a} for a in chosen]})
-    deliver = force_delivery or R.random() < 0.65
-    # ENTREGADOR PRIMEIRO, LOJA DEPOIS: um pedido de entrega só chega à loja depois que um motorista aceita. O simulador só pede entrega quando HÁ entregador livre na mochila
-    # (senão o pedido ficaria retido e expiraria sem a loja ver nada); sem vaga, o cliente pede para retirar.
-    if deliver and CFG['mode'] == 'iuser' and free_driver_slots() <= 0:
-        deliver = False
+    # SÓ PEDIDO DE ENTREGA, e só quando há entregador livre: um pedido de entrega só chega à loja depois que um motorista iUser aceita (ENTREGADOR PRIMEIRO, LOJA DEPOIS);
+    # sem vaga na mochila de nenhum motorista o cliente simulado não pede (nada de retirada: a loja só vê pedido que já tem entregador a caminho).
+    deliver = True
+    if CFG['mode'] == 'iuser' and free_driver_slots() <= 0:
+        return
     pay = R.choice(['pix', 'pix', 'cartao', 'cartao', 'dinheiro'])
     street, lat, lng = R.choice(STREETS)
     lat, lng = lat + R.uniform(-0.006, 0.006), lng + R.uniform(-0.006, 0.006)   # cada casa num ponto (os pedidos prontos formam grupos perto e longe)
@@ -955,6 +962,7 @@ def main():
     loop(a.appts_every, make_appointment, stop)
     loop(a.featured_every, featured_order, stop)
     if CFG['mode'] == 'iuser':
+        loop(45, keep_drivers_online, stop)
         threading.Thread(target=mover_thread, args=(stop,), daemon=True).start()   # os motoristas andam pelas ruas, uma posição por segundo
     if a.stage:
         log('TEATRO ligado: os motoristas, a Gabriela e o dono agem pelas telas (/tres-telas); o simulador cuida do resto da cidade.')
