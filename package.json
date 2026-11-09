@@ -51,6 +51,7 @@
     "test:points": "node --test scripts/test-points.mjs",
     "test:missions": "node --test scripts/test-missions.mjs",
     "test:store-levels": "node --test scripts/test-store-levels.mjs",
+    "test:postpaid-limit": "node --test scripts/test-postpaid-limit.mjs",
     "test:scroll-lock": "node --test scripts/test-body-scroll-lock.mjs",
     "test:search": "node --test scripts/test-search.mjs",
     "test:negotiation": "node --test scripts/test-negotiation.mjs",

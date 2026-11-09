@@ -10,18 +10,19 @@ import {
     Banknote, Check, Eye, ShoppingBag, Share2, Radio, UserPlus, Zap, ChevronRight, ClipboardList, Clock, CreditCard, GraduationCap, Heart, MessageCircle, Search, Send, Star, Store, Bike, Wallet, X, Gavel, ShieldCheck, Key,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
-import { C, FASES, ORANGE, PEDIDOS, brl, type Fase, type Pedido } from './dados'
+import { C, FASES, ORANGE, PEDIDOS, brl, cobrancasPos, LIMITE_POS, TAXA_POS, type Estado, type Fase, type Pedido, type Plano } from './dados'
 import { PaginaCasca, Switch, Vazio, useAviso } from './labui'
 import { AcumuloTaxa, AtivarFolha, CartaoAuto, ClienteVe, type AutoEstado } from './PixAuto'
 import Conteudos, { CONTEUDOS, TIPOS, type EvBase, type Tipo } from './AgoraConteudos'
 
-interface Props { k: string; onClose: () => void; onIr: (k: string) => void; auto: AutoEstado; setAuto: (a: AutoEstado) => void }
+interface Props { k: string; onClose: () => void; onIr: (k: string) => void; auto: AutoEstado; setAuto: (a: AutoEstado) => void; plano: Plano; setPlano: (p: Plano) => void; estado: Estado }
 
-export default function Pagina({ k, onClose, onIr, auto, setAuto }: Props) {
+export default function Pagina({ k, onClose, onIr, auto, setAuto, plano, setPlano, estado }: Props) {
     switch (k) {
         case 'pedidos': return <Pedidos onClose={onClose} onIr={onIr} />
         case 'repasses': return <Repasses onClose={onClose} />
-        case 'digital': return <Digital onClose={onClose} onIr={onIr} auto={auto} setAuto={setAuto} />
+        case 'digital': return <Digital onClose={onClose} onIr={onIr} auto={auto} setAuto={setAuto} plano={plano} estado={estado} />
+        case 'plano': return <PlanoPag onClose={onClose} plano={plano} setPlano={setPlano} estado={estado} />
         case 'apoios': return <Apoios onClose={onClose} />
         case 'conversas': return <Conversas onClose={onClose} />
         case 'agora': return <Agora onClose={onClose} onIr={onIr} />
@@ -169,7 +170,7 @@ function Repasses({ onClose }: { onClose: () => void }) {
 }
 
 // ===== DIGITAL (liberar acessos) =====
-function Digital({ onClose, onIr, auto, setAuto }: { onClose: () => void; onIr: (k: string) => void; auto: AutoEstado; setAuto: (a: AutoEstado) => void }) {
+function Digital({ onClose, onIr, auto, setAuto, plano, estado }: { onClose: () => void; onIr: (k: string) => void; auto: AutoEstado; setAuto: (a: AutoEstado) => void; plano: Plano; estado: Estado }) {
     const { colors, card } = useCard()
     const [ativando, setAtivando] = useState(false)
     const [cliente, setCliente] = useState(false)
@@ -189,7 +190,7 @@ function Digital({ onClose, onIr, auto, setAuto }: { onClose: () => void; onIr: 
             {cliente && <ClienteVe c={colors} onClose={() => setCliente(false)} />}
 
             {auto === 'ativo' ? (<>
-                <div className="mt-3"><AcumuloTaxa c={colors} /></div>
+                <div className="mt-3"><AcumuloTaxa c={colors} plano={plano} estado={estado} onPlano={() => onIr('plano')} /></div>
                 <Titulo>Liberados sozinhos hoje</Titulo>
                 <div className="rounded-3xl overflow-hidden" style={card}>
                     {[['@ana-barbosa', 'Curso Pizza Napolitana', '10:32', 'em 3 s'], ['@joao-martins', 'Álbum “Noite no Forno”', '10:48', 'em 2 s'], ['@carol-lima', 'Curso Pizza Napolitana', '09:12', 'em 4 s'], ['@heitor-martins', 'E-book “Massa perfeita”', '08:40', 'em 3 s'], ['@lucas-ferreira', 'Receitas de molho (PDF)', '02:17', 'de madrugada, em 3 s']].map(([q, pr, h, t], i) => (
@@ -465,6 +466,53 @@ function Agora({ onClose, onIr }: { onClose: () => void; onIr: (k: string) => vo
             </>)}
             <p className="text-[11.5px] leading-snug mt-3" style={{ color: colors.textSecondary }}>Quem não está logado aparece como “Visitante”. Só mostramos o @ de quem está logado, e a cidade é a do perfil público (nunca o endereço).</p>
             {pizza && <button onClick={() => onIr('pedidos')} className="w-full mt-3 h-11 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ background: `${colors.border}40` }}>Ver os pedidos<ChevronRight size={14} /></button>}
+        </PaginaCasca>
+    )
+}
+
+
+// ===== SEU PLANO (Pré-pago × Pós-pago e o que está sendo cobrado) =====
+function PlanoPag({ onClose, plano, setPlano, estado }: { onClose: () => void; plano: Plano; setPlano: (p: Plano) => void; estado: Estado }) {
+    const { colors, card } = useCard()
+    const { mostrar, node } = useAviso()
+    const { itens, total } = cobrancasPos(estado)
+    const pct = Math.min(100, (total / LIMITE_POS) * 100)
+    const pos = plano === 'pos'
+    return (
+        <PaginaCasca titulo="Seu plano" sub={pos ? 'Pós-pago · você paga só pelo que usa' : 'Pré-pago · mensalidade fixa'} cor="#f97316" icone={<Wallet size={18} />} onClose={onClose}>
+            {node}
+            <div className="flex p-1 rounded-full mb-3" style={{ background: `${colors.border}45` }}>
+                {([['pos', 'Pós-pago'], ['pre', 'Pré-pago']] as const).map(([k, l]) => <button key={k} onClick={() => setPlano(k)} className="flex-1 h-9 rounded-full text-[12.5px] font-black" style={plano === k ? { background: colors.background, boxShadow: '0 1px 4px rgba(0,0,0,.12)' } : { color: colors.textSecondary }}>{l}</button>)}
+            </div>
+            {pos ? (<>
+                <div className="rounded-3xl p-4" style={card}>
+                    <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Acumulado para pagar</p>
+                    <p className="text-[30px] font-black leading-none mt-1">{brl(total)}</p>
+                    <span className="block h-2.5 rounded-full overflow-hidden mt-3" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 100 ? '#ef4444' : 'linear-gradient(90deg,#f97316,#dc2626)' }} /></span>
+                    <p className="text-[12px] mt-2" style={{ color: colors.textSecondary }}>{total >= LIMITE_POS ? `Você chegou ao limite de ${brl(LIMITE_POS)}: quite para continuar.` : `Faltam ${brl(LIMITE_POS - total)} para o limite de ${brl(LIMITE_POS)}.`}</p>
+                    <button onClick={() => mostrar('Abriria o Pix para quitar ' + brl(total))} disabled={total === 0} className="w-full mt-3 h-11 rounded-full text-[13.5px] font-black text-white disabled:opacity-40 active:scale-95" style={{ background: '#f97316' }}>Quitar agora · {brl(total)}</button>
+                </div>
+                <Titulo>O que foi cobrado</Titulo>
+                <div className="rounded-3xl overflow-hidden" style={card}>
+                    {total === 0 && <p className="text-[12.5px] text-center py-5" style={{ color: colors.textSecondary }}>Nada cobrado ainda. A taxa só existe quando você usa.</p>}
+                    {itens.filter((i) => i.n > 0).map((i, n) => (
+                        <div key={i.l} className="flex items-center gap-3 px-3.5 py-2.5 text-[12.5px]" style={{ borderTop: n ? `1px solid ${colors.border}` : undefined }}>
+                            <span className="flex-1 min-w-0"><b>{i.l}</b><span className="block text-[11px]" style={{ color: colors.textSecondary }}>{i.n} × {brl(TAXA_POS)}</span></span>
+                            <span className="font-black">{brl(i.v)}</span>
+                        </div>
+                    ))}
+                    {total > 0 && <div className="flex items-center px-3.5 py-3 text-[13px] font-black" style={{ borderTop: `1px solid ${colors.border}`, background: `${colors.border}30` }}><span className="flex-1">Total</span><span>{brl(total)}</span></div>}
+                </div>
+                <p className="text-[11.5px] leading-snug mt-3" style={{ color: colors.textSecondary }}>Cada ação que usa o iUser soma R$ 0,50 à conta. Nada sai do valor das suas vendas: você paga tudo junto quando quiser, ou ao chegar em {brl(LIMITE_POS)}. Sem mensalidade.</p>
+            </>) : (<>
+                <div className="rounded-3xl p-4" style={card}>
+                    <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Mensalidade</p>
+                    <p className="text-[30px] font-black leading-none mt-1">R$ 100<span className="text-[14px] font-bold">/mês</span></p>
+                    <p className="text-[12.5px] mt-2">Ativo até <b>28 de novembro</b> · renova sozinho</p>
+                    <div className="flex gap-2 mt-3"><button onClick={() => mostrar('Plano renovado (exemplo)')} className="flex-1 h-11 rounded-full text-[13px] font-black text-white active:scale-95" style={{ background: '#f97316' }}>Renovar agora</button></div>
+                </div>
+                <div className="rounded-3xl p-3.5 mt-3 text-[12.5px] leading-snug" style={card}><b>Sem taxa por venda.</b> No Pré-pago o iUser não cobra nada pelas ações do dia a dia (pedidos, agendamentos, vendas digitais, publicações): é só a mensalidade.</div>
+            </>)}
         </PaginaCasca>
     )
 }

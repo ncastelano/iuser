@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
 import FreeTrialGift from '@/components/FreeTrialGift'
+import { POSTPAID_DEBT_LIMIT } from '@/lib/postpaid'
 
 interface ActivePlanBadge {
     name: string
@@ -20,7 +21,7 @@ interface ActivePlanBadge {
 }
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-const POSTPAID_LIMIT = 50
+const POSTPAID_LIMIT = POSTPAID_DEBT_LIMIT
 const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
 
 function daysLeft(iso: string | null): number | null {

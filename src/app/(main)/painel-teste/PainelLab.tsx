@@ -22,7 +22,7 @@ import Compartilhar from './Compartilhar'
 import LogoFolha, { LogoBtn } from './LogoFolha'
 
 import GraficoVendas from './GraficoVendas'
-import { ORANGE, C, brl, PEDIDOS, FINALIZADOS_HOJE, FASES, type Estado, type Modelo, type Fase, type Pedido } from './dados'
+import { ORANGE, C, brl, PEDIDOS, FINALIZADOS_HOJE, FASES, cobrancasPos, LIMITE_POS, TAXA_POS, type Plano, type Estado, type Modelo, type Fase, type Pedido } from './dados'
 
 const NOTAS: Record<string, { porque: string; era: string }> = {
     cabecalho: { porque: 'Quem tem loja abre o painel para saber “estou aberta? o que preciso fazer?”. Abrir/fechar a loja vira um toque, aqui em cima.', era: 'Estava em Editar loja → Horários; o painel só mostrava os 3 atalhos.' },
@@ -33,6 +33,7 @@ const NOTAS: Record<string, { porque: string; era: string }> = {
     caixa: { porque: 'Dinheiro das entregas e vendas, num cartão só: o que está para conferir e quanto entrou. O que precisa de ação sobe para “Precisa de você”.', era: '“Caixa das entregas” + “Vendas” + “Apoios recebidos”, separados.' },
     digital: { porque: 'Quatro números e a linha do Clube. Sem nada de digital, vira um convite pequeno em vez de um cartão vazio.', era: 'Cartão “Digital” grande (com Apoios dentro).' },
     reputacao: { porque: 'A nota e o último comentário. A distribuição por estrelas e os 120 comentários ficam um toque adiante.', era: '“Avaliações e comentários”: a lista inteira aberta no painel (era ~900 px).' },
+    plano: { porque: 'A loja precisa saber em que plano está e, no Pós-pago, o que está sendo cobrado: quanto já acumulou, até onde pode ir (limite de R$ 100) e de onde veio cada R$ 0,50. No Pré-pago mostra só a mensalidade e até quando está ativo.', era: 'Não aparecia no painel da loja: só em Planos, dentro do perfil.' },
     missoes: { porque: 'O que a loja precisa fazer vira um jogo curto e sempre à vista: o cadastro que falta (cada passo vale pontos, uma vez) e as missões do dia (reiniciam toda manhã). Os pontos sobem a loja no Outdoor. Ligado de verdade: o banco confere cada missão e os pontos entram no Outdoor de lojas (cada ponto de missão vale 0,5; o peso se edita em Admin → Pontuação).', era: 'Só havia a lista “Comece por aqui”, e apenas na loja nova: depois de completa, ninguém via o que faltava.' },
     gerenciar: { porque: 'Tudo que é configuração vira uma grade de atalhos com o estado de cada um (“Pix ✓”, “iUser ligado”). Quem chega aqui para atender não precisa passar por isso.', era: 'Editar loja: ~15 blocos longos um embaixo do outro.' },
     balcao: { porque: 'Venda no balcão é uma ação, não um bloco: fica como botão fixo embaixo, sempre à mão e sem ocupar lugar na página.', era: 'Cartão “Venda presencial” no meio da página.' },
@@ -77,6 +78,7 @@ export default function PainelLab() {
     const [pagina, setPagina] = useState<string | null>(null)          // pedidos, repasses, digital, apoios, conversas, avaliacoes
     const [extratoAb, setExtratoAb] = useState(false)
     const [balcaoAb, setBalcaoAb] = useState(false)
+    const [plano, setPlano] = useState<Plano>('pos')                            // plano da loja: Pós-pago (taxa de R$ 0,50 por ação, acumula) ou Pré-pago (mensalidade)
     const [auto, setAuto] = useState<AutoEstado>('ativo')                       // recebimento automático dos digitais (Pix + liberação sozinha)
     const [editarAb, setEditarAb] = useState(false)
     const [shareAb, setShareAb] = useState(false)
@@ -92,7 +94,7 @@ export default function PainelLab() {
         if (k === 'srv') { setCatAba('servicos'); setAberto('cat'); return }
         if (k === 'cat-dig') { setCatAba('digitais'); setAberto('cat'); return }
         if (k === 'cat' || k === 'pro') { setCatAba('produtos'); setAberto('cat'); return }
-        if (['pedidos', 'repasses', 'digital', 'apoios', 'conversas', 'avaliacoes', 'agora'].includes(k)) { setPagina(k); return }
+        if (['pedidos', 'repasses', 'digital', 'apoios', 'conversas', 'avaliacoes', 'agora', 'plano'].includes(k)) { setPagina(k); return }
         if (k === 'extrato') { setExtratoAb(true); return }
         if (k === 'balcao') { setBalcaoAb(true); return }
         if (k === 'editar') { setEditarAb(true); return }
@@ -249,7 +251,8 @@ export default function PainelLab() {
                     <p className="text-[11.5px] font-semibold" style={{ color: aberta ? '#16a34a' : colors.textSecondary }}>
                         {aberta ? 'Aberta agora · fecha às 00:00' : 'Fechada · não recebe pedidos novos'}
                     </p>
-                    <button onClick={() => ir('avaliacoes')} className="text-[11.5px] font-black flex items-center gap-1 mt-0.5 active:opacity-70" style={{ color: nova ? colors.textSecondary : '#a16207' }}>
+                    <button onClick={() => ir('plano')} className="inline-flex items-center gap-1 text-[10.5px] font-black px-2 h-5 rounded-full mt-1 mr-2 active:opacity-70" style={{ background: plano === 'pos' ? `${ORANGE}22` : '#16a34a22', color: plano === 'pos' ? '#c2410c' : '#15803d' }}>{plano === 'pos' ? `Pós-pago · ${brl(cobrancasPos(estado).total)} de ${brl(LIMITE_POS)}` : 'Pré-pago · ativo até 28/11'}</button>
+                    <button onClick={() => ir('avaliacoes')} className="text-[11.5px] font-black inline-flex items-center gap-1 mt-0.5 active:opacity-70" style={{ color: nova ? colors.textSecondary : '#a16207' }}>
                         <Star size={12} fill={nova ? 'none' : '#eab308'} style={{ color: '#eab308' }} />{nova ? 'Sem avaliações ainda' : '4,6 · 120 avaliações'}{!nova && <ChevronRight size={12} />}
                     </button>
                 </div>
@@ -498,6 +501,33 @@ export default function PainelLab() {
         </div>
     )
 
+    const cpos = cobrancasPos(estado)
+    const planoBloco = (
+        <div role="button" onClick={() => ir('plano')} className="rounded-3xl p-3.5 cursor-pointer" style={card}>
+            {plano === 'pos' ? (<>
+                <div className="flex items-center gap-2">
+                    <span className="px-2.5 h-6 rounded-full text-[11px] font-black text-white flex items-center" style={{ background: ORANGE }}>Pós-pago</span>
+                    <span className="text-[11.5px] font-semibold" style={{ color: colors.textSecondary }}>você paga só pelo que usa</span>
+                    <ChevronRight size={15} className="ml-auto" style={{ color: colors.textSecondary }} />
+                </div>
+                <div className="flex items-baseline justify-between mt-3"><p className="text-[22px] font-black leading-none">{brl(cpos.total)}</p><p className="text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>de {brl(LIMITE_POS)} · limite</p></div>
+                <span className="block h-2.5 rounded-full overflow-hidden mt-2" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (cpos.total / LIMITE_POS) * 100)}%`, background: 'linear-gradient(90deg,#f97316,#dc2626)' }} /></span>
+                {cpos.total > 0 ? (
+                    <div className="mt-3 space-y-1.5">
+                        {cpos.itens.filter((i) => i.n > 0).slice(0, 3).map((i) => <p key={i.l} className="flex text-[12px]"><span className="flex-1 truncate" style={{ color: colors.textSecondary }}>{i.l} · {i.n} × {brl(TAXA_POS)}</span><b>{brl(i.v)}</b></p>)}
+                        <p className="text-[11.5px] font-black pt-1" style={{ color: ORANGE }}>Ver tudo e quitar →</p>
+                    </div>
+                ) : <p className="text-[12px] mt-3" style={{ color: colors.textSecondary }}>Nada cobrado ainda. A taxa de {brl(TAXA_POS)} só aparece quando você usa o iUser.</p>}
+            </>) : (
+                <div className="flex items-center gap-3">
+                    <span className="px-2.5 h-6 rounded-full text-[11px] font-black text-white flex items-center" style={{ background: '#16a34a' }}>Pré-pago</span>
+                    <div className="min-w-0 flex-1"><p className="text-[13px] font-black leading-tight">R$ 100/mês · ativo até 28/11</p><p className="text-[11.5px]" style={{ color: colors.textSecondary }}>Sem taxa por venda ou ação</p></div>
+                    <ChevronRight size={15} style={{ color: colors.textSecondary }} />
+                </div>
+            )}
+        </div>
+    )
+
     const reputacaoBloco = nova ? (
         <Vazio titulo="Ainda sem avaliações" texto="Depois das primeiras compras e serviços, a nota da loja aparece aqui." cor={colors.textSecondary} caixa={card} />
     ) : (
@@ -677,6 +707,10 @@ export default function PainelLab() {
                                 {([['mixed', 'Produtos e serviços'], ['products', 'Só produtos'], ['services', 'Só serviços']] as const).map(([k, l]) => (
                                     <button key={k} onClick={() => setModelo(k)} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(modelo === k)}>{l}</button>
                                 ))}
+                                <span className="text-[10.5px] font-bold self-center mx-1" style={{ color: colors.textSecondary }}>Plano:</span>
+                                {([['pos', 'Pós-pago'], ['pre', 'Pré-pago']] as const).map(([k, l]) => (
+                                    <button key={k} onClick={() => setPlano(k)} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(plano === k)}>{l}</button>
+                                ))}
                                 <button onClick={() => setNotas((v) => !v)} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95 flex items-center gap-1" style={pill(notas, '#16a34a')}><Info size={12} />Notas</button>
                             </div>
                         </>
@@ -704,6 +738,8 @@ export default function PainelLab() {
                             {digitalBloco}
                             {sec('reputacao', 'O que dizem da loja')}
                             {reputacaoBloco}
+                            {sec('plano', 'Seu plano')}
+                            {planoBloco}
                             {sec('gerenciar', 'Gerenciar a loja')}
                             {gerenciarBloco}
                             {notas && <>{sec('balcao', 'Venda no balcão')}<p className="text-[11.5px] -mt-1 mb-2" style={{ color: colors.textSecondary }}>É o botão laranja fixo no canto (acima da barra do app).</p></>}
@@ -735,7 +771,7 @@ export default function PainelLab() {
                     )}
                 </div>
 
-                {pagina && <Pagina k={pagina} onClose={() => setPagina(null)} onIr={ir} auto={auto} setAuto={setAuto} />}
+                {pagina && <Pagina k={pagina} onClose={() => setPagina(null)} onIr={ir} auto={auto} setAuto={setAuto} plano={plano} setPlano={setPlano} estado={estado} />}
                 {extratoAb && <Extrato onClose={() => setExtratoAb(false)} />}
                 {balcaoAb && <Balcao onClose={() => setBalcaoAb(false)} />}
                 {editarAb && (

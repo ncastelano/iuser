@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronRight, Clock, Copy, GraduationCap, Landmark, ShieldCheck, Zap } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
-import { brl } from './dados'
+import { brl, cobrancasPos, LIMITE_POS, TAXA_POS, type Estado, type Plano } from './dados'
 import { FolhaCasca, Switch, useAviso } from './labui'
 
 export type AutoEstado = 'off' | 'analise' | 'ativo'
@@ -55,24 +55,19 @@ export function CartaoAuto({ c, auto, setAuto, onAtivar, onVer }: { c: ThemeColo
 }
 
 /** a taxa do iUser no digital automático: NÃO sai da venda, só acumula na conta do plano (Pós-pago) — e no Pré-pago não existe */
-export function AcumuloTaxa({ c }: { c: ThemeColors }) {
-    const [plano, setPlano] = useState<'pos' | 'pre'>('pos')
-    const vendas = 25, limite = 100
+export function AcumuloTaxa({ c, plano, estado, onPlano }: { c: ThemeColors; plano: Plano; estado: Estado; onPlano: () => void }) {
+    const { total, vendasDigitais } = cobrancasPos(estado)
     return (
         <div className="rounded-3xl p-3.5" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
-            <div className="flex items-center gap-2 mb-2.5">
-                <p className="text-[13px] font-black flex-1">Taxa do iUser nas vendas automáticas</p>
-                <div className="flex p-0.5 rounded-full" style={{ background: `${c.border}55` }}>
-                    {([['pos', 'Pós-pago'], ['pre', 'Pré-pago']] as const).map(([k, l]) => <button key={k} onClick={() => setPlano(k)} className="h-7 px-2.5 rounded-full text-[11px] font-black" style={plano === k ? { background: c.background, boxShadow: '0 1px 4px rgba(0,0,0,.12)' } : { color: c.textSecondary }}>{l}</button>)}
-                </div>
-            </div>
+            <p className="text-[13px] font-black mb-2">Taxa do iUser nas vendas automáticas</p>
             {plano === 'pre' ? (
-                <p className="text-[12px] leading-snug">No plano <b>Pré-pago</b> não há taxa do iUser: cada venda cai inteira na sua conta (menos a taxa do Pix).</p>
+                <p className="text-[12px] leading-snug">Seu plano é o <b>Pré-pago</b>: não há taxa do iUser, cada venda cai inteira na sua conta (menos a taxa do Pix).</p>
             ) : (<>
-                <div className="flex items-baseline justify-between text-[12px] font-bold mb-1"><span>{vendas} vendas acumuladas · {brl(vendas * 0.5)}</span><span style={{ color: c.textSecondary }}>limite {limite} vendas · R$ 50</span></div>
-                <span className="block h-2.5 rounded-full overflow-hidden" style={{ background: `${c.border}70` }}><span className="block h-full rounded-full" style={{ width: `${(vendas / limite) * 100}%`, background: ROXO }} /></span>
-                <p className="text-[11.5px] leading-snug mt-2.5" style={{ color: c.textSecondary }}>R$ 0,50 por venda, somados à conta do seu plano. <b>Não sai do valor da venda.</b> Ao chegar em R$ 50 você quita e as vendas automáticas continuam; sem quitar, elas pausam.</p>
+                <p className="text-[12px] leading-snug"><b>{vendasDigitais} vendas</b> automáticas × R$ 0,50 = <b>{brl(vendasDigitais * TAXA_POS)}</b> somados à conta do seu plano Pós-pago. <b>Não sai do valor da venda.</b></p>
+                <div className="flex items-baseline justify-between text-[11.5px] font-bold mt-2.5 mb-1"><span>Total do plano: {brl(total)}</span><span style={{ color: c.textSecondary }}>limite {brl(LIMITE_POS)}</span></div>
+                <span className="block h-2.5 rounded-full overflow-hidden" style={{ background: `${c.border}70` }}><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (total / LIMITE_POS) * 100)}%`, background: ROXO }} /></span>
             </>)}
+            <button onClick={onPlano} className="mt-2.5 text-[12px] font-black flex items-center gap-0.5" style={{ color: ROXO }}>Ver o que foi cobrado<ChevronRight size={13} /></button>
         </div>
     )
 }
@@ -112,7 +107,7 @@ export function AtivarFolha({ c, onClose, onEnviar }: { c: ThemeColors; onClose:
             {passo === 3 && (<>
                 <p className="text-[12.5px] leading-snug mt-3" style={{ color: c.textSecondary }}>Quanto custa, antes de ligar:</p>
                 <div className="rounded-3xl overflow-hidden mt-2" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
-                    {[['Taxa do Pix', 'A da tabela da Asaas, descontada de cada venda. Mostramos o valor exato antes de você ativar.'], ['Taxa do iUser', 'Pré-pago: nenhuma. Pós-pago: R$ 0,50 por venda, que fica somada na conta do seu plano (não sai do valor da venda) e você quita junto, ao chegar em R$ 50.'], ['O resto é seu', 'O valor da venda, menos a taxa do Pix, cai inteiro na sua conta.']].map(([t, d], i) => (
+                    {[['Taxa do Pix', 'A da tabela da Asaas, descontada de cada venda. Mostramos o valor exato antes de você ativar.'], ['Taxa do iUser', 'Pré-pago: nenhuma. Pós-pago: R$ 0,50 por venda, que fica somada na conta do seu plano (não sai do valor da venda) e você quita ao chegar em R$ 100.'], ['O resto é seu', 'O valor da venda, menos a taxa do Pix, cai inteiro na sua conta.']].map(([t, d], i) => (
                         <div key={t} className="px-3.5 py-3" style={{ borderTop: i ? `1px solid ${c.border}` : undefined }}><p className="text-[13px] font-black">{t}</p><p className="text-[11.5px] leading-snug mt-0.5" style={{ color: c.textSecondary }}>{d}</p></div>
                     ))}
                 </div>

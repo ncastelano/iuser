@@ -41,3 +41,21 @@ export const FASES: { k: Fase; nome: string; cor: string; acao?: string }[] = [
     { k: 'caminho', nome: 'A caminho', cor: C.caminho },
 ]
 
+
+// ===== PLANO (Pré-pago × Pós-pago) =====
+export type Plano = 'pos' | 'pre'
+/** o limite de dívida do Pós-pago (o do banco: `postpaid_settings.debt_limit`, hoje R$ 100) */
+export const LIMITE_POS = 100
+/** o que o Pós-pago cobrou (R$ 0,50 por ação, os valores reais ficam em `service_pricing`): [rótulo, quantas vezes] */
+export const COBRANCAS_POS: [string, number][] = [
+    ['Pedidos de loja pagos', 22], ['Vendas no balcão', 14], ['Vendas digitais automáticas', 25], ['Agendamentos confirmados', 9], ['Produtos novos cadastrados', 6], ['Publicações novas', 4],
+]
+export const TAXA_POS = 0.5
+/** quanto do exemplo vale em cada dia da loja (loja nova ainda não gerou cobrança) */
+export const fatorPlano = (estado: Estado) => (estado === 'nova' ? 0 : estado === 'tranquilo' ? 0.3 : 1)
+export function cobrancasPos(estado: Estado) {
+    const k = fatorPlano(estado)
+    const itens = COBRANCAS_POS.map(([l, n]) => ({ l, n: Math.round(n * k), v: Math.round(n * k) * TAXA_POS }))
+    const total = itens.reduce((t, i) => t + i.v, 0)
+    return { itens, total, vendasDigitais: itens[2].n }
+}
