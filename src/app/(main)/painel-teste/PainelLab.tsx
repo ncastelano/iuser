@@ -59,6 +59,7 @@ export default function PainelLab() {
     const [versao, setVersao] = useState<'nova' | 'atual'>('nova')
     const [aberta, setAberta] = useState(true)
     const FLIP_MS = 1500                                                            // quanto dura a descida do cartão
+    const cores = useRef<{ id: number; de: string; para: string } | null>(null)    // cor da etapa que o pedido deixa e da que ele recebe (a cor se transforma durante a descida)
     const flip = useRef<Map<string, DOMRect> | null>(null)                          // posições ANTES da mudança (FLIP: o que mudou de lugar desliza do antigo ao novo)
     const [chegou, setChegou] = useState<{ id: number; k: number } | null>(null)     // pedido que acabou de chegar na etapa nova
     const [bump, setBump] = useState<{ fase: Fase; k: number } | null>(null)         // contador que deve dar o pulo
@@ -158,6 +159,8 @@ export default function PainelLab() {
         if (!p0) return
         const prox = ordem[ordem.indexOf(p0.fase) + 1]
         if (!prox) return
+        const corDe = (k: Fase) => { const c = FASES.find((x) => x.k === k)!.cor; return c === C.preparando ? '#ca8a04' : c }
+        cores.current = { id, de: corDe(p0.fase), para: corDe(prox) }
         medir()
         setPedidos((ps) => { const mv = ps.find((x) => x.id === id); return mv ? [{ ...mv, fase: prox }, ...ps.filter((x) => x.id !== id)] : ps })   // vai para o TOPO da etapa nova
         setChegou({ id, k: Date.now() })
@@ -182,7 +185,16 @@ export default function PainelLab() {
                 ? [{ transform: `translate(${dx}px,${dy}px) scale(1.04)`, boxShadow: '0 16px 36px rgba(0,0,0,.3)', zIndex: 30 }, { transform: 'translate(0,0) scale(1.04)', boxShadow: '0 16px 36px rgba(0,0,0,.3)', zIndex: 30, offset: 0.85 }, { transform: 'none', boxShadow: '0 0 0 rgba(0,0,0,0)', zIndex: 30 }]
                 : [{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'none' }],
             { duration: voando ? FLIP_MS : 1200, easing: 'cubic-bezier(.45,0,.2,1)' })
-            if (voando) seguir(el, o.top)
+            if (voando) {
+                seguir(el, o.top)
+                const cc = cores.current
+                if (cc && cc.id === movido) {
+                    const opt = { duration: FLIP_MS, easing: 'ease-in-out' as const }
+                    el.animate([{ borderLeftColor: cc.de, outline: `3px solid ${cc.de}`, outlineOffset: '2px' }, { borderLeftColor: cc.para, outline: `3px solid ${cc.para}`, outlineOffset: '2px' }], opt)     // a borda e o anel viram a cor nova
+                    el.querySelector<HTMLElement>('[data-acao]')?.animate([{ backgroundColor: cc.de }, { backgroundColor: cc.para }], opt)                                                          // o botão também
+                    el.querySelectorAll<HTMLElement>('[data-troca]').forEach((t) => t.animate([{ opacity: 0.15 }, { opacity: 0.15, offset: 0.5 }, { opacity: 1 }], opt))                         // o texto novo aparece no meio
+                }
+            }
         })
     }, [pedidos]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -334,7 +346,7 @@ export default function PainelLab() {
                                                             <span className="text-[13px] font-black">{brl(p.valor)}</span>
                                                             <div className="flex gap-1">
                                                                 {f.k === 'novo' && <button onClick={() => recusar(p.id)} aria-label="Recusar" className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90" style={{ border: `1px solid ${colors.border}`, color: C.alerta }}><X size={14} /></button>}
-                                                                {f.acao && <button onClick={() => avancar(p.id)} className="h-8 px-3.5 rounded-full text-[12px] font-black text-white active:scale-95" style={{ background: cor }}>{f.acao}</button>}
+                                                                {f.acao && <button data-acao onClick={() => avancar(p.id)} className="h-8 px-3.5 rounded-full text-[12px] font-black text-white active:scale-95" style={{ background: cor }}><span data-troca className="inline-block">{f.acao}</span></button>}
                                                             </div>
                                                         </div>
                                                     </div>
