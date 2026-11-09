@@ -14,6 +14,7 @@ import {
 import { useTheme } from '@/app/contexts/theme'
 import { DESTINOS, Destino } from './Destinos'
 import Pagina from './Paginas'
+import type { AutoEstado } from './PixAuto'
 import Extrato, { resumo, diaNome } from './Extrato'
 import Balcao from './Balcao'
 import Editar from './Editar'
@@ -76,6 +77,7 @@ export default function PainelLab() {
     const [pagina, setPagina] = useState<string | null>(null)          // pedidos, repasses, digital, apoios, conversas, avaliacoes
     const [extratoAb, setExtratoAb] = useState(false)
     const [balcaoAb, setBalcaoAb] = useState(false)
+    const [auto, setAuto] = useState<AutoEstado>('ativo')                       // recebimento automático dos digitais (Pix + liberação sozinha)
     const [editarAb, setEditarAb] = useState(false)
     const [shareAb, setShareAb] = useState(false)
     const [logoAb, setLogoAb] = useState(false)
@@ -122,12 +124,12 @@ export default function PainelLab() {
         if (novosProd > 0) a.push({ cor: C.novo, icone: <ClipboardList size={17} />, n: novosProd, titulo: `${novosProd} ${novosProd === 1 ? 'pedido novo' : 'pedidos novos'}`, sub: 'Aceite para a loja começar a preparar', ir: 'pedidos', rotulo: 'Ver pedidos' })
         if (svcNovos > 0) a.push({ cor: C.servico, icone: <CalendarDays size={17} />, n: svcNovos, titulo: `${svcNovos} ${svcNovos === 1 ? 'pedido de serviço' : 'pedidos de serviço'}`, sub: 'Clientes esperando horário confirmado', ir: 'age-pend', rotulo: 'Ver pendentes' })
         if (!calmo && !nova && temProdutos) a.push({ cor: C.ambar, icone: <Banknote size={17} />, n: 1, titulo: '1 repasse para conferir', sub: 'Rafa diz que repassou R$ 85,00 do dinheiro da porta', ir: 'repasses', rotulo: 'Conferir' })
-        if (!calmo && !nova) a.push({ cor: C.pronto, icone: <GraduationCap size={17} />, n: 2, titulo: '2 acessos digitais para liberar', sub: 'Pix informado — confira e libere o curso', ir: 'digital', rotulo: 'Liberar' })
+        if (!calmo && !nova && auto !== 'ativo') a.push({ cor: C.pronto, icone: <GraduationCap size={17} />, n: 2, titulo: '2 acessos digitais para liberar', sub: 'Pix informado — confira e libere o curso', ir: 'digital', rotulo: 'Liberar' })
         if (!calmo && !nova) a.push({ cor: '#8b5cf6', icone: <Heart size={17} />, n: 1, titulo: '1 apoio para conferir', sub: 'Alguém mandou R$ 10,00 para a loja', ir: 'apoios', rotulo: 'Conferir' })
         if (!nova) a.push({ cor: '#16a34a', icone: <MessageCircle size={17} />, n: calmo ? 1 : 3, titulo: calmo ? '1 conversa não lida' : '3 conversas não lidas', sub: 'Clientes da loja', ir: 'conversas', rotulo: 'Responder' })
         if (nova) a.push({ cor: C.alerta, icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse', ir: 'pag', rotulo: 'Cadastrar' })
         return a
-    }, [novosProd, svcNovos, calmo, nova, temProdutos])
+    }, [novosProd, svcNovos, calmo, nova, temProdutos, auto])
 
     /** a CÂMERA: enquanto o cartão voa, a página rola junto para ele ficar sempre no mesmo ponto da tela (o dedo/roda do mouse interrompe) */
     function seguir(el: HTMLElement, topoInicial: number) {
@@ -667,7 +669,7 @@ export default function PainelLab() {
                             <div className="flex flex-wrap gap-1.5 mt-2.5">
                                 <span className="text-[10.5px] font-bold self-center mr-1" style={{ color: colors.textSecondary }}>Dia da loja:</span>
                                 {([['movimentado', 'Movimentado'], ['tranquilo', 'Tranquilo'], ['nova', 'Loja nova']] as const).map(([k, l]) => (
-                                    <button key={k} onClick={() => { setEstado(k); setGer({}); setMiss({}) }} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(estado === k)}>{l}</button>
+                                    <button key={k} onClick={() => { setEstado(k); setAuto(k === 'nova' ? 'off' : 'ativo'); setGer({}); setMiss({}) }} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(estado === k)}>{l}</button>
                                 ))}
                             </div>
                             <div className="flex flex-wrap gap-1.5 mt-2">
@@ -733,7 +735,7 @@ export default function PainelLab() {
                     )}
                 </div>
 
-                {pagina && <Pagina k={pagina} onClose={() => setPagina(null)} onIr={ir} />}
+                {pagina && <Pagina k={pagina} onClose={() => setPagina(null)} onIr={ir} auto={auto} setAuto={setAuto} />}
                 {extratoAb && <Extrato onClose={() => setExtratoAb(false)} />}
                 {balcaoAb && <Balcao onClose={() => setBalcaoAb(false)} />}
                 {editarAb && (

@@ -7,20 +7,21 @@
 
 import { ReactNode, useEffect, useMemo, useState } from 'react'
 import {
-    Banknote, Check, Eye, ShoppingBag, Share2, Radio, UserPlus, ChevronRight, ClipboardList, Clock, CreditCard, GraduationCap, Heart, MessageCircle, Search, Send, Star, Store, Bike, Wallet, X, Gavel, ShieldCheck, Key,
+    Banknote, Check, Eye, ShoppingBag, Share2, Radio, UserPlus, Zap, ChevronRight, ClipboardList, Clock, CreditCard, GraduationCap, Heart, MessageCircle, Search, Send, Star, Store, Bike, Wallet, X, Gavel, ShieldCheck, Key,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { C, FASES, ORANGE, PEDIDOS, brl, type Fase, type Pedido } from './dados'
 import { PaginaCasca, Switch, Vazio, useAviso } from './labui'
+import { AtivarFolha, CartaoAuto, ClienteVe, type AutoEstado } from './PixAuto'
 import Conteudos, { CONTEUDOS, TIPOS, type EvBase, type Tipo } from './AgoraConteudos'
 
-interface Props { k: string; onClose: () => void; onIr: (k: string) => void }
+interface Props { k: string; onClose: () => void; onIr: (k: string) => void; auto: AutoEstado; setAuto: (a: AutoEstado) => void }
 
-export default function Pagina({ k, onClose, onIr }: Props) {
+export default function Pagina({ k, onClose, onIr, auto, setAuto }: Props) {
     switch (k) {
         case 'pedidos': return <Pedidos onClose={onClose} onIr={onIr} />
         case 'repasses': return <Repasses onClose={onClose} />
-        case 'digital': return <Digital onClose={onClose} onIr={onIr} />
+        case 'digital': return <Digital onClose={onClose} onIr={onIr} auto={auto} setAuto={setAuto} />
         case 'apoios': return <Apoios onClose={onClose} />
         case 'conversas': return <Conversas onClose={onClose} />
         case 'agora': return <Agora onClose={onClose} onIr={onIr} />
@@ -168,19 +169,38 @@ function Repasses({ onClose }: { onClose: () => void }) {
 }
 
 // ===== DIGITAL (liberar acessos) =====
-function Digital({ onClose, onIr }: { onClose: () => void; onIr: (k: string) => void }) {
+function Digital({ onClose, onIr, auto, setAuto }: { onClose: () => void; onIr: (k: string) => void; auto: AutoEstado; setAuto: (a: AutoEstado) => void }) {
     const { colors, card } = useCard()
+    const [ativando, setAtivando] = useState(false)
+    const [cliente, setCliente] = useState(false)
     const [feito, setFeito] = useState<Record<number, string>>({})
     const { mostrar, node } = useAviso()
     const pend = [{ id: 1, quem: '@ana-barbosa', prod: 'Curso Pizza Napolitana', v: 49.9, h: '10:32' }, { id: 2, quem: '@joao-martins', prod: 'Álbum “Noite no Forno”', v: 19.9, h: '10:48' }]
     const aguardando = pend.filter((p) => !feito[p.id]).length
     return (
-        <PaginaCasca titulo="Digital" sub="Liberar acessos e acompanhar" cor={C.pronto} icone={<GraduationCap size={18} />} onClose={onClose}>
+        <PaginaCasca titulo="Digital" sub={auto === 'ativo' ? 'Vendas e acessos liberados sozinhos' : 'Liberar acessos e acompanhar'} cor={C.pronto} icone={<GraduationCap size={18} />} onClose={onClose}>
             {node}
             <div className="grid grid-cols-3 gap-2 text-center">
                 {[['R$ 506', 'vendas'], ['10', 'produtos'], ['38', 'no Clube']].map(([v, l]) => <div key={l} className="rounded-2xl py-2.5" style={card}><p className="text-[16px] font-black leading-none" style={{ color: C.pronto }}>{v}</p><p className="text-[10px] font-bold mt-1" style={{ color: colors.textSecondary }}>{l}</p></div>)}
             </div>
 
+            <div className="mt-3"><CartaoAuto c={colors} auto={auto} setAuto={setAuto} onAtivar={() => setAtivando(true)} onVer={() => setCliente(true)} /></div>
+            {ativando && <AtivarFolha c={colors} onClose={() => setAtivando(false)} onEnviar={() => { setAtivando(false); setAuto('analise'); mostrar('Enviado para análise') }} />}
+            {cliente && <ClienteVe c={colors} onClose={() => setCliente(false)} />}
+
+            {auto === 'ativo' ? (<>
+                <Titulo>Liberados sozinhos hoje</Titulo>
+                <div className="rounded-3xl overflow-hidden" style={card}>
+                    {[['@ana-barbosa', 'Curso Pizza Napolitana', '10:32', 'em 3 s'], ['@joao-martins', 'Álbum “Noite no Forno”', '10:48', 'em 2 s'], ['@carol-lima', 'Curso Pizza Napolitana', '09:12', 'em 4 s'], ['@heitor-martins', 'E-book “Massa perfeita”', '08:40', 'em 3 s'], ['@lucas-ferreira', 'Receitas de molho (PDF)', '02:17', 'de madrugada, em 3 s']].map(([q, pr, h, t], i) => (
+                        <div key={q + h} className="flex items-center gap-3 px-3.5 py-2.5 text-[12.5px]" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}><Zap size={14} style={{ color: '#16a34a' }} /><span className="flex-1 min-w-0 truncate"><b>{q}</b> · {pr}<span className="block text-[11px]" style={{ color: colors.textSecondary }}>Pix confirmado {t}</span></span><span style={{ color: colors.textSecondary }}>{h}</span></div>
+                    ))}
+                </div>
+                <Titulo>Precisa de um olhar</Titulo>
+                <div className="rounded-3xl p-3.5" style={{ background: '#f59e0b14', border: '1.5px solid #f59e0b55' }}>
+                    <p className="text-[13px] font-black">1 Pix devolvido pelo banco</p>
+                    <p className="text-[12px] leading-snug mt-0.5">@rui-castro pediu o estorno de {brl(19.9)} e o acesso a “E-book Massa perfeita” foi retirado automaticamente. Nada a fazer.</p>
+                </div>
+            </>) : (<>
             <Titulo n={aguardando}>Para liberar</Titulo>
             <div className="space-y-2">
                 {pend.map((p) => (
@@ -204,6 +224,7 @@ function Digital({ onClose, onIr }: { onClose: () => void; onIr: (k: string) => 
                     <div key={q} className="flex items-center gap-3 px-3.5 py-2.5 text-[12.5px]" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}><Check size={14} style={{ color: '#16a34a' }} /><span className="flex-1 min-w-0 truncate"><b>{q}</b> · {pr}</span><span style={{ color: colors.textSecondary }}>{h}</span></div>
                 ))}
             </div>
+            </>)}
             <div className="flex gap-2 mt-4">
                 <button onClick={() => onIr('cat-dig')} className="flex-1 h-11 rounded-full text-[12.5px] font-black" style={{ border: `1px solid ${colors.border}` }}>Produtos digitais</button>
                 <button onClick={() => onIr('clu')} className="flex-1 h-11 rounded-full text-[12.5px] font-black" style={{ border: `1px solid ${colors.border}` }}>Clube e mensalidade</button>
