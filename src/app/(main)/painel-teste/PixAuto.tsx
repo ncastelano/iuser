@@ -1,7 +1,8 @@
 // src/app/(main)/painel-teste/PixAuto.tsx — o RECEBIMENTO AUTOMÁTICO dos produtos digitais no laboratório /painel-teste (só teste, nada grava).
 // Hoje (V1) o Pix vai direto para a chave da loja e a loja precisa conferir e tocar em "Liberar acesso". No fluxo automático o cliente paga uma
 // cobrança Pix gerada pelo iUser (Asaas), o banco avisa na hora em que o dinheiro cai e o acesso é liberado sozinho, 24 horas por dia.
-// O dinheiro é dividido (split) para a conta Asaas da própria loja: o iUser não guarda o dinheiro de ninguém.
+// O valor da venda é TODO da loja (a Asaas só desconta a taxa do Pix): nada é dividido com o iUser. A taxa do iUser (R$ 0,50 por venda no
+// Pós-pago, R$ 0 no Pré-pago) NÃO sai da venda: ela ACUMULA na conta do plano e, ao chegar no limite (R$ 50 = 100 vendas), as vendas automáticas pausam até quitar.
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -53,6 +54,29 @@ export function CartaoAuto({ c, auto, setAuto, onAtivar, onVer }: { c: ThemeColo
     )
 }
 
+/** a taxa do iUser no digital automático: NÃO sai da venda, só acumula na conta do plano (Pós-pago) — e no Pré-pago não existe */
+export function AcumuloTaxa({ c }: { c: ThemeColors }) {
+    const [plano, setPlano] = useState<'pos' | 'pre'>('pos')
+    const vendas = 25, limite = 100
+    return (
+        <div className="rounded-3xl p-3.5" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
+            <div className="flex items-center gap-2 mb-2.5">
+                <p className="text-[13px] font-black flex-1">Taxa do iUser nas vendas automáticas</p>
+                <div className="flex p-0.5 rounded-full" style={{ background: `${c.border}55` }}>
+                    {([['pos', 'Pós-pago'], ['pre', 'Pré-pago']] as const).map(([k, l]) => <button key={k} onClick={() => setPlano(k)} className="h-7 px-2.5 rounded-full text-[11px] font-black" style={plano === k ? { background: c.background, boxShadow: '0 1px 4px rgba(0,0,0,.12)' } : { color: c.textSecondary }}>{l}</button>)}
+                </div>
+            </div>
+            {plano === 'pre' ? (
+                <p className="text-[12px] leading-snug">No plano <b>Pré-pago</b> não há taxa do iUser: cada venda cai inteira na sua conta (menos a taxa do Pix).</p>
+            ) : (<>
+                <div className="flex items-baseline justify-between text-[12px] font-bold mb-1"><span>{vendas} vendas acumuladas · {brl(vendas * 0.5)}</span><span style={{ color: c.textSecondary }}>limite {limite} vendas · R$ 50</span></div>
+                <span className="block h-2.5 rounded-full overflow-hidden" style={{ background: `${c.border}70` }}><span className="block h-full rounded-full" style={{ width: `${(vendas / limite) * 100}%`, background: ROXO }} /></span>
+                <p className="text-[11.5px] leading-snug mt-2.5" style={{ color: c.textSecondary }}>R$ 0,50 por venda, somados à conta do seu plano. <b>Não sai do valor da venda.</b> Ao chegar em R$ 50 você quita e as vendas automáticas continuam; sem quitar, elas pausam.</p>
+            </>)}
+        </div>
+    )
+}
+
 /** ativar: três passos curtos (quem recebe → onde cai → taxas e termos) e vai para análise */
 export function AtivarFolha({ c, onClose, onEnviar }: { c: ThemeColors; onClose: () => void; onEnviar: () => void }) {
     const [passo, setPasso] = useState(1)
@@ -77,7 +101,7 @@ export function AtivarFolha({ c, onClose, onEnviar }: { c: ThemeColors; onClose:
                 {rot('Celular')}{inp('(69) 99999-0000')}
             </>)}
             {passo === 2 && (<>
-                <p className="text-[12.5px] leading-snug mt-3" style={{ color: c.textSecondary }}>O dinheiro de cada venda cai <b>direto na conta da sua loja</b>. O iUser não guarda nem segura o seu dinheiro.</p>
+                <p className="text-[12.5px] leading-snug mt-3" style={{ color: c.textSecondary }}>O dinheiro de cada venda cai <b>direto na conta da sua loja</b>, inteiro, menos só a taxa do Pix. Nada é dividido com o iUser e ele não guarda o seu dinheiro.</p>
                 <div className="rounded-3xl p-3.5 mt-3 flex gap-3" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
                     <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${ROXO}22`, color: ROXO }}><Landmark size={19} /></span>
                     <div className="min-w-0"><p className="text-[13.5px] font-black">Conta digital da loja</p><p className="text-[11.5px] leading-snug mt-0.5" style={{ color: c.textSecondary }}>Criada para você na Asaas, nossa parceira de pagamentos. Você vê o saldo e saca quando quiser.</p></div>
@@ -88,7 +112,7 @@ export function AtivarFolha({ c, onClose, onEnviar }: { c: ThemeColors; onClose:
             {passo === 3 && (<>
                 <p className="text-[12.5px] leading-snug mt-3" style={{ color: c.textSecondary }}>Quanto custa, antes de ligar:</p>
                 <div className="rounded-3xl overflow-hidden mt-2" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
-                    {[['Taxa do Pix', 'A da tabela da Asaas, descontada de cada venda. Mostramos o valor exato antes de você ativar.'], ['Taxa do iUser', 'R$ 0 no plano Pré-pago · R$ 0,50 por venda no Pós-pago'], ['Mensalidade', 'Nenhuma. Só paga quando vende.']].map(([t, d], i) => (
+                    {[['Taxa do Pix', 'A da tabela da Asaas, descontada de cada venda. Mostramos o valor exato antes de você ativar.'], ['Taxa do iUser', 'Pré-pago: nenhuma. Pós-pago: R$ 0,50 por venda, que fica somada na conta do seu plano (não sai do valor da venda) e você quita junto, ao chegar em R$ 50.'], ['O resto é seu', 'O valor da venda, menos a taxa do Pix, cai inteiro na sua conta.']].map(([t, d], i) => (
                         <div key={t} className="px-3.5 py-3" style={{ borderTop: i ? `1px solid ${c.border}` : undefined }}><p className="text-[13px] font-black">{t}</p><p className="text-[11.5px] leading-snug mt-0.5" style={{ color: c.textSecondary }}>{d}</p></div>
                     ))}
                 </div>

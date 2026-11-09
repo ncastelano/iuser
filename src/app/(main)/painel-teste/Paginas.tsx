@@ -12,7 +12,7 @@ import {
 import { useTheme } from '@/app/contexts/theme'
 import { C, FASES, ORANGE, PEDIDOS, brl, type Fase, type Pedido } from './dados'
 import { PaginaCasca, Switch, Vazio, useAviso } from './labui'
-import { AtivarFolha, CartaoAuto, ClienteVe, type AutoEstado } from './PixAuto'
+import { AcumuloTaxa, AtivarFolha, CartaoAuto, ClienteVe, type AutoEstado } from './PixAuto'
 import Conteudos, { CONTEUDOS, TIPOS, type EvBase, type Tipo } from './AgoraConteudos'
 
 interface Props { k: string; onClose: () => void; onIr: (k: string) => void; auto: AutoEstado; setAuto: (a: AutoEstado) => void }
@@ -189,6 +189,7 @@ function Digital({ onClose, onIr, auto, setAuto }: { onClose: () => void; onIr: 
             {cliente && <ClienteVe c={colors} onClose={() => setCliente(false)} />}
 
             {auto === 'ativo' ? (<>
+                <div className="mt-3"><AcumuloTaxa c={colors} /></div>
                 <Titulo>Liberados sozinhos hoje</Titulo>
                 <div className="rounded-3xl overflow-hidden" style={card}>
                     {[['@ana-barbosa', 'Curso Pizza Napolitana', '10:32', 'em 3 s'], ['@joao-martins', 'Álbum “Noite no Forno”', '10:48', 'em 2 s'], ['@carol-lima', 'Curso Pizza Napolitana', '09:12', 'em 4 s'], ['@heitor-martins', 'E-book “Massa perfeita”', '08:40', 'em 3 s'], ['@lucas-ferreira', 'Receitas de molho (PDF)', '02:17', 'de madrugada, em 3 s']].map(([q, pr, h, t], i) => (
