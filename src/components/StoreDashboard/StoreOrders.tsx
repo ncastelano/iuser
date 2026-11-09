@@ -24,10 +24,12 @@ import {
     Package,
     Truck,
     MessageCircle,
+    KeyRound,
+    Check,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import CallIuserDriverDialog from './CallIuserDriverDialog'
-import { etaMinutes, haversineKm } from '@/modules/deliveries'
+import { etaMinutes, haversineKm, fetchPickupCodes, type PickupCode } from '@/modules/deliveries'
 import { OrderModal } from '@/components/OrderModal'
 import { fetchOptimizedRoute } from '@/lib/mapboxRoute'
 import { ensureEmployeeAccessToken, buildCourierRouteMessage } from '@/lib/courierLink'
@@ -255,6 +257,16 @@ export default function StoreOrders({
     const [pageTab, setPageTab] = useState<'pending' | 'preparing' | 'ready' | 'paid' | null>(null)
     const [shown, setShown] = useState(20)
     const [quickBusy, setQuickBusy] = useState<string | null>(null)
+    // código de retirada de quem chegou para pegar pedidos (só o dono lê): a loja confere o que entrega e só então passa o código
+    const [pickupCodes, setPickupCodes] = useState<PickupCode[]>([])
+    useEffect(() => {
+        if (!storeId || !iuserDeliveryEnabled) { setPickupCodes([]); return }
+        let alive = true
+        const run = () => fetchPickupCodes(storeId).then((c) => { if (alive) setPickupCodes(c) }).catch(() => { })
+        run()
+        const t = setInterval(run, 6000)
+        return () => { alive = false; clearInterval(t) }
+    }, [storeId, iuserDeliveryEnabled])
 
     // Ref para evitar múltiplas chamadas
     const isLoadingRef = useRef(false)
@@ -852,6 +864,24 @@ export default function StoreOrders({
     const preparing = groupedOrders.filter(o => o.status === 'preparing')
     const ready = groupedOrders.filter(o => o.status === 'ready')
     const finished = groupedOrders.filter(o => o.status === 'paid')
+    // funil do painel: novos → em preparo → prontos (esperando quem retira) → a caminho do cliente
+    const isDelivery = (o: any) => !!o.delivery_address && o.delivery_address !== 'Retirada no local'
+    const onTheWay = ready.filter((o) => isDelivery(o) && dispatchInfo.get(o.id)?.stage === 'in_transit')
+    const readyWaiting = ready.filter((o) => !onTheWay.includes(o))
+    /** uma frase sobre COMO o pedido sai: retirada, entregador do iUser (quem e quando chega) ou entrega da própria loja */
+    const lineFor = (o: any): { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain' } => {
+        if (!isDelivery(o)) return { text: 'Cliente retira na loja', tone: 'plain' }
+        if (!iuserDeliveryEnabled) {
+            const a = assignmentMap.get(o.checkout_id)
+            return { text: a ? `Entregador: ${a.employeeName}` : 'Entrega pela loja', tone: 'plain' }
+        }
+        if (!dispatchedOrderIds.has(o.id)) return { text: 'Sem entregador', tone: 'warn' }
+        const accepted = acceptedDispatchIds.has(o.id)
+        const info = dispatchInfo.get(o.id)
+        // entregador já na loja e o pedido ainda não está pronto: quem está esperando é ELE — fica em âmbar para a loja ver
+        const waitingOnStore = accepted && info?.stage === 'at_store' && o.status !== 'ready'
+        return { text: driverText(info, accepted), tone: accepted && !waitingOnStore ? 'ok' : 'wait' }
+    }
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
     // o que o dono precisa saber ao abrir o pedido: quem vem buscar (e em quanto tempo) ou que o cliente retira
@@ -1319,96 +1349,88 @@ export default function StoreOrders({
 
                 {isOrdersExpanded && ordersTab === 'services' && <StoreServiceOrders pending={svc.pending} onChanged={svc.refetch} />}
 
-                {/* 3.0: os quatro números em chips pequenos, cada um na sua cor */}
-                {v3 && ordersTab === 'products' && (
-                    <StatChips onClick={() => setIsOrdersExpanded(true)} items={[
-                        { label: 'Novos', n: newOrders.length, color: '#16a34a' },
-                        { label: 'Preparando', n: preparing.length, color: '#d97706' },
-                        { label: 'Prontos', n: ready.length, color: '#7c3aed' },
-                        { label: 'Finalizados', n: finished.length, color: '#2563eb' },
-                    ]} />
-                )}
-
+                {/* ===== FUNIL DE PEDIDOS: novos → em preparo → prontos → a caminho. Cada linha tem só o que importa e a ação da etapa ===== */}
                 {isOrdersExpanded && ordersTab === 'products' && (
-                    <>
-                        {selectedOrderIds.size > 0 && (
-                            <div className="flex flex-wrap items-center gap-3 relative z-10">
-                                <button
-                                    onClick={() => setShowAssignModal(true)}
-                                    className="flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 active:scale-95"
-                                    style={{
-                                        ...pillButtonFullStyle,
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: `0 4px 12px #f9731640`,
-                                    }}
-                                >
-                                    <Send size={14} />
-                                    Atribuir {selectedOrderIds.size}
-                                </button>
-                            </div>
-                        )}
-
-                        {groupedOrders.length === 0 ? (
-                            <div
-                                className="rounded-xl p-6 text-center relative z-10"
-                                style={{
-                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                    border: `1px dashed ${colors.border}`,
-                                }}
-                            >
-                                <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                    Nenhum pedido ainda.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4 relative z-10">
-                                {newOrders.length > 0 && (
+                    <div className="flex flex-col gap-4 relative z-10">
+                        {/* o entregador chegou: o código de retirada, depois de conferir o que está entregando */}
+                        {pickupCodes.map((c) => (
+                            <div key={c.driver_id} className="rounded-2xl p-3" style={{ background: '#22c55e14', border: '1.5px solid #22c55e' }}>
+                                <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>{c.driver_name} chegou para retirar {c.rides} {c.rides === 1 ? 'pedido' : 'pedidos'}</p>
+                                <div className="mt-1.5 flex items-center justify-between gap-3">
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#16a34a' }}>
-                                            {!v3 && <Clock size={12} />}
-                                            Novos ({newOrders.length})
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {newOrders.slice(0, 3).map((order: any) => (
-                                                <OrderButton
-                                                    iuserDelivery={iuserDelivery}
-                                                    key={order.checkout_id}
-                                                    order={order}
-                                                    assignmentMap={assignmentMap}
-                                                    setSelectedOrder={setSelectedOrder}
-                                                    setSingleAssignOpen={setSingleAssignOpen}
-                                                    getStatusColor={getStatusColor}
-                                                    getStatusGradient={getStatusGradient}
-                                                    formatAssignmentStatus={formatAssignmentStatus}
-                                                    isInPerson={!order.buyer_profile_slug}
-                                                    borderColor={colors.border}
-                                                    isPaid={false}
-                                                />
-                                            ))}
-                                        </div>
+                                        <p className="text-[10px] font-black uppercase tracking-wide flex items-center gap-1" style={{ color: '#16a34a' }}><KeyRound size={11} /> Código de retirada</p>
+                                        <p className="text-3xl font-black tracking-[0.3em] leading-tight" style={{ color: colors.textPrimary }}>{c.code}</p>
                                     </div>
-                                )}
-
-                                {newOrders.length === 0 && (
-                                    <p className="text-[13px] font-bold" style={{ color: colors.textSecondary }}>Nenhum pedido novo esperando.</p>
-                                )}
-                                {newOrders.length > 3 && (
-                                    <p className="text-[12px] font-black" style={{ color: '#16a34a' }}>+ {newOrders.length - 3} {newOrders.length - 3 === 1 ? 'pedido novo' : 'pedidos novos'} na página de pedidos</p>
-                                )}
-                                {storeSlug && (
-                                    <button
-                                        onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)}
-                                        className="w-full h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-2 transition active:scale-95 text-white"
-                                        style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
-                                    >
-                                        Ver todos os pedidos
-                                        <span className="px-2 py-0.5 rounded-full text-[11px]" style={{ background: 'rgba(255,255,255,0.25)' }}>{newOrders.length + preparing.length + ready.length} em andamento</span>
-                                    </button>
-                                )}
+                                    <p className="text-[11px] font-bold text-right max-w-[50%]" style={{ color: c.ready < c.rides ? '#b45309' : colors.textSecondary }}>
+                                        {c.locked ? 'Travado por tentativas erradas.' : c.ready < c.rides ? `${c.rides - c.ready} ainda em preparo: marque pronto antes de passar o código.` : 'Confira os pedidos com ele e passe o código.'}
+                                    </p>
+                                </div>
                             </div>
-                        )}
-                    </>
+                        ))}
+
+                        {(() => {
+                            const Head = ({ color, title, n }: { color: string; title: string; n: number }) => (
+                                <div className="flex items-center gap-2 px-0.5">
+                                    <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+                                    <h4 className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{title}</h4>
+                                    <span className="text-[10px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-white" style={{ background: color }}>{n}</span>
+                                </div>
+                            )
+                            const SHOW = 6
+                            const act = async (o: any, next: string) => { setQuickBusy(o.checkout_id); await handleOrderAction(next, o); setQuickBusy(null) }
+                            const Btn = ({ o, next, label, color }: { o: any; next: string; label: string; color: string }) => (
+                                <button type="button" disabled={quickBusy === o.checkout_id} onClick={() => act(o, next)} className="h-9 px-4 rounded-full text-[12px] font-black text-white transition active:scale-95 disabled:opacity-60" style={{ background: color }}>
+                                    {quickBusy === o.checkout_id ? '…' : label}
+                                </button>
+                            )
+                            const more = (n: number) => n > SHOW && storeSlug ? (
+                                <button type="button" onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)} className="text-[11px] font-black self-start px-1 underline" style={{ color: colors.textSecondary }}>+ {n - SHOW} na página de pedidos</button>
+                            ) : null
+                            const sections = [
+                                { key: 'new', title: 'Novos', color: '#22c55e', list: newOrders },
+                                { key: 'prep', title: 'Em preparo', color: '#eab308', list: preparing },
+                                { key: 'ready', title: 'Prontos', color: '#a855f7', list: readyWaiting },
+                                { key: 'way', title: 'A caminho do cliente', color: '#3b82f6', list: onTheWay },
+                            ]
+                            const total = sections.reduce((n, x) => n + x.list.length, 0)
+                            return (
+                                <>
+                                    {total === 0 && (
+                                        <p className="text-[13px] font-bold px-0.5" style={{ color: colors.textSecondary }}>Nenhum pedido em andamento. Quando chegar um, ele aparece aqui para você aceitar.</p>
+                                    )}
+                                    {sections.filter((x) => x.list.length > 0).map((x) => (
+                                        <div key={x.key} className="flex flex-col gap-1.5">
+                                            <Head color={x.color} title={x.title} n={x.list.length} />
+                                            {x.list.slice(0, SHOW).map((o: any) => (
+                                                <FlowRow key={o.checkout_id} order={o} color={x.color} line={lineFor(o)} colors={colors} onOpen={() => setSelectedOrder(o)}>
+                                                    {x.key === 'new' && (
+                                                        <>
+                                                            <button type="button" aria-label="Recusar pedido" title="Recusar" disabled={quickBusy === o.checkout_id}
+                                                                onClick={() => { if (window.confirm('Recusar este pedido? O cliente será avisado.')) act(o, 'rejected') }}
+                                                                className="w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90 disabled:opacity-60" style={{ background: '#ef444418', color: '#dc2626' }}>
+                                                                <X size={16} />
+                                                            </button>
+                                                            <Btn o={o} next="preparing" label="Aceitar" color="#16a34a" />
+                                                        </>
+                                                    )}
+                                                    {x.key === 'prep' && <Btn o={o} next="ready" label="Pronto" color="#d97706" />}
+                                                    {/* entrega: quem conclui é o entregador; a loja só finaliza o que o cliente retira */}
+                                                    {x.key === 'ready' && !isDelivery(o) && <Btn o={o} next="paid" label="Retirado" color="#7c3aed" />}
+                                                </FlowRow>
+                                            ))}
+                                            {more(x.list.length)}
+                                        </div>
+                                    ))}
+                                    {storeSlug && (
+                                        <button type="button" onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)} className="h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-2 transition active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                            Ver todos os pedidos e o histórico
+                                            {finished.length > 0 && <span className="px-2 py-0.5 rounded-full text-[10px]" style={{ background: '#3b82f622', color: '#3b82f6' }}>{finished.length} finalizados</span>}
+                                        </button>
+                                    )}
+                                </>
+                            )
+                        })()}
+                    </div>
                 )}
             </div>
             )}
@@ -1511,6 +1533,30 @@ export default function StoreOrders({
                 />
             )}
         </>
+    )
+}
+
+/** Uma linha do FUNIL de pedidos do painel da loja: quem pediu, o que é, quanto, e UMA frase sobre a entrega — com a ação da etapa à direita */
+function FlowRow({ order, color, line, onOpen, children, colors }: { order: any; color: string; line: { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain' }; onOpen: () => void; children?: React.ReactNode; colors: any }) {
+    const who = order.buyer_profile_slug ? `@${order.buyer_profile_slug}` : (order.buyer_name || 'Cliente')
+    const first = order.items?.[0]
+    const more = (order.items?.length || 0) - 1
+    const summary = first ? `${first.quantity}× ${first.product_name}${more > 0 ? ` +${more}` : ''}` : ''
+    const time = order.created_at ? new Date(order.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
+    const tone = { ok: '#16a34a', wait: '#d97706', warn: '#dc2626', plain: colors.textSecondary }[line.tone]
+    return (
+        <div onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }} className="rounded-2xl pl-3 pr-2 py-2 flex items-center gap-2 cursor-pointer active:scale-[0.995] transition" style={{ background: `${colors.border}26`, borderLeft: `3px solid ${color}` }}>
+            <div className="min-w-0 flex-1">
+                <p className="flex items-baseline gap-1.5">
+                    <span className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{who}</span>
+                    <span className="text-[10.5px] flex-shrink-0 tabular-nums" style={{ color: colors.textSecondary }}>{time}</span>
+                    <span className="ml-auto text-[12px] font-black flex-shrink-0 tabular-nums" style={{ color: colors.textPrimary }}>R$ {Number(order.totalPrice || 0).toFixed(2).replace('.', ',')}</span>
+                </p>
+                <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{summary}</p>
+                <p className="text-[11px] font-bold truncate" style={{ color: tone }}>{line.text}</p>
+            </div>
+            {children && <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>{children}</div>}
+        </div>
     )
 }
 
