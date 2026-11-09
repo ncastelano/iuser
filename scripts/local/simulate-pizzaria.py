@@ -626,6 +626,9 @@ def drivers_accept(speed=1.0):
         from ride_requests r join orders o on o.id = r.order_id where r.status = 'pending' and r.driver_id is null and o.store_id = {esc(STORE['id'])}::uuid order by r.created_at""")
     if CFG['stage'] and FEATURED:   # no TEATRO a entrega da cliente em destaque espera um tempo pelo motorista que está na tela (Dani)
         offers = [o for o in offers if not (o['buyer_id'] == FEATURED['id'] and float(o['age']) < CFG['stage_grace'])]
+    # tem um entregador À MÃO (a pessoa mexendo em /entregas)? Os simulados esperam 25 s antes de pegar uma oferta nova, para ele ter a chance de aceitar primeiro
+    if any(is_manual(x) for x in IUSER_DRIVERS) and not CFG['theater']:
+        offers = [o for o in offers if float(o['age']) >= 25]
     if not offers:
         return
     for d in sorted(IUSER_DRIVERS, key=lambda _d: R.random()):

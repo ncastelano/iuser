@@ -68,6 +68,8 @@ BEGIN
     UPDATE public.orders SET status = 'preparing' WHERE id = o;
     GET DIAGNOSTICS n = ROW_COUNT;
     PERFORM pg_temp.ok(n = 1, '3d. e consegue aceitar');
+    PERFORM pg_temp.as_super();
+    PERFORM pg_temp.ok(EXISTS (SELECT 1 FROM public.profile_notifications WHERE profile_id = drv AND ref_id = o AND kind = 'delivery_order_preparing'), '3e. o ENTREGADOR é avisado de que a loja começou a preparar');
 
     -- 4) sem entregador: o cliente troca para RETIRADA
     PERFORM pg_temp.as_user(cli);

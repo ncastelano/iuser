@@ -245,6 +245,12 @@ BEGIN
     IF NEW.status = 'preparing' THEN
         PERFORM public._notify(NEW.buyer_id, 'order_accepted', s.owner_id, NEW.id,
             jsonb_build_object('title', 'Pedido aceito', 'text', s.name || ' aceitou seu pedido e já está preparando', 'path', '/carrinho?aba=pedidos', 'store', s.name), 'o:' || NEW.id || ':preparing');
+        -- o entregador que já aceitou a entrega fica sabendo que a loja começou a preparar (quem está longe sabe quanto tempo ainda tem)
+        SELECT r.driver_id INTO v_driver FROM public.ride_requests r WHERE r.order_id = NEW.id AND r.status = 'accepted' AND r.driver_id IS NOT NULL LIMIT 1;
+        IF v_driver IS NOT NULL THEN
+            PERFORM public._notify(v_driver, 'delivery_order_preparing', s.owner_id, NEW.id,
+                jsonb_build_object('title', 'Loja começou a preparar', 'text', s.name || ' aceitou e está preparando o pedido de ' || v_buyer || '. Te avisamos quando ficar pronto.', 'path', '/entregas', 'store', s.name), 'o:' || NEW.id || ':driver_preparing');
+        END IF;
     ELSIF NEW.status = 'ready' THEN
         PERFORM public._notify(NEW.buyer_id, 'order_ready', s.owner_id, NEW.id,
             jsonb_build_object('title', 'Pedido pronto', 'text', CASE WHEN NEW.delivery_option = 'entrega' THEN s.name || ': seu pedido está pronto, o motorista vai buscar' ELSE s.name || ': seu pedido está pronto para retirar' END, 'path', '/carrinho?aba=pedidos', 'store', s.name), 'o:' || NEW.id || ':ready');
@@ -281,15 +287,20 @@ DROP TRIGGER IF EXISTS orders_zz_notify_events ON public.orders;
 CREATE TRIGGER orders_zz_notify_events AFTER INSERT OR UPDATE OF status, total_amount, store_visible ON public.orders
     FOR EACH ROW EXECUTE FUNCTION public.trg_notify_order_events();
 
--- novo tipo de aviso: pedido retido que ninguém entregou
+-- novos tipos de aviso: pedido retido que ninguém entregou (ao cliente) e "a loja começou a preparar" (ao entregador)
 DO $$
-DECLARE v_name text; v_def text;
+DECLARE v_name text; v_def text; k text;
 BEGIN
     SELECT conname, pg_get_constraintdef(oid) INTO v_name, v_def FROM pg_constraint
      WHERE conrelid = 'public.profile_notifications'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%''order_new''::text%' LIMIT 1;
-    IF v_name IS NOT NULL AND v_def NOT LIKE '%order_no_driver%' THEN
+    IF v_name IS NOT NULL THEN
+        FOREACH k IN ARRAY ARRAY['order_no_driver', 'delivery_order_preparing'] LOOP
+            IF v_def NOT LIKE '%' || k || '%' THEN
+                v_def := replace(v_def, '''order_new''::text', '''order_new''::text, ''' || k || '''::text');
+            END IF;
+        END LOOP;
         EXECUTE format('ALTER TABLE public.profile_notifications DROP CONSTRAINT %I', v_name);
-        EXECUTE format('ALTER TABLE public.profile_notifications ADD CONSTRAINT %I %s', v_name, replace(v_def, '''order_new''::text', '''order_new''::text, ''order_no_driver''::text'));
+        EXECUTE format('ALTER TABLE public.profile_notifications ADD CONSTRAINT %I %s', v_name, v_def);
     END IF;
 END $$;
 

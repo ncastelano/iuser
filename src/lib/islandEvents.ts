@@ -14,6 +14,7 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     order_accepted: { level: 'success', icon: '👨‍🍳', label: 'Ver pedido' },
     order_ready: { level: 'success', icon: '✅', label: 'Ver pedido', duration: 6500 },
     order_rejected: { level: 'error', icon: '🚫', label: 'Ver pedido', duration: 7000 },
+    delivery_order_preparing: { level: 'info', icon: '👨‍🍳', label: 'Ver entrega', duration: 7000 },   // ao entregador: a loja aceitou e começou a preparar
     order_no_driver: { level: 'error', icon: '🛵', label: 'Ver pedido', duration: 9000 },   // pedido retido que ninguém entregou: cancelado (a loja nunca viu)
     order_delivered: { level: 'success', icon: '🎉', label: 'Avaliar', duration: 7000 },
     delivery_driver_assigned: { level: 'info', icon: '🛵', label: 'Acompanhar' },

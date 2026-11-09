@@ -186,7 +186,7 @@ export default function StoreOrders({
     const [iuserDeliveryEnabled, setIuserDeliveryEnabled] = useState(false)
     const [dispatchedOrderIds, setDispatchedOrderIds] = useState<Set<string>>(new Set())
     const [acceptedDispatchIds, setAcceptedDispatchIds] = useState<Set<string>>(new Set())
-    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { id: string; freight: number; radius: number; stage: string; v2State?: string | null; frozen?: number | null; driver?: string | null; etaMin?: number | null }>>(new Map())
+    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { id: string; freight: number; radius: number; stage: string; v2State?: string | null; frozen?: number | null; driver?: string | null; driverId?: string | null; etaMin?: number | null }>>(new Map())
     const [callDriverOrder, setCallDriverOrder] = useState<any>(null)
     // a posição dos entregadores muda: refaz o "chega em X min" a cada 20 s (com a aba à vista)
     const [etaTick, setEtaTick] = useState(0)
@@ -209,7 +209,7 @@ export default function StoreOrders({
             .then(({ data }) => {
                 setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string)))
                 setAcceptedDispatchIds(new Set((data || []).filter((r) => r.status === 'accepted' && !(r.flow_version === 2 && !isReleasedPhase(r.phase as string))).map((r) => r.order_id as string)))
-                const base = new Map((data || []).map((r) => [r.order_id as string, { id: r.id as string, freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null, driver: null as string | null, etaMin: null as number | null }]))
+                const base = new Map((data || []).map((r) => [r.order_id as string, { id: r.id as string, freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null, driver: null as string | null, driverId: null as string | null, etaMin: null as number | null }]))
                 setDispatchInfo(base)
                 // quem é o entregador que aceitou (nome público): a loja precisa saber de relance quem vem buscar
                 const rideOf = new Map((data || []).filter((r) => r.status === 'accepted' && r.ride_request_id).map((r) => [r.ride_request_id as string, r.order_id as string]))
@@ -235,7 +235,7 @@ export default function StoreOrders({
                         const eta = fresh && x.origin_lat != null && x.origin_lng != null
                             ? etaMinutes(haversineKm({ lat: Number(l!.live_lat), lng: Number(l!.live_lng) }, { lat: Number(x.origin_lat), lng: Number(x.origin_lng) }))
                             : null
-                        next.set(oid, { ...cur, driver: nameOf.get(x.driver_id as string) || null, etaMin: eta })
+                        next.set(oid, { ...cur, driver: nameOf.get(x.driver_id as string) || null, driverId: x.driver_id as string, etaMin: eta })
                     }
                     setDispatchInfo(next)
                 })
@@ -869,7 +869,7 @@ export default function StoreOrders({
     const onTheWay = ready.filter((o) => isDelivery(o) && dispatchInfo.get(o.id)?.stage === 'in_transit')
     const readyWaiting = ready.filter((o) => !onTheWay.includes(o))
     /** uma frase sobre COMO o pedido sai: retirada, entregador do iUser (quem e quando chega) ou entrega da própria loja */
-    const lineFor = (o: any): { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain' } => {
+    const lineFor = (o: any): { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain'; code?: string } => {
         if (!isDelivery(o)) return { text: 'Cliente retira na loja', tone: 'plain' }
         if (!iuserDeliveryEnabled) {
             const a = assignmentMap.get(o.checkout_id)
@@ -880,7 +880,9 @@ export default function StoreOrders({
         const info = dispatchInfo.get(o.id)
         // entregador já na loja e o pedido ainda não está pronto: quem está esperando é ELE — fica em âmbar para a loja ver
         const waitingOnStore = accepted && info?.stage === 'at_store' && o.status !== 'ready'
-        return { text: driverText(info, accepted), tone: accepted && !waitingOnStore ? 'ok' : 'wait' }
+        // o código de retirada fica NO PEDIDO (o cartão grande no topo saiu): só quando o entregador já está na loja e este pedido está pronto
+        const pc = o.status === 'ready' && info?.stage === 'at_store' && info?.driverId ? pickupCodes.find((c) => c.driver_id === info.driverId && !c.locked) : undefined
+        return { text: driverText(info, accepted), tone: accepted && !waitingOnStore ? 'ok' : 'wait', code: pc?.code }
     }
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
@@ -1352,22 +1354,6 @@ export default function StoreOrders({
                 {/* ===== FUNIL DE PEDIDOS: novos → em preparo → prontos → a caminho. Cada linha tem só o que importa e a ação da etapa ===== */}
                 {isOrdersExpanded && ordersTab === 'products' && (
                     <div className="flex flex-col gap-4 relative z-10">
-                        {/* o entregador chegou: o código de retirada, depois de conferir o que está entregando */}
-                        {pickupCodes.map((c) => (
-                            <div key={c.driver_id} className="rounded-2xl p-3" style={{ background: '#22c55e14', border: '1.5px solid #22c55e' }}>
-                                <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>{c.driver_name} chegou para retirar {c.rides} {c.rides === 1 ? 'pedido' : 'pedidos'}</p>
-                                <div className="mt-1.5 flex items-center justify-between gap-3">
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase tracking-wide flex items-center gap-1" style={{ color: '#16a34a' }}><KeyRound size={11} /> Código de retirada</p>
-                                        <p className="text-3xl font-black tracking-[0.3em] leading-tight" style={{ color: colors.textPrimary }}>{c.code}</p>
-                                    </div>
-                                    <p className="text-[11px] font-bold text-right max-w-[50%]" style={{ color: c.ready < c.rides ? '#b45309' : colors.textSecondary }}>
-                                        {c.locked ? 'Travado por tentativas erradas.' : c.ready < c.rides ? `${c.rides - c.ready} ainda em preparo: marque pronto antes de passar o código.` : 'Confira os pedidos com ele e passe o código.'}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-
                         {(() => {
                             const Head = ({ color, title, n }: { color: string; title: string; n: number }) => (
                                 <div className="flex items-center gap-2 px-0.5">
@@ -1537,7 +1523,7 @@ export default function StoreOrders({
 }
 
 /** Uma linha do FUNIL de pedidos do painel da loja: quem pediu, o que é, quanto, e UMA frase sobre a entrega — com a ação da etapa à direita */
-function FlowRow({ order, color, line, onOpen, children, colors }: { order: any; color: string; line: { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain' }; onOpen: () => void; children?: React.ReactNode; colors: any }) {
+function FlowRow({ order, color, line, onOpen, children, colors }: { order: any; color: string; line: { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain'; code?: string }; onOpen: () => void; children?: React.ReactNode; colors: any }) {
     const who = order.buyer_profile_slug ? `@${order.buyer_profile_slug}` : (order.buyer_name || 'Cliente')
     const first = order.items?.[0]
     const more = (order.items?.length || 0) - 1
@@ -1553,7 +1539,14 @@ function FlowRow({ order, color, line, onOpen, children, colors }: { order: any;
                     <span className="ml-auto text-[12px] font-black flex-shrink-0 tabular-nums" style={{ color: colors.textPrimary }}>R$ {Number(order.totalPrice || 0).toFixed(2).replace('.', ',')}</span>
                 </p>
                 <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{summary}</p>
-                <p className="text-[11px] font-bold truncate" style={{ color: tone }}>{line.text}</p>
+                <p className="text-[11px] font-bold flex items-center gap-1.5 min-w-0" style={{ color: tone }}>
+                    <span className="truncate">{line.text}</span>
+                    {line.code && (
+                        <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-black tracking-widest tabular-nums" style={{ background: '#22c55e1f', color: '#15803d' }} title="Código de retirada: passe ao entregador depois de conferir os pedidos">
+                            <KeyRound size={10} />{line.code}
+                        </span>
+                    )}
+                </p>
             </div>
             {children && <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>{children}</div>}
         </div>

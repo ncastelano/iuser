@@ -205,15 +205,15 @@ CREATE POLICY odd_select ON public.order_delivery_dispatches FOR SELECT
 DROP FUNCTION IF EXISTS public._order_store_visible(uuid);
 
 -- o tipo de aviso novo sai do CHECK (avisos já gravados desse tipo são apagados antes)
-DELETE FROM public.profile_notifications WHERE kind = 'order_no_driver';
+DELETE FROM public.profile_notifications WHERE kind IN ('order_no_driver', 'delivery_order_preparing');
 DO $$
 DECLARE v_name text; v_def text;
 BEGIN
     SELECT conname, pg_get_constraintdef(oid) INTO v_name, v_def FROM pg_constraint
-     WHERE conrelid = 'public.profile_notifications'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%order_no_driver%' LIMIT 1;
+     WHERE conrelid = 'public.profile_notifications'::regclass AND contype = 'c' AND (pg_get_constraintdef(oid) LIKE '%order_no_driver%' OR pg_get_constraintdef(oid) LIKE '%delivery_order_preparing%') LIMIT 1;
     IF v_name IS NOT NULL THEN
         EXECUTE format('ALTER TABLE public.profile_notifications DROP CONSTRAINT %I', v_name);
-        EXECUTE format('ALTER TABLE public.profile_notifications ADD CONSTRAINT %I %s', v_name, replace(v_def, ', ''order_no_driver''::text', ''));
+        EXECUTE format('ALTER TABLE public.profile_notifications ADD CONSTRAINT %I %s', v_name, replace(replace(v_def, ', ''order_no_driver''::text', ''), ', ''delivery_order_preparing''::text', ''));
     END IF;
 END $$;
 

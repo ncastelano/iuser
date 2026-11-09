@@ -683,6 +683,15 @@ export default function DriverDeliveriesScreen() {
                                 <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: ORANGE }}>{PHASE_LABEL[phase]}{phase === 'delivering' ? ` · entrega ${runDone + 1} de ${runTotal}` : ` · ${active.length} ${active.length === 1 ? 'entrega' : 'entregas'}`}</span>
                                 <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{phase === 'delivering' && current ? current.customerName : active[0].storeName}</span>
                                 <span className="block text-[12px] truncate" style={{ color: colors.textSecondary }}>{phase === 'delivering' && current ? current.address : shortAddress(active[0].storeAddress)}</span>
+                                {/* antes de retirar: como está o pedido na loja e quanto falta para chegar (quem está longe vê a loja aceitando, preparando e deixando pronto) */}
+                                {phase !== 'delivering' && (() => {
+                                    const sts = active.map((d) => d.orderStatus)
+                                    const allReady = sts.length > 0 && sts.every((x) => x === 'ready')
+                                    const anyPending = sts.some((x) => x === 'pending')
+                                    const toStoreMin = phase !== 'at_store' && myPos && store ? etaMinutes(haversineKm(myPos, store)) : null
+                                    const text = allReady ? 'Pedido pronto' : anyPending ? 'A loja ainda vai aceitar' : 'A loja está preparando'
+                                    return <span className="block text-[11px] font-black truncate" style={{ color: allReady ? '#16a34a' : '#b45309' }}>{text}{toStoreMin != null ? ` · você chega em ~${toStoreMin} min` : ''}</span>
+                                })()}
                                 {phase === 'delivering' && runTotal > 1 && <span className="block h-1 rounded-full mt-1.5 overflow-hidden" style={{ background: soft }}><span className="block h-full rounded-full" style={{ width: `${Math.round((runDone / runTotal) * 100)}%`, background: GREEN, transition: 'width .5s' }} /></span>}
                             </span>
                             {sheetOpen ? <ChevronDown size={20} style={{ color: colors.textSecondary }} /> : <ChevronUp size={20} style={{ color: colors.textSecondary }} />}
