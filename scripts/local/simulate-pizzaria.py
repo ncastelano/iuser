@@ -110,6 +110,14 @@ def load():
         log('(sem motoboys cadastrados: rode  node scripts/local/seed-motoboys.mjs  — entregas vão direto de pronto para entregue)')
 
 
+def free_driver_slots():
+    """Vagas livres nas mochilas dos entregadores iUser simulados: capacidade de cada um menos as entregas já aceitas e as que ainda procuram motorista (retidas)."""
+    cap = sum(int(d['cap']) for d in IUSER_DRIVERS if not is_manual(d))
+    used = q_local(f"""select count(*) as n from ride_requests r join orders o on o.id = r.order_id
+        where o.store_id = {esc(STORE['id'])}::uuid and r.status in ('pending', 'accepted')""")[0]['n']
+    return cap - int(used)
+
+
 def make_order(c=None, force_delivery=False):
     c = c or R.choice(CUSTOMERS)
     pizzas = [g for g in GOODS if g['category'] in ('Pizzas tradicionais', 'Pizzas especiais', 'Pizzas doces')]
@@ -133,6 +141,10 @@ def make_order(c=None, force_delivery=False):
         items.append({'product_id': g['id'], 'quantity': R.choice([1, 1, 1, 2]) if g['category'] == 'Refrigerantes e bebidas' else 1,
                       'comment': R.choice(COMMENTS) if g['has_addons'] else None, 'addons': [{'id': a} for a in chosen]})
     deliver = force_delivery or R.random() < 0.65
+    # ENTREGADOR PRIMEIRO, LOJA DEPOIS: um pedido de entrega só chega à loja depois que um motorista aceita. O simulador só pede entrega quando HÁ entregador livre na mochila
+    # (senão o pedido ficaria retido e expiraria sem a loja ver nada); sem vaga, o cliente pede para retirar.
+    if deliver and CFG['mode'] == 'iuser' and free_driver_slots() <= 0:
+        deliver = False
     pay = R.choice(['pix', 'pix', 'cartao', 'cartao', 'dinheiro'])
     street, lat, lng = R.choice(STREETS)
     lat, lng = lat + R.uniform(-0.006, 0.006), lng + R.uniform(-0.006, 0.006)   # cada casa num ponto (os pedidos prontos formam grupos perto e longe)
@@ -855,8 +867,8 @@ def cycle_tick(speed):
     fns = [attend_orders, attend_appointments, attend_service_cycle, review_featured]
     if CFG.get('manual') and not CFG['theater']:
         # LOJA À MÃO (--manual): quem atende é a pessoa, mas os ENTREGADORES seguem sozinhos — no fluxo "entregador primeiro, loja depois" o pedido de entrega só chega à loja
-        # depois que um motorista aceita, e sem eles os pedidos ficariam retidos para sempre. (A loja é quem confirma os repasses; isso fica de fora aqui.)
-        fns = [drivers_accept, drivers_run] if CFG['mode'] == 'iuser' else []
+        # depois que um motorista aceita, e sem eles os pedidos ficariam retidos para sempre. 
+        fns = [drivers_accept, drivers_run, settle_dues] if CFG['mode'] == 'iuser' else []   # settle_dues: o repasse do dinheiro/maquininha dos motoristas (sem ele o banco trava quem passa do limite)
         for fn in fns:
             try:
                 fn(speed)
