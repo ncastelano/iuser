@@ -6,7 +6,7 @@ export const C = { novo: '#22c55e', preparando: '#eab308', pronto: '#a855f7', ca
 
 export type Estado = 'movimentado' | 'tranquilo' | 'nova'
 export type Modelo = 'mixed' | 'products' | 'services'
-export type Fase = 'novo' | 'preparando' | 'pronto' | 'caminho'
+export type Fase = 'novo' | 'preparando' | 'pronto' | 'caminho' | 'finalizado'
 export type Pedido = { id: number; quem: string; hora: string; valor: number; item: string; mais: number; entrega: string; fase: Fase }
 
 export const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -24,6 +24,14 @@ export const PEDIDOS: Pedido[] = [
     { id: 10, quem: '@larissa-castro', hora: '22:55', valor: 64.9, item: 'Pizza Calabresa + Borda', mais: 0, entrega: 'Cliente retira na loja', fase: 'pronto' },
     { id: 11, quem: '@pedro-lima', hora: '22:49', valor: 131.2, item: 'Pizza Filé com Cheddar', mais: 2, entrega: 'Tito saiu para entregar', fase: 'caminho' },
     { id: 12, quem: '@bia-santos', hora: '22:44', valor: 76.0, item: 'Pizza Brigadeiro Gourmet', mais: 0, entrega: 'Dani saiu para entregar', fase: 'caminho' },
+]
+
+/** pedidos JÁ FINALIZADOS hoje (a seção "Finalizados" do funil do painel; a página Pedidos tem a própria lista) */
+export const FINALIZADOS_HOJE: Pedido[] = [
+    { id: 13, quem: '@lucas-ferreira', hora: '22:30', valor: 88.9, item: 'Pizza Calabresa (grande)', mais: 1, entrega: 'Entregue por Dani', fase: 'finalizado' },
+    { id: 14, quem: '@paula-nunes', hora: '22:12', valor: 54.0, item: 'Pizza Margherita (média)', mais: 0, entrega: 'Retirou na loja', fase: 'finalizado' },
+    { id: 15, quem: '@rui-castro', hora: '21:50', valor: 142.5, item: 'Combo Família', mais: 2, entrega: 'Entregue por Rafa', fase: 'finalizado' },
+    { id: 16, quem: '@sara-melo', hora: '21:20', valor: 63.7, item: 'Pizza Portuguesa (média)', mais: 1, entrega: 'Entregue por Léo', fase: 'finalizado' },
 ]
 
 export const FASES: { k: Fase; nome: string; cor: string; acao?: string }[] = [

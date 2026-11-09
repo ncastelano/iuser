@@ -20,13 +20,14 @@ import Editar from './Editar'
 import Compartilhar from './Compartilhar'
 import LogoFolha, { LogoBtn } from './LogoFolha'
 
-import { ORANGE, C, brl, PEDIDOS, FASES, type Estado, type Modelo, type Fase, type Pedido } from './dados'
+import GraficoVendas from './GraficoVendas'
+import { ORANGE, C, brl, PEDIDOS, FINALIZADOS_HOJE, FASES, type Estado, type Modelo, type Fase, type Pedido } from './dados'
 
 const NOTAS: Record<string, { porque: string; era: string }> = {
     cabecalho: { porque: 'Quem tem loja abre o painel para saber “estou aberta? o que preciso fazer?”. Abrir/fechar a loja vira um toque, aqui em cima.', era: 'Estava em Editar loja → Horários; o painel só mostrava os 3 atalhos.' },
     agora: { porque: 'UMA lista do que depende de VOCÊ, na ordem de urgência, cada linha leva direto ao lugar. Hoje os avisos moram espalhados em 6 blocos (pedidos, caixa, digital, apoios, agenda, conversas).', era: 'Não existia: era preciso rolar ~4.000 px e abrir cada bloco para descobrir que havia algo esperando.' },
     pedidos: { porque: 'Aceitar → preparar → entregar é o trabalho do dia. O funil vira 4 seções empilhadas na ordem do fluxo (Novos → Em preparo → Prontos → A caminho), todas à vista, até 2 pedidos em cada com a ação da etapa; no alto, 4 contadores que levam à seção. Ao aceitar, a linha desliza, o número cai e o da etapa nova dá um pulo.', era: '“Pedidos na loja” (funil de 4 seções empilhadas + aba Serviços escondendo os pedidos de serviço).' },
-    hoje: { porque: 'Cinco números que respondem “como está o dia?” numa linha só, deslizando de lado. Vendas por período e visitantes abrem DENTRO do próprio cartão.', era: 'Blocos “Vendas” e “Visitantes”: cada um com seu cartão grande e gráfico sempre aberto.' },
+    hoje: { porque: 'Só o que responde “como está o dia?”: vendas e quem está na loja agora (toque em “Online agora” para ver o que as pessoas fazem). Ticket e detalhes ficam no extrato completo; pedidos já estão acima e a nota subiu para “Sua loja”. O gráfico ganha vida: Hoje = uma barra por hora, Semana = uma por dia, Mês = uma fininha por dia.', era: 'Blocos “Vendas” e “Visitantes”: cada um com seu cartão grande e gráfico sempre aberto.' },
     agenda: { porque: 'Só o que vem a seguir (2 compromissos), com a hora em destaque. Aparece só quando a loja agenda serviço.', era: '“Agenda da loja” com 3 contadores e a lista.' },
     caixa: { porque: 'Dinheiro das entregas e vendas, num cartão só: o que está para conferir e quanto entrou. O que precisa de ação sobe para “Precisa de você”.', era: '“Caixa das entregas” + “Vendas” + “Apoios recebidos”, separados.' },
     digital: { porque: 'Quatro números e a linha do Clube. Sem nada de digital, vira um convite pequeno em vez de um cartão vazio.', era: 'Cartão “Digital” grande (com Apoios dentro).' },
@@ -63,7 +64,7 @@ export default function PainelLab() {
     const flip = useRef<Map<string, DOMRect> | null>(null)                          // posições ANTES da mudança (FLIP: o que mudou de lugar desliza do antigo ao novo)
     const [chegou, setChegou] = useState<{ id: number; k: number } | null>(null)     // pedido que acabou de chegar na etapa nova
     const [bump, setBump] = useState<{ fase: Fase; k: number } | null>(null)         // contador que deve dar o pulo
-    const [pedidos, setPedidos] = useState<Pedido[]>(PEDIDOS)
+    const [pedidos, setPedidos] = useState<Pedido[]>([...PEDIDOS, ...FINALIZADOS_HOJE])
     const [periodo, setPeriodo] = useState<'hoje' | 'semana' | 'mes'>('hoje')
     const [aba, setAba] = useState<'produtos' | 'servicos'>('produtos')
     const [servicos, setServicos] = useState(3)
@@ -89,7 +90,7 @@ export default function PainelLab() {
         if (k === 'srv') { setCatAba('servicos'); setAberto('cat'); return }
         if (k === 'cat-dig') { setCatAba('digitais'); setAberto('cat'); return }
         if (k === 'cat' || k === 'pro') { setCatAba('produtos'); setAberto('cat'); return }
-        if (['pedidos', 'repasses', 'digital', 'apoios', 'conversas', 'avaliacoes'].includes(k)) { setPagina(k); return }
+        if (['pedidos', 'repasses', 'digital', 'apoios', 'conversas', 'avaliacoes', 'agora'].includes(k)) { setPagina(k); return }
         if (k === 'extrato') { setExtratoAb(true); return }
         if (k === 'balcao') { setBalcaoAb(true); return }
         if (k === 'editar') { setEditarAb(true); return }
@@ -108,7 +109,7 @@ export default function PainelLab() {
     // pedidos exibidos conforme o estado
     const lista = useMemo(() => {
         if (nova) return []
-        if (calmo) return pedidos.filter((p) => p.id === 8 || p.id === 11)
+        if (calmo) return pedidos.filter((p) => p.id === 8 || p.id === 11 || p.id === 13)
         return pedidos
     }, [pedidos, nova, calmo])
     const conta = (f: Fase) => lista.filter((p) => p.fase === f).length
@@ -154,12 +155,12 @@ export default function PainelLab() {
         flip.current = m
     }
     function avancar(id: number) {
-        const ordem: Fase[] = ['novo', 'preparando', 'pronto', 'caminho']
+        const ordem: Fase[] = ['novo', 'preparando', 'pronto', 'caminho', 'finalizado']
         const p0 = pedidos.find((x) => x.id === id)
         if (!p0) return
-        const prox = ordem[ordem.indexOf(p0.fase) + 1]
+        const prox = p0.fase === 'pronto' && p0.entrega.startsWith('Cliente') ? 'finalizado' : ordem[ordem.indexOf(p0.fase) + 1]   // retirada na loja: Retirado já finaliza
         if (!prox) return
-        const corDe = (k: Fase) => { const c = FASES.find((x) => x.k === k)!.cor; return c === C.preparando ? '#ca8a04' : c }
+        const corDe = (k: Fase) => { const c = [...FASES, FIM].find((x) => x.k === k)!.cor; return c === C.preparando ? '#ca8a04' : c }
         cores.current = { id, de: corDe(p0.fase), para: corDe(prox) }
         medir()
         setPedidos((ps) => { const mv = ps.find((x) => x.id === id); return mv ? [{ ...mv, fase: prox }, ...ps.filter((x) => x.id !== id)] : ps })   // vai para o TOPO da etapa nova
@@ -246,6 +247,9 @@ export default function PainelLab() {
                     <p className="text-[11.5px] font-semibold" style={{ color: aberta ? '#16a34a' : colors.textSecondary }}>
                         {aberta ? 'Aberta agora · fecha às 00:00' : 'Fechada · não recebe pedidos novos'}
                     </p>
+                    <button onClick={() => ir('avaliacoes')} className="text-[11.5px] font-black flex items-center gap-1 mt-0.5 active:opacity-70" style={{ color: nova ? colors.textSecondary : '#a16207' }}>
+                        <Star size={12} fill={nova ? 'none' : '#eab308'} style={{ color: '#eab308' }} />{nova ? 'Sem avaliações ainda' : '4,6 · 120 avaliações'}{!nova && <ChevronRight size={12} />}
+                    </button>
                 </div>
                 <button onClick={() => setAberta((v) => !v)} role="switch" aria-checked={aberta} aria-label="Abrir ou fechar a loja"
                     className="relative w-14 h-8 rounded-full flex-shrink-0 transition active:scale-95" style={{ background: aberta ? '#22c55e' : `${colors.border}` }}>
@@ -281,7 +285,9 @@ export default function PainelLab() {
         </div>
     )
 
-    const fasesAtivas = temProdutos ? FASES : []
+    // a última etapa do funil: os pedidos JÁ FINALIZADOS hoje (cor azul dos finalizados no app todo)
+    const FIM = { k: 'finalizado' as Fase, nome: 'Finalizados', cor: '#2563eb', acao: undefined as string | undefined }
+    const fasesAtivas = temProdutos ? [...FASES, FIM] : []
     const pedidosBloco = (
         <div className="rounded-3xl p-3" style={card}>
             {temProdutos && temServicos && (
@@ -312,7 +318,7 @@ export default function PainelLab() {
                                     <span key={f.k} className="flex items-center gap-0.5 flex-1 min-w-0">
                                         <button onClick={() => document.getElementById(`ped-sec-${f.k}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="flex-1 min-w-0 rounded-2xl py-1.5 text-center active:scale-95 transition" style={{ background: n ? `${f.cor}22` : `${colors.border}30` }}>
                                             <span key={bump?.fase === f.k ? bump.k : 0} className="lab-anim block text-[19px] font-black leading-none" style={{ color: n ? (f.cor === C.preparando ? '#ca8a04' : f.cor) : colors.textSecondary, animation: bump?.fase === f.k ? 'labPulo .55s ease-out' : undefined }}>{n}</span>
-                                            <span className="block text-[9.5px] font-bold mt-0.5 leading-tight truncate" style={{ color: colors.textSecondary }}>{f.nome}</span>
+                                            <span className="block text-[9.5px] font-bold mt-0.5 leading-tight truncate" style={{ color: colors.textSecondary }}>{f.k === 'finalizado' ? 'Feitos' : f.nome}</span>
                                         </button>
                                         {i < fasesAtivas.length - 1 && <ChevronRight size={12} style={{ color: colors.textSecondary }} className="flex-shrink-0" />}
                                     </span>
@@ -393,20 +399,17 @@ export default function PainelLab() {
 
     const rh = resumo('hoje')
     const kpis = [
-        { l: 'Vendas hoje', v: calmo ? 'R$ 212' : nova ? 'R$ 0' : brl(rh.total).replace(',00', ''), c: C.novo, ic: <Wallet size={13} /> },
-        { l: 'Pedidos', v: calmo ? '3' : nova ? '0' : String(rh.vendas), c: C.caminho, ic: <ClipboardList size={13} /> },
-        { l: 'Ticket', v: calmo ? 'R$ 71' : nova ? '—' : brl(rh.total / Math.max(1, rh.vendas)).replace(',00', ''), c: C.pronto, ic: <Tag size={13} /> },
-        { l: 'Nota', v: nova ? '—' : '4,6 ★', c: C.preparando, ic: <Star size={13} /> },
-        { l: 'Online agora', v: calmo ? '2' : nova ? '0' : '9', c: C.servico, ic: <Users size={13} /> },
+        { l: 'Vendas hoje', v: calmo ? 'R$ 212' : nova ? 'R$ 0' : brl(rh.total).replace(',00', ''), c: C.novo, ic: <Wallet size={13} />, ir: undefined as string | undefined },
+        { l: 'Online agora', v: calmo ? '2' : nova ? '0' : '9', c: C.servico, ic: <Users size={13} />, ir: 'agora' },
     ]
     const hojeBloco = (
         <>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2">
                 {kpis.map((k) => (
-                    <div key={k.l} className="rounded-2xl px-3.5 py-2.5 flex-[1_1_30%] min-w-[96px]" style={card}>
-                        <p className="text-[10.5px] font-bold flex items-center gap-1" style={{ color: k.c }}>{k.ic}{k.l}</p>
-                        <p className="text-[19px] font-black leading-tight mt-0.5">{k.v}</p>
-                    </div>
+                    <button key={k.l} onClick={() => k.ir && ir(k.ir)} disabled={!k.ir} className="rounded-2xl px-3.5 py-2.5 text-left disabled:cursor-default active:scale-[.98] transition" style={card}>
+                        <p className="text-[10.5px] font-bold flex items-center gap-1" style={{ color: k.c }}>{k.ic}{k.l}{k.ir && !nova && <span className="relative flex w-1.5 h-1.5 ml-0.5"><span className="absolute inline-flex w-full h-full rounded-full animate-ping" style={{ background: k.c, opacity: 0.6 }} /><span className="relative inline-flex w-1.5 h-1.5 rounded-full" style={{ background: k.c }} /></span>}</p>
+                        <p className="text-[19px] font-black leading-tight mt-0.5 flex items-center">{k.v}{k.ir && <span className="ml-auto flex items-center text-[11px] font-black" style={{ color: k.c }}>ver<ChevronRight size={13} /></span>}</p>
+                    </button>
                 ))}
             </div>
             <div className="rounded-3xl p-3 mt-2" style={card}>
@@ -415,11 +418,9 @@ export default function PainelLab() {
                         <button key={k} onClick={() => setPeriodo(k)} className="h-8 px-3.5 rounded-full text-[12px] font-black active:scale-95" style={pill(periodo === k)}>{l}</button>
                     ))}
                 </div>
-                <div className="flex items-end justify-between">
-                    <div><p className="text-[24px] font-black leading-none">{brl(vendas[0])}</p><p className="text-[11.5px] mt-1" style={{ color: colors.textSecondary }}>{vendas[1]} pedidos · ticket {ticket ? brl(ticket) : '—'}</p></div>
-                    <div className="flex items-end gap-1 h-10">
-                        {[30, 45, 38, 60, 52, 80, 100].map((h, i) => <span key={i} className="w-2.5 rounded-t" style={{ height: `${nova ? 6 : h * (calmo ? 0.5 : 1) * 0.4}px`, background: i === 6 ? ORANGE : `${ORANGE}55` }} />)}
-                    </div>
+                <div className="flex items-end justify-between gap-3">
+                    <div className="min-w-0"><p className="text-[24px] font-black leading-none">{brl(vendas[0])}</p><p className="text-[11.5px] mt-1" style={{ color: colors.textSecondary }}>{vendas[1]} {vendas[1] === 1 ? 'venda' : 'vendas'}</p></div>
+                    <GraficoVendas periodo={periodo} alvo={vendas[0]} nova={nova} c={colors} />
                 </div>
                 <button onClick={() => setExtrato((v) => !v)} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40` }}>
                     {extrato ? 'Fechar o extrato' : 'Ver extrato'}<ChevronRight size={14} className={extrato ? '-rotate-90 transition' : 'rotate-90 transition'} />
