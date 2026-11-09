@@ -21,7 +21,7 @@ const GRUPOS: { titulo: string; dica: string; ks: string[] }[] = [
 ]
 const SELO = { on: '#16a34a', off: '#9ca3af', warn: '#ef4444' }
 
-export default function Editar({ itens, onAbrir, onCompartilhar, onClose, nivel, nomeNivel, logoCor, onLogo }: { itens: ItemEdicao[]; onAbrir: (k: string) => void; onCompartilhar: () => void; onClose: () => void; nivel: number; nomeNivel: string; logoCor: string; onLogo: () => void }) {
+export default function Editar({ itens, onAbrir, onCompartilhar, onClose, nivel, nomeNivel, logoCor, logoImg, onLogo }: { itens: ItemEdicao[]; onAbrir: (k: string) => void; onCompartilhar: () => void; onClose: () => void; nivel: number; nomeNivel: string; logoCor: string; logoImg: string | null; onLogo: () => void }) {
     const { colors } = useTheme()
     const card = { background: colors.surface, border: `1px solid ${colors.border}` }
     const [pausada, setPausada] = useState(false)
@@ -35,7 +35,7 @@ export default function Editar({ itens, onAbrir, onCompartilhar, onClose, nivel,
             {node}
             <div className="rounded-3xl p-3.5" style={card}>
                 <div className="flex items-center gap-3">
-                    <LogoBtn nivel={nivel} cor={logoCor} size={56} onClick={onLogo} />
+                    <LogoBtn nivel={nivel} cor={logoCor} img={logoImg} size={56} onClick={onLogo} />
                     <div className="min-w-0 flex-1"><p className="text-[16px] font-black leading-tight truncate">Pizzaria Forno de Ouro</p><p className="text-[11.5px] truncate" style={{ color: colors.textSecondary }}>iuser.com.br/pizzaria-forno-de-ouro</p>
                         <span className="inline-flex items-center gap-1 text-[10.5px] font-black mt-1 px-2 py-0.5 rounded-full" style={{ background: '#fbbf2433', color: '#92400e' }}><Crown size={11} />{nivel > 0 ? `Nível ${nivel} · ${nomeNivel}` : 'Sem moldura ainda'}</span></div>
                 </div>

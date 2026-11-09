@@ -3,6 +3,7 @@
 // mostra a atual e a escada inteira (o que já tem, o que falta).
 'use client'
 
+import { useRef } from 'react'
 import { Camera, Check, Crown, ImagePlus, Lock, Store, Trash2 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import StoreFrame from '@/components/store/StoreFrame'
@@ -13,10 +14,10 @@ export const LOGOS = ['#b91c1c', '#2563eb', '#16a34a', '#7c3aed', '#f59e0b', '#0
 const LV = DEFAULT_STORE_LEVELS
 
 /** o logo (quadrado arredondado) dentro da moldura do nível; com `onClick` vira botão com a câmera no canto */
-export function LogoBtn({ nivel, cor, size = 48, onClick }: { nivel: number; cor: string; size?: number; onClick?: () => void }) {
+export function LogoBtn({ nivel, cor, size = 48, onClick, img }: { nivel: number; cor: string; size?: number; onClick?: () => void; img?: string | null }) {
     const logo = (
-        <span className="relative flex items-center justify-center text-white" style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), background: cor }}>
-            <Store size={Math.round(size * 0.46)} />
+        <span className="relative flex items-center justify-center text-white" style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), background: cor, overflow: 'hidden' }}>
+            {img ? <img src={img} alt="" className="w-full h-full object-cover" /> : <Store size={Math.round(size * 0.46)} />}
         </span>
     )
     const quadro = <StoreFrame level={nivel} size={size} innerRadius={Math.round(size * 0.3)}>{logo}</StoreFrame>
@@ -29,31 +30,43 @@ export function LogoBtn({ nivel, cor, size = 48, onClick }: { nivel: number; cor
     )
 }
 
-export default function LogoFolha({ nivel, pontos, cor, setCor, onClose }: { nivel: number; pontos: number; cor: string; setCor: (c: string) => void; onClose: () => void }) {
+export default function LogoFolha({ nivel, pontos, cor, setCor, img, setImg, onClose }: { nivel: number; pontos: number; cor: string; setCor: (c: string) => void; img: string | null; setImg: (u: string | null) => void; onClose: () => void }) {
+    const galeria = useRef<HTMLInputElement>(null)
+    const camera = useRef<HTMLInputElement>(null)
     const { colors } = useTheme()
     const { mostrar, node } = useAviso()
     const atual = levelOf(LV, nivel)
     const prox = nextLevel(LV, nivel)
+    const escolheu = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const arq = e.target.files?.[0]
+        e.target.value = ''
+        if (!arq) return
+        if (!/^image\/(jpeg|png|webp|gif|avif)$/.test(arq.type)) { mostrar('Use uma foto JPEG, PNG, WebP, GIF ou AVIF'); return }
+        if (arq.size > 5 * 1024 * 1024) { mostrar('A imagem passa de 5 MB'); return }
+        setImg(URL.createObjectURL(arq)); mostrar('Logo trocado (só nesta tela, nada foi enviado)')
+    }
     return (
         <FolhaCasca titulo="Logo e moldura" sub="Pizzaria Forno de Ouro" cor="#f97316" icone={<Store size={18} />} onClose={onClose} z={95}
             rodape={<button onClick={() => { onClose() }} className="w-full h-12 rounded-full text-[14px] font-black text-white active:scale-95" style={{ background: '#f97316' }}>Pronto</button>}>
             {node}
             <div className="flex flex-col items-center py-2">
-                <LogoBtn nivel={nivel} cor={cor} size={92} />
+                <LogoBtn nivel={nivel} cor={cor} size={92} img={img} />
                 <p className="text-[13px] font-black mt-4 flex items-center gap-1.5"><Crown size={14} style={{ color: '#d97706' }} />{nivel > 0 ? `Nível ${nivel} · ${atual.name}` : 'Sem moldura ainda'}</p>
                 <p className="text-[11.5px]" style={{ color: colors.textSecondary }}>{pontos.toLocaleString('pt-BR')} pontos no Outdoor</p>
             </div>
 
             <p className="text-[11px] font-black uppercase tracking-wider mb-2 mt-1" style={{ color: colors.textSecondary }}>Trocar a imagem</p>
+            <input ref={galeria} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" className="hidden" onChange={escolheu} />
+            <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" onChange={escolheu} />
             <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => mostrar('Abriria a câmera (exemplo)')} className="h-11 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ border: `1px solid ${colors.border}` }}><Camera size={15} />Tirar foto</button>
-                <button onClick={() => mostrar('Abriria a galeria — toque numa das imagens abaixo')} className="h-11 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ border: `1px solid ${colors.border}` }}><ImagePlus size={15} />Da galeria</button>
+                <button onClick={() => camera.current?.click()} className="h-11 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ border: `1px solid ${colors.border}` }}><Camera size={15} />Tirar foto</button>
+                <button onClick={() => galeria.current?.click()} className="h-11 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ border: `1px solid ${colors.border}` }}><ImagePlus size={15} />Da galeria</button>
             </div>
             <div className="flex gap-2 mt-2.5 items-center">
                 {LOGOS.map((c) => (
-                    <button key={c} onClick={() => { setCor(c); mostrar('Logo trocado') }} aria-label="Usar esta imagem" className="w-11 h-11 rounded-2xl flex items-center justify-center text-white active:scale-90" style={{ background: c, outline: cor === c ? '3px solid #f97316' : 'none', outlineOffset: 2 }}>{cor === c ? <Check size={16} /> : <Store size={16} />}</button>
+                    <button key={c} onClick={() => { setImg(null); setCor(c); mostrar('Logo trocado') }} aria-label="Usar esta imagem" className="w-11 h-11 rounded-2xl flex items-center justify-center text-white active:scale-90" style={{ background: c, outline: !img && cor === c ? '3px solid #f97316' : 'none', outlineOffset: 2 }}>{!img && cor === c ? <Check size={16} /> : <Store size={16} />}</button>
                 ))}
-                <button onClick={() => { setCor('#9ca3af'); mostrar('Logo removido') }} aria-label="Remover o logo" className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ border: `1px solid ${colors.border}`, color: '#ef4444' }}><Trash2 size={16} /></button>
+                <button onClick={() => { setImg(null); setCor('#9ca3af'); mostrar('Logo removido') }} aria-label="Remover o logo" className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ border: `1px solid ${colors.border}`, color: '#ef4444' }}><Trash2 size={16} /></button>
             </div>
             <p className="text-[11px] mt-1.5" style={{ color: colors.textSecondary }}>Quadrado, a partir de 400 × 400 px, até 5 MB. A moldura se ajusta sozinha.</p>
 
@@ -64,7 +77,7 @@ export default function LogoFolha({ nivel, pontos, cor, setCor, onClose }: { niv
                     const tem = l.level <= nivel
                     return (
                         <div key={l.level} className="flex items-center gap-3 px-3.5 py-3" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined, opacity: tem ? 1 : 0.7 }}>
-                            <LogoBtn nivel={l.level} cor={cor} size={44} />
+                            <LogoBtn nivel={l.level} cor={cor} size={44} img={img} />
                             <div className="min-w-0 flex-1">
                                 <p className="text-[13.5px] font-black leading-tight">{l.name}{l.level === nivel && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full align-middle text-white" style={{ background: '#16a34a' }}>SUA</span>}</p>
                                 <p className="text-[11.5px] leading-tight" style={{ color: colors.textSecondary }}>{l.description} · {l.minPoints === 0 ? 'de início' : `${l.minPoints.toLocaleString('pt-BR')} pontos`}</p>

@@ -75,6 +75,7 @@ export default function PainelLab() {
     const [shareAb, setShareAb] = useState(false)
     const [logoAb, setLogoAb] = useState(false)
     const [logoCor, setLogoCor] = useState('#b91c1c')
+    const [logoImg, setLogoImg] = useState<string | null>(null)
     const [catAba, setCatAba] = useState<'produtos' | 'digitais' | 'servicos'>('produtos')
     const [agendaAba, setAgendaAba] = useState<'agenda' | 'pend' | 'hor'>('agenda')
     /** TODO destino do painel passa por aqui: página, folha, extrato, balcão, editar, compartilhar ou um atalho do Gerenciar */
@@ -172,7 +173,7 @@ export default function PainelLab() {
     const cabecalho = (
         <div className="rounded-[28px] p-3.5" style={card}>
             <div className="flex items-center gap-3">
-                <LogoBtn nivel={nivelLoja} cor={logoCor} size={48} onClick={() => setLogoAb(true)} />
+                <LogoBtn nivel={nivelLoja} cor={logoCor} img={logoImg} size={48} onClick={() => setLogoAb(true)} />
                 <div className="min-w-0 flex-1">
                     <p className="text-[17px] font-black leading-tight truncate">Pizzaria Forno de Ouro</p>
                     {nivelLoja > 0 && <button onClick={() => setLogoAb(true)} className="inline-flex items-center gap-1 text-[10.5px] font-black px-2 py-0.5 rounded-full my-0.5" style={{ background: '#fbbf2433', color: '#92400e' }}><Crown size={10} />Nível {nivelLoja} · {nomeNivel}</button>}
@@ -642,7 +643,7 @@ export default function PainelLab() {
                 {extratoAb && <Extrato onClose={() => setExtratoAb(false)} />}
                 {balcaoAb && <Balcao onClose={() => setBalcaoAb(false)} />}
                 {editarAb && (
-                    <Editar nivel={nivelLoja} nomeNivel={nomeNivel} logoCor={logoCor} onLogo={() => setLogoAb(true)} onClose={() => setEditarAb(false)} onAbrir={ir} onCompartilhar={() => setShareAb(true)}
+                    <Editar nivel={nivelLoja} nomeNivel={nomeNivel} logoCor={logoCor} logoImg={logoImg} onLogo={() => setLogoAb(true)} onClose={() => setEditarAb(false)} onAbrir={ir} onCompartilhar={() => setShareAb(true)}
                         itens={base.filter((g) => g.mostrar).map((g) => ({ k: g.k, t: g.t, ic: g.ic, cor: g.cor, texto: g.texto(estDe(g)), estado: estDe(g) }))} />
                 )}
                 {aberto && (() => {
@@ -650,7 +651,7 @@ export default function PainelLab() {
                     return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} agendaAba={agendaAba} tem={{ prod: temProdutos, serv: temServicos }} catAba={catAba} />
                 })()}
                 {shareAb && <Compartilhar onClose={() => setShareAb(false)} />}
-                {logoAb && <LogoFolha nivel={nivelLoja} pontos={pontosLoja} cor={logoCor} setCor={setLogoCor} onClose={() => setLogoAb(false)} />}
+                {logoAb && <LogoFolha nivel={nivelLoja} pontos={pontosLoja} cor={logoCor} setCor={setLogoCor} img={logoImg} setImg={setLogoImg} onClose={() => setLogoAb(false)} />}
                 {/* botão fixo: venda no balcão (acima da barra do app) */}
                 {versao === 'nova' && !nova && temProdutos && (
                     <div className="fixed inset-x-0 bottom-0 flex justify-center pointer-events-none" style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
