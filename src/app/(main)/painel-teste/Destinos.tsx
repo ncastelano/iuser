@@ -20,7 +20,8 @@ export const DESTINOS: Record<string, { tipo: Tipo; titulo: string; rota: string
     pro: { tipo: 'pagina', titulo: 'Promoções', rota: '/editar-loja/<slug>/promocoes', comp: 'StorePromotions' },
     eqp: { tipo: 'pagina', titulo: 'Equipe', rota: '/editar-loja/<slug>/equipe', comp: 'Employee' },
     pub: { tipo: 'pagina', titulo: 'Publicações', rota: '/editar-loja/<slug>/publicacoes', comp: 'StorePublication' },
-    ent: { tipo: 'folha', titulo: 'Entrega', rota: '?abrir=entrega', comp: 'StoreDeliverySettings + StoreFavoriteDrivers' },
+    inf: { tipo: 'folha', titulo: 'Dados da loja', rota: '?abrir=dados', comp: 'StoreDescription + StoreLinksEditor + StoreModelEditor' },
+    ent: { tipo: 'folha', titulo: 'Entrega', rota: '?abrir=entrega', comp: 'StoreDeliverySettings' },
     pag: { tipo: 'folha', titulo: 'Pagamento', rota: '?abrir=pagamento', comp: 'StorePaymentMethods' },
     hor: { tipo: 'folha', titulo: 'Horários', rota: '?abrir=horarios', comp: 'StoreOperatingDays' },
     age: { tipo: 'pagina', titulo: 'Agenda', rota: '/compromissos/<slug>', comp: 'CompromissosView (aba da loja)' },
@@ -77,6 +78,7 @@ type Colors = ThemeColors
 
 function conteudo(p: Props, c: Colors): ReactNode {
     switch (p.k) {
+        case 'inf': return <Dados {...p} c={c} />
         case 'ent': return <Entrega {...p} c={c} />
         case 'pag': return <Pagamento {...p} c={c} />
         case 'hor': return <Horarios {...p} c={c} />
@@ -148,7 +150,6 @@ function Entrega({ c, cor, on, setOn }: Props & { c: Colors }) {
     const [modo, setModo] = useState<'iuser' | 'propria'>('iuser')
     const [retira, setRetira] = useState(true)
     const [zap, setZap] = useState(false)
-    const [favAberto, setFavAberto] = useState(false)
     return (
         <>
             <Estado c={c} on={on} set={setOn} cor={cor} ligado="Entrega em casa ligada" desligado="Sem entrega em casa — só retirada" />
@@ -162,16 +163,6 @@ function Entrega({ c, cor, on, setOn }: Props & { c: Colors }) {
                         </button>
                     ))}
                     {modo === 'propria' && <><Campo c={c} label="Quanto você cobra" valor="R$ 7,00" /><Campo c={c} label="Até quantos km" valor="8 km" /><Aviso c={c} cor={cor}>Quem entrega é a sua <b>equipe</b> (Gerenciar → Equipe).</Aviso></>}
-                    {modo === 'iuser' && (
-                        <div className="rounded-3xl overflow-hidden mt-1" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
-                            <button onClick={() => setFavAberto((v) => !v)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left">
-                                <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#ec489926', color: '#ec4899' }}><Heart size={17} /></span>
-                                <span className="min-w-0 flex-1"><span className="block text-[13.5px] font-black leading-tight">Entregadores favoritos <span className="font-semibold" style={{ color: c.textSecondary }}>· opcional</span></span><span className="block text-[11.5px] leading-snug" style={{ color: c.textSecondary }}>Dani e Rafa veem suas entregas primeiro</span></span>
-                                <ChevronRight size={16} className={favAberto ? 'rotate-90 transition' : 'transition'} style={{ color: c.textSecondary }} />
-                            </button>
-                            {favAberto && <div className="px-3.5 pb-3.5 pt-1" style={{ borderTop: `1px solid ${c.border}` }}><div className="pt-3"><Favoritos k="fav" cor="#ec4899" icone={null} nova={false} on setOn={() => {}} entregaOn onClose={() => {}} c={c} /></div></div>}
-                        </div>
-                    )}
                 </>
             )}
             <Titulo c={c}>Outras formas</Titulo>
@@ -182,26 +173,22 @@ function Entrega({ c, cor, on, setOn }: Props & { c: Colors }) {
     )
 }
 
-function Favoritos({ c, cor, entregaOn }: Props & { c: Colors }) {
-    const [jan, setJan] = useState<'1' | '2' | '3' | '5'>('2')
-    if (!entregaOn) return <Aviso c={c} cor="#f59e0b">Os favoritos valem para o <b>Entregador do iUser</b>. Ligue a entrega em casa primeiro.</Aviso>
+function Dados({ c, cor, nova }: Props & { c: Colors }) {
+    const [modelo, setModelo] = useState<'products' | 'services' | 'mixed'>('mixed')
     return (
         <>
-            <p className="text-[13px] font-bold mb-3">2 de 10 favoritos</p>
-            <div className="rounded-3xl overflow-hidden" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
-                {[['Dani', 'Aceitou · online agora · mochila 6', '#16a34a'], ['Rafa', 'Aceitou · online agora · mochila 8', '#16a34a'], ['Tito', 'Convite enviado · esperando resposta', '#f59e0b']].map(([n, s, k], i) => (
-                    <div key={n} className="flex items-center gap-3 px-3.5 py-3" style={{ borderTop: i ? `1px solid ${c.border}` : undefined }}>
-                        <span className="w-10 h-10 rounded-full flex items-center justify-center font-black text-white" style={{ background: cor }}>{n[0]}</span>
-                        <div className="min-w-0 flex-1"><p className="text-[13.5px] font-black leading-tight">{n}</p><p className="text-[11.5px] font-semibold leading-tight mt-0.5" style={{ color: k }}>{s}</p></div>
-                        <button aria-label="Remover" className="w-8 h-8 rounded-full flex items-center justify-center" style={{ border: `1px solid ${c.border}`, color: c.textSecondary }}><Trash2 size={14} /></button>
-                    </div>
-                ))}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="rounded-3xl h-24 flex flex-col items-center justify-center gap-1 text-center" style={{ background: nova ? c.surface : '#b91c1c', color: nova ? c.textSecondary : '#fff', border: nova ? `1.5px dashed ${c.border}` : 'none' }}><Plus size={18} /><span className="text-[11px] font-black">{nova ? 'Logo' : 'Trocar logo'}</span></div>
+                <div className="col-span-2 rounded-3xl h-24 flex flex-col items-center justify-center gap-1 text-center" style={{ background: c.surface, border: `1.5px dashed ${c.border}`, color: c.textSecondary }}><Plus size={18} /><span className="text-[11px] font-black">Foto de capa (opcional)</span></div>
             </div>
-            <Titulo c={c}>Convidar</Titulo>
-            <div className="h-12 rounded-2xl px-3.5 flex items-center gap-2 text-[14px]" style={{ background: c.surface, border: `1.5px solid ${c.border}`, color: c.textSecondary }}><Search size={16} />Buscar por nome ou @</div>
-            <Titulo c={c}>Tempo só para favoritos</Titulo>
-            <Chips c={c} itens={[['1', '1 min'], ['2', '2 min'], ['3', '3 min'], ['5', '5 min']]} valor={jan} set={setJan} cor={cor} />
-            <p className="text-[11.5px] mt-2 leading-snug" style={{ color: c.textSecondary }}>Cada entrega nova aparece primeiro só para eles. Se nenhum aceitar nesse tempo, abre para todos os entregadores.</p>
+            <Campo c={c} label="Nome da loja" valor="Pizzaria Forno de Ouro" />
+            <Campo c={c} label="Descrição" valor="Pizzas artesanais no forno a lenha, rodízio e ambiente VIP." dica="É o que aparece embaixo do nome na página da loja." />
+            <Titulo c={c}>Links</Titulo>
+            {[['Cardápio completo', 'fornodeouro.com.br/cardapio'], ['Instagram', 'instagram.com/fornodeouro']].map(([t, u]) => <div key={t} className="rounded-2xl px-3.5 py-2.5 mb-1.5 text-[12.5px]" style={{ background: c.surface, border: `1px solid ${c.border}` }}><b>{t}</b><span className="block text-[11px]" style={{ color: c.textSecondary }}>{u}</span></div>)}
+            <Titulo c={c}>O que a loja vende</Titulo>
+            <Chips c={c} itens={[['products', 'Produtos'], ['services', 'Serviços'], ['mixed', 'Produtos e serviços']]} valor={modelo} set={setModelo} cor={cor} />
+            <p className="text-[11.5px] mt-2 leading-snug" style={{ color: c.textSecondary }}>Muda os botões da página da loja (Comprar, Agendar ou os dois). Nenhum preço nem pedido depende disso.</p>
+            <button className="w-full mt-5 h-11 rounded-full text-[12.5px] font-black" style={{ border: `1px solid #ef444477`, color: '#ef4444' }}>Excluir a loja</button>
         </>
     )
 }

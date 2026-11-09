@@ -9,7 +9,7 @@
 import { ReactNode, useMemo, useState } from 'react'
 import {
     Bike, CalendarDays, Check, ChevronRight, ClipboardList, CreditCard, Crown, Gift, GraduationCap, HandCoins, Heart, Info, MessageCircle, Megaphone,
-    Package, Share2, ShoppingBag, Sparkles, Star, Store, Tag, Timer, Truck, Users, Wallet, X, Clock, Eye, Settings, Plus, Zap, Banknote,
+    Package, Flame, Trophy, Share2, ShoppingBag, Sparkles, Star, Store, Tag, Timer, Truck, Users, Wallet, X, Clock, Eye, Settings, Plus, Zap, Banknote,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { DESTINOS, Destino } from './Destinos'
@@ -56,6 +56,7 @@ const NOTAS: Record<string, { porque: string; era: string }> = {
     caixa: { porque: 'Dinheiro das entregas e vendas, num cartão só: o que está para conferir e quanto entrou. O que precisa de ação sobe para “Precisa de você”.', era: '“Caixa das entregas” + “Vendas” + “Apoios recebidos”, separados.' },
     digital: { porque: 'Quatro números e a linha do Clube. Sem nada de digital, vira um convite pequeno em vez de um cartão vazio.', era: 'Cartão “Digital” grande (com Apoios dentro).' },
     reputacao: { porque: 'A nota e o último comentário. A distribuição por estrelas e os 120 comentários ficam um toque adiante.', era: '“Avaliações e comentários”: a lista inteira aberta no painel (era ~900 px).' },
+    missoes: { porque: 'O que a loja precisa fazer vira um jogo curto e sempre à vista: o cadastro que falta (cada passo vale pontos, uma vez) e as missões do dia (reiniciam toda manhã). Os pontos sobem a loja no Outdoor. ATENÇÃO: missões ainda não existem no motor de pontuação; hoje os pontos da loja vêm de sinais (vendas, avaliações, visitas).', era: 'Só havia a lista “Comece por aqui”, e apenas na loja nova: depois de completa, ninguém via o que faltava.' },
     gerenciar: { porque: 'Tudo que é configuração vira uma grade de atalhos com o estado de cada um (“Pix ✓”, “iUser ligado”). Quem chega aqui para atender não precisa passar por isso.', era: 'Editar loja: ~15 blocos longos um embaixo do outro.' },
     balcao: { porque: 'Venda no balcão é uma ação, não um bloco: fica como botão fixo embaixo, sempre à mão e sem ocupar lugar na página.', era: 'Cartão “Venda presencial” no meio da página.' },
 }
@@ -67,6 +68,7 @@ const MAPA: [string, string][] = [
     ['Caixa das entregas', 'Dinheiro (+ “Precisa de você”)'],
     ['Digital + Apoios recebidos', 'Digital e Clube'],
     ['Agenda da loja', 'Agenda (próximos compromissos)'],
+    ['“Comece por aqui” (só na loja nova)', 'Missões da loja (cadastro + missões do dia)'],
     ['Venda presencial', 'Botão fixo “Venda no balcão”'],
     ['Vendas', 'Como está o dia (Hoje/Semana/Mês)'],
     ['Avaliações e comentários', 'Reputação (último comentário) → ver todas'],
@@ -87,7 +89,8 @@ export default function PainelLab() {
     const [aba, setAba] = useState<'produtos' | 'servicos'>('produtos')
     const [servicos, setServicos] = useState(3)
     const [verEstrelas, setVerEstrelas] = useState(false)
-    const [todasAtencao, setTodasAtencao] = useState(false)
+    const [extrato, setExtrato] = useState(false)
+    const [miss, setMiss] = useState<Record<string, boolean>>({})
     const [ger, setGer] = useState<Record<string, boolean>>({})
     const [aberto, setAberto] = useState<string | null>(null)
 
@@ -130,6 +133,15 @@ export default function PainelLab() {
     function recusar(id: number) { setPedidos((ps) => ps.filter((p) => p.id !== id)) }
 
     const vendas = { hoje: [calmo ? 212 : nova ? 0 : 1284.6, calmo ? 3 : nova ? 0 : 14], semana: [calmo ? 1890 : nova ? 0 : 7420, calmo ? 21 : nova ? 0 : 88], mes: [calmo ? 6400 : nova ? 0 : 23190, calmo ? 70 : nova ? 0 : 301] }[periodo]
+    const FORMAS: [string, number, string][] = [['Pix', 0.5, '#22c55e'], ['Cartão', 0.33, '#3b82f6'], ['Dinheiro', 0.17, '#eab308']]
+    const parte = (nomes: string[], ps: number[]): [string, string, string, number][] => nomes.map((n, i) => [n, `${Math.max(0, Math.round(vendas[1] * ps[i]))} pedidos`, '', Math.round(vendas[0] * ps[i] * 100) / 100])
+    const hojeLinhas: [string, string, string, number][] = nova ? [] : calmo
+        ? [['21:40', '@marta-moura', 'Pix', 98.9], ['20:15', '@pedro-lima', 'Dinheiro', 64.9], ['19:30', '@bia-santos', 'Cartão', 48.2]]
+        : [['23:21', '@carla-cavalcanti', 'Pix', 69.8], ['23:20', '@ana-barbosa', 'Cartão', 120.7], ['23:19', '@joao-martins', 'Pix', 119.3], ['22:58', '@sergio-rodrigues', 'Dinheiro', 87.5], ['22:49', '@pedro-lima', 'Cartão', 131.2], ['22:44', '@bia-santos', 'Pix', 76.0]]
+    const linhasExtrato: [string, string, string, number][] = nova ? [] : periodo === 'hoje'
+        ? [...hojeLinhas, ['antes', `${Math.max(0, vendas[1] - hojeLinhas.length)} pedidos`, '', Math.round((vendas[0] - hojeLinhas.reduce((t, l) => t + l[3], 0)) * 100) / 100]]
+        : periodo === 'semana' ? parte(['Seg 09 (hoje)', 'Dom 08', 'Sáb 07', 'Sex 06', 'Qui 05', 'Qua 04', 'Ter 03'], [0.18, 0.12, 0.2, 0.17, 0.11, 0.1, 0.12])
+            : parte(['Dias 7 a 9', 'Dias 4 a 6', 'Dias 1 a 3'], [0.36, 0.34, 0.3])
     const ticket = vendas[1] ? vendas[0] / vendas[1] : 0
 
     const card = { background: colors.surface, border: `1px solid ${colors.border}` }
@@ -181,7 +193,7 @@ export default function PainelLab() {
         </div>
     ) : (
         <div className="rounded-3xl overflow-hidden" style={card}>
-            {(todasAtencao ? atencao : atencao.slice(0, 4)).map((a, i) => (
+            {atencao.map((a, i) => (
                 <button key={a.titulo} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
                     <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${a.cor}22`, color: a.cor }}>{a.icone}</span>
                     <span className="min-w-0 flex-1">
@@ -191,11 +203,6 @@ export default function PainelLab() {
                     <ChevronRight size={16} style={{ color: colors.textSecondary }} />
                 </button>
             ))}
-            {atencao.length > 4 && (
-                <button onClick={() => setTodasAtencao((v) => !v)} className="w-full h-10 text-[12.5px] font-black" style={{ borderTop: `1px solid ${colors.border}`, color: ORANGE }}>
-                    {todasAtencao ? 'Mostrar menos' : `Mais ${atencao.length - 4} ${atencao.length - 4 === 1 ? 'aviso' : 'avisos'}`}
-                </button>
-            )}
         </div>
     )
 
@@ -287,15 +294,15 @@ export default function PainelLab() {
     const kpis = [
         { l: 'Vendas hoje', v: calmo ? 'R$ 212' : nova ? 'R$ 0' : 'R$ 1.285', c: C.novo, ic: <Wallet size={13} /> },
         { l: 'Pedidos', v: calmo ? '3' : nova ? '0' : '14', c: C.caminho, ic: <ClipboardList size={13} /> },
-        { l: 'Ticket médio', v: calmo ? 'R$ 71' : nova ? '—' : 'R$ 92', c: C.pronto, ic: <Tag size={13} /> },
+        { l: 'Ticket', v: calmo ? 'R$ 71' : nova ? '—' : 'R$ 92', c: C.pronto, ic: <Tag size={13} /> },
         { l: 'Nota', v: nova ? '—' : '4,6 ★', c: C.preparando, ic: <Star size={13} /> },
         { l: 'Online agora', v: calmo ? '2' : nova ? '0' : '9', c: C.servico, ic: <Users size={13} /> },
     ]
     const hojeBloco = (
         <>
-            <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex flex-wrap gap-2">
                 {kpis.map((k) => (
-                    <div key={k.l} className="rounded-2xl px-3.5 py-2.5 flex-shrink-0 min-w-[108px]" style={card}>
+                    <div key={k.l} className="rounded-2xl px-3.5 py-2.5 flex-[1_1_30%] min-w-[96px]" style={card}>
                         <p className="text-[10.5px] font-bold flex items-center gap-1" style={{ color: k.c }}>{k.ic}{k.l}</p>
                         <p className="text-[19px] font-black leading-tight mt-0.5">{k.v}</p>
                     </div>
@@ -313,6 +320,32 @@ export default function PainelLab() {
                         {[30, 45, 38, 60, 52, 80, 100].map((h, i) => <span key={i} className="w-2.5 rounded-t" style={{ height: `${nova ? 6 : h * (calmo ? 0.5 : 1) * 0.4}px`, background: i === 6 ? ORANGE : `${ORANGE}55` }} />)}
                     </div>
                 </div>
+                <button onClick={() => setExtrato((v) => !v)} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40` }}>
+                    {extrato ? 'Fechar o extrato' : 'Ver extrato'}<ChevronRight size={14} className={extrato ? '-rotate-90 transition' : 'rotate-90 transition'} />
+                </button>
+                {extrato && (
+                    <div className="mt-3">
+                        <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+                            {FORMAS.map(([n, p, k]) => (
+                                <div key={n} className="rounded-2xl px-2.5 py-2" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${k}` }}>
+                                    <p className="text-[10px] font-bold" style={{ color: k }}>{n}</p><p className="text-[13.5px] font-black leading-tight">{brl(vendas[0] * p)}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
+                            {linhasExtrato.length === 0 && <p className="text-[12.5px] font-semibold text-center py-4" style={{ color: colors.textSecondary }}>Nenhuma venda neste período.</p>}
+                            {linhasExtrato.map(([a, b, c2, v], i) => (
+                                <div key={a + i} className="flex items-center gap-2.5 px-3 py-2 text-[12px]" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                                    <span className="font-black w-[74px] flex-shrink-0">{a}</span>
+                                    <span className="min-w-0 flex-1 truncate font-semibold flex items-center gap-1.5" style={{ color: colors.textSecondary }}>{c2 && <span className="w-2 h-2 rounded-full flex-shrink-0" title={c2} style={{ background: FORMAS.find((f) => f[0] === c2)?.[2] }} />}<span className="truncate">{b}</span></span>
+                                    <span className="font-black">{brl(v)}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-[11px] mt-2 leading-snug" style={{ color: colors.textSecondary }}>O iUser registra a venda; o dinheiro cai direto na sua conta (Pix, cartão ou na entrega).</p>
+                        <button className="w-full mt-2 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ border: `1px solid ${colors.border}` }}>Abrir o extrato completo<ChevronRight size={14} /></button>
+                    </div>
+                )}
             </div>
         </>
     )
@@ -388,6 +421,7 @@ export default function PainelLab() {
     // cada atalho tem a SUA cor (identidade); o estado vem do selo: ligado (verde), desligado (cinza, tile apagado) ou falta algo (vermelho)
     type Est = 'on' | 'off' | 'warn'
     const base: { k: string; t: string; ic: ReactNode; cor: string; mostrar: boolean; liga?: boolean; texto: (e: Est) => string; est: Est }[] = [
+        { k: 'inf', t: 'Dados da loja', ic: <Store size={19} />, cor: '#6366f1', mostrar: true, texto: () => (nova ? 'falta a descrição' : 'logo, links, modelo'), est: nova ? 'warn' : 'on' },
         { k: 'cat', t: 'Catálogo', ic: <Package size={19} />, cor: '#3b82f6', mostrar: temProdutos, texto: () => (nova ? 'nenhum produto' : '33 produtos'), est: nova ? 'warn' : 'on' },
         { k: 'srv', t: 'Serviços', ic: <CalendarDays size={19} />, cor: '#14b8a6', mostrar: temServicos, texto: () => (nova ? 'nenhum serviço' : '7 serviços'), est: nova ? 'warn' : 'on' },
         { k: 'pro', t: 'Promoções', ic: <Tag size={19} />, cor: '#ef4444', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? '3 combos no ar' : 'sem combos no ar'), est: nova ? 'off' : 'on' },
@@ -401,6 +435,28 @@ export default function PainelLab() {
         { k: 'zap', t: 'WhatsApp', ic: <Zap size={19} />, cor: '#10b981', mostrar: true, liga: true, texto: (e) => (e === 'on' ? 'avisos ligados' : 'desligado'), est: 'off' },
     ]
     const estDe = (g: (typeof base)[number]): Est => (g.liga && ger[g.k] !== undefined ? (ger[g.k] ? 'on' : 'off') : g.est)
+    // ===== MISSÕES DA LOJA: o cadastro que falta (vale pontos uma vez) + as missões do dia (reiniciam toda manhã) =====
+    const feitoBase: Record<string, boolean> = nova
+        ? { foto: true, desc: false, hor: true, age: false, prim: false, pix: false, ent: false, abrir: aberta, aceitar: false, conv: false, pub: false, rep: false, aval: false }
+        : calmo
+            ? { foto: true, desc: true, hor: true, age: true, prim: true, pix: true, ent: true, abrir: aberta, aceitar: true, conv: true, pub: true, rep: true, aval: false }
+            : { foto: true, desc: true, hor: true, age: true, prim: true, pix: true, ent: true, abrir: aberta, aceitar: novosProd === 0, conv: false, pub: false, rep: false, aval: true }
+    const feita = (k: string) => (miss[k] !== undefined ? miss[k] : feitoBase[k])
+    type Ms = { k: string; t: string; pts: number; ir?: string }
+    const cadastro = [
+        { k: 'foto', t: 'Logo da loja', pts: 10, ir: 'inf' }, { k: 'desc', t: 'Descrição e links', pts: 5, ir: 'inf' }, { k: 'hor', t: 'Horário de funcionamento', pts: 10, ir: 'hor' },
+        temServicos ? { k: 'age', t: 'Agenda de horários', pts: 10, ir: 'age' } : null,
+        { k: 'prim', t: temProdutos ? 'Primeiro produto' : 'Primeiro serviço', pts: 15, ir: temProdutos ? 'cat' : 'srv' },
+        { k: 'pix', t: 'Chave Pix', pts: 10, ir: 'pag' }, temProdutos ? { k: 'ent', t: 'Como a entrega funciona', pts: 10, ir: 'ent' } : null,
+    ].filter(Boolean) as Ms[]
+    const diarias = [
+        { k: 'abrir', t: 'Abrir a loja hoje', pts: 2 }, { k: 'aceitar', t: 'Aceitar os pedidos novos', pts: 5 }, { k: 'conv', t: 'Responder as conversas', pts: 3 },
+        { k: 'pub', t: 'Fazer uma publicação', pts: 5, ir: 'pub' }, temProdutos ? { k: 'rep', t: 'Conferir os repasses', pts: 2 } : null, { k: 'aval', t: 'Responder uma avaliação', pts: 3 },
+    ].filter(Boolean) as Ms[]
+    const ptsHoje = diarias.filter((m) => feita(m.k)).reduce((t, m) => t + m.pts, 0)
+    const ptsTotal = diarias.reduce((t, m) => t + m.pts, 0)
+    const semana = (nova ? 0 : calmo ? 61 : 84) + ptsHoje
+    const faltaCad = cadastro.filter((m) => !feita(m.k))
     const SELO: Record<Est, { l: string; c: string }> = { on: { l: 'Ligado', c: '#16a34a' }, off: { l: 'Desligado', c: '#9ca3af' }, warn: { l: 'Falta', c: C.alerta } }
     const gerenciarBloco = (
         <>
@@ -428,6 +484,48 @@ export default function PainelLab() {
                 })}
             </div>
         </>
+    )
+
+    const missoesBloco = (
+        <div className="rounded-3xl p-3.5" style={card}>
+            <div className="flex items-end justify-between">
+                <p className="text-[26px] font-black leading-none">{ptsHoje}<span className="text-[14px] font-bold" style={{ color: colors.textSecondary }}> de {ptsTotal} pts hoje</span></p>
+                <Trophy size={22} style={{ color: ORANGE }} />
+            </div>
+            <div className="h-2.5 rounded-full overflow-hidden mt-2.5" style={{ background: `${colors.border}60` }}><span className="block h-full rounded-full transition-all" style={{ width: `${(ptsHoje / ptsTotal) * 100}%`, background: ptsHoje === ptsTotal ? '#22c55e' : ORANGE }} /></div>
+            <div className="flex flex-wrap gap-1.5 mt-2.5">
+                <span className="h-7 px-2.5 rounded-full text-[11px] font-black flex items-center" style={{ background: `${ORANGE}1f`, color: ORANGE }}>{semana} pts na semana</span>
+                <span className="h-7 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1" style={{ background: `${C.preparando}26`, color: '#a16207' }}><Flame size={12} />{nova ? 'sem sequência ainda' : '4 dias seguidos'}</span>
+                <span className="h-7 px-2.5 rounded-full text-[11px] font-black flex items-center" style={{ background: `${colors.border}50` }}>pontos sobem a loja no Outdoor</span>
+            </div>
+
+            <p className="text-[11px] font-black uppercase tracking-wider mt-4 mb-1.5" style={{ color: colors.textSecondary }}>Missões de hoje</p>
+            <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
+                {diarias.map((m, i) => {
+                    const ok = feita(m.k)
+                    return (
+                        <button key={m.k} onClick={() => setMiss((x) => ({ ...x, [m.k]: !ok }))} className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:opacity-70" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined, background: ok ? `${C.novo}0f` : colors.background }}>
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={ok ? { background: C.novo, color: '#fff' } : { border: `2px solid ${colors.border}` }}>{ok && <Check size={13} />}</span>
+                            <span className="flex-1 text-[13px] font-bold" style={{ textDecoration: ok ? 'line-through' : undefined, color: ok ? colors.textSecondary : undefined }}>{m.t}</span>
+                            <span className="text-[11.5px] font-black px-2 py-0.5 rounded-full" style={{ background: ok ? `${C.novo}22` : `${ORANGE}1f`, color: ok ? '#16a34a' : ORANGE }}>+{m.pts}</span>
+                        </button>
+                    )
+                })}
+            </div>
+            <p className="text-[10.5px] mt-1.5" style={{ color: colors.textSecondary }}>No laboratório, toque numa missão para simular que ela foi cumprida.</p>
+
+            <p className="text-[11px] font-black uppercase tracking-wider mt-4 mb-1.5 flex items-center gap-2" style={{ color: colors.textSecondary }}>Cadastro da loja<span className="normal-case tracking-normal font-bold">{cadastro.length - faltaCad.length} de {cadastro.length}{faltaCad.length === 0 ? ' · completo' : ''}</span></p>
+            <div className="flex flex-wrap gap-1.5">
+                {cadastro.map((m) => {
+                    const ok = feita(m.k)
+                    return ok ? (
+                        <span key={m.k} className="h-9 px-3 rounded-full text-[12px] font-bold flex items-center gap-1.5" style={{ background: `${C.novo}1a`, color: '#16a34a' }}><Check size={13} />{m.t}</span>
+                    ) : (
+                        <button key={m.k} onClick={() => m.ir && setAberto(m.ir)} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: `${C.ambar}1f`, border: `1.5px solid ${C.ambar}`, color: '#b45309' }}>{m.t}<span className="text-[10.5px] px-1.5 rounded-full text-white" style={{ background: C.ambar }}>+{m.pts}</span><ChevronRight size={13} /></button>
+                    )
+                })}
+            </div>
+        </div>
     )
 
     // ===== "Atual": a ordem dos blocos de hoje (medida no celular: 4.056 px de rolagem) =====
@@ -464,7 +562,7 @@ export default function PainelLab() {
                             <div className="flex flex-wrap gap-1.5 mt-2.5">
                                 <span className="text-[10.5px] font-bold self-center mr-1" style={{ color: colors.textSecondary }}>Dia da loja:</span>
                                 {([['movimentado', 'Movimentado'], ['tranquilo', 'Tranquilo'], ['nova', 'Loja nova']] as const).map(([k, l]) => (
-                                    <button key={k} onClick={() => { setEstado(k); setFase('novo'); setGer({}) }} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(estado === k)}>{l}</button>
+                                    <button key={k} onClick={() => { setEstado(k); setFase('novo'); setGer({}); setMiss({}) }} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(estado === k)}>{l}</button>
                                 ))}
                             </div>
                             <div className="flex flex-wrap gap-1.5 mt-2">
@@ -484,13 +582,14 @@ export default function PainelLab() {
                             {notas && <div className="mb-3 rounded-2xl p-3 text-[11.5px] leading-snug" style={{ background: `${ORANGE}0d`, border: `1px solid ${ORANGE}40` }}><b style={{ color: ORANGE }}>Ideia: </b>o painel deixa de ser uma lista de relatórios e vira o <b>comando do dia</b>: primeiro o que depende de você, depois atender, depois como está indo, e a configuração fica a um toque (sem atrapalhar).</div>}
                             {sec('cabecalho', 'Sua loja')}
                             {cabecalho}
-                            {sec('agora', nova ? 'Comece por aqui' : 'Precisa de você agora', !nova && atencao.length > 0 ? <span className="text-[11px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: C.novo }}>{atencao.length}</span> : undefined)}
-                            {nova ? <ChecklistNova colors={colors} card={card} /> : null}
+                            {nova && <>{sec('missoes', 'Missões da loja')}{missoesBloco}</>}
+                            {sec('agora', 'Precisa de você agora', !nova && atencao.length > 0 ? <span className="text-[11px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: C.novo }}>{atencao.length}</span> : undefined)}
                             {precisa}
                             {sec('pedidos', 'Pedidos')}
                             {pedidosBloco}
                             {sec('hoje', 'Como está o dia')}
                             {hojeBloco}
+                            {!nova && <>{sec('missoes', 'Missões da loja')}{missoesBloco}</>}
                             {temServicos && <>{sec('agenda', 'Próximos compromissos')}{agendaBloco}</>}
                             {sec('caixa', 'Dinheiro')}
                             {caixaBloco}
@@ -573,22 +672,6 @@ function Mini({ cor, titulo, valor, sub, colors }: { cor: string; titulo: string
             <p className="text-[10.5px] font-bold" style={{ color: cor }}>{titulo}</p>
             <p className="text-[17px] font-black leading-tight mt-0.5">{valor}</p>
             <p className="text-[10.5px] leading-tight mt-0.5" style={{ color: colors.textSecondary }}>{sub}</p>
-        </div>
-    )
-}
-
-function ChecklistNova({ colors, card }: { colors: { border: string; textSecondary: string }; card: { background: string; border: string } }) {
-    const passos: [string, boolean][] = [['Nome, logo e descrição', true], ['Horário de funcionamento', true], ['Cadastrar o primeiro produto ou serviço', false], ['Chave Pix para receber', false], ['Escolher como entrega (iUser, própria ou não faz)', false]]
-    const feitos = passos.filter((p) => p[1]).length
-    return (
-        <div className="rounded-3xl p-3.5 mb-2" style={card}>
-            <div className="flex items-center gap-2 mb-2"><p className="text-[13px] font-black">{feitos} de {passos.length} passos</p><span className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: `${colors.border}60` }}><span className="block h-full rounded-full" style={{ width: `${(feitos / passos.length) * 100}%`, background: '#22c55e' }} /></span></div>
-            {passos.map(([t, ok]) => (
-                <div key={t} className="flex items-center gap-2.5 py-1.5 text-[12.5px] font-semibold" style={{ color: ok ? colors.textSecondary : undefined }}>
-                    <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={ok ? { background: '#22c55e', color: '#fff' } : { border: `2px solid ${colors.border}` }}>{ok && <Check size={12} />}</span>
-                    <span style={{ textDecoration: ok ? 'line-through' : undefined }}>{t}</span>
-                </div>
-            ))}
         </div>
     )
 }
