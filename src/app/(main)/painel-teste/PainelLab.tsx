@@ -190,7 +190,9 @@ export default function PainelLab() {
                 const cc = cores.current
                 if (cc && cc.id === movido) {
                     const opt = { duration: FLIP_MS, easing: 'ease-in-out' as const }
-                    el.animate([{ borderLeftColor: cc.de, outline: `3px solid ${cc.de}`, outlineOffset: '2px' }, { borderLeftColor: cc.para, outline: `3px solid ${cc.para}`, outlineOffset: '2px' }], opt)     // a borda e o anel viram a cor nova
+                    // o ANEL colorido vai de uma cor à outra e some no fim; a lateral fica da cor do cartão enquanto o anel existe (senão parecem duas bordas) e só aparece, já na cor nova, quando o anel some
+                    const neutra = getComputedStyle(el).borderTopColor
+                    el.animate([{ borderLeftColor: neutra, outline: `3px solid ${cc.de}`, outlineOffset: '2px' }, { borderLeftColor: neutra, outline: `3px solid ${cc.para}`, outlineOffset: '2px', offset: 0.82 }, { borderLeftColor: cc.para, outline: `3px solid ${cc.para}00`, outlineOffset: '2px' }], opt)
                     el.querySelector<HTMLElement>('[data-acao]')?.animate([{ backgroundColor: cc.de }, { backgroundColor: cc.para }], opt)                                                          // o botão também
                     el.querySelectorAll<HTMLElement>('[data-troca]').forEach((t) => t.animate([{ opacity: 0.15 }, { opacity: 0.15, offset: 0.5 }, { opacity: 1 }], opt))                         // o texto novo aparece no meio
                 }
