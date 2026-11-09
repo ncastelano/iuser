@@ -87,6 +87,7 @@ export default function PainelLab() {
     const [servicos, setServicos] = useState(3)
     const [verEstrelas, setVerEstrelas] = useState(false)
     const [todasAtencao, setTodasAtencao] = useState(false)
+    const [ger, setGer] = useState<Record<string, boolean>>({})
 
     const temProdutos = modelo !== 'services'
     const temServicos = modelo !== 'products'
@@ -382,30 +383,47 @@ export default function PainelLab() {
         </div>
     )
 
-    const gerenciar: { t: string; est: string; ic: ReactNode; ok?: boolean; mostrar: boolean }[] = [
-        { t: 'Catálogo', est: '33 produtos', ic: <Package size={19} />, mostrar: temProdutos },
-        { t: 'Serviços', est: '7 serviços', ic: <CalendarDays size={19} />, mostrar: temServicos },
-        { t: 'Promoções', est: '3 combos', ic: <Tag size={19} />, mostrar: temProdutos },
-        { t: 'Entrega', est: 'iUser ligado', ic: <Truck size={19} />, ok: true, mostrar: temProdutos },
-        { t: 'Favoritos', est: '2 entregadores', ic: <Heart size={19} />, mostrar: temProdutos },
-        { t: 'Pagamento', est: nova ? 'Falta o Pix' : 'Pix ✓ · cartão', ic: <CreditCard size={19} />, ok: !nova, mostrar: true },
-        { t: 'Horários', est: '18h–00h', ic: <Timer size={19} />, mostrar: true },
-        { t: 'Agenda', est: 'entrada 30%', ic: <HandCoins size={19} />, mostrar: temServicos },
-        { t: 'Equipe', est: nova ? 'só você' : '2 pessoas', ic: <Users size={19} />, mostrar: true },
-        { t: 'Publicações', est: '4 posts', ic: <Megaphone size={19} />, mostrar: true },
-        { t: 'Clube VIP', est: 'grátis', ic: <Crown size={19} />, mostrar: true },
-        { t: 'WhatsApp', est: 'desligado', ic: <Zap size={19} />, mostrar: true },
+    // cada atalho tem a SUA cor (identidade); o estado vem do selo: ligado (verde), desligado (cinza, tile apagado) ou falta algo (vermelho)
+    type Est = 'on' | 'off' | 'warn'
+    const base: { k: string; t: string; ic: ReactNode; cor: string; mostrar: boolean; liga?: boolean; texto: (e: Est) => string; est: Est }[] = [
+        { k: 'cat', t: 'Catálogo', ic: <Package size={19} />, cor: '#3b82f6', mostrar: temProdutos, texto: () => (nova ? 'nenhum produto' : '33 produtos'), est: nova ? 'warn' : 'on' },
+        { k: 'srv', t: 'Serviços', ic: <CalendarDays size={19} />, cor: '#14b8a6', mostrar: temServicos, texto: () => (nova ? 'nenhum serviço' : '7 serviços'), est: nova ? 'warn' : 'on' },
+        { k: 'pro', t: 'Promoções', ic: <Tag size={19} />, cor: '#ef4444', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? '3 combos no ar' : 'sem combos no ar'), est: nova ? 'off' : 'on' },
+        { k: 'ent', t: 'Entrega', ic: <Truck size={19} />, cor: '#22c55e', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? 'iUser ligado' : 'só retirada'), est: nova ? 'off' : 'on' },
+        { k: 'fav', t: 'Favoritos', ic: <Heart size={19} />, cor: '#ec4899', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? '2 entregadores' : 'desligado'), est: nova ? 'off' : 'on' },
+        { k: 'pag', t: 'Pagamento', ic: <CreditCard size={19} />, cor: '#16a34a', mostrar: true, texto: () => (nova ? 'falta o Pix' : 'Pix ✓ · cartão'), est: nova ? 'warn' : 'on' },
+        { k: 'hor', t: 'Horários', ic: <Timer size={19} />, cor: '#eab308', mostrar: true, texto: () => '18h–00h', est: 'on' },
+        { k: 'age', t: 'Agenda', ic: <HandCoins size={19} />, cor: '#8b5cf6', mostrar: temServicos, liga: true, texto: (e) => (e === 'on' ? 'entrada 30%' : 'agenda fechada'), est: 'on' },
+        { k: 'eqp', t: 'Equipe', ic: <Users size={19} />, cor: '#06b6d4', mostrar: true, texto: () => (nova ? 'só você' : '2 pessoas'), est: nova ? 'off' : 'on' },
+        { k: 'pub', t: 'Publicações', ic: <Megaphone size={19} />, cor: '#f97316', mostrar: true, liga: true, texto: (e) => (e === 'on' ? '4 posts' : 'nenhum post'), est: nova ? 'off' : 'on' },
+        { k: 'clu', t: 'Clube VIP', ic: <Crown size={19} />, cor: '#d97706', mostrar: true, liga: true, texto: (e) => (e === 'on' ? 'grátis · 38 membros' : 'desligado'), est: nova ? 'off' : 'on' },
+        { k: 'zap', t: 'WhatsApp', ic: <Zap size={19} />, cor: '#10b981', mostrar: true, liga: true, texto: (e) => (e === 'on' ? 'avisos ligados' : 'desligado'), est: 'off' },
     ]
+    const SELO: Record<Est, { l: string; c: string }> = { on: { l: 'Ligado', c: '#16a34a' }, off: { l: 'Desligado', c: '#9ca3af' }, warn: { l: 'Falta', c: C.alerta } }
     const gerenciarBloco = (
-        <div className="grid grid-cols-3 gap-2">
-            {gerenciar.filter((g) => g.mostrar).map((g) => (
-                <button key={g.t} className="rounded-2xl p-2.5 text-left active:scale-95 transition" style={{ ...card, borderColor: g.ok === false ? `${C.alerta}88` : colors.border }}>
-                    <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${ORANGE}1a`, color: ORANGE }}>{g.ic}</span>
-                    <span className="block text-[12.5px] font-black mt-1.5 leading-tight">{g.t}</span>
-                    <span className="block text-[10.5px] font-bold leading-tight mt-0.5" style={{ color: g.ok === false ? C.alerta : colors.textSecondary }}>{g.est}</span>
-                </button>
-            ))}
-        </div>
+        <>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mb-2 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
+                {(['on', 'off', 'warn'] as Est[]).map((e) => <span key={e} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: SELO[e].c }} />{e === 'warn' ? 'Precisa de atenção' : SELO[e].l}</span>)}
+                <span className="ml-auto">toque nos que ligam e desligam</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+                {base.filter((g) => g.mostrar).map((g) => {
+                    const e: Est = g.liga && ger[g.k] !== undefined ? (ger[g.k] ? 'on' : 'off') : g.est
+                    const off = e === 'off'; const warn = e === 'warn'
+                    const cor = off ? '#9ca3af' : warn ? C.alerta : g.cor
+                    return (
+                        <button key={g.k + estado} onClick={() => g.liga && setGer((m) => ({ ...m, [g.k]: !(e === 'on') }))}
+                            className="relative rounded-2xl p-2.5 pt-3 text-left active:scale-95 transition overflow-hidden"
+                            style={{ background: off ? `${colors.border}22` : `${cor}14`, border: `1.5px solid ${off ? colors.border : `${cor}${warn ? 'aa' : '66'}`}`, opacity: off ? 0.8 : 1 }}>
+                            <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full" style={{ background: SELO[e].c, boxShadow: e === 'on' ? `0 0 0 3px ${SELO[e].c}33` : undefined }} />
+                            <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: off ? `${colors.border}80` : `${cor}26`, color: cor }}>{g.ic}</span>
+                            <span className="block text-[12.5px] font-black mt-1.5 leading-tight" style={{ color: off ? colors.textSecondary : colors.textPrimary }}>{g.t}</span>
+                            <span className="block text-[10.5px] font-bold leading-tight mt-0.5" style={{ color: off ? colors.textSecondary : cor }}>{g.texto(e)}</span>
+                        </button>
+                    )
+                })}
+            </div>
+        </>
     )
 
     // ===== "Atual": a ordem dos blocos de hoje (medida no celular: 4.056 px de rolagem) =====
@@ -442,7 +460,7 @@ export default function PainelLab() {
                             <div className="flex flex-wrap gap-1.5 mt-2.5">
                                 <span className="text-[10.5px] font-bold self-center mr-1" style={{ color: colors.textSecondary }}>Dia da loja:</span>
                                 {([['movimentado', 'Movimentado'], ['tranquilo', 'Tranquilo'], ['nova', 'Loja nova']] as const).map(([k, l]) => (
-                                    <button key={k} onClick={() => { setEstado(k); setFase('novo') }} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(estado === k)}>{l}</button>
+                                    <button key={k} onClick={() => { setEstado(k); setFase('novo'); setGer({}) }} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(estado === k)}>{l}</button>
                                 ))}
                             </div>
                             <div className="flex flex-wrap gap-1.5 mt-2">
