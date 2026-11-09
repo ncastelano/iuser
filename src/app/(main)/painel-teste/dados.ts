@@ -5,7 +5,7 @@ export const ORANGE = '#f97316'
 export const C = { novo: '#22c55e', preparando: '#eab308', pronto: '#a855f7', caminho: '#3b82f6', servico: '#14b8a6', alerta: '#ef4444', ambar: '#f59e0b' }
 
 export type Estado = 'movimentado' | 'tranquilo' | 'nova'
-export type Modelo = 'mixed' | 'products' | 'services' | 'digital'
+export type Modelo = 'mixed' | 'products' | 'services'
 export type Fase = 'novo' | 'preparando' | 'pronto' | 'caminho'
 export type Pedido = { id: number; quem: string; hora: string; valor: number; item: string; mais: number; entrega: string; fase: Fase }
 
