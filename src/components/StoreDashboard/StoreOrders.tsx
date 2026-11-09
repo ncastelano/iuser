@@ -861,6 +861,16 @@ export default function StoreOrders({
     const finished = groupedOrders.filter(o => o.status === 'paid')
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
+    // o que o dono precisa saber ao abrir o pedido: quem vem buscar (e em quanto tempo) ou que o cliente retira
+    const selectedDeliveryLine = (() => {
+        if (!selectedOrder || !selectedOrder.buyer_id) return undefined
+        const addr = selectedOrder.delivery_address as string | undefined
+        if (!addr || addr === 'Retirada no local') return { label: 'Retirada na loja', text: 'O cliente busca o pedido na loja. Não tem entregador.', tone: 'pickup' as const }
+        if (!iuserDeliveryEnabled) return undefined
+        if (!dispatchedOrderIds.has(selectedOrder.id)) return { label: 'Entregador do iUser', text: 'Ainda sem entregador. Use o caminhão na lista para chamar um.', tone: 'warn' as const }
+        const accepted = acceptedDispatchIds.has(selectedOrder.id)
+        return { label: 'Entregador do iUser', text: driverText(dispatchInfo.get(selectedOrder.id), accepted), tone: accepted ? ('ok' as const) : ('wait' as const) }
+    })()
 
     // ===== CORES DOS PEDIDOS INDIVIDUAIS (MAIS ESCURAS) =====
     const getStatusColor = (status: string) => {
@@ -1502,6 +1512,7 @@ export default function StoreOrders({
                     onClose={() => setSelectedOrder(null)}
                     onAction={handleOrderAction}
                     assignmentInfo={selectedAssignment || undefined}
+                    deliveryLine={selectedDeliveryLine}
                     storeLat={store?.store_lat}
                     storeLng={store?.store_lng}
                 />

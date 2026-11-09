@@ -109,6 +109,8 @@ interface OrderModalProps {
         employeeName: string
         status: string
     }
+    /** Quem leva (ou que o cliente retira): o entregador do iUser que vem buscar, com o tempo até chegar; ou a retirada na loja */
+    deliveryLine?: { label: string; text: string; tone: 'ok' | 'wait' | 'warn' | 'pickup' }
 }
 
 const formatAssignmentStatus = (status: string) => {
@@ -120,7 +122,7 @@ const formatAssignmentStatus = (status: string) => {
     }
 }
 
-export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assignmentInfo }: OrderModalProps) {
+export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assignmentInfo, deliveryLine }: OrderModalProps) {
     const currentStatus = statusMap[order.status as keyof typeof statusMap] || statusMap['pending']
     const StatusIcon = currentStatus.icon
 
@@ -280,6 +282,20 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                                 <p className="text-xs font-bold text-gray-700">{formattedDate}</p>
                             </div>
                         </div>
+
+                        {/* Entregador do iUser que vem buscar (ou retirada na loja) */}
+                        {deliveryLine && !assignmentInfo && (() => {
+                            const tones = { ok: ['#16a34a', '#16a34a14', '#16a34a40'], wait: ['#d97706', '#f59e0b14', '#f59e0b40'], warn: ['#b45309', '#f59e0b1f', '#f59e0b60'], pickup: ['#4b5563', '#6b72801a', '#6b728040'] }[deliveryLine.tone]
+                            return (
+                                <div className="rounded-xl p-3 border" style={{ color: tones[0], background: tones[1], borderColor: tones[2] }}>
+                                    <div className="flex items-center gap-2">
+                                        {deliveryLine.tone === 'pickup' ? <Store size={14} /> : <Truck size={14} />}
+                                        <span className="text-[10px] font-black uppercase tracking-wider">{deliveryLine.label}</span>
+                                    </div>
+                                    <p className="text-sm font-bold mt-1 text-gray-800">{deliveryLine.text}</p>
+                                </div>
+                            )
+                        })()}
 
                         {/* Informação do entregador (se existir) */}
                         {assignmentInfo && (

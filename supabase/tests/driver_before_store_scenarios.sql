@@ -61,6 +61,7 @@ BEGIN
     UPDATE public.ride_requests SET status = 'accepted', driver_id = drv WHERE id = v_ride;
     PERFORM pg_temp.ok((SELECT store_visible FROM public.orders WHERE id = o), '3a. com o entregador, o pedido é liberado para a loja');
     PERFORM pg_temp.ok(EXISTS (SELECT 1 FROM public.profile_notifications WHERE profile_id = owner AND ref_id = o AND kind = 'order_new'), '3b. a loja recebe o aviso de pedido novo');
+    PERFORM pg_temp.ok(EXISTS (SELECT 1 FROM public.profile_notifications WHERE profile_id = owner AND ref_id = o AND kind = 'order_new' AND meta->>'text' LIKE '%vai buscar%'), '3b2. o aviso diz QUEM vai buscar o pedido');
     PERFORM pg_temp.as_user(owner);
     SELECT count(*) INTO n FROM public.orders WHERE id = o;
     PERFORM pg_temp.ok(n = 1, '3c. a dona agora enxerga o pedido');

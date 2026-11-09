@@ -202,12 +202,19 @@ DECLARE
     v_path text;
     v_dig_n int := 0; v_dig_name text; v_dig_product uuid;
     v_released boolean := false;
+    v_drv_name text;
 BEGIN
     SELECT * INTO s FROM public.stores WHERE id = NEW.store_id;
     IF NOT FOUND THEN RETURN NEW; END IF;
     v_buyer := public._person_label(NEW.buyer_id);
     v_path := '/painel-loja/' || s."storeSlug";
     v_released := TG_OP = 'UPDATE' AND NOT OLD.store_visible AND NEW.store_visible;   -- o pedido retido acabou de chegar à loja (um entregador aceitou)
+    IF v_released THEN
+        -- quem aceitou a entrega (primeiro nome): o aviso diz quem vem buscar
+        SELECT split_part(COALESCE(NULLIF(btrim(p.name), ''), ''), ' ', 1) INTO v_drv_name FROM public.ride_requests r JOIN public.profiles p ON p.id = r.driver_id
+         WHERE r.order_id = NEW.id AND r.status = 'accepted' AND r.driver_id IS NOT NULL LIMIT 1;
+        IF v_drv_name = '' THEN v_drv_name := NULL; END IF;
+    END IF;
 
     -- pedido SÓ de produtos digitais (curso, música, programa)? conta quantos e guarda o primeiro, para o texto do aviso
     SELECT count(*), (array_agg(COALESCE(NULLIF(p.name, ''), oi.product_name) ORDER BY oi.id))[1], (array_agg(p.id ORDER BY oi.id))[1]
@@ -229,7 +236,7 @@ BEGIN
                 'o:' || NEW.id || ':new');
         ELSE
         PERFORM public._notify(s.owner_id, 'order_new', NEW.buyer_id, NEW.id,
-            jsonb_build_object('title', 'Pedido novo', 'text', v_buyer || ' pediu · ' || v_money || CASE WHEN NEW.delivery_option = 'entrega' THEN CASE WHEN v_released THEN ' · entrega com entregador confirmado' ELSE ' · entrega' END ELSE ' · retirada' END, 'path', v_path, 'store_id', s.id, 'amount', NEW.total_amount),
+            jsonb_build_object('title', 'Pedido novo', 'text', v_buyer || ' pediu · ' || v_money || CASE WHEN NEW.delivery_option = 'entrega' THEN CASE WHEN v_released THEN ' · entrega: ' || COALESCE(v_drv_name, 'entregador') || ' vai buscar' ELSE ' · entrega' END ELSE ' · retirada' END, 'path', v_path, 'store_id', s.id, 'amount', NEW.total_amount),
             'o:' || NEW.id || ':new');
         END IF;
     END IF;
