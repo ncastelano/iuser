@@ -7,17 +7,16 @@
 'use client'
 
 import { ReactNode, useState } from 'react'
-import { ArrowLeft, Check, ChevronRight, Clock, Heart, Package, Plus, Search, Star, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, Clock, Heart, Plus, Search, Star, X } from 'lucide-react'
 import { useTheme, type ThemeColors } from '@/app/contexts/theme'
 import AgendaPagina from './AgendaLab'
+import CatalogoLab, { type CatAba } from './CatalogoLab'
 
 export type Tipo = 'folha' | 'pagina'
 
 // o que cada atalho abre, e onde isso mora no app de verdade (para a conversa de "ligar")
 export const DESTINOS: Record<string, { tipo: Tipo; titulo: string; rota: string; comp: string }> = {
-    cat: { tipo: 'pagina', titulo: 'Catálogo', rota: '/editar-loja/<slug>/catalogo', comp: 'StoreCatalog kind="product"' },
-    srv: { tipo: 'pagina', titulo: 'Serviços', rota: '/editar-loja/<slug>/servicos', comp: 'StoreCatalog kind="service"' },
-    pro: { tipo: 'pagina', titulo: 'Promoções', rota: '/editar-loja/<slug>/promocoes', comp: 'StorePromotions' },
+    cat: { tipo: 'pagina', titulo: 'Catálogo', rota: '/editar-loja/<slug>/catalogo', comp: 'StoreCatalog (produto + serviço) + StorePromotions + DigitalContentManager, em abas' },
     eqp: { tipo: 'pagina', titulo: 'Equipe', rota: '/editar-loja/<slug>/equipe', comp: 'Employee' },
     pub: { tipo: 'pagina', titulo: 'Publicações', rota: '/editar-loja/<slug>/publicacoes', comp: 'StorePublication' },
     inf: { tipo: 'folha', titulo: 'Dados da loja', rota: '?abrir=dados', comp: 'StoreDescription + StoreLinksEditor + StoreModelEditor' },
@@ -32,7 +31,7 @@ export const DESTINOS: Record<string, { tipo: Tipo; titulo: string; rota: string
 
 const ORANGE = '#f97316'
 
-interface Props { k: string; cor: string; icone: ReactNode; nova: boolean; on: boolean; setOn: (v: boolean) => void; entregaOn: boolean; onClose: () => void; agendaAba?: 'agenda' | 'pend' | 'hor' }
+interface Props { k: string; cor: string; icone: ReactNode; nova: boolean; on: boolean; setOn: (v: boolean) => void; entregaOn: boolean; onClose: () => void; agendaAba?: 'agenda' | 'pend' | 'hor'; tem?: { prod: boolean; serv: boolean }; catAba?: CatAba }
 
 export function Destino(p: Props) {
     const { colors } = useTheme()
@@ -86,9 +85,7 @@ function conteudo(p: Props, c: Colors): ReactNode {
         case 'agc': return <Agenda {...p} c={c} />
         case 'clu': return <Clube {...p} c={c} />
         case 'zap': return <Whats {...p} c={c} />
-        case 'cat': return <Catalogo {...p} c={c} />
-        case 'srv': return <Servicos {...p} c={c} />
-        case 'pro': return <Promocoes {...p} c={c} />
+        case 'cat': return <CatalogoLab c={c} nova={p.nova} prod={p.tem?.prod ?? true} serv={p.tem?.serv ?? true} abaInicial={p.catAba} />
         case 'eqp': return <Equipe {...p} c={c} />
         default: return <Publicacoes {...p} c={c} />
     }
@@ -308,23 +305,6 @@ function Topo({ c, cor, buscar, novo }: { c: Colors; cor: string; buscar: string
         </div>
     )
 }
-function Item({ c, cor, titulo, sub, direita, ativo, set }: { c: Colors; cor: string; titulo: string; sub: string; direita: string; ativo: boolean; set: (v: boolean) => void }) {
-    return (
-        <div className="flex items-center gap-3 px-3 py-2.5" style={{ opacity: ativo ? 1 : 0.55 }}>
-            <span className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${cor}1f`, color: cor }}><Package size={20} /></span>
-            <div className="min-w-0 flex-1"><p className="text-[13.5px] font-black leading-tight truncate">{titulo}</p><p className="text-[11.5px] leading-tight mt-0.5 truncate" style={{ color: c.textSecondary }}>{sub}</p><p className="text-[13px] font-black mt-0.5">{direita}</p></div>
-            <Switch on={ativo} set={set} cor={cor} />
-        </div>
-    )
-}
-function Lista({ c, cor, dados }: { c: Colors; cor: string; dados: [string, string, string][] }) {
-    const [ativos, setAtivos] = useState<boolean[]>(dados.map((_, i) => i !== 3))
-    return (
-        <div className="rounded-3xl overflow-hidden" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
-            {dados.map(([t, s, d], i) => <div key={t} style={{ borderTop: i ? `1px solid ${c.border}` : undefined }}><Item c={c} cor={cor} titulo={t} sub={s} direita={d} ativo={ativos[i]} set={(v) => setAtivos((a) => a.map((x, j) => (j === i ? v : x)))} /></div>)}
-        </div>
-    )
-}
 function Vazia({ c, titulo, texto, botao }: { c: Colors; titulo: string; texto: string; botao: string }) {
     return (
         <div className="rounded-3xl p-6 text-center" style={{ border: `1.5px dashed ${c.border}` }}>
@@ -334,45 +314,6 @@ function Vazia({ c, titulo, texto, botao }: { c: Colors; titulo: string; texto: 
     )
 }
 
-function Catalogo({ c, cor, nova }: Props & { c: Colors }) {
-    const [cat, setCat] = useState('Todos')
-    if (nova) return <Vazia c={c} titulo="Seu catálogo está vazio" texto="Comece com 3 produtos: foto, nome e preço bastam. Você completa depois." botao="Adicionar o primeiro produto" />
-    return (
-        <>
-            <Topo c={c} cor={cor} buscar="Buscar nos 33 produtos" novo="Novo" />
-            <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-3" style={{ scrollbarWidth: 'none' }}>
-                {['Todos', 'Combos', 'Tradicionais', 'Especiais', 'Doces', 'Bebidas', 'Porções'].map((t) => <button key={t} onClick={() => setCat(t)} className="h-9 px-3.5 rounded-full text-[12.5px] font-black flex-shrink-0 active:scale-95" style={cat === t ? { background: cor, color: '#fff' } : { border: `1px solid ${c.border}` }}>{t}</button>)}
-            </div>
-            <Lista c={c} cor={cor} dados={[['Pizza Margherita (grande)', 'Tradicionais · 12 adicionais', 'R$ 59,90'], ['Pizza Portuguesa (grande)', 'Tradicionais · 12 adicionais', 'R$ 64,90'], ['Pizza Quatro Queijos (grande)', 'Especiais · 14 adicionais', 'R$ 69,90'], ['Pizza Banana com Canela (grande)', 'Doces · esgotada', 'R$ 54,90'], ['Refrigerante 2 L', 'Bebidas', 'R$ 12,00']]} />
-            <p className="text-[11.5px] text-center mt-3" style={{ color: c.textSecondary }}>Desligar o interruptor tira o produto do ar sem apagar.</p>
-        </>
-    )
-}
-function Servicos({ c, cor, nova }: Props & { c: Colors }) {
-    if (nova) return <Vazia c={c} titulo="Nenhum serviço ainda" texto="Rodízio, mesa, evento… o cliente escolhe o horário e você aceita." botao="Adicionar serviço" />
-    return (
-        <>
-            <Topo c={c} cor={cor} buscar="Buscar nos 7 serviços" novo="Novo" />
-            <Lista c={c} cor={cor} dados={[['Rodízio adulto', '2 h · agenda ligada', 'R$ 79,90'], ['Rodízio premium', '2 h · agenda ligada', 'R$ 109,90'], ['Mesa no mezanino', '3 h · com entrada', 'R$ 120,00'], ['Ambiente VIP (4 horas)', '4 h · com entrada', 'R$ 480,00']]} />
-        </>
-    )
-}
-function Promocoes({ c, cor }: Props & { c: Colors }) {
-    return (
-        <>
-            <div className="rounded-3xl p-3.5 mb-4" style={{ background: `${cor}12`, border: `1.5px solid ${cor}55` }}>
-                <p className="text-[13px] font-black mb-2">Montar um combo</p>
-                {[['1× Pizza grande Calabresa', 'R$ 59,90'], ['2× Refrigerante lata', 'R$ 12,00']].map(([a, b]) => <div key={a} className="flex justify-between text-[12.5px] font-semibold py-1"><span>{a}</span><span>{b}</span></div>)}
-                <div className="flex justify-between text-[12.5px] font-black pt-1.5 mt-1" style={{ borderTop: `1px solid ${c.border}` }}><span>Soma de tudo</span><span>R$ 71,90</span></div>
-                <div className="flex items-center gap-2 mt-2.5"><span className="flex-1 h-11 rounded-2xl px-3.5 flex items-center text-[14px] font-black" style={{ background: c.background, border: `1.5px solid ${c.border}` }}>Você recebe R$ 59,90</span><span className="px-3 h-11 rounded-2xl flex items-center text-[13px] font-black text-white" style={{ background: '#16a34a' }}>−17%</span></div>
-                <div className="flex gap-1.5 mt-2">{['−10%', '−15%', '−20%', '−30%'].map((t) => <span key={t} className="h-8 px-3 rounded-full text-[11.5px] font-black flex items-center" style={{ border: `1px solid ${c.border}` }}>{t}</span>)}</div>
-                <button className="w-full mt-3 h-11 rounded-full text-[13px] font-black text-white" style={{ background: cor }}>Publicar combo</button>
-            </div>
-            <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: c.textSecondary }}>No ar</p>
-            <Lista c={c} cor={cor} dados={[['Combo Casal', '1 pizza grande + 2 latas', 'R$ 69,80'], ['Combo Doce e Salgada', '1 salgada + 1 doce', 'R$ 98,00'], ['Combo Família', '2 pizzas + refri 2 L', 'R$ 139,90'], ['Combo Rodízio Dupla', '2 rodízios', 'R$ 129,00']]} />
-        </>
-    )
-}
 function Equipe({ c, cor, nova }: Props & { c: Colors }) {
     if (nova) return <Vazia c={c} titulo="Só você por enquanto" texto="Adicione quem atende pedidos ou entrega para a loja. Cada um ganha o seu link." botao="Adicionar pessoa" />
     return (

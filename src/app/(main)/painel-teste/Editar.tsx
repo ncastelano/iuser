@@ -13,7 +13,7 @@ export interface ItemEdicao { k: string; t: string; ic: ReactNode; cor: string; 
 
 const GRUPOS: { titulo: string; dica: string; ks: string[] }[] = [
     { titulo: 'Sobre a loja', dica: 'Como a loja aparece para o cliente', ks: ['inf'] },
-    { titulo: 'O que você vende', dica: 'Produtos, serviços e ofertas', ks: ['cat', 'srv', 'pro'] },
+    { titulo: 'O que você vende', dica: 'Produtos, digitais, serviços e promoções', ks: ['cat'] },
     { titulo: 'Como você recebe', dica: 'Pagamento e entrega', ks: ['pag', 'ent'] },
     { titulo: 'Quando e quem atende', dica: 'Horários, agenda e equipe', ks: ['hor', 'age', 'eqp'] },
     { titulo: 'Divulgação', dica: 'Publicações, clube e avisos', ks: ['pub', 'clu', 'zap'] },

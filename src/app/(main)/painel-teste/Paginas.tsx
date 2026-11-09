@@ -203,7 +203,7 @@ function Digital({ onClose, onIr }: { onClose: () => void; onIr: (k: string) => 
                 ))}
             </div>
             <div className="flex gap-2 mt-4">
-                <button onClick={() => onIr('cat')} className="flex-1 h-11 rounded-full text-[12.5px] font-black" style={{ border: `1px solid ${colors.border}` }}>Produtos digitais</button>
+                <button onClick={() => onIr('cat-dig')} className="flex-1 h-11 rounded-full text-[12.5px] font-black" style={{ border: `1px solid ${colors.border}` }}>Produtos digitais</button>
                 <button onClick={() => onIr('clu')} className="flex-1 h-11 rounded-full text-[12.5px] font-black" style={{ border: `1px solid ${colors.border}` }}>Clube e mensalidade</button>
             </div>
         </PaginaCasca>

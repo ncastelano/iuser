@@ -72,11 +72,15 @@ export default function PainelLab() {
     const [balcaoAb, setBalcaoAb] = useState(false)
     const [editarAb, setEditarAb] = useState(false)
     const [shareAb, setShareAb] = useState(false)
+    const [catAba, setCatAba] = useState<'produtos' | 'digitais' | 'servicos'>('produtos')
     const [agendaAba, setAgendaAba] = useState<'agenda' | 'pend' | 'hor'>('agenda')
     /** TODO destino do painel passa por aqui: página, folha, extrato, balcão, editar, compartilhar ou um atalho do Gerenciar */
     const ir = (k: string) => {
         if (k === 'age-pend') { setAgendaAba('pend'); setAberto('age'); return }
         if (k === 'age') { setAgendaAba('agenda'); setAberto('age'); return }
+        if (k === 'srv') { setCatAba('servicos'); setAberto('cat'); return }
+        if (k === 'cat-dig') { setCatAba('digitais'); setAberto('cat'); return }
+        if (k === 'cat' || k === 'pro') { setCatAba('produtos'); setAberto('cat'); return }
         if (['pedidos', 'repasses', 'digital', 'apoios', 'conversas', 'avaliacoes'].includes(k)) { setPagina(k); return }
         if (k === 'extrato') { setExtratoAb(true); return }
         if (k === 'balcao') { setBalcaoAb(true); return }
@@ -420,9 +424,7 @@ export default function PainelLab() {
     type Est = 'on' | 'off' | 'warn'
     const base: { k: string; t: string; ic: ReactNode; cor: string; mostrar: boolean; liga?: boolean; texto: (e: Est) => string; est: Est }[] = [
         { k: 'inf', t: 'Dados da loja', ic: <Store size={19} />, cor: '#6366f1', mostrar: true, texto: () => (nova ? 'falta a descrição' : 'logo, links, modelo'), est: nova ? 'warn' : 'on' },
-        { k: 'cat', t: 'Catálogo', ic: <Package size={19} />, cor: '#3b82f6', mostrar: temProdutos, texto: () => (nova ? 'nenhum produto' : '33 produtos'), est: nova ? 'warn' : 'on' },
-        { k: 'srv', t: 'Serviços', ic: <CalendarDays size={19} />, cor: '#14b8a6', mostrar: temServicos, texto: () => (nova ? 'nenhum serviço' : '7 serviços'), est: nova ? 'warn' : 'on' },
-        { k: 'pro', t: 'Promoções', ic: <Tag size={19} />, cor: '#ef4444', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? '3 combos no ar' : 'sem combos no ar'), est: nova ? 'off' : 'on' },
+        { k: 'cat', t: 'Catálogo', ic: <Package size={19} />, cor: '#3b82f6', mostrar: true, texto: () => (nova ? 'nada cadastrado' : [temProdutos && '33 produtos', temServicos && '7 serviços', temProdutos && '3 combos'].filter(Boolean).join(' · ')), est: nova ? 'warn' : 'on' },
         { k: 'ent', t: 'Entrega', ic: <Truck size={19} />, cor: '#22c55e', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? 'iUser ligado' : 'só retirada'), est: nova ? 'off' : 'on' },
         { k: 'pag', t: 'Pagamento', ic: <CreditCard size={19} />, cor: '#16a34a', mostrar: true, texto: () => (nova ? 'falta o Pix' : 'Pix ✓ · cartão'), est: nova ? 'warn' : 'on' },
         { k: 'hor', t: 'Horários', ic: <Timer size={19} />, cor: '#eab308', mostrar: true, texto: () => '18h–00h', est: 'on' },
@@ -638,7 +640,7 @@ export default function PainelLab() {
                 )}
                 {aberto && (() => {
                     const g = base.find((x) => x.k === aberto)!
-                    return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} agendaAba={agendaAba} />
+                    return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} agendaAba={agendaAba} tem={{ prod: temProdutos, serv: temServicos }} catAba={catAba} />
                 })()}
                 {shareAb && <Compartilhar onClose={() => setShareAb(false)} />}
                 {/* botão fixo: venda no balcão (acima da barra do app) */}
