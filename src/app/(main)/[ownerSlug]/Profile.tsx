@@ -66,7 +66,7 @@ import { EditProfile } from './EditProfile'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PROFILE_PUBLIC_SELECT, STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
-import { postpaidLimitText } from '@/lib/postpaid'
+import PostpaidLimitText from '@/components/PostpaidLimitText'
 
 interface ProfileProps {
     ownerSlug: string
@@ -1490,7 +1490,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                     <p>• Ativar a agenda: valor único cobrado uma vez</p>
                                     <p>• Cada pessoa que agendar com você e você aceitar: valor por agendamento</p>
                                     <p style={{ color: colors.textSecondary }}>
-                                        Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a {postpaidLimitText()} — veja os valores atuais em Planos → Pós-pago.
+                                        Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a <PostpaidLimitText /> — veja os valores atuais em Planos → Pós-pago.
                                     </p>
                                 </div>
                                 <div className="flex gap-2">

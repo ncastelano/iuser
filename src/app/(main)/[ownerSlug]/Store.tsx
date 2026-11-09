@@ -61,7 +61,7 @@ import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 import StoreFrame from '@/components/store/StoreFrame'
-import { postpaidLimitText } from '@/lib/postpaid'
+import PostpaidLimitText from '@/components/PostpaidLimitText'
 
 interface StoreProps {
     ownerSlug: string
@@ -814,7 +814,7 @@ export function Store({
                             <p>• Ativar a agenda: valor único cobrado uma vez</p>
                             <p>• Cada pessoa que agendar na sua loja: valor por agendamento</p>
                             <p style={{ color: colors.textSecondary }}>
-                                Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a {postpaidLimitText()} — veja os valores atuais em Planos → Pós-pago.
+                                Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a <PostpaidLimitText /> — veja os valores atuais em Planos → Pós-pago.
                             </p>
                         </div>
 

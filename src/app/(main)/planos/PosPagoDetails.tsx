@@ -16,11 +16,10 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import FreeTrialGift from '@/components/FreeTrialGift'
 import { PostpaidFees, TYPE_INFO, type ChargeType } from '@/components/planos/PostpaidFees'
 import { Spinner } from '@/components/Spinner'
-import { POSTPAID_DEBT_LIMIT } from '@/lib/postpaid'
+import { usePostpaidLimit } from '@/lib/postpaid'
 import { Car, Wrench, ShoppingBag, Package, Megaphone, CalendarCheck, CalendarPlus, Wallet, Info } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-const DEBT_LIMIT = POSTPAID_DEBT_LIMIT
 const MAX_ROWS = 1000
 
 interface Charge {
@@ -41,6 +40,7 @@ const fmtDate = (iso: string) =>
 const short = (addr?: string | null) => (addr || '').split(',')[0]
 
 export default function PosPagoDetails() {
+    const DEBT_LIMIT = usePostpaidLimit()
     const router = useRouter()
     const { colors } = useTheme()
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
