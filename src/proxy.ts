@@ -64,6 +64,7 @@ const IGNORED_ROUTES = [
     '/atividade', // Atividade (aba da barra da 3.0): avisos; conversas, pedidos, carrinho e biblioteca ficam em /conversas e /carrinho
     '/tres-telas', // ferramenta de desenvolvimento (só local): observação em 3 telas
     '/paginateste', // laboratório da navbar (página de teste, sem link no app)
+    '/painel-teste', // laboratório do novo painel da loja (3.0; página de teste, sem link no app)
     '/dev-login', // ferramenta de desenvolvimento (só local): entra com a conta de teste
 ]
 
