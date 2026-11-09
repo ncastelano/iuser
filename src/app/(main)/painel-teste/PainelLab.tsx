@@ -190,9 +190,9 @@ export default function PainelLab() {
                 const cc = cores.current
                 if (cc && cc.id === movido) {
                     const opt = { duration: FLIP_MS, easing: 'ease-in-out' as const }
-                    // o ANEL colorido vai de uma cor à outra e some no fim; a lateral fica da cor do cartão enquanto o anel existe (senão parecem duas bordas) e só aparece, já na cor nova, quando o anel some
-                    const neutra = getComputedStyle(el).borderTopColor
-                    el.animate([{ borderLeftColor: neutra, outline: `3px solid ${cc.de}`, outlineOffset: '2px' }, { borderLeftColor: neutra, outline: `3px solid ${cc.para}`, outlineOffset: '2px', offset: 0.82 }, { borderLeftColor: cc.para, outline: `3px solid ${cc.para}00`, outlineOffset: '2px' }], opt)
+                    // a COR vem POR TRÁS: o cartão cobre a lateral colorida durante a descida e, no fim, ENCOLHE para a esquerda e deixa a cor aparecer; um anel colorido acompanha e some
+                    el.animate([{ backgroundColor: cc.de, outline: `3px solid ${cc.de}`, outlineOffset: '2px' }, { backgroundColor: cc.para, outline: `3px solid ${cc.para}`, outlineOffset: '2px', offset: 0.82 }, { backgroundColor: cc.para, outline: `3px solid ${cc.para}00`, outlineOffset: '2px' }], opt)
+                    el.querySelector<HTMLElement>('[data-card]')?.animate([{ marginLeft: '0px' }, { marginLeft: '0px', offset: 0.78 }, { marginLeft: '4px' }], opt)
                     el.querySelector<HTMLElement>('[data-acao]')?.animate([{ backgroundColor: cc.de }, { backgroundColor: cc.para }], opt)                                                          // o botão também
                     el.querySelectorAll<HTMLElement>('[data-troca]').forEach((t) => t.animate([{ opacity: 0.15 }, { opacity: 0.15, offset: 0.5 }, { opacity: 1 }], opt))                         // o texto novo aparece no meio
                 }
@@ -336,7 +336,8 @@ export default function PainelLab() {
                                         {todos.length > 0 && (
                                             <div className="space-y-2">
                                                 {todos.slice(0, 2).map((p) => (
-                                                    <div key={p.id} data-flip={`p${p.id}`} className="lab-anim relative rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2 overflow-hidden" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${cor}`, ['--lab-cor' as string]: `${cor}66`, animation: chegou?.id === p.id ? 'labBrilho 1.5s ease-out 1.5s backwards' : undefined }}>
+                                                    <div key={p.id} data-flip={`p${p.id}`} className="lab-anim relative rounded-2xl overflow-hidden" style={{ background: cor, ['--lab-cor' as string]: `${cor}66`, animation: chegou?.id === p.id ? 'labBrilho 1.5s ease-out 1.5s backwards' : undefined }}>
+                                                    <div data-card className="rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2" style={{ background: colors.background, border: `1px solid ${colors.border}`, marginLeft: 4 }}>
                                                         <div className="min-w-0 flex-1">
                                                             <p className="text-[13px] font-black leading-tight truncate">{p.quem} <span className="font-semibold" style={{ color: colors.textSecondary }}>· {p.hora}</span></p>
                                                             <p className="text-[12px] leading-tight truncate mt-0.5">{p.item}{p.mais ? ` +${p.mais}` : ''}</p>
@@ -351,6 +352,7 @@ export default function PainelLab() {
                                                                 {f.acao && <button data-acao onClick={() => avancar(p.id)} className="h-8 px-3.5 rounded-full text-[12px] font-black text-white active:scale-95" style={{ background: cor }}><span data-troca className="inline-block">{f.acao}</span></button>}
                                                             </div>
                                                         </div>
+                                                    </div>
                                                     </div>
                                                 ))}
                                                 {todos.length > 2 && <button data-flip={`m${f.k}`} onClick={() => ir('pedidos')} className="relative text-[12px] font-black flex items-center gap-1 pl-1" style={{ color: cor }}>Ver mais {todos.length - 2}<ChevronRight size={13} /></button>}
