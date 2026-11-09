@@ -7,10 +7,12 @@
 'use client'
 
 import { ReactNode, useState } from 'react'
-import { ArrowLeft, Check, ChevronRight, Clock, Heart, Plus, Search, Star, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, Clock, Eye, Heart, MessageCircle, Plus, Search, Share2, Star, Users, X } from 'lucide-react'
 import { useTheme, type ThemeColors } from '@/app/contexts/theme'
 import AgendaPagina from './AgendaLab'
 import CatalogoLab, { type CatAba } from './CatalogoLab'
+import PublicacaoNova, { type Post } from './PublicacaoNova'
+import { useAviso } from './labui'
 
 export type Tipo = 'folha' | 'pagina'
 
@@ -31,7 +33,7 @@ export const DESTINOS: Record<string, { tipo: Tipo; titulo: string; rota: string
 
 const ORANGE = '#f97316'
 
-interface Props { k: string; cor: string; icone: ReactNode; nova: boolean; on: boolean; setOn: (v: boolean) => void; entregaOn: boolean; onClose: () => void; agendaAba?: 'agenda' | 'pend' | 'hor'; tem?: { prod: boolean; serv: boolean }; catAba?: CatAba }
+interface Props { k: string; cor: string; icone: ReactNode; nova: boolean; on: boolean; setOn: (v: boolean) => void; entregaOn: boolean; onClose: () => void; agendaAba?: 'agenda' | 'pend' | 'hor'; tem?: { prod: boolean; serv: boolean }; catAba?: CatAba; onIr?: (k: string) => void }
 
 export function Destino(p: Props) {
     const { colors } = useTheme()
@@ -297,54 +299,115 @@ function AgendaPag(p: Props & { c: Colors }) {
     )
 }
 
-function Topo({ c, cor, buscar, novo }: { c: Colors; cor: string; buscar: string; novo: string }) {
+function Topo({ c, cor, buscar, novo, q, setQ, onNovo }: { c: Colors; cor: string; buscar: string; novo: string; q?: string; setQ?: (v: string) => void; onNovo?: () => void }) {
     return (
         <div className="flex gap-2 mb-3">
-            <div className="flex-1 h-11 rounded-full px-3.5 flex items-center gap-2 text-[13px]" style={{ background: c.surface, border: `1.5px solid ${c.border}`, color: c.textSecondary }}><Search size={15} />{buscar}</div>
-            <button className="h-11 px-4 rounded-full text-[13px] font-black text-white flex items-center gap-1 active:scale-95" style={{ background: cor }}><Plus size={16} />{novo}</button>
+            <label className="flex-1 h-11 rounded-full px-3.5 flex items-center gap-2 text-[13px]" style={{ background: c.surface, border: `1.5px solid ${c.border}`, color: c.textSecondary }}>
+                <Search size={15} />
+                {setQ ? <input value={q || ''} onChange={(e) => setQ(e.target.value)} placeholder={buscar} className="flex-1 min-w-0 bg-transparent outline-none text-[13px]" style={{ color: c.textPrimary }} /> : buscar}
+            </label>
+            <button onClick={onNovo} className="h-11 px-4 rounded-full text-[13px] font-black text-white flex items-center gap-1 active:scale-95" style={{ background: cor }}><Plus size={16} />{novo}</button>
         </div>
     )
 }
-function Vazia({ c, titulo, texto, botao }: { c: Colors; titulo: string; texto: string; botao: string }) {
+function Vazia({ c, titulo, texto, botao, onClick }: { c: Colors; titulo: string; texto: string; botao: string; onClick?: () => void }) {
     return (
         <div className="rounded-3xl p-6 text-center" style={{ border: `1.5px dashed ${c.border}` }}>
             <p className="text-[15px] font-black">{titulo}</p><p className="text-[12.5px] mt-1 leading-snug" style={{ color: c.textSecondary }}>{texto}</p>
-            <button className="mt-4 h-11 px-5 rounded-full text-[13px] font-black text-white" style={{ background: ORANGE }}>{botao}</button>
+            <button onClick={onClick} className="mt-4 h-11 px-5 rounded-full text-[13px] font-black text-white" style={{ background: ORANGE }}>{botao}</button>
         </div>
     )
 }
 
-function Equipe({ c, cor, nova }: Props & { c: Colors }) {
-    if (nova) return <Vazia c={c} titulo="Só você por enquanto" texto="Adicione quem atende pedidos ou entrega para a loja. Cada um ganha o seu link." botao="Adicionar pessoa" />
+function Equipe({ c, cor, nova, entregaOn, onIr }: Props & { c: Colors }) {
+    // a equipe só TRABALHA quando a loja entrega por conta própria; com o Entregador do iUser ligado ela fica desligada (mas dá para abrir e ver o que é)
+    const desligada = entregaOn
     return (
         <>
-            <Topo c={c} cor={cor} buscar="Buscar na equipe" novo="Pessoa" />
-            <div className="rounded-3xl overflow-hidden" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
-                {[['Marcos', 'Atendente · ativo', '—'], ['Luiza', 'Cozinha · ativa', '—']].map(([n, f], i) => (
-                    <div key={n} className="flex items-center gap-3 px-3.5 py-3" style={{ borderTop: i ? `1px solid ${c.border}` : undefined }}>
-                        <span className="w-11 h-11 rounded-full flex items-center justify-center font-black text-white" style={{ background: cor }}>{n[0]}</span>
-                        <div className="min-w-0 flex-1"><p className="text-[13.5px] font-black">{n}</p><p className="text-[11.5px]" style={{ color: c.textSecondary }}>{f}</p></div>
-                        <ChevronRight size={16} style={{ color: c.textSecondary }} />
-                    </div>
-                ))}
+            <div className="rounded-3xl p-3.5 mb-3" style={{ background: `${cor}12`, border: `1.5px solid ${cor}44` }}>
+                <p className="text-[13.5px] font-black mb-1">O que é a equipe</p>
+                <p className="text-[12.5px] leading-snug">São os <b>entregadores e funcionários da loja</b>: quem faz o que a loja pedir — como <b>levar os pedidos</b> até o cliente. Cada um ganha um link próprio, sem precisar de conta.</p>
+                <p className="text-[12px] leading-snug mt-1.5" style={{ color: c.textSecondary }}>Só entra em uso quando a loja escolhe <b>entregar por conta própria</b> (entrega grátis para o cliente).</p>
             </div>
-            <p className="text-[11.5px] mt-3 leading-snug" style={{ color: c.textSecondary }}>Entregadores do iUser não entram aqui: eles são escolhidos em <b>Entrega</b> e <b>Favoritos</b>.</p>
+            {desligada && (
+                <div className="rounded-3xl p-3.5 mb-3 flex gap-3" style={{ background: '#f59e0b18', border: '1.5px solid #f59e0b66' }}>
+                    <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#f59e0b30', color: '#b45309' }}><Users size={17} /></span>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[13.5px] font-black leading-tight">Equipe desligada</p>
+                        <p className="text-[12px] leading-snug mt-0.5">Sua loja usa o <b>Entregador do iUser</b>: quem entrega é o iUser, então a equipe não é necessária. Para usar sua equipe, mude a entrega para <b>“Eu entrego”</b>.</p>
+                        {onIr && <button onClick={() => onIr('ent')} className="mt-2 h-9 px-4 rounded-full text-[12px] font-black text-white active:scale-95" style={{ background: '#22c55e' }}>Mudar a entrega</button>}
+                    </div>
+                </div>
+            )}
+            <div style={{ opacity: desligada ? 0.5 : 1, pointerEvents: desligada ? 'none' : undefined }} aria-disabled={desligada}>
+                {nova ? <Vazia c={c} titulo="Só você por enquanto" texto="Adicione quem atende pedidos ou entrega para a loja. Cada um ganha o seu link." botao="Adicionar pessoa" /> : (
+                    <>
+                        <Topo c={c} cor={cor} buscar="Buscar na equipe" novo="Pessoa" />
+                        <div className="rounded-3xl overflow-hidden" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
+                            {[['Marcos', 'Entregador · ativo'], ['Luiza', 'Entregadora · ativa']].map(([n, f], i) => (
+                                <div key={n} className="flex items-center gap-3 px-3.5 py-3" style={{ borderTop: i ? `1px solid ${c.border}` : undefined }}>
+                                    <span className="w-11 h-11 rounded-full flex items-center justify-center font-black text-white" style={{ background: cor }}>{n[0]}</span>
+                                    <div className="min-w-0 flex-1"><p className="text-[13.5px] font-black">{n}</p><p className="text-[11.5px]" style={{ color: c.textSecondary }}>{f}</p></div>
+                                    <ChevronRight size={16} style={{ color: c.textSecondary }} />
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-[11.5px] mt-3 leading-snug" style={{ color: c.textSecondary }}>Na entrega própria, ao aceitar um pedido você escolhe quem da equipe leva.</p>
+                    </>
+                )}
+            </div>
         </>
     )
 }
 function Publicacoes({ c, cor, nova }: Props & { c: Colors }) {
-    if (nova) return <Vazia c={c} titulo="Nenhuma publicação" texto="Mostre uma promoção, um prato novo ou um aviso. Aparece no perfil da loja e no Social." botao="Fazer a primeira publicação" />
+    const [posts, setPosts] = useState<Post[]>(nova ? [] : [
+        { id: 1, t: 'Noite do Rodízio: quinta tem sobremesa grátis', likes: 128, coments: 14, views: 1240, shares: 36, quando: 'há 2 d' },
+        { id: 2, t: 'Chegou a pizza de Carne Seca com Abóbora', likes: 96, coments: 9, views: 860, shares: 21, quando: 'há 6 d' },
+        { id: 3, t: 'Horário especial no feriado', likes: 41, coments: 3, views: 402, shares: 7, quando: 'há 12 d' },
+    ])
+    const [q, setQ] = useState('')
+    const [novaAb, setNovaAb] = useState(false)
+    const { mostrar, node } = useAviso()
+    const n = (v: number) => v.toLocaleString('pt-BR')
+    const lista = posts.filter((p) => !q || p.t.toLowerCase().includes(q.toLowerCase()))
+    const tot = posts.reduce((a, p) => ({ v: a.v + p.views, l: a.l + p.likes, s: a.s + p.shares }), { v: 0, l: 0, s: 0 })
     return (
         <>
-            <Topo c={c} cor={cor} buscar="Buscar nas publicações" novo="Nova" />
-            <div className="space-y-2">
-                {[['Noite do Rodízio: quinta tem sobremesa grátis', 128, 14, 'há 2 d'], ['Chegou a pizza de Carne Seca com Abóbora', 96, 9, 'há 6 d'], ['Horário especial no feriado', 41, 3, 'há 12 d']].map(([t, l, cm, h]) => (
-                    <div key={String(t)} className="rounded-3xl p-3 flex gap-3" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
-                        <span className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${cor}22`, color: cor }}><Star size={22} /></span>
-                        <div className="min-w-0"><p className="text-[13px] font-black leading-snug">{t as string}</p><p className="text-[11.5px] mt-1 flex items-center gap-2" style={{ color: c.textSecondary }}><span className="flex items-center gap-1"><Heart size={12} />{l as number}</span><span>{cm as number} comentários</span><span>{h as string}</span></p></div>
-                    </div>
-                ))}
-            </div>
+            {node}
+            <Topo c={c} cor={cor} buscar="Buscar nas publicações" novo="Nova" q={q} setQ={setQ} onNovo={() => setNovaAb(true)} />
+            {posts.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                    {[[<Eye key="a" size={13} />, 'Visualizações', tot.v, '#3b82f6'], [<Heart key="b" size={13} />, 'Curtidas', tot.l, '#ef4444'], [<Share2 key="c" size={13} />, 'Compartilhadas', tot.s, '#16a34a']].map(([ic, l, v, cc]) => (
+                        <div key={String(l)} className="rounded-2xl px-3 py-2" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
+                            <p className="text-[10.5px] font-bold flex items-center gap-1" style={{ color: cc as string }}>{ic as React.ReactNode}{l as string}</p>
+                            <p className="text-[17px] font-black leading-tight">{n(v as number)}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+            {posts.length === 0 ? (
+                <Vazia c={c} titulo="Nenhuma publicação" texto="Mostre uma promoção, um prato novo ou um aviso. Aparece no perfil da loja e no Social." botao="Fazer a primeira publicação" onClick={() => setNovaAb(true)} />
+            ) : (
+                <div className="space-y-2">
+                    {lista.length === 0 && <p className="text-[12.5px] text-center py-6" style={{ color: c.textSecondary }}>Nada encontrado.</p>}
+                    {lista.map((p) => (
+                        <div key={p.id} className="rounded-3xl p-3 flex gap-3" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
+                            <span className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: `${cor}22`, color: cor }}>{p.img ? <img src={p.img} alt="" className="w-full h-full object-cover" /> : <Star size={22} />}</span>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-black leading-snug">{p.t}</p>
+                                <p className="text-[11.5px] mt-1 flex items-center flex-wrap gap-x-3 gap-y-0.5" style={{ color: c.textSecondary }}>
+                                    <span className="flex items-center gap-1"><Eye size={12} />{n(p.views)}</span>
+                                    <span className="flex items-center gap-1"><Heart size={12} />{n(p.likes)}</span>
+                                    <span className="flex items-center gap-1"><MessageCircle size={12} />{n(p.coments)}</span>
+                                    <span className="flex items-center gap-1"><Share2 size={12} />{n(p.shares)}</span>
+                                    <span>{p.quando}</span>
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+            {novaAb && <PublicacaoNova c={c} cor={cor} onClose={() => setNovaAb(false)} onPublicar={(p) => { setPosts((m) => [p, ...m]); setNovaAb(false); mostrar('Publicado · +5 pontos da missão') }} />}
         </>
     )
 }

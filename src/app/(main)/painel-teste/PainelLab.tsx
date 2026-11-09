@@ -521,6 +521,8 @@ export default function PainelLab() {
 
     // cada atalho tem a SUA cor (identidade); o estado vem do selo: ligado (verde), desligado (cinza, tile apagado) ou falta algo (vermelho)
     type Est = 'on' | 'off' | 'warn'
+    // a EQUIPE só trabalha quando a loja entrega por conta própria; com o Entregador do iUser ligado ela fica desligada (abre, mas só explica)
+    const entregaIuser = temProdutos && (ger.ent !== undefined ? ger.ent : !nova)
     const base: { k: string; t: string; ic: ReactNode; cor: string; mostrar: boolean; liga?: boolean; texto: (e: Est) => string; est: Est }[] = [
         { k: 'inf', t: 'Dados da loja', ic: <Store size={19} />, cor: '#6366f1', mostrar: true, texto: () => (nova ? 'falta a descrição' : 'logo, links, modelo'), est: nova ? 'warn' : 'on' },
         { k: 'cat', t: 'Catálogo', ic: <Package size={19} />, cor: '#3b82f6', mostrar: true, texto: () => (nova ? 'nada cadastrado' : [temProdutos && '33 produtos', temServicos && '7 serviços', temProdutos && '3 combos'].filter(Boolean).join(' · ')), est: nova ? 'warn' : 'on' },
@@ -528,7 +530,7 @@ export default function PainelLab() {
         { k: 'pag', t: 'Pagamento', ic: <CreditCard size={19} />, cor: '#16a34a', mostrar: true, texto: () => (nova ? 'falta o Pix' : 'Pix ✓ · cartão'), est: nova ? 'warn' : 'on' },
         { k: 'hor', t: 'Horários', ic: <Timer size={19} />, cor: '#eab308', mostrar: true, texto: () => '18h–00h', est: 'on' },
         { k: 'age', t: 'Agenda', ic: <HandCoins size={19} />, cor: '#8b5cf6', mostrar: temServicos, liga: true, texto: (e) => (e === 'on' ? 'entrada 30%' : 'agenda fechada'), est: 'on' },
-        { k: 'eqp', t: 'Equipe', ic: <Users size={19} />, cor: '#06b6d4', mostrar: true, texto: () => (nova ? 'só você' : '2 pessoas'), est: nova ? 'off' : 'on' },
+        { k: 'eqp', t: 'Equipe', ic: <Users size={19} />, cor: '#06b6d4', mostrar: true, texto: () => (entregaIuser ? 'desligada · entrega iUser' : nova ? 'só você' : '2 pessoas'), est: entregaIuser ? 'off' : nova ? 'off' : 'on' },
         { k: 'pub', t: 'Publicações', ic: <Megaphone size={19} />, cor: '#f97316', mostrar: true, liga: true, texto: (e) => (e === 'on' ? '4 posts' : 'nenhum post'), est: nova ? 'off' : 'on' },
         { k: 'clu', t: 'Clube VIP', ic: <Crown size={19} />, cor: '#d97706', mostrar: true, liga: true, texto: (e) => (e === 'on' ? 'grátis · 38 membros' : 'desligado'), est: nova ? 'off' : 'on' },
         { k: 'zap', t: 'WhatsApp', ic: <Zap size={19} />, cor: '#10b981', mostrar: true, liga: true, texto: (e) => (e === 'on' ? 'avisos ligados' : 'desligado'), est: 'off' },
@@ -739,7 +741,7 @@ export default function PainelLab() {
                 )}
                 {aberto && (() => {
                     const g = base.find((x) => x.k === aberto)!
-                    return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} agendaAba={agendaAba} tem={{ prod: temProdutos, serv: temServicos }} catAba={catAba} />
+                    return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} agendaAba={agendaAba} tem={{ prod: temProdutos, serv: temServicos }} catAba={catAba} onIr={ir} />
                 })()}
                 {shareAb && <Compartilhar onClose={() => setShareAb(false)} />}
                 {logoAb && <LogoFolha nivel={nivelLoja} pontos={pontosLoja} cor={logoCor} setCor={setLogoCor} img={logoImg} setImg={setLogoImg} onClose={() => setLogoAb(false)} />}
