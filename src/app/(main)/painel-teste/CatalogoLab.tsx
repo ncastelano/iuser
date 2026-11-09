@@ -73,8 +73,8 @@ const CATS: Record<CatAba, string[]> = {
     servicos: ['Rodízios', 'Mesas', 'Ambientes'],
 }
 
-export default function CatalogoLab({ c, nova, prod, serv, abaInicial }: { c: ThemeColors; nova: boolean; prod: boolean; serv: boolean; abaInicial?: CatAba }) {
-    const abas = useMemo(() => ([prod && 'produtos', prod && !nova && 'digitais', serv && 'servicos'].filter(Boolean) as CatAba[]), [prod, serv, nova])
+export default function CatalogoLab({ c, nova, prod, serv, dig = prod, abaInicial }: { c: ThemeColors; nova: boolean; prod: boolean; serv: boolean; dig?: boolean; abaInicial?: CatAba }) {
+    const abas = useMemo(() => ([prod && 'produtos', dig && (!nova || !prod) && 'digitais', serv && 'servicos'].filter(Boolean) as CatAba[]), [prod, serv, dig, nova])
     const [aba, setAba] = useState<CatAba>(abaInicial && abas.includes(abaInicial) ? abaInicial : abas[0])
     const [cat, setCat] = useState('Todos')
     const [q, setQ] = useState('')

@@ -14,6 +14,7 @@ import {
 import { useTheme } from '@/app/contexts/theme'
 import { DESTINOS, Destino } from './Destinos'
 import Pagina from './Paginas'
+import Desempenho, { type Foco } from './Desempenho'
 import Extrato, { resumo, diaNome } from './Extrato'
 import Balcao from './Balcao'
 import Editar from './Editar'
@@ -31,6 +32,8 @@ const NOTAS: Record<string, { porque: string; era: string }> = {
     caixa: { porque: 'Dinheiro das entregas e vendas, num cartão só: o que está para conferir e quanto entrou. O que precisa de ação sobe para “Precisa de você”.', era: '“Caixa das entregas” + “Vendas” + “Apoios recebidos”, separados.' },
     digital: { porque: 'Quatro números e a linha do Clube. Sem nada de digital, vira um convite pequeno em vez de um cartão vazio.', era: 'Cartão “Digital” grande (com Apoios dentro).' },
     reputacao: { porque: 'A nota e o último comentário. A distribuição por estrelas e os 120 comentários ficam um toque adiante.', era: '“Avaliações e comentários”: a lista inteira aberta no painel (era ~900 px).' },
+    desempenho: { porque: 'Cada loja tem um FOCO e cada foco responde a uma pergunta: produtos → o que está vendendo e acabando; digitais → o que as pessoas estão vendo e onde param; serviços → como está a agenda e que serviços oferecer (o que as pessoas pedem perto e a loja ainda não atende). Começa com 3 indicadores de qualidade com semáforo e meta. Loja mista troca entre os focos.', era: 'Não existia: o painel mostrava o que aconteceu, não o que fazer para melhorar.' },
+    liberar: { porque: 'Numa loja só de digitais não há preparo nem entrega: o trabalho do dia é conferir o Pix e liberar o acesso. Esta lista substitui o funil de pedidos.', era: 'Pedidos na loja (funil de entrega) servindo a quem não entrega nada.' },
     missoes: { porque: 'O que a loja precisa fazer vira um jogo curto e sempre à vista: o cadastro que falta (cada passo vale pontos, uma vez) e as missões do dia (reiniciam toda manhã). Os pontos sobem a loja no Outdoor. Ligado de verdade: o banco confere cada missão e os pontos entram no Outdoor de lojas (cada ponto de missão vale 0,5; o peso se edita em Admin → Pontuação).', era: 'Só havia a lista “Comece por aqui”, e apenas na loja nova: depois de completa, ninguém via o que faltava.' },
     gerenciar: { porque: 'Tudo que é configuração vira uma grade de atalhos com o estado de cada um (“Pix ✓”, “iUser ligado”). Quem chega aqui para atender não precisa passar por isso.', era: 'Editar loja: ~15 blocos longos um embaixo do outro.' },
     balcao: { porque: 'Venda no balcão é uma ação, não um bloco: fica como botão fixo embaixo, sempre à mão e sem ocupar lugar na página.', era: 'Cartão “Venda presencial” no meio da página.' },
@@ -75,6 +78,7 @@ export default function PainelLab() {
     const [pagina, setPagina] = useState<string | null>(null)          // pedidos, repasses, digital, apoios, conversas, avaliacoes
     const [extratoAb, setExtratoAb] = useState(false)
     const [balcaoAb, setBalcaoAb] = useState(false)
+    const [liberados, setLiberados] = useState<number[]>([])                     // acessos digitais já liberados (foco digital)
     const [editarAb, setEditarAb] = useState(false)
     const [shareAb, setShareAb] = useState(false)
     const [logoAb, setLogoAb] = useState(false)
@@ -97,8 +101,10 @@ export default function PainelLab() {
         setAberto(k)
     }
 
-    const temProdutos = modelo !== 'services'
-    const temServicos = modelo !== 'products'
+    const temProdutos = modelo === 'mixed' || modelo === 'products'
+    const temServicos = modelo === 'mixed' || modelo === 'services'
+    const temDigital = modelo !== 'services'
+    const focos = ([temProdutos && 'produtos', temDigital && 'digitais', temServicos && 'servicos'].filter(Boolean)) as Foco[]
     const nova = estado === 'nova'
     const calmo = estado === 'tranquilo'
     const nivelLoja = nova ? 0 : calmo ? 2 : 4
@@ -392,13 +398,29 @@ export default function PainelLab() {
     )
 
     const rh = resumo('hoje')
-    const kpis = [
+    const kpisProdutos = [
         { l: 'Vendas hoje', v: calmo ? 'R$ 212' : nova ? 'R$ 0' : brl(rh.total).replace(',00', ''), c: C.novo, ic: <Wallet size={13} /> },
         { l: 'Pedidos', v: calmo ? '3' : nova ? '0' : String(rh.vendas), c: C.caminho, ic: <ClipboardList size={13} /> },
         { l: 'Ticket', v: calmo ? 'R$ 71' : nova ? '—' : brl(rh.total / Math.max(1, rh.vendas)).replace(',00', ''), c: C.pronto, ic: <Tag size={13} /> },
         { l: 'Nota', v: nova ? '—' : '4,6 ★', c: C.preparando, ic: <Star size={13} /> },
         { l: 'Online agora', v: calmo ? '2' : nova ? '0' : '9', c: C.servico, ic: <Users size={13} /> },
     ]
+    const z = (v: string, v0 = '0') => (nova ? v0 : v)
+    const kpisDigital = [
+        { l: 'Visualizações hoje', v: z(calmo ? '310' : '1.240'), c: C.pronto, ic: <Eye size={13} /> },
+        { l: 'Vendas hoje', v: z(calmo ? 'R$ 49' : 'R$ 506', 'R$ 0'), c: C.novo, ic: <Wallet size={13} /> },
+        { l: 'Pegaram grátis', v: z(calmo ? '6' : '27'), c: C.caminho, ic: <Gift size={13} /> },
+        { l: 'Clube', v: z(calmo ? '36' : '38'), c: C.ambar, ic: <Crown size={13} /> },
+        { l: 'Nota', v: nova ? '—' : '4,7 ★', c: C.preparando, ic: <Star size={13} /> },
+    ]
+    const kpisServico = [
+        { l: 'Agendados hoje', v: z(calmo ? '2' : '7'), c: C.servico, ic: <CalendarDays size={13} /> },
+        { l: 'Agenda cheia', v: z(calmo ? '31%' : '68%', '—'), c: C.pronto, ic: <Clock size={13} /> },
+        { l: 'Receita hoje', v: z(calmo ? 'R$ 240' : 'R$ 1.180', 'R$ 0'), c: C.novo, ic: <Wallet size={13} /> },
+        { l: 'Faltas', v: z(calmo ? '0%' : '4%', '—'), c: C.alerta, ic: <X size={13} /> },
+        { l: 'Nota', v: nova ? '—' : '4,8 ★', c: C.preparando, ic: <Star size={13} /> },
+    ]
+    const kpis = modelo === 'digital' ? kpisDigital : modelo === 'services' ? kpisServico : kpisProdutos
     const hojeBloco = (
         <>
             <div className="flex flex-wrap gap-2">
@@ -476,6 +498,22 @@ export default function PainelLab() {
         </div>
     )
 
+    const liberarBloco = (
+        <div className="rounded-3xl overflow-hidden" style={card}>
+            {[[1, '@carol-lima', 'Curso Pizza Napolitana', 49.9, '09:12'], [2, '@heitor-martins', 'E-book “Massa perfeita”', 19.9, '08:40']].map(([id, q, pr, v, h], i) => {
+                const ok = liberados.includes(id as number)
+                return (
+                    <div key={id as number} className="flex items-center gap-2.5 px-3.5 py-3" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                        <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: ok ? `${C.novo}22` : `${C.pronto}22`, color: ok ? C.novo : C.pronto }}>{ok ? <Check size={16} /> : <GraduationCap size={16} />}</span>
+                        <span className="min-w-0 flex-1"><span className="block text-[13px] font-black leading-tight truncate">{q as string}</span><span className="block text-[11.5px] truncate" style={{ color: colors.textSecondary }}>{pr as string} · {brl(v as number)} · Pix informado {h as string}</span></span>
+                        {ok ? <span className="text-[11.5px] font-black" style={{ color: C.novo }}>Liberado</span> : <button onClick={() => setLiberados((l) => [...l, id as number])} className="h-9 px-3.5 rounded-full text-[12px] font-black text-white active:scale-95" style={{ background: C.pronto }}>Liberar</button>}
+                    </div>
+                )
+            })}
+            <button onClick={() => ir('digital')} className="w-full h-11 text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ borderTop: `1px solid ${colors.border}`, background: `${colors.border}30` }}>Ver todas as vendas e o histórico<ChevronRight size={14} /></button>
+        </div>
+    )
+
     const digitalBloco = nova ? (
         <div role="button" onClick={() => ir('cat')} className="rounded-3xl p-3.5 flex items-center gap-3 cursor-pointer" style={{ border: `1.5px dashed ${colors.border}` }}>
             <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${C.pronto}22`, color: C.pronto }}><GraduationCap size={20} /></span>
@@ -525,7 +563,7 @@ export default function PainelLab() {
     const entregaIuser = temProdutos && (ger.ent !== undefined ? ger.ent : !nova)
     const base: { k: string; t: string; ic: ReactNode; cor: string; mostrar: boolean; liga?: boolean; texto: (e: Est) => string; est: Est }[] = [
         { k: 'inf', t: 'Dados da loja', ic: <Store size={19} />, cor: '#6366f1', mostrar: true, texto: () => (nova ? 'falta a descrição' : 'logo, links, modelo'), est: nova ? 'warn' : 'on' },
-        { k: 'cat', t: 'Catálogo', ic: <Package size={19} />, cor: '#3b82f6', mostrar: true, texto: () => (nova ? 'nada cadastrado' : [temProdutos && '33 produtos', temServicos && '7 serviços', temProdutos && '3 combos'].filter(Boolean).join(' · ')), est: nova ? 'warn' : 'on' },
+        { k: 'cat', t: 'Catálogo', ic: <Package size={19} />, cor: '#3b82f6', mostrar: true, texto: () => (nova ? 'nada cadastrado' : [temProdutos && '33 produtos', temDigital && !nova && '3 digitais', temServicos && '7 serviços', temProdutos && '3 combos'].filter(Boolean).join(' · ')), est: nova ? 'warn' : 'on' },
         { k: 'ent', t: 'Entrega', ic: <Truck size={19} />, cor: '#22c55e', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? 'iUser ligado' : 'só retirada'), est: nova ? 'off' : 'on' },
         { k: 'pag', t: 'Pagamento', ic: <CreditCard size={19} />, cor: '#16a34a', mostrar: true, texto: () => (nova ? 'falta o Pix' : 'Pix ✓ · cartão'), est: nova ? 'warn' : 'on' },
         { k: 'hor', t: 'Horários', ic: <Timer size={19} />, cor: '#eab308', mostrar: true, texto: () => '18h–00h', est: 'on' },
@@ -547,7 +585,7 @@ export default function PainelLab() {
     const cadastro = [
         { k: 'foto', t: 'Logo da loja', pts: 10, ir: 'inf' }, { k: 'desc', t: 'Descrição da loja', pts: 5, ir: 'inf' }, { k: 'hor', t: 'Horário de funcionamento', pts: 10, ir: 'hor' },
         temServicos ? { k: 'age', t: 'Agenda de horários', pts: 10, ir: 'age' } : null,
-        { k: 'prim', t: 'Primeiro produto ou serviço', pts: 15, ir: temProdutos ? 'cat' : 'srv' },
+        { k: 'prim', t: 'Primeiro produto ou serviço', pts: 15, ir: temProdutos || !temServicos ? 'cat' : 'srv' },
         { k: 'pix', t: 'Chave Pix', pts: 10, ir: 'pag' }, temProdutos ? { k: 'ent', t: 'Como a entrega funciona', pts: 10, ir: 'ent' } : null,
     ].filter(Boolean) as Ms[]
     // as missões do dia são as REAIS (migration 20261130000055): cada uma o banco confere sozinho
@@ -671,7 +709,7 @@ export default function PainelLab() {
                             </div>
                             <div className="flex flex-wrap gap-1.5 mt-2">
                                 <span className="text-[10.5px] font-bold self-center mr-1" style={{ color: colors.textSecondary }}>Modelo:</span>
-                                {([['mixed', 'Produtos e serviços'], ['products', 'Só produtos'], ['services', 'Só serviços']] as const).map(([k, l]) => (
+                                {([['mixed', 'Produtos e serviços'], ['products', 'Só produtos'], ['services', 'Só serviços'], ['digital', 'Só digitais']] as const).map(([k, l]) => (
                                     <button key={k} onClick={() => setModelo(k)} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(modelo === k)}>{l}</button>
                                 ))}
                                 <button onClick={() => setNotas((v) => !v)} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95 flex items-center gap-1" style={pill(notas, '#16a34a')}><Info size={12} />Notas</button>
@@ -689,10 +727,12 @@ export default function PainelLab() {
                             {nova && <>{sec('missoes', 'Missões da loja')}{missoesBloco}</>}
                             {sec('agora', 'Precisa de você agora', !nova && atencao.length > 0 ? <span className="text-[11px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: C.novo }}>{atencao.length}</span> : undefined)}
                             {precisa}
-                            {sec('pedidos', 'Pedidos')}
-                            {pedidosBloco}
+                            {temProdutos && <>{sec('pedidos', 'Pedidos')}{pedidosBloco}</>}
+                            {!temProdutos && temDigital && !nova && <>{sec('liberar', 'Vendas digitais')}{liberarBloco}</>}
+                            {temServicos && !temProdutos && <>{sec('pedidos', 'Pedidos de serviço')}{pedidosBloco}</>}
                             {sec('hoje', 'Como está o dia')}
                             {hojeBloco}
+                            {!nova && <>{sec('desempenho', 'Desempenho e qualidade')}<Desempenho c={colors} focos={focos} calmo={calmo} onIr={ir} /></>}
                             {!nova && <>{sec('missoes', 'Missões da loja')}{missoesBloco}</>}
                             {temServicos && <>{sec('agenda', 'Próximos compromissos')}{agendaBloco}</>}
                             {sec('caixa', 'Dinheiro')}
@@ -741,7 +781,7 @@ export default function PainelLab() {
                 )}
                 {aberto && (() => {
                     const g = base.find((x) => x.k === aberto)!
-                    return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} agendaAba={agendaAba} tem={{ prod: temProdutos, serv: temServicos }} catAba={catAba} onIr={ir} />
+                    return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} agendaAba={agendaAba} tem={{ prod: temProdutos, serv: temServicos, dig: temDigital }} catAba={catAba} onIr={ir} />
                 })()}
                 {shareAb && <Compartilhar onClose={() => setShareAb(false)} />}
                 {logoAb && <LogoFolha nivel={nivelLoja} pontos={pontosLoja} cor={logoCor} setCor={setLogoCor} img={logoImg} setImg={setLogoImg} onClose={() => setLogoAb(false)} />}

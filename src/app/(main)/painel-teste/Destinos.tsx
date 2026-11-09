@@ -33,7 +33,7 @@ export const DESTINOS: Record<string, { tipo: Tipo; titulo: string; rota: string
 
 const ORANGE = '#f97316'
 
-interface Props { k: string; cor: string; icone: ReactNode; nova: boolean; on: boolean; setOn: (v: boolean) => void; entregaOn: boolean; onClose: () => void; agendaAba?: 'agenda' | 'pend' | 'hor'; tem?: { prod: boolean; serv: boolean }; catAba?: CatAba; onIr?: (k: string) => void }
+interface Props { k: string; cor: string; icone: ReactNode; nova: boolean; on: boolean; setOn: (v: boolean) => void; entregaOn: boolean; onClose: () => void; agendaAba?: 'agenda' | 'pend' | 'hor'; tem?: { prod: boolean; serv: boolean; dig?: boolean }; catAba?: CatAba; onIr?: (k: string) => void }
 
 export function Destino(p: Props) {
     const { colors } = useTheme()
@@ -87,7 +87,7 @@ function conteudo(p: Props, c: Colors): ReactNode {
         case 'agc': return <Agenda {...p} c={c} />
         case 'clu': return <Clube {...p} c={c} />
         case 'zap': return <Whats {...p} c={c} />
-        case 'cat': return <CatalogoLab c={c} nova={p.nova} prod={p.tem?.prod ?? true} serv={p.tem?.serv ?? true} abaInicial={p.catAba} />
+        case 'cat': return <CatalogoLab c={c} nova={p.nova} prod={p.tem?.prod ?? true} serv={p.tem?.serv ?? true} dig={p.tem?.dig ?? true} abaInicial={p.catAba} />
         case 'eqp': return <Equipe {...p} c={c} />
         default: return <Publicacoes {...p} c={c} />
     }
