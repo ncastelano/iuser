@@ -12,6 +12,7 @@ import {
 import { useTheme } from '@/app/contexts/theme'
 import { C, FASES, ORANGE, PEDIDOS, brl, type Fase, type Pedido } from './dados'
 import { PaginaCasca, Switch, Vazio, useAviso } from './labui'
+import Conteudos, { CONTEUDOS, TIPOS, type EvBase, type Tipo } from './AgoraConteudos'
 
 interface Props { k: string; onClose: () => void; onIr: (k: string) => void }
 
@@ -355,7 +356,7 @@ function Avaliacoes({ onClose }: { onClose: () => void }) {
 
 // ===== AGORA NA SUA LOJA (o "Online agora" do painel leva aqui) =====
 type Ev = { id: number; ic: ReactNode; cor: string; quem: string; txt: string; t: number }
-const POOL: Omit<Ev, 'id' | 't'>[] = [
+const POOL: EvBase[] = [
     { ic: <Eye size={14} />, cor: '#3b82f6', quem: '@ana-barbosa', txt: 'está vendo a Pizza Margherita (grande)' },
     { ic: <ShoppingBag size={14} />, cor: '#f97316', quem: 'Visitante', txt: 'colocou o Combo Casal na sacola' },
     { ic: <Eye size={14} />, cor: '#3b82f6', quem: 'Visitante', txt: 'abriu o catálogo vindo do Social' },
@@ -363,35 +364,54 @@ const POOL: Omit<Ev, 'id' | 't'>[] = [
     { ic: <UserPlus size={14} />, cor: '#8b5cf6', quem: '@marta-moura', txt: 'começou a seguir a loja' },
     { ic: <Heart size={14} />, cor: '#ef4444', quem: '@breno-oliveira', txt: 'curtiu “Noite do Rodízio: quinta tem sobremesa grátis”' },
     { ic: <Share2 size={14} />, cor: '#16a34a', quem: '@bia-santos', txt: 'compartilhou a loja numa comunidade' },
-    { ic: <Eye size={14} />, cor: '#3b82f6', quem: 'Visitante', txt: 'está vendo o Rodízio premium (agenda)' },
     { ic: <Search size={14} />, cor: '#14b8a6', quem: 'Visitante', txt: 'achou a loja buscando “pizza perto”' },
 ]
 function Agora({ onClose, onIr }: { onClose: () => void; onIr: (k: string) => void }) {
     const { colors, card } = useCard()
-    const [evs, setEvs] = useState<Ev[]>(() => POOL.slice(0, 5).map((e, i) => ({ ...e, id: i, t: 8 + i * 23 })))
+    const [tipo, setTipo] = useState<Tipo>('pizzaria')
+    const pizza = tipo === 'pizzaria'
+    const loja = TIPOS.find((x) => x.k === tipo)!
+    const pool = useMemo(() => (pizza ? [CONTEUDOS.pizzaria.eventos[0], POOL[0], CONTEUDOS.pizzaria.eventos[1], POOL[1], POOL[3], CONTEUDOS.pizzaria.eventos[2], POOL[2], POOL[4], POOL[5], POOL[6], POOL[7]] : CONTEUDOS[tipo].eventos), [tipo, pizza])
+    const [evs, setEvs] = useState<Ev[]>([])
     const [n, setN] = useState(9)
+    const [j, setJ] = useState(0)
     useEffect(() => {
+        setEvs(pool.slice(0, 5).map((e, i) => ({ ...e, id: i, t: 8 + i * 23 })))
         let i = 5
         const id = setInterval(() => {
-            const e = POOL[i % POOL.length]; i++
+            const e = pool[i % pool.length]; i++
             setEvs((l) => [{ ...e, id: Date.now(), t: 0 }, ...l.map((x) => ({ ...x, t: x.t + 4 }))].slice(0, 12))
             setN((v) => Math.max(6, Math.min(13, v + (i % 2 ? 1 : -1))))
+            setJ((v) => ((i % 3) - 1) * 2 + (v > 3 ? -1 : 0))
         }, 4000)
         return () => clearInterval(id)
-    }, [])
+    }, [pool])
     const quando = (t: number) => (t < 5 ? 'agora' : `há ${t} s`)
+    const totalConteudo = CONTEUDOS[tipo].itens.reduce((t, x) => t + x.n, 0) + j
     return (
-        <PaginaCasca titulo="Agora na sua loja" sub="O que as pessoas estão fazendo neste momento" cor="#22c55e" icone={<Radio size={18} />} onClose={onClose}>
+        <PaginaCasca titulo="Agora na sua loja" sub={`${loja.loja} · o que as pessoas estão fazendo`} cor="#22c55e" icone={<Radio size={18} />} onClose={onClose}>
+            {/* só no laboratório: ver a mesma página para outros tipos de loja */}
+            <div className="mb-3">
+                <p className="text-[10.5px] font-bold mb-1.5" style={{ color: colors.textSecondary }}>Ver como (exemplo do laboratório):</p>
+                <div className="flex gap-1.5 flex-wrap">
+                    {TIPOS.map((x) => <button key={x.k} onClick={() => setTipo(x.k)} className="h-8 px-3 rounded-full text-[12px] font-black active:scale-95" style={tipo === x.k ? { background: ORANGE, color: '#fff' } : { border: `1px solid ${colors.border}` }}>{x.nome}</button>)}
+                </div>
+            </div>
+
             <div className="rounded-3xl p-4 flex items-center gap-3" style={{ background: '#22c55e14', border: '1.5px solid #22c55e55' }}>
                 <span className="relative flex w-3 h-3"><span className="absolute inline-flex w-full h-full rounded-full animate-ping" style={{ background: '#22c55e', opacity: 0.6 }} /><span className="relative inline-flex w-3 h-3 rounded-full" style={{ background: '#22c55e' }} /></span>
-                <div><p className="text-[28px] font-black leading-none">{n}</p><p className="text-[12px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>pessoas na loja agora</p></div>
+                <div><p className="text-[28px] font-black leading-none">{pizza ? n : totalConteudo + n}</p><p className="text-[12px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>{pizza ? 'pessoas na loja agora' : `pessoas na sua página agora`}</p></div>
                 <p className="ml-auto text-[11px] font-bold text-right" style={{ color: '#16a34a' }}>ao vivo</p>
             </div>
-            <div className="grid grid-cols-4 gap-1.5 mt-2.5">
-                {[['Vendo a loja', Math.round(n * 0.4), '#3b82f6'], ['No catálogo', Math.round(n * 0.3), '#8b5cf6'], ['Na sacola', Math.max(1, Math.round(n * 0.2)), '#f97316'], ['Pagando', 1, '#22c55e']].map(([l, v, cor]) => (
-                    <div key={String(l)} className="rounded-2xl py-2 text-center" style={card}><p className="text-[18px] font-black leading-none" style={{ color: cor as string }}>{v as number}</p><p className="text-[9.5px] font-bold mt-1 leading-tight" style={{ color: colors.textSecondary }}>{l as string}</p></div>
-                ))}
-            </div>
+            {pizza && (
+                <div className="grid grid-cols-4 gap-1.5 mt-2.5">
+                    {[['Vendo a loja', Math.round(n * 0.4), '#3b82f6'], ['No catálogo', Math.round(n * 0.3), '#8b5cf6'], ['Na sacola', Math.max(1, Math.round(n * 0.2)), '#f97316'], ['Pagando', 1, '#22c55e']].map(([l, v, cor]) => (
+                        <div key={String(l)} className="rounded-2xl py-2 text-center" style={card}><p className="text-[18px] font-black leading-none" style={{ color: cor as string }}>{v as number}</p><p className="text-[9.5px] font-bold mt-1 leading-tight" style={{ color: colors.textSecondary }}>{l as string}</p></div>
+                    ))}
+                </div>
+            )}
+
+            <Conteudos tipo={tipo} c={colors} j={j} />
 
             <Titulo>O que está acontecendo</Titulo>
             <div className="rounded-3xl overflow-hidden" style={card}>
@@ -404,24 +424,25 @@ function Agora({ onClose, onIr }: { onClose: () => void; onIr: (k: string) => vo
                 ))}
             </div>
 
-            <Titulo>Mais vistos agora</Titulo>
-            <div className="rounded-3xl overflow-hidden" style={card}>
-                {[['Pizza Margherita (grande)', 4], ['Combo Casal', 3], ['Rodízio premium', 2]].map(([nome, v], i) => (
-                    <div key={String(nome)} className="flex items-center gap-2.5 px-3.5 py-2.5 text-[12.5px]" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
-                        <span className="w-4 font-black" style={{ color: '#22c55e' }}>{i + 1}</span><span className="flex-1 font-bold truncate">{nome as string}</span>
-                        <span className="flex items-center gap-1 font-black"><Eye size={13} style={{ color: colors.textSecondary }} />{v as number}</span>
-                    </div>
-                ))}
-            </div>
-
-            <Titulo>De onde vieram</Titulo>
-            <div className="rounded-3xl p-3.5 space-y-2.5" style={card}>
-                {[['Social e Flash', 40], ['Busca no iUser', 30], ['Link compartilhado', 20], ['Radar (perto de você)', 10]].map(([l, p]) => (
-                    <div key={String(l)}><div className="flex justify-between text-[12px] font-bold mb-1"><span>{l as string}</span><span>{p as number}%</span></div><span className="block h-2 rounded-full overflow-hidden" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${p as number}%`, background: '#22c55e' }} /></span></div>
-                ))}
-            </div>
-            <p className="text-[11.5px] leading-snug mt-3" style={{ color: colors.textSecondary }}>Quem não está logado aparece como “Visitante”. Só mostramos o @ de quem está logado e a pessoa só entra no radar enquanto está na loja.</p>
-            <button onClick={() => onIr('pedidos')} className="w-full mt-3 h-11 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ background: `${colors.border}40` }}>Ver os pedidos<ChevronRight size={14} /></button>
+            {pizza && (<>
+                <Titulo>Produtos mais vistos agora</Titulo>
+                <div className="rounded-3xl overflow-hidden" style={card}>
+                    {[['Pizza Margherita (grande)', 4], ['Combo Casal', 3], ['Rodízio premium', 2]].map(([nome, v], i) => (
+                        <div key={String(nome)} className="flex items-center gap-2.5 px-3.5 py-2.5 text-[12.5px]" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                            <span className="w-4 font-black" style={{ color: '#22c55e' }}>{i + 1}</span><span className="flex-1 font-bold truncate">{nome as string}</span>
+                            <span className="flex items-center gap-1 font-black"><Eye size={13} style={{ color: colors.textSecondary }} />{v as number}</span>
+                        </div>
+                    ))}
+                </div>
+                <Titulo>De onde vieram</Titulo>
+                <div className="rounded-3xl p-3.5 space-y-2.5" style={card}>
+                    {[['Social e Flash', 40], ['Busca no iUser', 30], ['Link compartilhado', 20], ['Radar (perto de você)', 10]].map(([l, p]) => (
+                        <div key={String(l)}><div className="flex justify-between text-[12px] font-bold mb-1"><span>{l as string}</span><span>{p as number}%</span></div><span className="block h-2 rounded-full overflow-hidden" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${p as number}%`, background: '#22c55e' }} /></span></div>
+                    ))}
+                </div>
+            </>)}
+            <p className="text-[11.5px] leading-snug mt-3" style={{ color: colors.textSecondary }}>Quem não está logado aparece como “Visitante”. Só mostramos o @ de quem está logado, e a cidade é a do perfil público (nunca o endereço).</p>
+            {pizza && <button onClick={() => onIr('pedidos')} className="w-full mt-3 h-11 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ background: `${colors.border}40` }}>Ver os pedidos<ChevronRight size={14} /></button>}
         </PaginaCasca>
     )
 }
