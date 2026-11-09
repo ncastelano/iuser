@@ -56,7 +56,7 @@ const NOTAS: Record<string, { porque: string; era: string }> = {
     caixa: { porque: 'Dinheiro das entregas e vendas, num cartão só: o que está para conferir e quanto entrou. O que precisa de ação sobe para “Precisa de você”.', era: '“Caixa das entregas” + “Vendas” + “Apoios recebidos”, separados.' },
     digital: { porque: 'Quatro números e a linha do Clube. Sem nada de digital, vira um convite pequeno em vez de um cartão vazio.', era: 'Cartão “Digital” grande (com Apoios dentro).' },
     reputacao: { porque: 'A nota e o último comentário. A distribuição por estrelas e os 120 comentários ficam um toque adiante.', era: '“Avaliações e comentários”: a lista inteira aberta no painel (era ~900 px).' },
-    missoes: { porque: 'O que a loja precisa fazer vira um jogo curto e sempre à vista: o cadastro que falta (cada passo vale pontos, uma vez) e as missões do dia (reiniciam toda manhã). Os pontos sobem a loja no Outdoor. ATENÇÃO: missões ainda não existem no motor de pontuação; hoje os pontos da loja vêm de sinais (vendas, avaliações, visitas).', era: 'Só havia a lista “Comece por aqui”, e apenas na loja nova: depois de completa, ninguém via o que faltava.' },
+    missoes: { porque: 'O que a loja precisa fazer vira um jogo curto e sempre à vista: o cadastro que falta (cada passo vale pontos, uma vez) e as missões do dia (reiniciam toda manhã). Os pontos sobem a loja no Outdoor. Ligado de verdade: o banco confere cada missão e os pontos entram no Outdoor de lojas (cada ponto de missão vale 0,5; o peso se edita em Admin → Pontuação).', era: 'Só havia a lista “Comece por aqui”, e apenas na loja nova: depois de completa, ninguém via o que faltava.' },
     gerenciar: { porque: 'Tudo que é configuração vira uma grade de atalhos com o estado de cada um (“Pix ✓”, “iUser ligado”). Quem chega aqui para atender não precisa passar por isso.', era: 'Editar loja: ~15 blocos longos um embaixo do outro.' },
     balcao: { porque: 'Venda no balcão é uma ação, não um bloco: fica como botão fixo embaixo, sempre à mão e sem ocupar lugar na página.', era: 'Cartão “Venda presencial” no meio da página.' },
 }
@@ -437,25 +437,27 @@ export default function PainelLab() {
     const estDe = (g: (typeof base)[number]): Est => (g.liga && ger[g.k] !== undefined ? (ger[g.k] ? 'on' : 'off') : g.est)
     // ===== MISSÕES DA LOJA: o cadastro que falta (vale pontos uma vez) + as missões do dia (reiniciam toda manhã) =====
     const feitoBase: Record<string, boolean> = nova
-        ? { foto: true, desc: false, hor: true, age: false, prim: false, pix: false, ent: false, abrir: aberta, aceitar: false, conv: false, pub: false, rep: false, aval: false }
+        ? { foto: true, desc: false, hor: true, age: false, prim: false, pix: false, ent: false, pedido: false, conversa: false, publicacao: false, novidade: false, repasse: false }
         : calmo
-            ? { foto: true, desc: true, hor: true, age: true, prim: true, pix: true, ent: true, abrir: aberta, aceitar: true, conv: true, pub: true, rep: true, aval: false }
-            : { foto: true, desc: true, hor: true, age: true, prim: true, pix: true, ent: true, abrir: aberta, aceitar: novosProd === 0, conv: false, pub: false, rep: false, aval: true }
+            ? { foto: true, desc: true, hor: true, age: true, prim: true, pix: true, ent: true, pedido: true, conversa: true, publicacao: true, novidade: false, repasse: true }
+            : { foto: true, desc: true, hor: true, age: true, prim: true, pix: true, ent: true, pedido: novosProd === 0, conversa: false, publicacao: false, novidade: true, repasse: false }
     const feita = (k: string) => (miss[k] !== undefined ? miss[k] : feitoBase[k])
     type Ms = { k: string; t: string; pts: number; ir?: string }
     const cadastro = [
-        { k: 'foto', t: 'Logo da loja', pts: 10, ir: 'inf' }, { k: 'desc', t: 'Descrição e links', pts: 5, ir: 'inf' }, { k: 'hor', t: 'Horário de funcionamento', pts: 10, ir: 'hor' },
+        { k: 'foto', t: 'Logo da loja', pts: 10, ir: 'inf' }, { k: 'desc', t: 'Descrição da loja', pts: 5, ir: 'inf' }, { k: 'hor', t: 'Horário de funcionamento', pts: 10, ir: 'hor' },
         temServicos ? { k: 'age', t: 'Agenda de horários', pts: 10, ir: 'age' } : null,
-        { k: 'prim', t: temProdutos ? 'Primeiro produto' : 'Primeiro serviço', pts: 15, ir: temProdutos ? 'cat' : 'srv' },
+        { k: 'prim', t: 'Primeiro produto ou serviço', pts: 15, ir: temProdutos ? 'cat' : 'srv' },
         { k: 'pix', t: 'Chave Pix', pts: 10, ir: 'pag' }, temProdutos ? { k: 'ent', t: 'Como a entrega funciona', pts: 10, ir: 'ent' } : null,
     ].filter(Boolean) as Ms[]
+    // as missões do dia são as REAIS (migration 20261130000055): cada uma o banco confere sozinho
     const diarias = [
-        { k: 'abrir', t: 'Abrir a loja hoje', pts: 2 }, { k: 'aceitar', t: 'Aceitar os pedidos novos', pts: 5 }, { k: 'conv', t: 'Responder as conversas', pts: 3 },
-        { k: 'pub', t: 'Fazer uma publicação', pts: 5, ir: 'pub' }, temProdutos ? { k: 'rep', t: 'Conferir os repasses', pts: 2 } : null, { k: 'aval', t: 'Responder uma avaliação', pts: 3 },
+        temProdutos ? { k: 'pedido', t: 'Responder um pedido', pts: 5 } : null, { k: 'conversa', t: 'Responder uma conversa', pts: 3 }, { k: 'publicacao', t: 'Fazer uma publicação', pts: 5, ir: 'pub' },
+        { k: 'novidade', t: 'Cadastrar uma novidade', pts: 3, ir: 'cat' }, temProdutos ? { k: 'repasse', t: 'Conferir um repasse', pts: 2 } : null,
     ].filter(Boolean) as Ms[]
     const ptsHoje = diarias.filter((m) => feita(m.k)).reduce((t, m) => t + m.pts, 0)
     const ptsTotal = diarias.reduce((t, m) => t + m.pts, 0)
-    const semana = (nova ? 0 : calmo ? 61 : 84) + ptsHoje
+    const semana = (nova ? 0 : calmo ? 31 : 44) + ptsHoje
+    const outdoorPts = Math.round((nova ? 35 : 60) * 0.5 + ptsHoje * 0.5)      // peso 0,5 por ponto de missão (editável no Admin)
     const faltaCad = cadastro.filter((m) => !feita(m.k))
     const SELO: Record<Est, { l: string; c: string }> = { on: { l: 'Ligado', c: '#16a34a' }, off: { l: 'Desligado', c: '#9ca3af' }, warn: { l: 'Falta', c: C.alerta } }
     const gerenciarBloco = (
@@ -496,7 +498,7 @@ export default function PainelLab() {
             <div className="flex flex-wrap gap-1.5 mt-2.5">
                 <span className="h-7 px-2.5 rounded-full text-[11px] font-black flex items-center" style={{ background: `${ORANGE}1f`, color: ORANGE }}>{semana} pts na semana</span>
                 <span className="h-7 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1" style={{ background: `${C.preparando}26`, color: '#a16207' }}><Flame size={12} />{nova ? 'sem sequência ainda' : '4 dias seguidos'}</span>
-                <span className="h-7 px-2.5 rounded-full text-[11px] font-black flex items-center" style={{ background: `${colors.border}50` }}>pontos sobem a loja no Outdoor</span>
+                <span className="h-7 px-2.5 rounded-full text-[11px] font-black flex items-center" style={{ background: `${colors.border}50` }}>Missões somam {outdoorPts} pts no Outdoor</span>
             </div>
 
             <p className="text-[11px] font-black uppercase tracking-wider mt-4 mb-1.5" style={{ color: colors.textSecondary }}>Missões de hoje</p>

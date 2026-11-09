@@ -43,6 +43,7 @@ import StoreDepositEditor from './StoreDepositEditor'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
 import StoreDeliveryDues from './StoreDeliveryDues'
+import StoreMissions from './StoreMissions'
 import StoreDigital from './StoreDigital'
 import StoreFeedback from './StoreFeedback'
 import StoreDeliverySettings from './StoreDeliverySettings'
@@ -738,6 +739,9 @@ export default function StoreDashboard({
             <div className={insideShell ? 'mb-6' : ''}>
                 <StoreDeliveryDues storeId={store.id} v3={insideShell} />
             </div>
+
+            {/* ===== Missões da loja: pontuação diária (os pontos entram no Outdoor de lojas) ===== */}
+            <StoreMissions storeId={store.id} storeSlug={store.storeSlug} />
 
             {/* ===== Digital: cursos, músicas e programas (produtos, vendas, o que liberar, Clube) + Apoios recebidos (gorjetas dos fãs) ===== */}
             <StoreDigital storeId={store.id} storeSlug={store.storeSlug} hasPix={!!store.pix_key} v3={insideShell} />
