@@ -276,7 +276,7 @@ def chat_tick(limit=3):
 def store_orders(status, min_age):
     skip = f"and o.buyer_id <> {esc(FEATURED['id'])}::uuid" if (CFG['stage'] and FEATURED) else ''   # no TEATRO, os pedidos da cliente em destaque são atendidos pelas telas
     return q_local(f"""select o.id, o.buyer_id, o.delivery_option, o.total_amount, extract(epoch from now() - o.updated_at) as age from orders o
-        where o.store_id = {esc(STORE['id'])}::uuid and o.status = {esc(status)} {skip} and o.updated_at < now() - interval '{min_age} seconds' order by o.updated_at limit 12""")
+        where o.store_id = {esc(STORE['id'])}::uuid and o.store_visible and o.status = {esc(status)} {skip} and o.updated_at < now() - interval '{min_age} seconds' order by o.updated_at limit 12""")
 
 
 def set_status(order, status):

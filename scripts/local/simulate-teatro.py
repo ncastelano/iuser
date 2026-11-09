@@ -287,7 +287,7 @@ def doces_attend():
     """O dono da Farmácia Plantão 24h (sem tela) aceita e deixa pronto, para a entrega aparecer aos entregadores."""
     if not DOCES:
         return
-    for o in q_local(f"select id, status, extract(epoch from now() - updated_at) as age from orders where store_id = {esc(DOCES['id'])}::uuid and status in ('pending','preparing') order by updated_at limit 6"):
+    for o in q_local(f"select id, status, extract(epoch from now() - updated_at) as age from orders where store_id = {esc(DOCES['id'])}::uuid and store_visible and status in ('pending','preparing') order by updated_at limit 6"):
         age = float(o['age'])
         if o['status'] == 'pending' and age > 12:
             as_user(DOCES['owner_id'], f"update orders set status = 'preparing' where id = {esc(o['id'])}::uuid;")

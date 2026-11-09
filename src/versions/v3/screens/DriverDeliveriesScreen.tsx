@@ -707,7 +707,7 @@ export default function DriverDeliveriesScreen() {
                                         {ordered.map((d, i) => (
                                             <div key={d.id} className="rounded-2xl p-3" style={{ background: soft }}>
                                                 <p className="text-[12px] font-black flex items-center justify-between gap-2" style={{ color: colors.textPrimary }}><span className="truncate">{i + 1}. {d.customerName}</span>
-                                                    {d.orderStatus == null ? null : d.orderStatus === 'ready' ? <span className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: `${GREEN}22`, color: '#16a34a' }}>Pronto ✓</span> : <span className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#f59e0b22', color: '#b45309' }}>Em preparo…</span>}</p>
+                                                    {d.orderStatus == null ? null : d.orderStatus === 'ready' ? <span className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: `${GREEN}22`, color: '#16a34a' }}>Pronto ✓</span> : <span className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#f59e0b22', color: '#b45309' }}>{d.orderStatus === 'pending' ? 'Loja vai aceitar…' : 'Em preparo…'}</span>}</p>
                                                 <ul className="mt-0.5">{itemsList(d.items).map((it, k) => <li key={k} className="text-[12px] flex items-center gap-1.5" style={{ color: colors.textSecondary }}><Check size={11} style={{ color: GREEN }} />{it}</li>)}</ul>
                                             </div>
                                         ))}

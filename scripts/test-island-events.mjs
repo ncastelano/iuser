@@ -12,7 +12,7 @@ test('o código de retirada fica na tela por mais tempo', () => {
   assert.ok(e && e.duration >= 15000); assert.match(e.text, /código 1234/); assert.equal(e.actionLabel, 'Ver código')
 })
 test('recusa e cancelamento são erro (vermelho)', () => {
-  for (const kind of ['order_rejected', 'delivery_driver_cancelled', 'delivery_cancelled']) assert.equal(islandEventFor({ kind, meta: { text: 'x' } })?.level, 'error')
+  for (const kind of ['order_rejected', 'order_no_driver', 'delivery_driver_cancelled', 'delivery_cancelled']) assert.equal(islandEventFor({ kind, meta: { text: 'x' } })?.level, 'error')
 })
 test('curtida, seguidor e visita NÃO viram aviso na ilha (só ficam na lista de notificações)', () => {
   for (const kind of ['follow', 'publication_like', 'profile_view', 'comment_like', 'link_visit']) assert.equal(islandEventFor({ kind, meta: {} }), null)

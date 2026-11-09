@@ -15,7 +15,7 @@ export function useMyActiveOrders(userId: string | null | undefined): MyOrder[] 
         if (!userId) { setOrders([]); return }
         const { data } = await supabase
             .from('orders')
-            .select('id, checkout_id, status, delivery_option, created_at, stores(name)')
+            .select('id, checkout_id, status, delivery_option, created_at, store_visible, stores(name)')
             .eq('buyer_id', userId)
             .in('status', ['pending', 'preparing', 'ready'])
             .order('created_at', { ascending: false })
@@ -34,7 +34,7 @@ export function useMyActiveOrders(userId: string | null | undefined): MyOrder[] 
             if (seen.has(key)) continue
             seen.add(key)
             const store = Array.isArray(r.stores) ? r.stores[0] : r.stores
-            next.push({ key, status: r.status, storeName: store?.name || '', delivery: r.delivery_option !== 'retirada', dispatch: dispatchBy.get(r.id) ?? null })
+            next.push({ key, status: r.status, storeName: store?.name || '', delivery: r.delivery_option !== 'retirada', holding: r.store_visible === false, dispatch: dispatchBy.get(r.id) ?? null })
         }
         setOrders((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
     }, [userId])

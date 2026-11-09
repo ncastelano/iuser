@@ -2,8 +2,8 @@
 """
 UM pedido do começo ao fim, em câmera lenta, para você VER o acompanhamento na faixa de cima da barra do app (3.0). SÓ NO BANCO LOCAL.
 
-A cliente pede (como ela mesma: JWT + RLS + RPC `create_store_order`, o caminho do app), a loja aceita, prepara e deixa pronto (como a dona, `admin-teste`),
-e, na ENTREGA, o motorista aceita, vai à loja, chega, sai com o pedido e entrega. A cada passo o script espera `--pausa` segundos e diz o que a faixa deve mostrar.
+A cliente pede (como ela mesma: JWT + RLS + RPC `create_store_order`, o caminho do app). Na ENTREGA iUser o pedido fica RETIDO (a loja não vê) até um motorista
+aceitar (aqui encenado); aí a loja recebe, aceita, prepara e deixa pronto (como a dona, `admin-teste`), e o motorista chega, sai com o pedido e entrega. A cada passo o script espera `--pausa` segundos e diz o que a faixa deve mostrar.
 
   python3 -u scripts/local/simular-pedido.py                      # entrega, 15 s entre os passos, cliente Ana Silva
   python3 -u scripts/local/simular-pedido.py --retirada           # retirada na loja (sem motorista)
@@ -102,63 +102,71 @@ def main():
         order_id = q_local(f"select id from orders where buyer_id = {esc(cli['id'])}::uuid order by created_at desc limit 1")[0]['id']
     total = float(d.get('total_amount', 0))
     log(f"🛒 1/ {cli['name']} fez o pedido ({' + '.join(p['name'] for p in picks)} — R$ {total:.2f})".replace('.', ','))
-    log("   👀 FAIXA: pílula VERDE  «Forno de Ouro · Aguardando a loja»")
+    log("   👀 FAIXA: pílula VERDE  «Forno de Ouro · Aguardando a loja»" if not deliver else "   👀 FAIXA: pílula VERDE  «Forno de Ouro · Procurando entregador»")
     wait(pausa)
 
+    # 2) ENTREGA: o pedido fica RETIDO — a loja só recebe quando um entregador aceitar (o motorista aqui é ENCENADO)
     def owner_set(status):
         as_user(store['owner_id'], f"update orders set status = {esc(status)} where id = {esc(order_id)}::uuid;")
 
+    held = deliver and q_local(f"select 1 from orders where id = {esc(order_id)}::uuid and not store_visible")
+    if held:
+        log("🛵 2/ o pedido está RETIDO: a loja ainda NÃO o vê (nem foi avisada) e a busca por entregador já começou")
+        log("   👀 FAIXA: pílula VERDE  «Forno de Ouro · Procurando entregador»  (lupa) — e em Atividade → Pedidos o aviso de busca, com as opções de retirar ou cancelar")
+        wait(pausa)
+        disp = q_local(f"select id, ride_request_id from order_delivery_dispatches where order_id = {esc(order_id)}::uuid limit 1")
+        did = disp[0]['id']
+        drv = q_local("select p.id from profiles p join auth.users u on u.id = p.id where u.email like 'entregador-%@staging.iuser.test' order by u.email limit 1")
+        if not drv:
+            sys.exit('Sem motorista de teste: rode  node scripts/local/seed-entregadores.mjs')
+        psql([], stdin=f"update ride_requests set status = 'accepted', driver_id = {esc(drv[0]['id'])}::uuid where id = {esc(disp[0]['ride_request_id'])}::uuid;")
+        log("🛵 3/ um entregador ACEITOU — só agora o pedido chega à loja (ela é avisada)")
+        log("   👀 FAIXA: ROXA  «Forno de Ouro · Motorista indo buscar»  — a loja vê «Pedido novo · entrega com entregador confirmado»")
+        wait(pausa)
+    else:
+        did = None
+
     if a.recusa:
         owner_set('rejected')
-        log("🏪 2/ a loja RECUSOU o pedido")
-        log("   👀 FAIXA: a pílula some (o aviso de recusa aparece na ilha/aviso e em Atividade → Pedidos)")
+        log("🏪 a loja RECUSOU o pedido (a corrida do entregador é encerrada junto)")
+        log("   👀 FAIXA: a pílula some (o aviso de recusa aparece na ilha e em Atividade → Pedidos)")
         return
 
-    # 2) a loja aceita e prepara
     owner_set('preparing')
-    log("🏪 2/ a loja ACEITOU e começou a preparar")
+    log("🏪 4/ a loja ACEITOU e começou a preparar")
     log("   👀 FAIXA: pílula AMARELA  «Forno de Ouro · Preparando»  (barrinha em 2 de 4)")
     wait(pausa)
 
-    # 3) pronto
     owner_set('ready')
     if not deliver:
-        log("🏪 3/ a loja deixou PRONTO para retirar")
+        log("🏪 5/ a loja deixou PRONTO para retirar")
         log("   👀 FAIXA: pílula ROXA  «Forno de Ouro · Pronto para retirar»")
         wait(pausa)
         psql([], stdin=f"update orders set status = 'paid' where id = {esc(order_id)}::uuid;")
-        log("🙋 4/ a cliente retirou e a loja finalizou o pedido")
+        log("🙋 6/ a cliente retirou e a loja finalizou o pedido")
         log("   👀 FAIXA: a pílula SOME (pedido finalizado); a avaliação da compra aparece em Atividade → Pedidos")
         return
-    log("🏪 3/ a loja deixou PRONTO — agora procura motorista")
-    log("   👀 FAIXA: pílula ROXA  «Forno de Ouro · Pronto · buscando motorista»")
-    wait(pausa)
-
-    # 4) o motorista (encenado: grava a etapa da entrega direto)
-    disp = q_local(f"select id, ride_request_id from order_delivery_dispatches where order_id = {esc(order_id)}::uuid limit 1")
-    if not disp:
-        log("   (a loja não usa Entregador iUser: não há entrega para encenar — o pedido fica «Pronto». Rode seed-entregadores.mjs.)")
+    if not did:
+        log("   (a loja não usa Entregador iUser: o pedido segue como «Pronto» — rode seed-entregadores.mjs.)")
         return
-    did = disp[0]['id']
+    log("🏪 5/ a loja deixou PRONTO — o entregador que já aceitou vem buscar")
+    log("   👀 FAIXA: ROXA  «Forno de Ouro · Motorista indo buscar»")
+    wait(pausa)
 
     def stage(st, status='accepted'):
         psql([], stdin=f"update order_delivery_dispatches set status = {esc(status)}, stage = {esc(st)} where id = {esc(did)}::uuid;")
 
-    stage('to_store')
-    log("🛵 4/ um motorista ACEITOU e está indo à loja")
-    log("   👀 FAIXA: ROXA  «Forno de Ouro · Motorista indo buscar»")
-    wait(pausa)
     stage('at_store')
-    log("🛵 5/ o motorista CHEGOU na loja")
+    log("🛵 6/ o motorista CHEGOU na loja")
     log("   👀 FAIXA: ROXA  «Forno de Ouro · Motorista na loja»")
     wait(pausa)
     stage('in_transit')
-    log("🛵 6/ o motorista SAIU com o pedido")
+    log("🛵 7/ o motorista SAIU com o pedido")
     log("   👀 FAIXA: ROXA  «Forno de Ouro · A caminho de você»  (barrinha cheia)")
     wait(pausa)
     stage('delivered', 'completed')
     psql([], stdin=f"update orders set status = 'paid' where id = {esc(order_id)}::uuid;")
-    log("📦 7/ ENTREGUE e finalizado")
+    log("📦 8/ ENTREGUE e finalizado")
     log("   👀 FAIXA: a pílula SOME. O pedido fica em Atividade → Pedidos (finalizado, azul) esperando a avaliação.")
 
 

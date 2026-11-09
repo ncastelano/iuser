@@ -465,7 +465,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                 const { data: waRows } = await supabase.rpc('get_store_order_whatsapp', { p_store: storeConfig.id })
                 const waRow = Array.isArray(waRows) ? waRows[0] : waRows
                 const whatsapp: string | null | undefined = waRow?.whatsapp
-                if (whatsapp && waRow?.orders_enabled !== false) {
+                if (whatsapp && waRow?.orders_enabled !== false && !created.awaitingDriver) {
                     const paymentLabel = isV2Delivery ? 'A combinar após a loja aceitar' : paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
                     const deliveryLabel = deliveryOption === 'entrega'
                         ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`
@@ -486,7 +486,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                 // melhor esforço - não bloqueia o pedido já criado
             }
 
-            toast.success(isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
+            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
             setCheckoutStep(null)
             setDeliveryOption(null)
             setPaymentMethod(null)

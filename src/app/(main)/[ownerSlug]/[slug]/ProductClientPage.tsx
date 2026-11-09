@@ -57,6 +57,7 @@ import type { CurriculumItem } from '@/modules/digital'
 import Link from 'next/link'
 import { useInsideShell } from '@/components/InsideShell'
 import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
+import DriverFirstNote from '@/components/checkout/DriverFirstNote'
 
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -745,6 +746,7 @@ export function ProductClientPage({
                     {checkout.deliveryOption === 'entrega' && (
                         <div className="mb-3">
                             <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Endereço de Entrega</p>
+                            <DriverFirstNote storeId={checkout.storeConfig?.id} show={!checkout.v2.active} />
 
                             {checkout.deliveryAddress && !checkout.isEditingAddress ? (
                                 <div className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>

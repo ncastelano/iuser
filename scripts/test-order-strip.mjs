@@ -31,6 +31,14 @@ test('cada etapa tem o seu ícone (nenhum repetido na linha do tempo)', () => {
     assert.equal(ic({ status: 'ready', delivery: false }), 'package')
 })
 
+test('pedido retido: procurando entregador (a loja ainda não recebeu)', () => {
+    const st = orderStage(o({ status: 'pending', holding: true }))
+    assert.equal(st.text, 'Procurando entregador')
+    assert.equal(st.icon, 'search')
+    assert.equal(st.step, 1)
+    assert.equal(orderStage(o({ status: 'pending', holding: false })).text, 'Aguardando a loja')   // liberado para a loja: volta ao texto de sempre
+})
+
 test('pedido finalizado, recusado ou cancelado SAI da faixa', () => {
     for (const s of ['paid', 'rejected', 'cancelled', 'x']) { assert.equal(orderStage(o({ status: s })), null); assert.equal(isActiveOrderStatus(s), false) }
     for (const s of ['pending', 'preparing', 'ready']) assert.equal(isActiveOrderStatus(s), true)

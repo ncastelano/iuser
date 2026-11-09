@@ -5,6 +5,7 @@ import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import DriverFirstNote from '@/components/checkout/DriverFirstNote'
 import { createStoreOrder, CreateStoreOrderError } from '@/lib/createStoreOrder'
 import { useCheckoutFlow } from '@/lib/useCheckoutFlow'
 import { isEstimateRejection } from '@/modules/delivery-estimate'
@@ -948,7 +949,7 @@ export default function CatalogoClientPage() {
                 const { data: waRows } = await supabase.rpc('get_store_order_whatsapp', { p_store: storeInfo.id })
                 const waRow = Array.isArray(waRows) ? waRows[0] : waRows
                 const whatsapp: string | null | undefined = waRow?.whatsapp
-                if (whatsapp && waRow?.orders_enabled !== false) {
+                if (whatsapp && waRow?.orders_enabled !== false && !created.awaitingDriver) {
                     const paymentLabel = isV2Delivery ? 'A combinar após a loja aceitar' : paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
                     const deliveryLabel = deliveryOption === 'entrega'
                         ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`
@@ -969,7 +970,7 @@ export default function CatalogoClientPage() {
                 console.warn('[Checkout] Falha ao abrir WhatsApp:', waErr)
             }
 
-            toast.success(isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
+            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
             setIsBagExpanded(false)
             setCheckoutStep(null)
             setCheckoutLoading(false)
@@ -1823,6 +1824,7 @@ export default function CatalogoClientPage() {
                                 {deliveryOption === 'entrega' && (
                                     <div className="mb-3">
                                         <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Endereço de Entrega</p>
+                                        <DriverFirstNote storeId={storeInfo?.id} show={!isV2Delivery} />
 
                                         {deliveryAddress && !isEditingAddress ? (
                                             /* Já tem endereço escolhido: mesmo cartão de recap usado na etapa 2 (Alterar) */

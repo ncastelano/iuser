@@ -19,6 +19,8 @@ export interface MyOrder {
     /** entrega (true) ou retirada (false) */
     delivery: boolean
     dispatch?: OrderDeliveryInfo | null
+    /** retido: ainda procurando entregador, a loja não recebeu o pedido */
+    holding?: boolean
 }
 /** Nome do ícone da etapa (quem desenha escolhe o desenho): espera, cozinha, pacote pronto, procurando motorista, motorista a caminho da loja, na loja, a caminho do cliente */
 export type OrderIcon = 'hourglass' | 'chef' | 'package' | 'search' | 'bike' | 'store' | 'truck'
@@ -27,7 +29,8 @@ export interface StripOrder { key: string; label: string; text: string; color: s
 export const isActiveOrderStatus = (s: OrderStatus): boolean => s === 'pending' || s === 'preparing' || s === 'ready'
 
 /** O texto da etapa. `step` (1–4) alimenta a barrinha de progresso: enviado, preparando, pronto/saiu, a caminho. */
-export function orderStage(o: Pick<MyOrder, 'status' | 'delivery' | 'dispatch'>): { text: string; color: string; step: number; icon: OrderIcon } | null {
+export function orderStage(o: Pick<MyOrder, 'status' | 'delivery' | 'dispatch'> & { holding?: boolean }): { text: string; color: string; step: number; icon: OrderIcon } | null {
+    if (o.status === 'pending' && o.holding) return { text: 'Procurando entregador', color: ORDER_STRIP_COLORS.sent, step: 1, icon: 'search' }
     if (o.status === 'pending') return { text: 'Aguardando a loja', color: ORDER_STRIP_COLORS.sent, step: 1, icon: 'hourglass' }
     if (o.status === 'preparing') return { text: 'Preparando', color: ORDER_STRIP_COLORS.preparing, step: 2, icon: 'chef' }
     if (o.status === 'ready') {

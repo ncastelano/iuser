@@ -425,7 +425,7 @@ def requests_round():
 
 # ---------------------------------------------------------------- relógio das lojas e agendas
 def tick_orders():
-    rows = q_local(f"select o.id, o.status, s.owner_id from orders o join stores s on s.id = o.store_id where o.status in ('pending','preparing','ready') and s.owner_id not in ({manual_sql()}) order by random() limit 8")
+    rows = q_local(f"select o.id, o.status, s.owner_id from orders o join stores s on s.id = o.store_id where o.store_visible and o.status in ('pending','preparing','ready') and s.owner_id not in ({manual_sql()}) order by random() limit 8")
     for r in rows:
         nxt = {'pending': R.choices(['preparing', 'rejected'], [92, 8])[0], 'preparing': R.choice(['ready', 'paid']), 'ready': 'paid'}[r['status']]
         try:

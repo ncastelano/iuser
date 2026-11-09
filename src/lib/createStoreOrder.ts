@@ -4,6 +4,7 @@
 // pagamento, código de desconto): preços, adicionais, frete, desconto, total e status inicial são calculados e
 // gravados pelo servidor (RPC create_store_order). Nunca envie total/frete/preço daqui.
 import { supabase } from '@/lib/supabase/client'
+import { callAdminApi } from '@/lib/callAdminApi'
 import type { CartItem } from '@/store/useCartStore'
 
 /** Evento do navegador: "meus pedidos mudaram" (o próprio cliente acabou de pedir) — quem acompanha pedidos atualiza na hora */
@@ -17,6 +18,8 @@ export interface CreatedStoreOrder {
     deliveryFee: number
     totalAmount: number
     flowVersion: 1 | 2
+    /** ENTREGADOR PRIMEIRO: o pedido de entrega iUser fica RETIDO — a loja só o recebe quando um entregador aceitar (até lá o cliente pode retirar na loja ou cancelar) */
+    awaitingDriver: boolean
 }
 
 /** Erro do servidor com o código (hint) que explica a recusa, ex.: estimate_expired. */
@@ -70,6 +73,9 @@ export async function createStoreOrder(params: {
     const d = data as Record<string, any>
     // avisa a casca (faixa e selos do app) NA HORA: a tabela `orders` não vai pelo tempo real, então sem isto o pedido só apareceria na próxima checagem
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(ORDERS_CHANGED_EVENT))
+    const awaitingDriver = d.awaiting_driver === true
+    // pedido retido: a busca já começou no banco; avisa os motoristas do raio (o aviso que antes a loja mandava ao aceitar). Sem esperar e sem travar o pedido.
+    if (awaitingDriver) callAdminApi('/api/orders/notify-drivers', { orderId: d.order_id }).catch(() => { })
     return {
         orderId: d.order_id,
         checkoutId: d.checkout_id,
@@ -78,5 +84,6 @@ export async function createStoreOrder(params: {
         deliveryFee: Number(d.delivery_fee),
         totalAmount: Number(d.total_amount),
         flowVersion: Number(d.flow_version) === 2 ? 2 : 1,
+        awaitingDriver,
     }
 }

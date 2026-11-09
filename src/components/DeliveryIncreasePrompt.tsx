@@ -33,7 +33,8 @@ type Dispatch = {
     reservation_released_at: string | null
     order_delivery_rounds: Round[]
     order_delivery_counters: Counter[]
-    orders: { total_amount: number; delivery_fee: number; stores: { name: string } | null } | null
+    order_id: string
+    orders: { total_amount: number; delivery_fee: number; store_visible?: boolean; created_at?: string; stores: { name: string } | null } | null
 }
 
 const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
@@ -44,6 +45,14 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
     const [busy, setBusy] = useState<string | null>(null)
     const [drivers, setDrivers] = useState<Record<string, string>>({})
     const [, setTick] = useState(0)
+    // prazos do pedido retido (quando sugerir a retirada e quando o pedido é cancelado sozinho)
+    const [hold, setHold] = useState<{ suggest: number; timeout: number }>({ suggest: 3, timeout: 15 })
+    useEffect(() => {
+        supabase.rpc('get_delivery_hold_settings').then(({ data }) => {
+            const h = data as { suggest_after_minutes?: number; timeout_minutes?: number } | null
+            if (h?.suggest_after_minutes && h?.timeout_minutes) setHold({ suggest: h.suggest_after_minutes, timeout: h.timeout_minutes })
+        })
+    }, [])
     useEffect(() => {
         const t = setInterval(() => setTick((n) => n + 1), 1000)      // contagem regressiva da reserva
         return () => clearInterval(t)
@@ -53,7 +62,7 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
         if (!userId) return
         const { data } = await supabase
             .from('order_delivery_dispatches')
-            .select('id, status, stage, final_freight, radius_km, flow_version, phase, estimated_freight, frozen_freight, search_end_reason, updated_at, reserved_until, reservation_released_at, order_delivery_rounds(id, status, final_freight, extra, round), order_delivery_counters(id, status, amount, driver_id), delivery_reajust_authorizations(id, status, estimated_freight, current_offer, requested_limit, expires_at), orders(total_amount, delivery_fee, stores(name))')
+            .select('id, status, stage, final_freight, radius_km, flow_version, phase, estimated_freight, frozen_freight, search_end_reason, updated_at, reserved_until, reservation_released_at, order_delivery_rounds(id, status, final_freight, extra, round), order_delivery_counters(id, status, amount, driver_id), delivery_reajust_authorizations(id, status, estimated_freight, current_offer, requested_limit, expires_at), order_id, orders(total_amount, delivery_fee, store_visible, created_at, stores(name))')
             .eq('customer_id', userId)
             // V1: em busca ou aceita. V2 também mostra "sem entregador" por 1 dia (status cancelado + fase SEM_ENTREGADOR)
             .or('status.in.(searching,accepted),and(status.eq.cancelled,phase.eq.SEM_ENTREGADOR)')
@@ -119,6 +128,28 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
         setBusy(null)
         if (error) toast.error(error.message)
         else toast.success('Entrega cancelada')
+        load()
+    }
+
+    // ENTREGADOR PRIMEIRO: o pedido retido ainda não foi para a loja; o cliente pode trocar para retirada ou cancelar
+    const switchToPickup = async (orderId: string) => {
+        if (!window.confirm('Retirar na loja? O pedido segue para a loja sem o frete da entrega.')) return
+        setBusy(orderId)
+        const { error } = await supabase.rpc('switch_held_order_to_pickup', { p_order: orderId })
+        setBusy(null)
+        if (error) toast.error(error.message)
+        else toast.success('Combinado! O pedido foi para a loja para você retirar.')
+        window.dispatchEvent(new Event('iuser-orders-changed'))
+        load()
+    }
+    const cancelHeld = async (orderId: string) => {
+        if (!window.confirm('Cancelar o pedido? A loja ainda não recebeu.')) return
+        setBusy(orderId)
+        const { error } = await supabase.rpc('cancel_held_order', { p_order: orderId })
+        setBusy(null)
+        if (error) toast.error(error.message)
+        else toast.success('Pedido cancelado')
+        window.dispatchEvent(new Event('iuser-orders-changed'))
         load()
     }
 
@@ -215,6 +246,11 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
                 const proposal = d.order_delivery_rounds.find((r) => r.status === 'pending_customer')
                 const counters = d.order_delivery_counters.filter((c) => c.status === 'pending_customer')
                 const store = d.orders?.stores?.name
+                const held = d.orders?.store_visible === false
+                const sinceMin = d.orders?.created_at ? (Date.now() - new Date(d.orders.created_at).getTime()) / 60000 : 0
+                const suggestPickup = held && sinceMin >= hold.suggest
+                const expiresAt = held && d.orders?.created_at ? new Date(new Date(d.orders.created_at).getTime() + hold.timeout * 60000) : null
+                const itemsOnly = d.orders ? Number(d.orders.total_amount) - Number(d.orders.delivery_fee) : null
                 return (
                     <div key={d.id} className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: proposal || counters.length ? '#f9731612' : `${colors.border}20`, border: `1.5px solid ${proposal || counters.length ? '#f97316' : colors.border}` }}>
                         <div>
@@ -225,6 +261,20 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
                                 {store ? `Pedido de ${store} · ` : ''}frete de {brl(d.final_freight)} · buscando em até {Number(d.radius_km)} km da loja
                             </p>
                         </div>
+                        {held && (
+                            <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                Seu pedido só vai para a loja quando um entregador aceitar.{expiresAt ? ` Se ninguém aceitar até ${expiresAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}, ele é cancelado.` : ''}
+                            </p>
+                        )}
+                        {suggestPickup && (
+                            <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Está demorando para achar um entregador</p>
+                                <p className="text-xs" style={{ color: colors.textSecondary }}>Você pode retirar na loja: o pedido vai para ela agora{itemsOnly != null ? `, por ${brl(itemsOnly)}, sem o frete` : ' e sem o frete'}.</p>
+                                <button onClick={() => switchToPickup(d.order_id)} disabled={busy === d.order_id} className="h-10 rounded-full text-sm font-black text-white disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
+                                    Retirar na loja
+                                </button>
+                            </div>
+                        )}
                         {counters.map((c) => (
                             <div key={c.id} className="rounded-xl p-3 flex flex-col gap-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                 <p className="text-sm" style={{ color: colors.textPrimary }}>
@@ -275,9 +325,15 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
                                 </div>
                             </>
                         )}
-                        <button onClick={() => cancel(d.id)} disabled={busy === d.id} className="self-start text-xs font-bold underline disabled:opacity-60" style={{ color: colors.textSecondary }}>
-                            Cancelar entrega
-                        </button>
+                        {held ? (
+                            <button onClick={() => cancelHeld(d.order_id)} disabled={busy === d.order_id} className="self-start text-xs font-bold underline disabled:opacity-60" style={{ color: colors.textSecondary }}>
+                                Cancelar pedido
+                            </button>
+                        ) : (
+                            <button onClick={() => cancel(d.id)} disabled={busy === d.id} className="self-start text-xs font-bold underline disabled:opacity-60" style={{ color: colors.textSecondary }}>
+                                Cancelar entrega
+                            </button>
+                        )}
                     </div>
                 )
             })}

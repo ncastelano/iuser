@@ -2,6 +2,7 @@
 'use client'
 
 import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
+import DriverFirstNote from '@/components/checkout/DriverFirstNote'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/store/useCartStore'
 import { isDigitalCart } from '@/modules/digital'
 import { useRouter } from 'next/navigation'
@@ -478,6 +479,8 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                         delivery_address: o.delivery_address,
                         delivery_option: o.delivery_option,
                         payment_method: o.payment_method,
+                        held: o.store_visible === false && o.status === 'pending',   // procurando entregador: a loja ainda não recebeu
+                        closed_reason: o.closed_reason || null,
                     }))
                 })
             }
@@ -612,9 +615,13 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
             )
             .subscribe()
         const interval = setInterval(() => loadUserData(currentUserId), 8000)
+        // o cliente trocou o pedido retido para retirada ou o cancelou (DeliveryIncreasePrompt): atualiza na hora
+        const onChanged = () => loadUserData(currentUserId)
+        window.addEventListener('iuser-orders-changed', onChanged)
         return () => {
             supabase.removeChannel(channel)
             clearInterval(interval)
+            window.removeEventListener('iuser-orders-changed', onChanged)
         }
     }, [currentUserId, supabase, loadUserData])
 
@@ -1066,7 +1073,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                     const { data: waRows } = await supabase.rpc('get_store_order_whatsapp', { p_store: storeData.id })
                     const waRow = Array.isArray(waRows) ? waRows[0] : waRows
                     const whatsapp: string | null | undefined = waRow?.whatsapp
-                    if (whatsapp && waRow?.orders_enabled !== false) {
+                    if (whatsapp && waRow?.orders_enabled !== false && !created.awaitingDriver) {
                         const paymentLabel = isV2Order ? 'A combinar após a loja aceitar' : paymentOpt === 'pix' ? 'PIX' : paymentOpt === 'cartao' ? 'Cartão' : 'Dinheiro'
                         const deliveryLabel = deliveryOpt === 'entrega'
                             ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`
@@ -1107,7 +1114,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                 })),
             }])
 
-            toast.success(isV2Order ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
+            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Order ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
         } catch (err: any) {
             console.error('[Checkout] Erro inesperado:', err)
             toast.error(`Erro inesperado: ${err?.message ?? 'Tente novamente.'}`)
@@ -1301,6 +1308,8 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                     total_amount: 0,
                     deliveryFee: Number(p.delivery_fee || 0),
                     delivery_address: p.delivery_address,
+                    held: !!p.held,
+                    closed_reason: p.closed_reason || null,
                     items: [],
                 }
             }
@@ -1432,14 +1441,18 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
     }, [currentUserId, activeOrderCounts, pendingReviews.length, activeTab, cartItemCount, digitalCount])
 
     const OrderCard = ({ order }: { order: any }) => {
-        const statusStyle = getStatusStyles(order.status)
+        let statusStyle = getStatusStyles(order.status)
+        // pedido retido (procurando entregador) e pedido encerrado sem a loja ter visto: textos próprios
+        if (order.held) statusStyle = { ...statusStyle, label: 'Procurando entregador', icon: '🛵', message: 'Procurando um entregador. Quando um aceitar, o pedido vai para a loja.' }
+        else if (order.status === 'rejected' && order.closed_reason === 'no_driver') statusStyle = { ...statusStyle, label: 'Cancelado', icon: '🚫', message: 'Ninguém aceitou a entrega e o pedido foi cancelado. Peça de novo para retirar na loja.' }
+        else if (order.status === 'rejected' && order.closed_reason === 'customer_cancelled') statusStyle = { ...statusStyle, label: 'Cancelado', icon: '🚫', message: 'Você cancelou este pedido.' }
         const bgColor = getStatusColor(order.status)
 
         // ===== 3.0: cartão claro com linha do tempo =====
         if (v3) {
             // cada etapa tem a sua cor; as linhas entre elas são laranjas (a cor do iUser)
             const STEPS = [
-                { key: 'pending', label: 'Recebido', color: '#22c55e' },
+                { key: 'pending', label: order.held ? 'Buscando' : 'Recebido', color: '#22c55e' },
                 { key: 'preparing', label: 'Preparando', color: '#eab308' },
                 { key: 'ready', label: 'Pronto', color: '#a855f7' },
                 { key: 'paid', label: 'Finalizado', color: '#3b82f6' },
@@ -1894,6 +1907,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
 
                                                     {deliveryOpt === 'entrega' && (
                                                         <div className="mt-2">
+                                                            <DriverFirstNote storeId={config.id} show={!isV2Flow(slug)} />
                                                             {deliveryLoc ? (
                                                                 <div className="flex items-center justify-between gap-2 text-xs p-2 rounded-xl" style={{ background: '#f9731610', color: colors.textPrimary }}>
                                                                     <div className="flex items-center gap-2 flex-1 min-w-0">
