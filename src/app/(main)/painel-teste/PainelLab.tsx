@@ -12,6 +12,7 @@ import {
     Package, Share2, ShoppingBag, Sparkles, Star, Store, Tag, Timer, Truck, Users, Wallet, X, Clock, Eye, Settings, Plus, Zap, Banknote,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { DESTINOS, Destino } from './Destinos'
 
 const ORANGE = '#f97316'
 // paleta dos pedidos (a do app todo): novos = verde, preparando = amarelo, prontos = roxo, a caminho/finalizados = azul
@@ -88,6 +89,7 @@ export default function PainelLab() {
     const [verEstrelas, setVerEstrelas] = useState(false)
     const [todasAtencao, setTodasAtencao] = useState(false)
     const [ger, setGer] = useState<Record<string, boolean>>({})
+    const [aberto, setAberto] = useState<string | null>(null)
 
     const temProdutos = modelo !== 'services'
     const temServicos = modelo !== 'products'
@@ -399,26 +401,29 @@ export default function PainelLab() {
         { k: 'clu', t: 'Clube VIP', ic: <Crown size={19} />, cor: '#d97706', mostrar: true, liga: true, texto: (e) => (e === 'on' ? 'grátis · 38 membros' : 'desligado'), est: nova ? 'off' : 'on' },
         { k: 'zap', t: 'WhatsApp', ic: <Zap size={19} />, cor: '#10b981', mostrar: true, liga: true, texto: (e) => (e === 'on' ? 'avisos ligados' : 'desligado'), est: 'off' },
     ]
+    const estDe = (g: (typeof base)[number]): Est => (g.liga && ger[g.k] !== undefined ? (ger[g.k] ? 'on' : 'off') : g.est)
     const SELO: Record<Est, { l: string; c: string }> = { on: { l: 'Ligado', c: '#16a34a' }, off: { l: 'Desligado', c: '#9ca3af' }, warn: { l: 'Falta', c: C.alerta } }
     const gerenciarBloco = (
         <>
             <div className="flex flex-wrap gap-x-3 gap-y-1 mb-2 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
                 {(['on', 'off', 'warn'] as Est[]).map((e) => <span key={e} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: SELO[e].c }} />{e === 'warn' ? 'Precisa de atenção' : SELO[e].l}</span>)}
-                <span className="ml-auto">toque nos que ligam e desligam</span>
+                <span className="flex items-center gap-1"><ChevronRight size={12} />abre página</span>
+                <span className="ml-auto">sem seta: abre folha</span>
             </div>
             <div className="grid grid-cols-3 gap-2">
                 {base.filter((g) => g.mostrar).map((g) => {
-                    const e: Est = g.liga && ger[g.k] !== undefined ? (ger[g.k] ? 'on' : 'off') : g.est
+                    const e: Est = estDe(g)
                     const off = e === 'off'; const warn = e === 'warn'
                     const cor = off ? '#9ca3af' : warn ? C.alerta : g.cor
                     return (
-                        <button key={g.k + estado} onClick={() => g.liga && setGer((m) => ({ ...m, [g.k]: !(e === 'on') }))}
+                        <button key={g.k + estado} onClick={() => setAberto(g.k)}
                             className="relative rounded-2xl p-2.5 pt-3 text-left active:scale-95 transition overflow-hidden"
                             style={{ background: off ? `${colors.border}22` : `${cor}14`, border: `1.5px solid ${off ? colors.border : `${cor}${warn ? 'aa' : '66'}`}`, opacity: off ? 0.8 : 1 }}>
                             <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full" style={{ background: SELO[e].c, boxShadow: e === 'on' ? `0 0 0 3px ${SELO[e].c}33` : undefined }} />
                             <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: off ? `${colors.border}80` : `${cor}26`, color: cor }}>{g.ic}</span>
                             <span className="block text-[12.5px] font-black mt-1.5 leading-tight" style={{ color: off ? colors.textSecondary : colors.textPrimary }}>{g.t}</span>
                             <span className="block text-[10.5px] font-bold leading-tight mt-0.5" style={{ color: off ? colors.textSecondary : cor }}>{g.texto(e)}</span>
+                            {DESTINOS[g.k].tipo === 'pagina' && <ChevronRight size={14} className="absolute bottom-2 right-2" style={{ color: off ? colors.textSecondary : cor }} />}
                         </button>
                     )
                 })}
@@ -507,6 +512,16 @@ export default function PainelLab() {
                                         </div>
                                     ))}
                                 </div>
+                                <p className="text-[11px] font-black uppercase tracking-wider mt-6 mb-2" style={{ color: colors.textSecondary }}>O que cada atalho abre (as ligações)</p>
+                                <div className="rounded-3xl overflow-hidden" style={card}>
+                                    {Object.entries(DESTINOS).map(([k, d], i) => (
+                                        <div key={k} className="px-3.5 py-2.5 text-[12px]" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                                            <p className="flex items-center gap-2"><span className="font-black">{d.titulo}</span><span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={d.tipo === 'pagina' ? { background: `${C.caminho}22`, color: C.caminho } : { background: `${C.pronto}22`, color: C.pronto }}>{d.tipo === 'pagina' ? 'página' : 'folha'}</span></p>
+                                            <p className="font-mono text-[10.5px] mt-0.5" style={{ color: colors.textSecondary }}>{d.rota}</p>
+                                            <p className="text-[10.5px]" style={{ color: colors.textSecondary }}>já existe como <b>{d.comp}</b></p>
+                                        </div>
+                                    ))}
+                                </div>
                                 <p className="text-[11.5px] mt-3 leading-snug" style={{ color: colors.textSecondary }}>
                                     Dica: troque o <b>dia da loja</b> e o <b>modelo</b> lá em cima — os blocos que não fazem sentido (agenda numa loja só de produtos, caixa de entrega numa loja só de serviços) somem, e a loja nova ganha um passo a passo no lugar do vazio. Toque em <b>Aceitar</b> para ver o pedido passar de etapa.
                                 </p>
@@ -515,6 +530,10 @@ export default function PainelLab() {
                     )}
                 </div>
 
+                {aberto && (() => {
+                    const g = base.find((x) => x.k === aberto)!
+                    return <Destino key={aberto} k={aberto} cor={g.cor} icone={g.ic} nova={nova} on={estDe(g) === 'on'} setOn={(v) => setGer((m) => ({ ...m, [aberto]: v }))} entregaOn={estDe(base.find((x) => x.k === 'ent')!) === 'on'} onClose={() => setAberto(null)} />
+                })()}
                 {/* botão fixo: venda no balcão (acima da barra do app) */}
                 {versao === 'nova' && !nova && temProdutos && (
                     <div className="fixed inset-x-0 bottom-0 flex justify-center pointer-events-none" style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
