@@ -9,6 +9,7 @@
 import { ReactNode, useState } from 'react'
 import { ArrowLeft, Check, ChevronRight, Clock, Heart, Package, Plus, Search, Star, Trash2, X } from 'lucide-react'
 import { useTheme, type ThemeColors } from '@/app/contexts/theme'
+import AgendaPagina from './AgendaLab'
 
 export type Tipo = 'folha' | 'pagina'
 
@@ -19,11 +20,11 @@ export const DESTINOS: Record<string, { tipo: Tipo; titulo: string; rota: string
     pro: { tipo: 'pagina', titulo: 'Promoções', rota: '/editar-loja/<slug>/promocoes', comp: 'StorePromotions' },
     eqp: { tipo: 'pagina', titulo: 'Equipe', rota: '/editar-loja/<slug>/equipe', comp: 'Employee' },
     pub: { tipo: 'pagina', titulo: 'Publicações', rota: '/editar-loja/<slug>/publicacoes', comp: 'StorePublication' },
-    ent: { tipo: 'folha', titulo: 'Entrega', rota: '?abrir=entrega', comp: 'StoreDeliverySettings' },
-    fav: { tipo: 'folha', titulo: 'Entregadores favoritos', rota: '?abrir=favoritos', comp: 'StoreFavoriteDrivers' },
+    ent: { tipo: 'folha', titulo: 'Entrega', rota: '?abrir=entrega', comp: 'StoreDeliverySettings + StoreFavoriteDrivers' },
     pag: { tipo: 'folha', titulo: 'Pagamento', rota: '?abrir=pagamento', comp: 'StorePaymentMethods' },
     hor: { tipo: 'folha', titulo: 'Horários', rota: '?abrir=horarios', comp: 'StoreOperatingDays' },
-    age: { tipo: 'folha', titulo: 'Agenda e entrada', rota: '?abrir=agenda', comp: 'StoreDepositEditor + StoreModelEditor' },
+    age: { tipo: 'pagina', titulo: 'Agenda', rota: '/compromissos/<slug>', comp: 'CompromissosView (aba da loja)' },
+    agc: { tipo: 'folha', titulo: 'Regras da agenda', rota: '?abrir=agenda', comp: 'StoreDepositEditor + StoreModelEditor' },
     clu: { tipo: 'folha', titulo: 'Clube VIP', rota: '?abrir=clube', comp: 'StoreClubVip' },
     zap: { tipo: 'folha', titulo: 'WhatsApp', rota: '?abrir=whatsapp', comp: 'StoreWhatsAppBot' },
 }
@@ -77,10 +78,10 @@ type Colors = ThemeColors
 function conteudo(p: Props, c: Colors): ReactNode {
     switch (p.k) {
         case 'ent': return <Entrega {...p} c={c} />
-        case 'fav': return <Favoritos {...p} c={c} />
         case 'pag': return <Pagamento {...p} c={c} />
         case 'hor': return <Horarios {...p} c={c} />
-        case 'age': return <Agenda {...p} c={c} />
+        case 'age': return <AgendaPag {...p} c={c} />
+        case 'agc': return <Agenda {...p} c={c} />
         case 'clu': return <Clube {...p} c={c} />
         case 'zap': return <Whats {...p} c={c} />
         case 'cat': return <Catalogo {...p} c={c} />
@@ -147,6 +148,7 @@ function Entrega({ c, cor, on, setOn }: Props & { c: Colors }) {
     const [modo, setModo] = useState<'iuser' | 'propria'>('iuser')
     const [retira, setRetira] = useState(true)
     const [zap, setZap] = useState(false)
+    const [favAberto, setFavAberto] = useState(false)
     return (
         <>
             <Estado c={c} on={on} set={setOn} cor={cor} ligado="Entrega em casa ligada" desligado="Sem entrega em casa — só retirada" />
@@ -159,7 +161,17 @@ function Entrega({ c, cor, on, setOn }: Props & { c: Colors }) {
                             <span><span className="block text-[14px] font-black">{t}</span><span className="block text-[12px] leading-snug mt-0.5" style={{ color: c.textSecondary }}>{s}</span><span className="inline-block text-[10.5px] font-black mt-1.5 px-2 py-0.5 rounded-full" style={{ background: `${cor}22`, color: cor }}>{f}</span></span>
                         </button>
                     ))}
-                    {modo === 'propria' && <><Campo c={c} label="Quanto você cobra" valor="R$ 7,00" /><Campo c={c} label="Até quantos km" valor="8 km" /></>}
+                    {modo === 'propria' && <><Campo c={c} label="Quanto você cobra" valor="R$ 7,00" /><Campo c={c} label="Até quantos km" valor="8 km" /><Aviso c={c} cor={cor}>Quem entrega é a sua <b>equipe</b> (Gerenciar → Equipe).</Aviso></>}
+                    {modo === 'iuser' && (
+                        <div className="rounded-3xl overflow-hidden mt-1" style={{ background: c.surface, border: `1px solid ${c.border}` }}>
+                            <button onClick={() => setFavAberto((v) => !v)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left">
+                                <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#ec489926', color: '#ec4899' }}><Heart size={17} /></span>
+                                <span className="min-w-0 flex-1"><span className="block text-[13.5px] font-black leading-tight">Entregadores favoritos <span className="font-semibold" style={{ color: c.textSecondary }}>· opcional</span></span><span className="block text-[11.5px] leading-snug" style={{ color: c.textSecondary }}>Dani e Rafa veem suas entregas primeiro</span></span>
+                                <ChevronRight size={16} className={favAberto ? 'rotate-90 transition' : 'transition'} style={{ color: c.textSecondary }} />
+                            </button>
+                            {favAberto && <div className="px-3.5 pb-3.5 pt-1" style={{ borderTop: `1px solid ${c.border}` }}><div className="pt-3"><Favoritos k="fav" cor="#ec4899" icone={null} nova={false} on setOn={() => {}} entregaOn onClose={() => {}} c={c} /></div></div>}
+                        </div>
+                    )}
                 </>
             )}
             <Titulo c={c}>Outras formas</Titulo>
@@ -290,6 +302,17 @@ function Whats({ c, cor, on, setOn }: Props & { c: Colors }) {
 }
 
 // ===== PÁGINAS =====
+/** a página da agenda; a engrenagem abre as regras (entrada, agenda ligada) como folha por cima */
+function AgendaPag(p: Props & { c: Colors }) {
+    const [cfg, setCfg] = useState(false)
+    return (
+        <>
+            <AgendaPagina c={p.c} cor={p.cor} onConfig={() => setCfg(true)} />
+            {cfg && <Destino {...p} k="agc" onClose={() => setCfg(false)} />}
+        </>
+    )
+}
+
 function Topo({ c, cor, buscar, novo }: { c: Colors; cor: string; buscar: string; novo: string }) {
     return (
         <div className="flex gap-2 mb-3">

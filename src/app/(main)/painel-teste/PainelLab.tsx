@@ -327,7 +327,7 @@ export default function PainelLab() {
                     <div className="min-w-0"><p className="text-[13px] font-black truncate">{q}</p><p className="text-[12px] truncate" style={{ color: colors.textSecondary }}>{s}</p></div>
                 </div>
             ))}
-            <button className="w-full h-10 text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ borderTop: `1px solid ${colors.border}`, color: ORANGE }}>Ver agenda · 1 na agenda · 220 feitos<ChevronRight size={14} /></button>
+            <button onClick={() => setAberto('age')} className="w-full h-10 text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ borderTop: `1px solid ${colors.border}`, color: ORANGE }}>Ver agenda · 1 na agenda · 220 feitos<ChevronRight size={14} /></button>
         </div>
     )
 
@@ -392,7 +392,6 @@ export default function PainelLab() {
         { k: 'srv', t: 'Serviços', ic: <CalendarDays size={19} />, cor: '#14b8a6', mostrar: temServicos, texto: () => (nova ? 'nenhum serviço' : '7 serviços'), est: nova ? 'warn' : 'on' },
         { k: 'pro', t: 'Promoções', ic: <Tag size={19} />, cor: '#ef4444', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? '3 combos no ar' : 'sem combos no ar'), est: nova ? 'off' : 'on' },
         { k: 'ent', t: 'Entrega', ic: <Truck size={19} />, cor: '#22c55e', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? 'iUser ligado' : 'só retirada'), est: nova ? 'off' : 'on' },
-        { k: 'fav', t: 'Favoritos', ic: <Heart size={19} />, cor: '#ec4899', mostrar: temProdutos, liga: true, texto: (e) => (e === 'on' ? '2 entregadores' : 'desligado'), est: nova ? 'off' : 'on' },
         { k: 'pag', t: 'Pagamento', ic: <CreditCard size={19} />, cor: '#16a34a', mostrar: true, texto: () => (nova ? 'falta o Pix' : 'Pix ✓ · cartão'), est: nova ? 'warn' : 'on' },
         { k: 'hor', t: 'Horários', ic: <Timer size={19} />, cor: '#eab308', mostrar: true, texto: () => '18h–00h', est: 'on' },
         { k: 'age', t: 'Agenda', ic: <HandCoins size={19} />, cor: '#8b5cf6', mostrar: temServicos, liga: true, texto: (e) => (e === 'on' ? 'entrada 30%' : 'agenda fechada'), est: 'on' },
