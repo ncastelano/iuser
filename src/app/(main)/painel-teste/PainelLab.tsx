@@ -516,17 +516,18 @@ export default function PainelLab() {
             </div>
             <p className="text-[10.5px] mt-1.5" style={{ color: colors.textSecondary }}>No laboratório, toque numa missão para simular que ela foi cumprida.</p>
 
-            <p className="text-[11px] font-black uppercase tracking-wider mt-4 mb-1.5 flex items-center gap-2" style={{ color: colors.textSecondary }}>Cadastro da loja<span className="normal-case tracking-normal font-bold">{cadastro.length - faltaCad.length} de {cadastro.length}{faltaCad.length === 0 ? ' · completo' : ''}</span></p>
-            <div className="flex flex-wrap gap-1.5">
-                {cadastro.map((m) => {
-                    const ok = feita(m.k)
-                    return ok ? (
-                        <span key={m.k} className="h-9 px-3 rounded-full text-[12px] font-bold flex items-center gap-1.5" style={{ background: `${C.novo}1a`, color: '#16a34a' }}><Check size={13} />{m.t}</span>
-                    ) : (
-                        <button key={m.k} onClick={() => m.ir && setAberto(m.ir)} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: `${C.ambar}1f`, border: `1.5px solid ${C.ambar}`, color: '#b45309' }}>{m.t}<span className="text-[10.5px] px-1.5 rounded-full text-white" style={{ background: C.ambar }}>+{m.pts}</span><ChevronRight size={13} /></button>
-                    )
-                })}
-            </div>
+            {faltaCad.length === 0 ? (
+                <p className="text-[12px] font-bold mt-4 flex items-center gap-1.5" style={{ color: '#16a34a' }}><Check size={14} />Cadastro da loja completo · {cadastro.length} de {cadastro.length}</p>
+            ) : (
+                <>
+                    <p className="text-[11px] font-black uppercase tracking-wider mt-4 mb-1.5 flex items-center gap-2" style={{ color: colors.textSecondary }}>Falta no cadastro<span className="normal-case tracking-normal font-bold">{cadastro.length - faltaCad.length} de {cadastro.length} feitos</span></p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {faltaCad.map((m) => (
+                            <button key={m.k} onClick={() => m.ir && setAberto(m.ir)} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: `${C.ambar}1f`, border: `1.5px solid ${C.ambar}`, color: '#b45309' }}>{m.t}<span className="text-[10.5px] px-1.5 rounded-full text-white" style={{ background: C.ambar }}>+{m.pts}</span><ChevronRight size={13} /></button>
+                        ))}
+                    </div>
+                </>
+            )}
         </div>
     )
 

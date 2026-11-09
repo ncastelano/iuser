@@ -68,15 +68,16 @@ export default function StoreMissions({ storeId, storeSlug }: { storeId: string;
                 </>
             )}
 
-            {cadastro.length > 0 && (
+            {/* cadastro: completo = UMA linha (a lista de itens verdes só repetia o que já está certo); incompleto = só o que FALTA */}
+            {cadastro.length > 0 && (cadastroPendente.length === 0 ? (
+                <p className="text-[12px] font-bold mt-4 flex items-center gap-1.5" style={{ color: '#16a34a' }}><Check size={14} />Cadastro da loja completo · {cadastro.length} de {cadastro.length}</p>
+            ) : (
                 <>
                     <p className="text-[11px] font-black uppercase tracking-wider mt-4 mb-1.5 flex items-center gap-2" style={{ color: colors.textSecondary }}>
-                        Cadastro da loja<span className="normal-case tracking-normal font-bold">{cadastroFeito} de {cadastro.length}{cadastroPendente.length === 0 ? ' · completo' : ''}</span>
+                        Falta no cadastro<span className="normal-case tracking-normal font-bold">{cadastroFeito} de {cadastro.length} feitos</span>
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                        {cadastro.map((m) => m.done ? (
-                            <span key={m.code} className="h-9 px-3 rounded-full text-[12px] font-bold flex items-center gap-1.5" style={{ background: `${GREEN}1a`, color: '#16a34a' }}><Check size={13} />{m.title}</span>
-                        ) : (
+                        {cadastroPendente.map((m) => (
                             <Link key={m.code} href={missionPath(storeSlug, m.dest)} title={m.hint ?? undefined} className="h-9 px-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95 transition"
                                 style={{ background: `${AMBER}1f`, border: `1.5px solid ${AMBER}`, color: '#b45309', textDecoration: 'none' }}>
                                 {m.title}<span className="text-[10.5px] px-1.5 rounded-full text-white" style={{ background: AMBER }}>+{m.points}</span><ChevronRight size={13} />
@@ -84,7 +85,7 @@ export default function StoreMissions({ storeId, storeSlug }: { storeId: string;
                         ))}
                     </div>
                 </>
-            )}
+            ))}
         </section>
     )
 }
