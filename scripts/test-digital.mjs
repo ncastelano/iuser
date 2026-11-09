@@ -78,7 +78,7 @@ test('resumo a partir das contagens e filtros da vitrine', () => {
     assert.equal(summaryFromCounts({ videos: 0, audios: 0, docs: 0, links: 0, seconds: 0 }), 'Conteúdo em preparação')
     assert.equal(summaryFromCounts({ videos: 8, audios: 0, docs: 1, links: 0, seconds: 86 }), '8 aulas em vídeo · 1 arquivo · 1:26')
     assert.equal(summaryFromCounts({ videos: 1, audios: 0, docs: 0, links: 0, seconds: 14 }), '1 aula em vídeo · 0:14')
-    assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'musicas', 'programas', 'arquivos'])
+    assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'musicas', 'audiolivros', 'filmes', 'programas', 'arquivos'])
     assert.ok(SHOWCASE_FILTERS.find((f) => f.id === 'arquivos').kinds.includes('ebook'))
     assert.equal(PRODUCT_KIND_LABEL.aula, 'Aula única')
 })
@@ -221,4 +221,38 @@ test('resumo do digital da loja: lê a linha do banco com segurança', async () 
     assert.equal(clubLine(s), 'Clube de R$ 9,90 por mês · 3 assinantes · música incluída')
     assert.equal(clubLine({ ...s, clubPayingMembers: 1, clubIncludesMusic: false }), 'Clube de R$ 9,90 por mês · 1 assinante')
     assert.equal(clubLine(z), 'Clube sem mensalidade')
+})
+
+// ---- tipo de conteúdo escolhido pelo lojista + prateleiras da aba "Digitais" da loja (migration 59)
+import { CHOOSABLE_KINDS, SHELVES, groupIntoShelves, isDigitalProductKind, isAudioKind } from '../src/modules/digital/domain.ts'
+
+test('o tipo ESCOLHIDO pelo lojista vale; sem escolha, adivinha como antes', () => {
+    const base = { name: 'Audiolivro: O Pizzaiolo', videos: 0, audios: 12, docs: 0, links: 0 }
+    assert.equal(productKindOf(base), 'curso')                                   // adivinhando, "audiolivro" caía em curso
+    assert.equal(productKindOf({ ...base, chosen: 'audiolivro' }), 'audiolivro')  // escolhendo, é audiolivro
+    assert.equal(productKindOf({ name: 'Noite Vazia', videos: 0, audios: 1, docs: 0, links: 0, chosen: null }), 'musica')
+    assert.equal(productKindOf({ name: 'Rua das Luzes', videos: 1, audios: 0, docs: 0, links: 0, chosen: 'filme' }), 'filme')
+    assert.equal(productKindOf({ name: 'X', videos: 1, audios: 0, docs: 0, links: 0, chosen: 'inventado' }), 'aula')   // valor desconhecido é ignorado
+})
+
+test('todo tipo tem rótulo, dá para o lojista escolher e o banco aceita a mesma lista', () => {
+    const mig = readFileSync('supabase/migrations/20261130000059_digital_kind.sql', 'utf8')
+    for (const { kind } of CHOOSABLE_KINDS) { assert.ok(PRODUCT_KIND_LABEL[kind], kind); assert.ok(mig.includes(`'${kind}'`), `banco não aceita ${kind}`); assert.ok(isDigitalProductKind(kind)) }
+    assert.equal(new Set(CHOOSABLE_KINDS.map((k) => k.kind)).size, Object.keys(PRODUCT_KIND_LABEL).length)   // nenhum tipo fica sem opção
+    assert.equal(isDigitalProductKind('x'), false)
+})
+
+test('prateleiras: cada tipo cai numa só, vazia some, ordem fixa', () => {
+    const it = (kind, n) => ({ kind, n })
+    const out = groupIntoShelves([it('filme', 1), it('album', 2), it('curso', 3), it('audiolivro', 4), it('musica', 5), it('programa', 6), it('ebook', 7)])
+    assert.deepEqual(out.map((s) => s.id), ['cursos', 'musicas', 'audiolivros', 'filmes', 'arquivos', 'programas'])
+    assert.deepEqual(out.find((s) => s.id === 'musicas').items.map((x) => x.n), [2, 5])
+    assert.deepEqual(groupIntoShelves([]), [])
+    const todos = Object.keys(PRODUCT_KIND_LABEL)
+    assert.deepEqual(todos.filter((k) => !SHELVES.some((s) => s.kinds.includes(k))), [])   // nenhum tipo fica sem prateleira
+})
+
+test('áudio se ouve, o resto se assiste/abre', () => {
+    for (const k of ['musica', 'album', 'audiolivro', 'podcast', 'playlist']) assert.equal(isAudioKind(k), true, k)
+    for (const k of ['curso', 'aula', 'filme', 'ebook', 'arquivo', 'programa']) assert.equal(isAudioKind(k), false, k)
 })

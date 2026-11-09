@@ -4,6 +4,8 @@
 import MoneyInput from '@/components/MoneyInput'
 import CategorySuggestions from '@/components/StoreDashboard/CategorySuggestions'
 import { useState, useRef, useEffect } from 'react'
+import DigitalKindPicker from '@/components/digital/DigitalKindPicker'
+import type { DigitalProductKind } from '@/modules/digital'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -65,6 +67,7 @@ export function CriarProdutoClient() {
     const [priceType, setPriceType] = useState('fixed')
     const [category, setCategory] = useState('')
     const [productType, setProductType] = useState(searchParams.get('type') === 'service' ? 'service' : 'physical')
+    const [digitalKind, setDigitalKind] = useState<DigitalProductKind | null>(null)   // o tipo de conteúdo digital que o lojista escolhe
     const [hasAddons, setHasAddons] = useState(false)
 
     useEffect(() => {
@@ -99,6 +102,8 @@ export function CriarProdutoClient() {
                 imagePath = uploadData?.path ?? null
             }
 
+            if (productType === 'digital' && !digitalKind) { toast.error('Escolha que tipo de conteúdo digital é (curso, música, audiolivro, filme...).'); setSaving(false); return }
+
             const slug = await generateUniqueGlobalSlug(name)
 
             const { data: inserted, error: insertError } = await supabase
@@ -116,6 +121,7 @@ export function CriarProdutoClient() {
                     store_id: storeId,
                     has_addons: hasAddons,
                     delivery_units: parseFloat(deliveryUnits) || 1,
+                    digital_kind: productType === 'digital' ? digitalKind : null,
                 })
                 .select('slug')
                 .single()
@@ -412,6 +418,13 @@ export function CriarProdutoClient() {
                                     </select>
                                 </div>
                             </div>
+
+                            {productType === 'digital' && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>Que tipo de conteúdo é?</label>
+                                    <DigitalKindPicker value={digitalKind} onChange={setDigitalKind} />
+                                </div>
+                            )}
 
                             {/* Adicionais */}
                             <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: colors.border }}>

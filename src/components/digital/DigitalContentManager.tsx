@@ -11,7 +11,8 @@ import { addAppItem, addFileItem, addLinkItem, APP_NOTES_MAX, APP_PLATFORM_LABEL
 import { kindIcon } from './DigitalCurriculum'
 import MySpace from '@/components/uploads/MySpace'
 import { fetchMyUploadLimits } from '@/lib/myUploadLimits'
-import { bucketForKind, DIGITAL_HEAVY_KIND, DIGITAL_UPLOAD_KIND } from '@/modules/digital'
+import { bucketForKind, DIGITAL_HEAVY_KIND, DIGITAL_UPLOAD_KIND, fetchDigitalKind, saveDigitalKind, type DigitalProductKind } from '@/modules/digital'
+import DigitalKindPicker from './DigitalKindPicker'
 import { r2Availability, type R2Availability } from '@/lib/r2Upload'
 import { heavyUploadInfo } from '@/lib/r2Types'
 import { checkFitsLimit, ruleText, type UploadLimit } from '@/modules/uploads'
@@ -20,6 +21,13 @@ export default function DigitalContentManager({ productId }: { productId: string
     const { colors } = useTheme()
     const { userId } = useProfile()
     const [items, setItems] = useState<OwnItem[]>([])
+    const [kind, setKind] = useState<DigitalProductKind | null>(null)         // o tipo de conteúdo escolhido pelo lojista (prateleira da loja)
+    useEffect(() => { fetchDigitalKind(productId).then(setKind).catch(() => {}) }, [productId])
+    const chooseKind = async (k: DigitalProductKind) => {
+        const before = kind
+        setKind(k)
+        try { await saveDigitalKind(productId, k); toast.success('Tipo de conteúdo salvo') } catch (e) { setKind(before); toast.error(e instanceof Error ? e.message : 'Não foi possível salvar o tipo.') }
+    }
     const [busy, setBusy] = useState(false)
     const [title, setTitle] = useState('')
     const [moduleTitle, setModuleTitle] = useState('')
@@ -102,6 +110,11 @@ export default function DigitalContentManager({ productId }: { productId: string
             <div>
                 <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Conteúdo digital</p>
                 <p className="text-[11px]" style={{ color: colors.textSecondary }}>{curriculumSummary(asCurriculum)}. Quem comprar abre tudo aqui depois que você confirmar o pagamento; o item marcado como grátis qualquer pessoa assiste. <b>Preço R$ 0 = produto grátis</b>: a pessoa o adiciona à biblioteca e abre na hora, sem pedido.</p>
+            </div>
+
+            <div>
+                <p className="text-sm font-black mb-2" style={{ color: colors.textPrimary }}>Que tipo de conteúdo é?</p>
+                <DigitalKindPicker value={kind} onChange={chooseKind} />
             </div>
 
             <MySpace limits={limits} kinds={useR2 ? [DIGITAL_HEAVY_KIND] : ['digital_music', 'digital_app', 'digital_file']} title="Meu espaço (regras de tamanho e quanto você já usou)" />

@@ -2,7 +2,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { uploadToR2, removeFromR2 } from '@/lib/r2Upload'
 import { r2FallbackAllowed, heavyUploadInfo } from '@/lib/r2Types'
-import { storeDigitalFromRow, type StoreDigitalSummary, bucketForKind, DIGITAL_BUCKETS, DIGITAL_HEAVY_KIND, DIGITAL_MAX_BYTES_BY_BUCKET, isHeavyBucket, kindFromFile, storagePathFor, validateItem, validateTeaser, productKindOf, summaryFromCounts, previewPlaySeconds, isInstallerFile, validateAppInput, SHA256_MAX_BYTES, type AppPlatform, type AppVersion, type CurriculumItem, type DigitalKind, type DigitalProductKind } from './domain'
+import { storeDigitalFromRow, type StoreDigitalSummary, bucketForKind, DIGITAL_BUCKETS, DIGITAL_HEAVY_KIND, DIGITAL_MAX_BYTES_BY_BUCKET, isHeavyBucket, kindFromFile, storagePathFor, validateItem, validateTeaser, productKindOf, isDigitalProductKind, summaryFromCounts, previewPlaySeconds, isInstallerFile, validateAppInput, SHA256_MAX_BYTES, type AppPlatform, type AppVersion, type CurriculumItem, type DigitalKind, type DigitalProductKind } from './domain'
 
 export interface LibraryItem { product_id: string; product_name: string; product_slug: string; store_slug: string | null; store_name: string | null; image_url: string | null; purchased_at: string; items_count: number }
 export interface OwnItem { id: string; product_id: string; module_title: string | null; title: string; kind: DigitalKind; storage_path: string | null; external_url: string | null; mime_type: string | null; size_bytes: number | null; duration_seconds: number | null; position: number; is_preview: boolean; is_teaser: boolean; platform: AppPlatform | null; version: string | null; release_notes: string | null; sha256: string | null; download_count: number; created_at: string; bucket: string | null; file_name: string | null }
@@ -214,13 +214,14 @@ export interface ShowcaseItem {
 
 const publicImage = (bucket: string, path: string | null) => (path ? (path.startsWith('http') ? path : supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl) : null)
 
-export async function loadDigitalShowcase(limit = 24, search?: string): Promise<ShowcaseItem[]> {
-    const { data, error } = await supabase.rpc('get_digital_showcase', { p_limit: limit, p_search: search?.trim() || null })
+/** `storeId`: só os digitais de UMA loja (a aba "Digitais" da página dela) */
+export async function loadDigitalShowcase(limit = 24, search?: string, storeId?: string): Promise<ShowcaseItem[]> {
+    const { data, error } = await supabase.rpc('get_digital_showcase', { p_limit: limit, p_search: search?.trim() || null, ...(storeId ? { p_store: storeId } : {}) })
     if (error) throw new Error(error.message)
     return ((data || []) as any[]).map((r) => ({
         id: r.id, name: r.name, slug: r.slug, description: r.description, imageUrl: publicImage('product-images', r.image_url), price: Number(r.price || 0),
         storeId: r.store_id, storeSlug: r.store_slug, storeName: r.store_name, storeLogo: publicImage('store-logos', r.store_logo), viewCount: r.view_count || 0,
-        kind: productKindOf({ name: r.name, videos: r.videos, audios: r.audios, docs: r.docs, links: r.links, apps: r.apps || 0 }),
+        kind: productKindOf({ name: r.name, videos: r.videos, audios: r.audios, docs: r.docs, links: r.links, apps: r.apps || 0, chosen: r.digital_kind }),
         summary: summaryFromCounts({ videos: r.videos, audios: r.audios, docs: r.docs, links: r.links, apps: r.apps || 0, seconds: Number(r.seconds || 0) }),
         videos: r.videos, seconds: Number(r.seconds || 0), freeItems: r.free_items || 0,
         previewItemId: r.preview_item_id || null, previewSeconds: previewPlaySeconds(r.preview_seconds), previewSource: r.preview_source || null,
@@ -248,4 +249,15 @@ export async function fetchStoreDigitalSummary(storeId: string): Promise<StoreDi
     const { data, error } = await supabase.rpc('get_store_digital_summary', { p_store: storeId })
     if (error) return null
     return storeDigitalFromRow(data as any)
+}
+
+/** O tipo de conteúdo que o lojista escolheu para o produto digital (null = ainda não escolheu) */
+export async function fetchDigitalKind(productId: string): Promise<DigitalProductKind | null> {
+    const { data, error } = await supabase.from('products').select('digital_kind').eq('id', productId).maybeSingle()
+    if (error) throw new Error(error.message)
+    return isDigitalProductKind(data?.digital_kind) ? data!.digital_kind : null
+}
+export async function saveDigitalKind(productId: string, kind: DigitalProductKind): Promise<void> {
+    const { error } = await supabase.from('products').update({ digital_kind: kind }).eq('id', productId)
+    if (error) throw new Error(error.message)
 }

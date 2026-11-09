@@ -114,8 +114,44 @@ export function curriculumSummary(items: CurriculumItem[]): string {
     return summaryFromCounts({ videos: s.videos, audios: s.audios, docs: s.docs, links: s.links, apps: s.apps, seconds: s.seconds })
 }
 
-export type DigitalProductKind = 'curso' | 'aula' | 'playlist' | 'ebook' | 'arquivo' | 'musica' | 'album' | 'programa'
-export const PRODUCT_KIND_LABEL: Record<DigitalProductKind, string> = { curso: 'Curso', aula: 'Aula única', playlist: 'Playlist', ebook: 'E-book', arquivo: 'Arquivo', musica: 'Música', album: 'Álbum', programa: 'Programa' }
+export type DigitalProductKind = 'curso' | 'aula' | 'playlist' | 'ebook' | 'arquivo' | 'musica' | 'album' | 'programa' | 'audiolivro' | 'podcast' | 'filme'
+export const PRODUCT_KIND_LABEL: Record<DigitalProductKind, string> = { curso: 'Curso', aula: 'Aula única', playlist: 'Playlist', ebook: 'E-book', arquivo: 'Arquivo', musica: 'Música', album: 'Álbum', programa: 'Programa', audiolivro: 'Audiolivro', podcast: 'Podcast', filme: 'Filme' }
+
+/** Os tipos que o LOJISTA escolhe ao criar/editar um produto digital (`products.digital_kind`), com uma frase que ajuda a decidir e o que ele costuma entregar */
+export const CHOOSABLE_KINDS: { kind: DigitalProductKind; label: string; hint: string; media: 'video' | 'audio' | 'file' }[] = [
+    { kind: 'curso', label: 'Curso', hint: 'Várias aulas em vídeo, em módulos', media: 'video' },
+    { kind: 'aula', label: 'Aula única', hint: 'Um vídeo para aprender algo', media: 'video' },
+    { kind: 'filme', label: 'Filme ou vídeo', hint: 'Filme, curta, show ou série', media: 'video' },
+    { kind: 'musica', label: 'Música', hint: 'Uma faixa', media: 'audio' },
+    { kind: 'album', label: 'Álbum', hint: 'Várias faixas, em ordem', media: 'audio' },
+    { kind: 'audiolivro', label: 'Audiolivro', hint: 'Livro narrado, em capítulos', media: 'audio' },
+    { kind: 'podcast', label: 'Podcast', hint: 'Episódios em áudio', media: 'audio' },
+    { kind: 'playlist', label: 'Playlist', hint: 'Seleção de faixas ou vídeos', media: 'audio' },
+    { kind: 'ebook', label: 'E-book', hint: 'Livro ou guia em PDF', media: 'file' },
+    { kind: 'arquivo', label: 'Arquivos', hint: 'Planilha, modelo, pacote de arquivos', media: 'file' },
+    { kind: 'programa', label: 'Programa ou app', hint: 'Instalador para baixar', media: 'file' },
+]
+export const isDigitalProductKind = (v: unknown): v is DigitalProductKind => typeof v === 'string' && v in PRODUCT_KIND_LABEL
+
+/** As PRATELEIRAS da aba "Digitais" da loja, na ordem em que aparecem (cada uma junta alguns tipos) */
+export const SHELVES: { id: string; title: string; kinds: DigitalProductKind[] }[] = [
+    { id: 'cursos', title: 'Cursos e aulas', kinds: ['curso', 'aula'] },
+    { id: 'musicas', title: 'Músicas e álbuns', kinds: ['musica', 'album', 'playlist'] },
+    { id: 'audiolivros', title: 'Audiolivros e podcasts', kinds: ['audiolivro', 'podcast'] },
+    { id: 'filmes', title: 'Filmes e vídeos', kinds: ['filme'] },
+    { id: 'arquivos', title: 'E-books e arquivos', kinds: ['ebook', 'arquivo'] },
+    { id: 'programas', title: 'Programas', kinds: ['programa'] },
+]
+/** Distribui os produtos nas prateleiras (vazia some; o que não tem prateleira conhecida não se perde: vai para "Outros") */
+export function groupIntoShelves<T extends { kind: DigitalProductKind }>(items: T[]): { id: string; title: string; items: T[] }[] {
+    const out = SHELVES.map((sh) => ({ id: sh.id, title: sh.title, items: items.filter((i) => sh.kinds.includes(i.kind)) }))
+    const known = new Set(SHELVES.flatMap((sh) => sh.kinds))
+    const rest = items.filter((i) => !known.has(i.kind))
+    if (rest.length) out.push({ id: 'outros', title: 'Outros', items: rest })
+    return out.filter((sh) => sh.items.length > 0)
+}
+/** Esta prateleira se OUVE (prévia em áudio) em vez de assistir? */
+export const isAudioKind = (k: DigitalProductKind) => k === 'musica' || k === 'album' || k === 'audiolivro' || k === 'podcast' || k === 'playlist'
 /** Filtros da vitrine (/digitais): chave → rótulo e quais tipos entram */
 export const SHOWCASE_FILTERS: { id: string; label: string; kinds: DigitalProductKind[] | null }[] = [
     { id: 'todos', label: 'Todos', kinds: null },
@@ -123,12 +159,16 @@ export const SHOWCASE_FILTERS: { id: string; label: string; kinds: DigitalProduc
     { id: 'aulas', label: 'Aulas únicas', kinds: ['aula'] },
     { id: 'playlists', label: 'Playlists', kinds: ['playlist'] },
     { id: 'musicas', label: 'Músicas', kinds: ['musica', 'album'] },
+    { id: 'audiolivros', label: 'Audiolivros e podcasts', kinds: ['audiolivro', 'podcast'] },
+    { id: 'filmes', label: 'Filmes', kinds: ['filme'] },
     { id: 'programas', label: 'Programas', kinds: ['programa'] },
     { id: 'arquivos', label: 'E-books e arquivos', kinds: ['ebook', 'arquivo'] },
 ]
 
 /** Que "cara" o produto digital tem na vitrine, pelo que ele entrega (e pelo nome, para playlist e e-book) */
-export function productKindOf(p: { name: string } & Pick<ContentCounts, 'videos' | 'audios' | 'docs' | 'links'> & { apps?: number }): DigitalProductKind {
+export function productKindOf(p: { name: string } & Pick<ContentCounts, 'videos' | 'audios' | 'docs' | 'links'> & { apps?: number; chosen?: string | null }): DigitalProductKind {
+    // o lojista escolheu o tipo: vale o que ele escolheu (só adivinhamos quando ele não disse)
+    if (isDigitalProductKind(p.chosen)) return p.chosen
     const media = p.videos + p.audios
     // tem programa para baixar (e nada de vídeo/áudio): é um programa
     if ((p.apps || 0) > 0 && media === 0) return 'programa'

@@ -3,7 +3,7 @@
 // a fileira); na GRADE vale quem está à vista na tela.
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import type { ShowcaseItem } from '@/modules/digital'
@@ -12,7 +12,7 @@ import { useSpotlight } from './useSpotlight'
 
 const TOUCH_PAUSE_MS = 7000
 
-export default function DigitalCards({ items, layout }: { items: ShowcaseItem[]; layout: 'strip' | 'grid' }) {
+export default function DigitalCards({ items, layout, extra }: { items: ShowcaseItem[]; layout: 'strip' | 'grid'; extra?: (p: ShowcaseItem) => ReactNode }) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const strip = useRef<HTMLDivElement>(null)
@@ -54,9 +54,15 @@ export default function DigitalCards({ items, layout }: { items: ShowcaseItem[];
     }
     useEffect(() => () => { if (pauseTimer.current) clearTimeout(pauseTimer.current) }, [])
 
-    const cards = items.map((p) => (
-        <DigitalCard key={p.id} p={p} spotlight={active === p.id} upNext={next === p.id} onVisible={onVisible} onInteract={interact} onOpen={() => open(p)}
-            className={layout === 'strip' ? 'snap-start flex-shrink-0 w-[272px] sm:w-[300px]' : 'w-full'} />
+    const wide = layout === 'strip' ? 'snap-start flex-shrink-0 w-[272px] sm:w-[300px]' : 'w-full'
+    const cards = items.map((p) => extra ? (
+        // com algo extra embaixo (ex.: "Ouvir prévia"), o cartão e o extra andam juntos num bloco só
+        <div key={p.id} className={wide}>
+            <DigitalCard p={p} spotlight={active === p.id} upNext={next === p.id} onVisible={onVisible} onInteract={interact} onOpen={() => open(p)} className="w-full" />
+            {extra(p)}
+        </div>
+    ) : (
+        <DigitalCard key={p.id} p={p} spotlight={active === p.id} upNext={next === p.id} onVisible={onVisible} onInteract={interact} onOpen={() => open(p)} className={wide} />
     ))
     return layout === 'strip'
         ? <div ref={strip} onPointerDown={touch} onWheel={touch} onTouchMove={touch} className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-pl-4 scroll-pr-4 -mx-4 px-4 -mt-3 pt-4 -mb-10 pb-14" style={{ scrollbarWidth: 'none' }}>{cards}</div>

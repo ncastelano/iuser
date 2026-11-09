@@ -61,6 +61,8 @@ import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 import StoreFrame from '@/components/store/StoreFrame'
+import StoreDigitalShelves from '@/components/digital/StoreDigitalShelves'
+import { loadDigitalShowcase, type ShowcaseItem } from '@/modules/digital'
 import PostpaidLimitText from '@/components/PostpaidLimitText'
 
 interface StoreProps {
@@ -130,7 +132,7 @@ type Publication = {
     created_at: string
 }
 
-type TabType = 'products' | 'services' | 'reviews'
+type TabType = 'products' | 'digital' | 'services' | 'reviews'
 
 export function Store({
     ownerSlug,
@@ -161,6 +163,7 @@ export function Store({
     const [isFollowing, setIsFollowing] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
     const [products, setProducts] = useState<any[]>([])
+    const [digitalItems, setDigitalItems] = useState<ShowcaseItem[]>([])     // os conteúdos digitais da loja (aba "Digitais"): só os que já têm conteúdo
     const [publications, setPublications] = useState<Publication[]>([])
     const [ratings, setRatings] = useState<RatingRow[]>([])
     const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -262,9 +265,18 @@ export function Store({
     // ========== PRODUTOS x SERVIÇOS ==========
     // A loja publica as duas coisas na mesma tabela (products.type = 'service' é serviço);
     // cada uma tem a própria aba, pra não ficarem misturadas.
-    const goods = useMemo(() => products.filter(p => p.type !== 'service'), [products])
+    // digital COM conteúdo vai para a aba "Digitais"; digital ainda sem conteúdo (rascunho do dono) continua em "Produtos"
+    const digitalIds = useMemo(() => new Set(digitalItems.map(d => d.id)), [digitalItems])
+    const goods = useMemo(() => products.filter(p => p.type !== 'service' && !digitalIds.has(p.id)), [products, digitalIds])
     const services = useMemo(() => products.filter(p => p.type === 'service'), [products])
     const catalogList = activeTab === 'services' ? services : goods
+    // loja que só vende conteúdo digital abre direto na aba "Digitais" (uma vez; depois a pessoa escolhe)
+    const autoDigital = useRef(false)
+    useEffect(() => {
+        if (autoDigital.current || digitalItems.length === 0) return
+        autoDigital.current = true
+        if (goods.length === 0 && services.length === 0) setActiveTab('digital')
+    }, [digitalItems, goods.length, services.length])
     // Modelo da loja (produtos / atendimento / mista): define o botão central, a ordem das abas e se os serviços viram linhas
     const model = parseStoreModel(owner?.store_model)
     const actions = pageActions(model, !!owner?.allow_scheduling, goods.length > 0)
@@ -645,6 +657,7 @@ export function Store({
                     : null,
             }))
             setProducts(mappedProducts)
+            loadDigitalShowcase(100, undefined, store.id).then(setDigitalItems).catch(() => setDigitalItems([]))
 
             await loadPublications(store.id)
 
@@ -1436,8 +1449,10 @@ export function Store({
                 {(() => {
                     const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
                     const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
+                    const digitalTab = { id: 'digital', label: 'Digitais', count: digitalItems.length }
                     // Normal: Produtos, Serviços, Avaliações. Sem produtos, mas com serviços: Serviços vem na frente.
-                    const catalogTabs = (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab] : [productsTab, servicesTab]
+                    const digitalTabs = digitalItems.length > 0 ? [digitalTab] : []     // "Digitais" só aparece se a loja tem conteúdo digital
+                    const catalogTabs = (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab, ...digitalTabs] : [productsTab, ...digitalTabs, servicesTab]
                     return [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
                 })().map(tab => {
                     const isActive = activeTab === tab.id
@@ -1793,6 +1808,13 @@ export function Store({
                 )}
 
                 {/* TAB AVALIAÇÕES */}
+                {/* TAB DIGITAIS: as prateleiras por tipo (cursos, músicas, audiolivros, filmes, e-books, programas) */}
+                {activeTab === 'digital' && (
+                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                        <StoreDigitalShelves items={digitalItems} />
+                    </div>
+                )}
+
                 {activeTab === 'reviews' && (
                     <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
                         {/* v3: a aba já diz "Avaliações" e a nota já aparece no cabeçalho: sem título nem cartão */}
