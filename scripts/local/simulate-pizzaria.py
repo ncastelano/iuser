@@ -17,7 +17,7 @@ mesma) atende:
     cabe e perto das que já pegou; vai à loja, espera o pedido ficar PRONTO, pega todos de uma vez e entrega um por um na ordem do mais perto, concluindo pelo
     MESMO caminho do app (complete_ride). --manual-drivers dani deixa a Dani para a pessoa mexer na mão (/entregas). --employees volta aos motoboys da loja.
   - AVALIAÇÕES: depois da entrega a LOJA avalia o motorista iUser (ride_reviews) e o cliente avalia a compra (product_reviews). `--once rate` avalia de uma vez tudo que está pendente.
-  Com --manual só chegam pedidos/agendamentos (nada é atendido): quem atende é a pessoa, pelo app. --no-couriers volta ao jeito antigo (pronto → entregue).
+  Com --manual só chegam pedidos/agendamentos (a loja não é atendida): quem atende é a pessoa, pelo app. Os ENTREGADORES iUser simulados continuam trabalhando (aceitam, buscam e entregam), senão o pedido de entrega nunca chegaria à loja. --no-couriers volta ao jeito antigo (pronto → entregue).
   --theater (TEATRO DE 6 TELAS, página /tres-telas): a DONA da loja (conta admin-teste) e os motoristas de --manual-drivers (dani,leo,tito) agem pelas telas; os clientes seguem
   chegando (pedidos, agendamentos e conversas) e o simulador só cuida do que não tem tela (os outros motoristas, o repasse, a avaliação da cliente em destaque).
 O simulador do ecossistema (simulate-ecosystem.py) NÃO mexe nessa loja.
@@ -689,7 +689,15 @@ def drivers_run(speed=1.0):
                 continue
             if all(r['order_status'] == 'ready' for r in rides) and time.time() - st.get('arrived', 0) >= CFG['load'] / sc:
                 code = q_local(f"select code from delivery_pickup_codes where store_id = {esc(STORE['id'])}::uuid and driver_id = {esc(d['id'])}::uuid and used_at is null")   # a loja conferiu e informou o código
-                out = as_user(d['id'], f"select confirm_pickup(array[{ids.replace('::uuid', '')}]::uuid[], {esc(code[0]['code'] if code else '')});")
+                try:
+                    out = as_user(d['id'], f"select confirm_pickup(array[{ids.replace('::uuid', '')}]::uuid[], {esc(code[0]['code'] if code else '')});")
+                except RuntimeError as e:
+                    if 'venceu' in str(e) or 'code_expired' in str(e):
+                        # com a loja à mão o pedido pode demorar a ficar pronto e o código (30 min) vence: o motorista toca "Cheguei na loja" de novo, que gera outro
+                        psql(['-c', f"update ride_requests set driver_arrived_at = null where id in ({ids}); update ride_requests set driver_arrived_at = now() where id in ({ids});"])
+                        log(f"  🔑 {d['name']} gerou um código novo de retirada (o anterior venceu)")
+                        continue
+                    raise
                 if '"ok": true' not in out:
                     log(f"  ✗ {d['name']}: retirada recusada")
                     continue
@@ -845,6 +853,16 @@ def featured_order():
 
 def cycle_tick(speed):
     fns = [attend_orders, attend_appointments, attend_service_cycle, review_featured]
+    if CFG.get('manual') and not CFG['theater']:
+        # LOJA À MÃO (--manual): quem atende é a pessoa, mas os ENTREGADORES seguem sozinhos — no fluxo "entregador primeiro, loja depois" o pedido de entrega só chega à loja
+        # depois que um motorista aceita, e sem eles os pedidos ficariam retidos para sempre. (A loja é quem confirma os repasses; isso fica de fora aqui.)
+        fns = [drivers_accept, drivers_run] if CFG['mode'] == 'iuser' else []
+        for fn in fns:
+            try:
+                fn(speed)
+            except Exception as e:  # noqa: BLE001
+                log(f"  ✗ {fn.__name__}: {str(e).splitlines()[0][:140]}")
+        return
     if CFG['theater']:
         # TEATRO DE 6 TELAS: a dona atende pelas telas (nada de aceitar/preparar/responder aqui) e a loja é quem avalia o motorista (também pela tela)
         fns = [review_featured]
@@ -910,7 +928,7 @@ def main():
     ap.add_argument('--no-couriers', action='store_true', help='sem motoboys: entrega vai direto de pronto para entregue')
     ap.add_argument('--once', choices=['order', 'appointment', 'chat', 'tick', 'featured', 'rate'])
     a = ap.parse_args()
-    CFG.update(theater=a.theater, mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()] or (['*'] if a.stage else []), stage=a.stage, stage_speed=a.stage_speed, couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale, drive_kmh=a.drive_kmh)
+    CFG.update(manual=a.manual, theater=a.theater, mode='none' if a.no_couriers else ('employees' if a.employees else 'iuser'), manual_drivers=[x.strip() for x in a.manual_drivers.split(',') if x.strip()] or (['*'] if a.stage else []), stage=a.stage, stage_speed=a.stage_speed, couriers=not a.no_couriers, bag=a.bag, max_stops=a.max_stops, reach=a.reach, wait=a.wait, load=a.load, scale=a.time_scale, drive_kmh=a.drive_kmh)
     load()
     if a.once:
         return safe({'order': make_order, 'appointment': make_appointment, 'chat': customer_asks, 'tick': lambda: cycle_tick(a.speed), 'featured': featured_order, 'rate': lambda: (rate_everything(), review_featured())}[a.once])
@@ -933,6 +951,8 @@ def main():
     if not a.manual or a.theater:
         loop(a.chat_every, customer_asks, stop)
         loop(5, lambda: cycle_tick(a.speed), stop)
+    elif CFG['mode'] == 'iuser':
+        loop(5, lambda: cycle_tick(a.speed), stop)   # loja à mão: só os motoristas simulados trabalham
     try:
         while True:
             time.sleep(60)

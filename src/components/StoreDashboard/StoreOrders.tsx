@@ -51,6 +51,17 @@ function v2StateOf(phase: string): string {
     if (isReleasedPhase(phase)) return 'released'
     return 'searching'
 }
+/** Texto do entregador de um pedido (o que a loja precisa saber de relance): confirmado quem é, onde está, ou que ainda busca */
+function driverText(info: { stage?: string; driver?: string | null; freight: number; radius: number; v2State?: string | null; frozen?: number | null } | undefined, accepted: boolean): string {
+    if (info?.v2State) return storeV2Text(info as { freight: number; radius: number; v2State?: string | null; frozen?: number | null })
+    if (accepted) {
+        const quem = info?.driver ? info.driver.trim().split(' ')[0] : 'Entregador'
+        const m: Record<string, string> = { assigned: `${quem} confirmado · vai buscar`, to_store: `${quem} indo à loja`, at_store: `${quem} na loja`, in_transit: `${quem} a caminho do cliente` }
+        return m[info?.stage || ''] || `${quem} confirmado`
+    }
+    return `Buscando motorista${info ? ` · R$ ${info.freight.toFixed(2)} · até ${info.radius} km` : ''}`
+}
+
 function storeV2Text(info: { freight: number; radius: number; v2State?: string | null; frozen?: number | null }): string {
     const base = STORE_STATE_TEXT[info.v2State || 'searching'] || 'Entrega em andamento'
     if (info.v2State === 'searching') return `${base} · ${brlText(info.freight)} · até ${info.radius} km`
@@ -168,7 +179,7 @@ export default function StoreOrders({
     const [iuserDeliveryEnabled, setIuserDeliveryEnabled] = useState(false)
     const [dispatchedOrderIds, setDispatchedOrderIds] = useState<Set<string>>(new Set())
     const [acceptedDispatchIds, setAcceptedDispatchIds] = useState<Set<string>>(new Set())
-    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { id: string; freight: number; radius: number; stage: string; v2State?: string | null; frozen?: number | null }>>(new Map())
+    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { id: string; freight: number; radius: number; stage: string; v2State?: string | null; frozen?: number | null; driver?: string | null }>>(new Map())
     const [callDriverOrder, setCallDriverOrder] = useState<any>(null)
     const [store, setStore] = useState<any>(null)
 
@@ -181,11 +192,28 @@ export default function StoreOrders({
     useEffect(() => {
         const ids = groupedOrders.map((o) => o.id).filter(Boolean)
         if (ids.length === 0) return
-        supabase.from('order_delivery_dispatches').select('id, order_id, status, stage, final_freight, radius_km, flow_version, phase, frozen_freight').in('order_id', ids).or('status.in.(searching,accepted),and(status.eq.cancelled,phase.eq.SEM_ENTREGADOR)')
+        supabase.from('order_delivery_dispatches').select('id, order_id, ride_request_id, status, stage, final_freight, radius_km, flow_version, phase, frozen_freight').in('order_id', ids).or('status.in.(searching,accepted),and(status.eq.cancelled,phase.eq.SEM_ENTREGADOR)')
             .then(({ data }) => {
                 setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string)))
                 setAcceptedDispatchIds(new Set((data || []).filter((r) => r.status === 'accepted' && !(r.flow_version === 2 && !isReleasedPhase(r.phase as string))).map((r) => r.order_id as string)))
-                setDispatchInfo(new Map((data || []).map((r) => [r.order_id as string, { id: r.id as string, freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null }])))
+                const base = new Map((data || []).map((r) => [r.order_id as string, { id: r.id as string, freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null, driver: null as string | null }]))
+                setDispatchInfo(base)
+                // quem é o entregador que aceitou (nome público): a loja precisa saber de relance quem vem buscar
+                const rideOf = new Map((data || []).filter((r) => r.status === 'accepted' && r.ride_request_id).map((r) => [r.ride_request_id as string, r.order_id as string]))
+                if (rideOf.size === 0) return
+                supabase.from('ride_requests').select('id, driver_id').in('id', Array.from(rideOf.keys())).then(async ({ data: rides }) => {
+                    const driverIds = Array.from(new Set((rides || []).map((x) => x.driver_id as string).filter(Boolean)))
+                    if (driverIds.length === 0) return
+                    const { data: profs } = await supabase.from('profiles').select('id, name').in('id', driverIds)
+                    const nameOf = new Map((profs || []).map((p) => [p.id as string, p.name as string]))
+                    const next = new Map(base)
+                    for (const x of rides || []) {
+                        const oid = rideOf.get(x.id as string)
+                        const cur = oid ? next.get(oid) : null
+                        if (oid && cur && x.driver_id) next.set(oid, { ...cur, driver: nameOf.get(x.driver_id as string) || null })
+                    }
+                    setDispatchInfo(next)
+                })
             })
     }, [groupedOrders])
 
@@ -1535,11 +1563,12 @@ function OrderButton({
                         </div>
                         {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && iuserDelivery.dispatchedIds.has(order.id) && (
                             <span className="self-start text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: `${statusColor}1f`, color: statusColor }}>
-                                {iuserDelivery.info?.get(order.id)?.v2State
-                                    ? storeV2Text(iuserDelivery.info.get(order.id)!)
-                                    : iuserDelivery.acceptedIds?.has(order.id)
-                                    ? ({ to_store: 'Motorista indo à loja', at_store: 'Motorista na loja', in_transit: 'A caminho do cliente' } as Record<string, string>)[iuserDelivery.info?.get(order.id)?.stage] || 'Motorista aceitou'
-                                    : `Buscando motorista${iuserDelivery.info?.get(order.id) ? ` · R$ ${iuserDelivery.info.get(order.id).freight.toFixed(2)} · até ${iuserDelivery.info.get(order.id).radius} km` : ''}`}
+                                {driverText(iuserDelivery.info?.get(order.id), !!iuserDelivery.acceptedIds?.has(order.id))}
+                            </span>
+                        )}
+                        {!isInPerson && !isPaid && order.status !== 'rejected' && iuserDelivery?.enabled && order.delivery_address && order.delivery_address !== 'Retirada no local' && !iuserDelivery.dispatchedIds.has(order.id) && (
+                            <span className="self-start text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: '#f59e0b22', color: '#b45309' }}>
+                                Sem motorista{['preparing', 'ready'].includes(order.status) ? ' · toque no caminhão para chamar' : ' ainda'}
                             </span>
                         )}
                         {iuserDelivery?.info?.get(order.id)?.v2State && ['awaiting_payment', 'customer_payment_reported', 'awaiting_driver_payment', 'driver_payment_reported', 'payment_in_verification'].includes(iuserDelivery.info.get(order.id)!.v2State!) && (
@@ -1651,7 +1680,7 @@ function OrderButton({
                     {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (iuserDelivery.dispatchedIds.has(order.id) || ['preparing', 'ready'].includes(order.status)) && (
                         iuserDelivery.dispatchedIds.has(order.id) ? (
                             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: `${statusColor}1a`, color: `${statusColor}b3` }}>
-                                {iuserDelivery.info?.get(order.id)?.v2State ? storeV2Text(iuserDelivery.info.get(order.id)!) : iuserDelivery.acceptedIds?.has(order.id) ? ({ to_store: 'Motorista indo à loja', at_store: 'Motorista na loja', in_transit: 'A caminho do cliente' } as Record<string, string>)[iuserDelivery.info?.get(order.id)?.stage] || 'Motorista aceitou' : `Buscando motorista${iuserDelivery.info?.get(order.id) ? ` · R$ ${iuserDelivery.info.get(order.id).freight.toFixed(2)} · ${iuserDelivery.info.get(order.id).radius} km` : ''}`}
+                                {driverText(iuserDelivery.info?.get(order.id), !!iuserDelivery.acceptedIds?.has(order.id))}
                             </span>
                         ) : (
                             <button

@@ -225,7 +225,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                             <div className="flex flex-col gap-2">
                                 {([
                                     { id: 'own', title: 'Eu entrego', text: 'Você leva e cobra o valor que quiser.', color: '#16a34a' },
-                                    { id: 'iuser', title: 'Entregador do iUser', text: 'Um motorista do iUser leva. O valor é o da tarifa do iUser.', color: '#f97316' },
+                                    { id: 'iuser', title: 'Entregador do iUser', text: 'Um motorista do iUser leva. O valor é o da tarifa do iUser. O pedido só chega a você depois que um entregador aceitar.', color: '#f97316' },
                                     { id: 'none', title: 'Não faço entrega', text: 'O cliente só pode retirar no local.', color: '#6b7280' },
                                 ] as const).map((o) => {
                                     const on = deliveryWho === o.id
