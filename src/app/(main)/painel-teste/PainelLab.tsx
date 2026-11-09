@@ -25,7 +25,7 @@ import { ORANGE, C, brl, PEDIDOS, FASES, type Estado, type Modelo, type Fase, ty
 const NOTAS: Record<string, { porque: string; era: string }> = {
     cabecalho: { porque: 'Quem tem loja abre o painel para saber “estou aberta? o que preciso fazer?”. Abrir/fechar a loja vira um toque, aqui em cima.', era: 'Estava em Editar loja → Horários; o painel só mostrava os 3 atalhos.' },
     agora: { porque: 'UMA lista do que depende de VOCÊ, na ordem de urgência, cada linha leva direto ao lugar. Hoje os avisos moram espalhados em 6 blocos (pedidos, caixa, digital, apoios, agenda, conversas).', era: 'Não existia: era preciso rolar ~4.000 px e abrir cada bloco para descobrir que havia algo esperando.' },
-    pedidos: { porque: 'Aceitar → preparar → entregar é o trabalho do dia. O funil vira 4 contadores que também são as abas: toque para ver só aquela etapa (até 3 pedidos, com a ação da etapa). O resto fica em “Ver todos”.', era: '“Pedidos na loja” (funil de 4 seções empilhadas + aba Serviços escondendo os pedidos de serviço).' },
+    pedidos: { porque: 'Aceitar → preparar → entregar é o trabalho do dia. O funil vira 4 seções empilhadas na ordem do fluxo (Novos → Em preparo → Prontos → A caminho), todas à vista, até 2 pedidos em cada com a ação da etapa; no alto, 4 contadores que levam à seção. Ao aceitar, a linha desliza, o número cai e o da etapa nova dá um pulo.', era: '“Pedidos na loja” (funil de 4 seções empilhadas + aba Serviços escondendo os pedidos de serviço).' },
     hoje: { porque: 'Cinco números que respondem “como está o dia?” numa linha só, deslizando de lado. Vendas por período e visitantes abrem DENTRO do próprio cartão.', era: 'Blocos “Vendas” e “Visitantes”: cada um com seu cartão grande e gráfico sempre aberto.' },
     agenda: { porque: 'Só o que vem a seguir (2 compromissos), com a hora em destaque. Aparece só quando a loja agenda serviço.', era: '“Agenda da loja” com 3 contadores e a lista.' },
     caixa: { porque: 'Dinheiro das entregas e vendas, num cartão só: o que está para conferir e quanto entrou. O que precisa de ação sobe para “Precisa de você”.', era: '“Caixa das entregas” + “Vendas” + “Apoios recebidos”, separados.' },
@@ -58,7 +58,9 @@ export default function PainelLab() {
     const [notas, setNotas] = useState(true)
     const [versao, setVersao] = useState<'nova' | 'atual'>('nova')
     const [aberta, setAberta] = useState(true)
-    const [fase, setFase] = useState<Fase>('novo')
+    const [saindo, setSaindo] = useState<number | null>(null)                       // pedido que está saindo da etapa (animação)
+    const [chegou, setChegou] = useState<{ id: number; k: number } | null>(null)     // pedido que acabou de chegar na etapa nova
+    const [bump, setBump] = useState<{ fase: Fase; k: number } | null>(null)         // contador que deve dar o pulo
     const [pedidos, setPedidos] = useState<Pedido[]>(PEDIDOS)
     const [periodo, setPeriodo] = useState<'hoje' | 'semana' | 'mes'>('hoje')
     const [aba, setAba] = useState<'produtos' | 'servicos'>('produtos')
@@ -107,7 +109,7 @@ export default function PainelLab() {
         if (calmo) return pedidos.filter((p) => p.id === 8 || p.id === 11)
         return pedidos
     }, [pedidos, nova, calmo])
-    const conta = (f: Fase) => lista.filter((p) => p.fase === f).length
+    const conta = (f: Fase) => lista.filter((p) => p.fase === f && p.id !== saindo).length
     const novosProd = temProdutos ? conta('novo') : 0
     const svcNovos = temServicos && !nova ? (calmo ? 0 : servicos) : 0
 
@@ -125,12 +127,20 @@ export default function PainelLab() {
     }, [novosProd, svcNovos, calmo, nova, temProdutos])
 
     function avancar(id: number) {
-        setPedidos((ps) => ps.map((p) => {
-            if (p.id !== id) return p
-            const ordem: Fase[] = ['novo', 'preparando', 'pronto', 'caminho']
-            const i = ordem.indexOf(p.fase)
-            return i < 3 ? { ...p, fase: ordem[i + 1] } : p
-        }))
+        if (saindo !== null) return
+        const ordem: Fase[] = ['novo', 'preparando', 'pronto', 'caminho']
+        const p0 = pedidos.find((x) => x.id === id)
+        if (!p0) return
+        const prox = ordem[ordem.indexOf(p0.fase) + 1]
+        if (!prox) return
+        setSaindo(id)                                    // 1) a linha desliza para fora e o número da etapa antiga cai
+        setTimeout(() => {
+            setPedidos((ps) => { const mv = ps.find((x) => x.id === id); return mv ? [{ ...mv, fase: prox }, ...ps.filter((x) => x.id !== id)] : ps })
+            setSaindo(null)
+            setChegou({ id, k: Date.now() })             // 2) entra no topo da etapa nova, com brilho, e o número dela dá o pulo
+            setBump({ fase: prox, k: Date.now() })
+            setTimeout(() => setChegou((c) => (c && c.id === id ? null : c)), 1600)
+        }, 280)
     }
     function recusar(id: number) { setPedidos((ps) => ps.filter((p) => p.id !== id)) }
 
@@ -216,8 +226,6 @@ export default function PainelLab() {
     )
 
     const fasesAtivas = temProdutos ? FASES : []
-    const doFase = lista.filter((p) => p.fase === fase)
-    const meta = FASES.find((f) => f.k === fase)!
     const pedidosBloco = (
         <div className="rounded-3xl p-3" style={card}>
             {temProdutos && temServicos && (
@@ -235,44 +243,71 @@ export default function PainelLab() {
                 nova ? <Vazio titulo="Os pedidos aparecem aqui" texto="Quando o primeiro cliente comprar, você aceita, prepara e acompanha a entrega neste cartão." cor={colors.textSecondary} />
                 : (
                     <>
-                        <div className="grid grid-cols-4 gap-1.5 mb-3">
-                            {fasesAtivas.map((f) => {
-                                const n = conta(f.k); const on = fase === f.k
+                        <style>{`
+                            @keyframes labSai { 0% { transform: translateX(0); opacity: 1; max-height: 90px } 60% { transform: translateX(46px); opacity: 0 } 100% { transform: translateX(46px); opacity: 0; max-height: 0; margin: 0; padding-top: 0; padding-bottom: 0; border-width: 0 } }
+                            @keyframes labEntra { 0% { transform: translateY(-16px) scale(.96); opacity: 0 } 60% { transform: translateY(2px) scale(1.01); opacity: 1 } 100% { transform: none; opacity: 1 } }
+                            @keyframes labPulo { 0% { transform: scale(1) } 35% { transform: scale(1.45) } 100% { transform: scale(1) } }
+                            @keyframes labBrilho { 0% { box-shadow: 0 0 0 0 var(--lab-cor) } 40% { box-shadow: 0 0 0 5px var(--lab-cor) } 100% { box-shadow: 0 0 0 0 transparent } }
+                            @media (prefers-reduced-motion: reduce) { .lab-anim { animation: none !important } }
+                        `}</style>
+                        {/* resumo do funil: tocar leva à seção */}
+                        <div className="flex items-center justify-between gap-0.5 mb-3">
+                            {fasesAtivas.map((f, i) => {
+                                const n = conta(f.k)
                                 return (
-                                    <button key={f.k} onClick={() => setFase(f.k)} className="rounded-2xl py-2 px-1 text-center transition active:scale-95"
-                                        style={{ background: on ? `${f.cor}26` : `${colors.border}30`, border: `2px solid ${on ? f.cor : 'transparent'}` }}>
-                                        <span className="block text-[20px] font-black leading-none" style={{ color: n ? f.cor : colors.textSecondary }}>{n}</span>
-                                        <span className="block text-[10px] font-bold mt-1 leading-tight" style={{ color: on ? colors.textPrimary : colors.textSecondary }}>{f.nome}</span>
-                                    </button>
+                                    <span key={f.k} className="flex items-center gap-0.5 flex-1 min-w-0">
+                                        <button onClick={() => document.getElementById(`ped-sec-${f.k}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="flex-1 min-w-0 rounded-2xl py-1.5 text-center active:scale-95 transition" style={{ background: n ? `${f.cor}22` : `${colors.border}30` }}>
+                                            <span key={bump?.fase === f.k ? bump.k : 0} className="lab-anim block text-[19px] font-black leading-none" style={{ color: n ? (f.cor === C.preparando ? '#ca8a04' : f.cor) : colors.textSecondary, animation: bump?.fase === f.k ? 'labPulo .55s ease-out' : undefined }}>{n}</span>
+                                            <span className="block text-[9.5px] font-bold mt-0.5 leading-tight truncate" style={{ color: colors.textSecondary }}>{f.nome}</span>
+                                        </button>
+                                        {i < fasesAtivas.length - 1 && <ChevronRight size={12} style={{ color: colors.textSecondary }} className="flex-shrink-0" />}
+                                    </span>
                                 )
                             })}
                         </div>
-                        {doFase.length === 0 ? (
-                            <p className="text-[12.5px] font-semibold text-center py-4" style={{ color: colors.textSecondary }}>Nenhum pedido em “{meta.nome.toLowerCase()}”.</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {doFase.slice(0, 3).map((p) => (
-                                    <div key={p.id} className="rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${meta.cor}` }}>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-[13px] font-black leading-tight truncate">{p.quem} <span className="font-semibold" style={{ color: colors.textSecondary }}>· {p.hora}</span></p>
-                                            <p className="text-[12px] leading-tight truncate mt-0.5">{p.item}{p.mais ? ` +${p.mais}` : ''}</p>
-                                            <p className="text-[11px] font-bold leading-tight mt-0.5 flex items-center gap-1" style={{ color: p.entrega.startsWith('Cliente') ? colors.textSecondary : C.caminho }}>
-                                                {p.entrega.startsWith('Cliente') ? <Store size={11} /> : <Bike size={11} />}{p.entrega}
-                                            </p>
+                        {/* seções empilhadas, na ordem do fluxo: tudo à vista, nada atrás de aba */}
+                        <div className="space-y-3">
+                            {fasesAtivas.map((f) => {
+                                const todos = lista.filter((p) => p.fase === f.k)
+                                const n = todos.filter((p) => p.id !== saindo).length
+                                const cor = f.cor === C.preparando ? '#ca8a04' : f.cor
+                                return (
+                                    <div key={f.k} id={`ped-sec-${f.k}`}>
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: cor }} />
+                                            <p className="text-[12px] font-black uppercase tracking-wider" style={{ color: cor }}>{f.nome}</p>
+                                            <span key={bump?.fase === f.k ? bump.k : 0} className="lab-anim min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-black text-white flex items-center justify-center" style={{ background: n ? cor : `${colors.border}`, animation: bump?.fase === f.k ? 'labPulo .55s ease-out' : undefined }}>{n}</span>
+                                            {n === 0 && <span className="text-[11.5px] font-semibold" style={{ color: colors.textSecondary }}>nenhum agora</span>}
                                         </div>
-                                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                            <span className="text-[13px] font-black">{brl(p.valor)}</span>
-                                            <div className="flex gap-1">
-                                                {fase === 'novo' && <button onClick={() => recusar(p.id)} aria-label="Recusar" className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90" style={{ border: `1px solid ${colors.border}`, color: C.alerta }}><X size={14} /></button>}
-                                                {meta.acao && <button onClick={() => avancar(p.id)} className="h-8 px-3.5 rounded-full text-[12px] font-black text-white active:scale-95" style={{ background: meta.cor === C.preparando ? '#ca8a04' : meta.cor }}>{meta.acao}</button>}
+                                        {todos.length > 0 && (
+                                            <div className="space-y-2">
+                                                {todos.slice(0, 2).map((p) => (
+                                                    <div key={p.id} className="lab-anim rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2 overflow-hidden" style={{ background: colors.background, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${cor}`, ['--lab-cor' as string]: `${cor}66`, animation: p.id === saindo ? 'labSai .28s ease-in forwards' : chegou?.id === p.id ? 'labEntra .5s ease-out, labBrilho 1.4s ease-out' : undefined }}>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-[13px] font-black leading-tight truncate">{p.quem} <span className="font-semibold" style={{ color: colors.textSecondary }}>· {p.hora}</span></p>
+                                                            <p className="text-[12px] leading-tight truncate mt-0.5">{p.item}{p.mais ? ` +${p.mais}` : ''}</p>
+                                                            <p className="text-[11px] font-bold leading-tight mt-0.5 flex items-center gap-1" style={{ color: p.entrega.startsWith('Cliente') ? colors.textSecondary : C.caminho }}>
+                                                                {p.entrega.startsWith('Cliente') ? <Store size={11} /> : <Bike size={11} />}{p.entrega}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                                            <span className="text-[13px] font-black">{brl(p.valor)}</span>
+                                                            <div className="flex gap-1">
+                                                                {f.k === 'novo' && <button onClick={() => recusar(p.id)} aria-label="Recusar" className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90" style={{ border: `1px solid ${colors.border}`, color: C.alerta }}><X size={14} /></button>}
+                                                                {f.acao && <button onClick={() => avancar(p.id)} className="h-8 px-3.5 rounded-full text-[12px] font-black text-white active:scale-95" style={{ background: cor }}>{f.acao}</button>}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {todos.length > 2 && <button onClick={() => ir('pedidos')} className="text-[12px] font-black flex items-center gap-1 pl-1" style={{ color: cor }}>Ver mais {todos.length - 2}<ChevronRight size={13} /></button>}
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                )
+                            })}
+                        </div>
                         <button onClick={() => ir('pedidos')} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40` }}>
-                            {doFase.length > 3 ? `Ver os outros ${doFase.length - 3} e o histórico` : 'Ver todos os pedidos e o histórico'}<ChevronRight size={14} />
+                            Ver todos os pedidos e o histórico<ChevronRight size={14} />
                         </button>
                     </>
                 )
@@ -573,7 +608,7 @@ export default function PainelLab() {
                             <div className="flex flex-wrap gap-1.5 mt-2.5">
                                 <span className="text-[10.5px] font-bold self-center mr-1" style={{ color: colors.textSecondary }}>Dia da loja:</span>
                                 {([['movimentado', 'Movimentado'], ['tranquilo', 'Tranquilo'], ['nova', 'Loja nova']] as const).map(([k, l]) => (
-                                    <button key={k} onClick={() => { setEstado(k); setFase('novo'); setGer({}); setMiss({}) }} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(estado === k)}>{l}</button>
+                                    <button key={k} onClick={() => { setEstado(k); setGer({}); setMiss({}) }} className="h-7 px-2.5 rounded-full text-[11px] font-bold active:scale-95" style={pill(estado === k)}>{l}</button>
                                 ))}
                             </div>
                             <div className="flex flex-wrap gap-1.5 mt-2">
