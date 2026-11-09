@@ -1451,6 +1451,8 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
             return (
                 // pedido acontecendo agora: a BORDA do cartão ganha a cor da etapa (o resto do cartão fica como está); finalizado e recusado voltam à borda comum
                 <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: ['pending', 'preparing', 'ready'].includes(order.status) ? `2px solid ${accent}` : `1px solid ${colors.border}`, transition: 'border-color 300ms ease' }}>
+                    {/* o CÓDIGO de entrega (e o resultado) fica EM CIMA do pedido: é o que a pessoa precisa ver primeiro quando o entregador chega */}
+                    <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} top />
                     <div className="p-3.5 flex items-center justify-between gap-3">
                         <h3 className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{order.storeName || order.store_name}</h3>
                         <span className="flex-shrink-0 text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: `${accent}22`, color: accent }}>
@@ -1487,7 +1489,6 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                         </div>
                     )}
 
-                    <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} />
                     <div className="px-3.5 py-2.5 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${colors.border}` }}>
                         {order.items.map((item: any, idx: number) => (
                             <div key={idx} className="flex items-center justify-between gap-2 text-[13px]">
@@ -1528,6 +1529,9 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                     color: '#000',
                 }}
             >
+                <div className="-mx-3.5 -mt-1">
+                    <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} light top />
+                </div>
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-lg font-black italic" style={{ color: '#000' }}>
                         {order.storeName || order.store_name}
@@ -1552,9 +1556,6 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                                             order.status === 'paid' ? '#3b82f6' : '#ef4444',
                         }}
                     ></div>
-                </div>
-                <div className="-mx-3.5">
-                    <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} light />
                 </div>
                 <div className="space-y-2">
                     {order.items.map((item: any, idx: number) => (
