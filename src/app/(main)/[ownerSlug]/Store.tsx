@@ -132,7 +132,7 @@ type Publication = {
     created_at: string
 }
 
-type TabType = 'products' | 'digital' | 'services' | 'reviews'
+type TabType = 'products' | 'digital' | 'services' | 'reviews'   // 'reviews' só existe na 2.0; na 3.0 as avaliações abrem num diálogo (toque na nota do cabeçalho)
 
 export function Store({
     ownerSlug,
@@ -177,6 +177,7 @@ export function Store({
     const DESC_LIMIT = 80
     const [showAllHours, setShowAllHours] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
+    const [showReviews, setShowReviews] = useState(false)           // 3.0: diálogo de avaliações
     const [scheduleProductId, setScheduleProductId] = useState<string | null>(null)
     // dia e horário escolhidos na agenda da página (abrem o agendador já preenchido)
     const [schedulePick, setSchedulePick] = useState<{ date: Date; time: string } | null>(null)
@@ -196,10 +197,10 @@ export function Store({
     // cheia está aberto, pra ele esconder os botões flutuantes ("Ver
     // Catálogo" / Home) que senão ficam por cima do dialog.
     useEffect(() => {
-        onDialogOpenChange?.(showAllHours || showScheduleModal || showAgendaDialog || showProductModal || showFollowers || !!editingProductId)
+        onDialogOpenChange?.(showAllHours || showScheduleModal || showReviews || showAgendaDialog || showProductModal || showFollowers || !!editingProductId)
         return () => { onDialogOpenChange?.(false) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showAllHours, showScheduleModal, showAgendaDialog, showProductModal, showFollowers, editingProductId])
+    }, [showAllHours, showScheduleModal, showReviews, showAgendaDialog, showProductModal, showFollowers, editingProductId])
 
     // States para Publicações
     const [isCreatingPublication, setIsCreatingPublication] = useState(false)
@@ -368,6 +369,28 @@ export function Store({
         const avg = sum / ratings.length
         return { avg: avg.toFixed(1), count: ratings.length }
     }, [ratings])
+
+    // avatar de quem avaliou (clicar leva ao perfil; avaliação anônima não leva a lugar nenhum) — usado na aba (2.0) e no diálogo (3.0)
+    const renderReviewAvatar = (rating: any) => {
+                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
+                                    const avatarBox = (
+                                        <PlanAvatarRing userId={rating.is_anonymous ? null : rating.profile_id} radius="999px">
+                                            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0" style={{ background: `${colors.border}60` }}>
+                                                {avatarUrl && !rating.is_anonymous ? (
+                                                    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="font-black text-xs" style={{ color: '#f97316' }}>
+                                                        {rating.is_anonymous ? '?' : (rating.profiles?.profileSlug || rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </PlanAvatarRing>
+                                    )
+                                    // clicar no avatar leva ao perfil de quem avaliou (avaliação anônima não leva a lugar nenhum)
+                                    return !rating.is_anonymous && rating.profiles?.profileSlug
+                                        ? <a href={`/${rating.profiles.profileSlug}`} aria-label={`Ver perfil de ${profileLabel(rating.profiles)}`} className="shrink-0">{avatarBox}</a>
+                                        : avatarBox
+                                }
 
     // ========== WHATSAPP ==========
     const whatsappLink = useMemo(() => {
@@ -1040,6 +1063,7 @@ export function Store({
                     isFollowing={isFollowing}
                     onFollowToggle={handleFollowToggle}
                     onOpenCatalog={() => router.push(`/${ownerSlug}/catalogo`)}
+                    onOpenReviews={() => setShowReviews(true)}
                     whatsappLink={whatsappLink}
                     links={owner.links ?? []}
                     allowScheduling={!!owner.allow_scheduling}
@@ -1051,6 +1075,7 @@ export function Store({
                             colors={colors}
                             durationMin={Math.max(15, Math.min(...services.map((sv: any) => Number(sv.duration_minutes) || 60), 60))}
                             onPick={(date, time) => { setScheduleProductId(null); setSchedulePick({ date, time }); setShowScheduleModal(true) }}
+                            onSchedule={() => { setScheduleProductId(null); setSchedulePick(null); setShowScheduleModal(true) }}
                         />
                     ) : undefined}
                     showBuy={actions.buy}
@@ -1062,7 +1087,7 @@ export function Store({
                     chatSaving={chatSaving}
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
                     onOpenAgendaDialog={() => setShowAgendaDialog(true)}
-                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="" /> : undefined}
+                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="Conversar" /> : undefined}
                     extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
                     ownerToolsSlot={isOwner && !isStoreOpen ? (
                         <StoreOperatingDays
@@ -1453,7 +1478,7 @@ export function Store({
                     // Normal: Produtos, Serviços, Avaliações. Sem produtos, mas com serviços: Serviços vem na frente.
                     const digitalTabs = digitalItems.length > 0 ? [digitalTab] : []     // "Digitais" só aparece se a loja tem conteúdo digital
                     const catalogTabs = (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab, ...digitalTabs] : [productsTab, ...digitalTabs, servicesTab]
-                    return [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
+                    return v3 ? catalogTabs : [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
                 })().map(tab => {
                     const isActive = activeTab === tab.id
                     return (
@@ -1815,7 +1840,7 @@ export function Store({
                     </div>
                 )}
 
-                {activeTab === 'reviews' && (
+                {activeTab === 'reviews' && !v3 && (
                     <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
                         {/* v3: a aba já diz "Avaliações" e a nota já aparece no cabeçalho: sem título nem cartão */}
                         <div className={`flex items-center gap-2 mb-3 ${v3 ? 'hidden' : ''}`}>
@@ -1834,26 +1859,7 @@ export function Store({
                             <ReviewsV3
                                 ratings={ratings as any}
                                 colors={colors}
-                                renderAvatar={(rating: any) => {
-                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
-                                    const avatarBox = (
-                                        <PlanAvatarRing userId={rating.is_anonymous ? null : rating.profile_id} radius="999px">
-                                            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0" style={{ background: `${colors.border}60` }}>
-                                                {avatarUrl && !rating.is_anonymous ? (
-                                                    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <span className="font-black text-xs" style={{ color: '#f97316' }}>
-                                                        {rating.is_anonymous ? '?' : (rating.profiles?.profileSlug || rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </PlanAvatarRing>
-                                    )
-                                    // clicar no avatar leva ao perfil de quem avaliou (avaliação anônima não leva a lugar nenhum)
-                                    return !rating.is_anonymous && rating.profiles?.profileSlug
-                                        ? <a href={`/${rating.profiles.profileSlug}`} aria-label={`Ver perfil de ${profileLabel(rating.profiles)}`} className="shrink-0">{avatarBox}</a>
-                                        : avatarBox
-                                }}
+                                renderAvatar={renderReviewAvatar}
                             />
                         ) : ratings.length === 0 ? (
                             <div className="py-8 text-center rounded-xl" style={{
@@ -1917,6 +1923,22 @@ export function Store({
                     </div>
                 )}
             </div>
+
+            {/* ===== DIÁLOGO DE AVALIAÇÕES (3.0): abre ao tocar na nota do cabeçalho ===== */}
+            {v3 && showReviews && (
+                <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowReviews(false)}>
+                    <div className="w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[88vh] flex flex-col" style={{ background: colors.surface }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Avaliações da loja">
+                        <div className="flex items-center gap-2 px-5 pt-4 pb-2 flex-shrink-0">
+                            <Star size={17} style={{ color: '#f97316', fill: '#f97316' }} />
+                            <h3 className="text-base font-black flex-1" style={{ color: colors.textPrimary }}>Avaliações{ratingsStats ? <span className="ml-2 text-xs font-bold" style={{ color: '#f97316' }}>{ratingsStats.avg.replace('.', ',')} ★ · {ratingsStats.count}</span> : null}</h3>
+                            <button onClick={() => setShowReviews(false)} aria-label="Fechar" className="w-9 h-9 rounded-full flex items-center justify-center text-xl" style={{ color: colors.textSecondary, background: `${colors.border}40` }}>×</button>
+                        </div>
+                        <div className="overflow-y-auto px-5 pb-6">
+                            <ReviewsV3 ratings={ratings as any} colors={colors} renderAvatar={renderReviewAvatar} />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ===== MODAL DE HORÁRIOS ===== */}
             {showAllHours && owner.business_hours && (
