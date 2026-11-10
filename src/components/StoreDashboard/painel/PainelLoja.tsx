@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-    AlertCircle, CalendarDays, ChevronRight, ClipboardList, CreditCard, Eye, GraduationCap, Settings, Share2, Star,
+    AlertCircle, Banknote, Heart, MessageCircle, Wallet, CalendarDays, ChevronRight, ClipboardList, CreditCard, Eye, GraduationCap, Settings, Share2, Star,
     Store, Check,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -19,6 +19,8 @@ import { isStoreOpenNow, getStoreStatusWithLunch } from '@/lib/storeHours'
 import { parseStoreModel } from '@/lib/storeModel'
 import { limitText, usePostpaidLimit } from '@/lib/postpaid'
 import { fetchStoreDigitalSummary, digitalAttention } from '@/modules/digital'
+import { fetchStoreDues } from '@/modules/dues'
+import { fetchTipsPanel } from '@/modules/tips'
 import StoreFrame from '@/components/store/StoreFrame'
 import StoreOrders from '../StoreOrders'
 import StoreDeliveryDues from '../StoreDeliveryDues'
@@ -29,10 +31,16 @@ import StoreVisitors from '../StoreVisitors'
 import ButtonInPersonSale from '../ButtonInPersonSale'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import { gerenciarItens, SELO } from './gerenciar'
+import { TYPE_INFO } from '@/components/planos/PostpaidFees'
+import StoreTips from '@/components/tips/StoreTips'
+import ExtratoCompleto, { type ExtratoPeriodo } from './ExtratoCompleto'
+import { PaginaPainel, useSecaoUrl } from './Casca'
 import SalesChart, { type PaidOrder, type SalesPeriod } from './SalesChart'
 import type { ExtractPeriod } from '../StoreSalesExtractDialog'
 
 const ORANGE = '#f97316'
+const PAGINAS = ['extrato', 'repasses', 'apoios'] as const
+type PaginaK = typeof PAGINAS[number]
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 type Metrics = { daily: { revenue: number; orders: number }; weekly: { revenue: number; orders: number }; monthly: { revenue: number; orders: number } }
@@ -55,20 +63,33 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
     const slug = store.storeSlug || storeSlug
     const editar = `/editar-loja/${encodeURIComponent(slug)}`
     const limit = usePostpaidLimit()
+    // páginas que abrem a partir do painel (?secao=): extrato completo, repasses das entregas e apoios recebidos
+    const pagina = useSecaoUrl(PAGINAS)
+    const [extratoIni, setExtratoIni] = useState<ExtratoPeriodo>('hoje')
 
     // ---------- dados novos (cada um some sozinho se falhar) ----------
     const [pub, setPub] = useState<{ level: number; model: string } | null>(null)
-    const [att, setAtt] = useState<{ orders: number; services: number; digital: number } | null>(null)
-    const [plan, setPlan] = useState<{ postpaid: boolean; debt: number } | null>(null)
+    const [att, setAtt] = useState<{ orders: number; services: number; digital: number; dues: number; duesAmount: number; tips: number; chats: number } | null>(null)
+    const [plan, setPlan] = useState<{ postpaid: boolean; debt: number; byType: [string, { n: number; total: number }][] } | null>(null)
     const [period, setPeriod] = useState<SalesPeriod>('hoje')
 
     const loadAttention = useCallback(async () => {
-        const [o, s, d] = await Promise.all([
+        const [o, s, d, du, tp, ch] = await Promise.all([
             supabase.from('orders').select('id', { count: 'exact', head: true }).eq('store_id', store.id).eq('status', 'pending'),
             supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('store_id', store.id).eq('status', 'pending'),
             fetchStoreDigitalSummary(store.id),
+            fetchStoreDues(store.id).catch(() => null),
+            fetchTipsPanel(store.id).catch(() => null),
+            supabase.rpc('get_my_conversations', { p_scope: 'store', p_store: store.id }),
         ])
-        setAtt({ orders: o.count || 0, services: s.count || 0, digital: d ? digitalAttention(d) : 0 })
+        // repasses que o entregador já DECLAROU e esperam a loja conferir (ou contestados)
+        const conferir = (du?.items || []).filter((x) => x.status === 'declared' || x.status === 'disputed')
+        setAtt({
+            orders: o.count || 0, services: s.count || 0, digital: d ? digitalAttention(d) : 0,
+            dues: conferir.length, duesAmount: conferir.reduce((t, x) => t + (x.kind === 'machine' ? 0 : Number(x.amount) || 0), 0),
+            tips: tp?.toCheck || 0,
+            chats: ((ch.data as { unread: number }[] | null) || []).filter((r) => r.unread > 0).length,
+        })
     }, [store.id])
 
     useEffect(() => {
@@ -83,8 +104,13 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
         if (!userId) return
         Promise.all([
             supabase.rpc('is_postpaid_user', { p_user_id: userId }),
-            supabase.from('driver_postpaid_charges').select('amount').eq('driver_id', userId),
-        ]).then(([p, c]) => setPlan({ postpaid: !!p.data, debt: (c.data || []).reduce((t: number, r: any) => t + Number(r.amount || 0), 0) }))
+            supabase.from('driver_postpaid_charges').select('amount, type').eq('driver_id', userId),
+        ]).then(([p, c]) => {
+            const rows = (c.data || []) as { amount: number; type: string }[]
+            const by = new Map<string, { n: number; total: number }>()
+            rows.filter((r) => r.type !== 'payment').forEach((r) => { const x = by.get(r.type) || { n: 0, total: 0 }; by.set(r.type, { n: x.n + 1, total: x.total + Number(r.amount || 0) }) })
+            setPlan({ postpaid: !!p.data, debt: rows.reduce((t, r) => t + Number(r.amount || 0), 0), byType: [...by.entries()].sort((a, b) => b[1].total - a[1].total) })
+        })
             .catch(() => setPlan(null))
     }, [userId])
 
@@ -99,6 +125,9 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
         if (att?.orders) a.push({ cor: '#22c55e', icone: <ClipboardList size={17} />, titulo: `${att.orders} ${att.orders === 1 ? 'pedido novo' : 'pedidos novos'}`, sub: 'Aceite para a loja começar a preparar', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Ver pedidos' })
         if (att?.services) a.push({ cor: '#14b8a6', icone: <CalendarDays size={17} />, titulo: `${att.services} ${att.services === 1 ? 'pedido de serviço' : 'pedidos de serviço'}`, sub: 'Clientes esperando o horário ser confirmado', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Ver pendentes' })
         if (att?.digital) a.push({ cor: '#a855f7', icone: <GraduationCap size={17} />, titulo: `${att.digital} ${att.digital === 1 ? 'pagamento digital' : 'pagamentos digitais'} para conferir`, sub: 'Confira o Pix e libere o acesso', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Conferir' })
+        if (att?.dues) a.push({ cor: '#eab308', icone: <Banknote size={17} />, titulo: `${att.dues} ${att.dues === 1 ? 'repasse' : 'repasses'} para conferir`, sub: att.duesAmount > 0 ? `${brl(att.duesAmount)} que os entregadores dizem ter repassado` : 'Confira se recebeu e confirme', ir: '?secao=repasses', rotulo: 'Conferir' })
+        if (att?.tips) a.push({ cor: '#8b5cf6', icone: <Heart size={17} />, titulo: `${att.tips} ${att.tips === 1 ? 'apoio' : 'apoios'} para conferir`, sub: 'Fãs dizem que mandaram um Pix: confira na sua conta', ir: '?secao=apoios', rotulo: 'Conferir' })
+        if (att?.chats) a.push({ cor: '#16a34a', icone: <MessageCircle size={17} />, titulo: `${att.chats} ${att.chats === 1 ? 'conversa' : 'conversas'} sem resposta`, sub: 'Clientes falando com a loja', ir: `/atividade?aba=conversas&sala=${encodeURIComponent(slug)}`, rotulo: 'Responder' })
         if (!store.pix_key) a.push({ cor: '#ef4444', icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse', ir: `${editar}?secao=pagamento`, rotulo: 'Cadastrar' })
         if (plan?.postpaid && plan.debt >= limit) a.push({ cor: '#ef4444', icone: <AlertCircle size={17} />, titulo: 'O Pós-pago chegou ao limite', sub: `Quite ${brl(plan.debt)} para continuar vendendo`, ir: '/planos/pos-pago', rotulo: 'Quitar' })
         return a
@@ -170,7 +199,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             ) : (
                 <div className="rounded-3xl overflow-hidden" style={card}>
                     {atencao.map((a, i) => (
-                        <button key={a.titulo} onClick={() => router.push(a.ir)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                        <button key={a.titulo} onClick={() => (a.ir.startsWith('?secao=') ? pagina.abrir(a.ir.slice(7) as PaginaK) : router.push(a.ir))} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
                             <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${a.cor}22`, color: a.cor }}>{a.icone}</span>
                             <span className="min-w-0 flex-1">
                                 <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.titulo}</span>
@@ -199,7 +228,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                     <div className="min-w-0"><p className="text-[24px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(atual.m.revenue)}</p><p className="text-[11.5px] mt-1" style={{ color: colors.textSecondary }}>{atual.m.orders} {atual.m.orders === 1 ? 'venda' : 'vendas'}</p></div>
                     <SalesChart orders={paidOrders} period={period} />
                 </div>
-                <button onClick={() => onOpenExtract(atual.ex)} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                <button onClick={() => { setExtratoIni(period === 'mes' ? 'mes' : period); pagina.abrir('extrato') }} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
                     Abrir o extrato<ChevronRight size={14} />
                 </button>
             </div>
@@ -210,8 +239,22 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             {/* ===== PRÓXIMOS COMPROMISSOS (só loja que atende com hora marcada) ===== */}
             {hasServices && <div className="mt-2"><AtalhoCompromissosDaLoja profileSlug={profileSlug} storeId={store.id} storeSlug={slug} /></div>}
 
-            {/* ===== DINHEIRO (caixa das entregas: repasses, maquininha, contestadas) ===== */}
-            <div className="mt-2"><StoreDeliveryDues storeId={store.id} v3 /></div>
+            {/* ===== DINHEIRO: repasses das entregas, extrato e apoios — cada linha abre a página dela ===== */}
+            {sec('Dinheiro')}
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                {([
+                    { k: 'repasses' as PaginaK, ic: <Banknote size={17} />, cor: '#eab308', t: 'Repasses das entregas', sub: att?.dues ? `${att.dues} para conferir${att.duesAmount ? ` · ${brl(att.duesAmount)}` : ''}` : 'dinheiro da porta, maquininha e contestações', alerta: !!att?.dues },
+                    { k: 'extrato' as PaginaK, ic: <Wallet size={17} />, cor: '#22c55e', t: 'Extrato completo', sub: `${brl(metrics.monthly.revenue)} recebidos neste mês`, alerta: false },
+                    { k: 'apoios' as PaginaK, ic: <Heart size={17} />, cor: '#8b5cf6', t: 'Apoios recebidos', sub: att?.tips ? `${att.tips} para conferir` : 'gorjetas dos fãs, por Pix', alerta: !!att?.tips },
+                ]).map((r, i) => (
+                    <button key={r.k} onClick={() => { if (r.k === 'extrato') setExtratoIni('mes'); pagina.abrir(r.k) }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                        <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${r.cor}22`, color: r.cor }}>{r.ic}</span>
+                        <span className="min-w-0 flex-1"><span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{r.t}</span><span className="block text-[11.5px] leading-snug" style={{ color: r.alerta ? '#b45309' : colors.textSecondary }}>{r.sub}</span></span>
+                        {r.alerta && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#eab308' }} />}
+                        <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                    </button>
+                ))}
+            </div>
 
             {/* ===== DIGITAL E CLUBE ===== */}
             <div className="mt-2"><StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 /></div>
@@ -229,8 +272,20 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                         {plan.postpaid && (<>
                             <div className="flex items-baseline justify-between mt-3"><p className="text-[22px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(plan.debt)}</p><p className="text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>de {limitText(limit)} · limite</p></div>
                             <span className="block h-2.5 rounded-full overflow-hidden mt-2" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (plan.debt / limit) * 100)}%`, background: plan.debt >= limit ? '#ef4444' : 'linear-gradient(90deg,#f97316,#dc2626)' }} /></span>
-                            <p className="text-[11.5px] font-black mt-2.5" style={{ color: ORANGE }}>Ver o que foi cobrado e quitar →</p>
+                            {plan.byType.length > 0 && (
+                                <div className="mt-3 flex flex-col gap-1">
+                                    <p className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>O que foi cobrado</p>
+                                    {plan.byType.slice(0, 4).map(([t, v]) => (
+                                        <div key={t} className="flex items-center justify-between text-[12px]">
+                                            <span style={{ color: colors.textPrimary }}>{v.n} × {(TYPE_INFO as any)[t]?.label?.toLowerCase() || t}</span>
+                                            <span className="font-black" style={{ color: colors.textPrimary }}>{brl(v.total)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <p className="text-[11.5px] font-black mt-2.5" style={{ color: ORANGE }}>Ver tudo e quitar agora →</p>
                         </>)}
+                        {!plan.postpaid && <p className="text-[12px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>Mensalidade de R$ 100 · nenhuma taxa por venda, pedido ou agendamento.</p>}
                     </button>
                 </>
             )}
@@ -261,6 +316,20 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                     )
                 })}
             </div>
+
+            {pagina.secao === 'extrato' && <ExtratoCompleto storeId={store.id} storeName={store.name} inicial={extratoIni} onClose={pagina.fechar} />}
+            {pagina.secao === 'repasses' && (
+                <PaginaPainel titulo="Repasses das entregas" sub={store.name} cor="#eab308" icone={<Banknote size={18} />} onClose={pagina.fechar}>
+                    <p className="text-[12.5px] leading-snug mb-3" style={{ color: colors.textSecondary }}>O dinheiro recebido na porta é do pedido: o entregador fica com o frete e repassa o resto à loja. Pedido no cartão usa a <b>sua</b> maquininha — o dinheiro cai direto na sua conta; aqui você confere a devolução dela. Entrega contestada pelo cliente também aparece aqui.</p>
+                    <StoreDeliveryDues storeId={store.id} v3 />
+                    {!att?.dues && <div className="rounded-3xl p-4 mt-3 flex items-center gap-3" style={{ ...card, borderColor: '#22c55e66' }}><span className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#22c55e22', color: '#22c55e' }}><Check size={18} /></span><p className="text-[13px] font-black">Nada para conferir agora</p></div>}
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'apoios' && (
+                <PaginaPainel titulo="Apoios recebidos" sub={store.name} cor="#8b5cf6" icone={<Heart size={18} />} onClose={pagina.fechar}>
+                    <StoreTips storeId={store.id} hasPix={!!store.pix_key} v3 />
+                </PaginaPainel>
+            )}
 
             {/* ===== VENDA NO BALCÃO ===== */}
             {sec('Venda no balcão')}
