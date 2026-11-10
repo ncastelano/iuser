@@ -2,6 +2,7 @@
 
 'use client'
 
+import { useReportStorePresence } from '@/modules/store-presence'
 import { profileLabel } from '@/lib/profileDisplay'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -289,6 +290,8 @@ export function ProductClientPage({
 
         return () => { isMounted = false }
     }, [product?.store_id, product?.id])
+    // "Agora na sua loja": alguém está vendo este item (sem identidade; a dona olhando não conta)
+    useReportStorePresence(product?.store_id, 'produto', product?.name, !!currentUserId && currentUserId === product?.store?.owner_id)
 
     // ===== AVALIAÇÕES DO PRODUTO =====
     useEffect(() => {

@@ -1,6 +1,7 @@
 // app/src/app/(main)/[ownerSlug]/catalogo/CatalogoClientPage.tsx
 'use client'
 
+import { useReportStorePresence } from '@/modules/store-presence'
 import { orderCategories } from '@/lib/categoryOrder'
 import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
@@ -453,6 +454,8 @@ export default function CatalogoClientPage() {
         () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
         [cartItems]
     )
+    // "Agora na sua loja": catálogo → sacola → pagando (sem identidade; a dona olhando não conta)
+    useReportStorePresence(storeInfo?.id, checkoutStep ? 'pagando' : totalCartQuantity > 0 ? 'sacola' : 'catalogo', null, !!currentUserId && currentUserId === storeInfo?.owner_id)
 
     const totalCartValue = useMemo(() => {
         let total = 0

@@ -33,6 +33,8 @@ import { gerenciarItens, SELO } from './gerenciar'
 import { TYPE_INFO } from '@/components/planos/PostpaidFees'
 import LogoFolha from './LogoFolha'
 import BalcaoV3 from './BalcaoV3'
+import AgoraNaLoja from './AgoraNaLoja'
+import { useStorePresence } from '@/modules/store-presence'
 import StoreTips from '@/components/tips/StoreTips'
 import ExtratoCompleto, { type ExtratoPeriodo } from './ExtratoCompleto'
 import { PaginaPainel, useSecaoUrl } from './Casca'
@@ -40,7 +42,7 @@ import SalesChart, { type PaidOrder, type SalesPeriod } from './SalesChart'
 import type { ExtractPeriod } from '../StoreSalesExtractDialog'
 
 const ORANGE = '#f97316'
-const PAGINAS = ['extrato', 'repasses', 'apoios', 'balcao'] as const
+const PAGINAS = ['extrato', 'repasses', 'apoios', 'balcao', 'agora'] as const
 type PaginaK = typeof PAGINAS[number]
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -68,6 +70,9 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
     const pagina = useSecaoUrl(PAGINAS)
     const [extratoIni, setExtratoIni] = useState<ExtratoPeriodo>('hoje')
     const [logoOpen, setLogoOpen] = useState(false)
+    // "Online agora": presença anônima de quem está na loja (tempo real)
+    const presenca = useStorePresence(store.id)
+    const online = presenca.rows === null ? null : presenca.rows.length
     const [logo, setLogo] = useState<string | null>(store.logo_url || null)
 
     // ---------- dados novos (cada um some sozinho se falhar) ----------
@@ -230,7 +235,13 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                     ))}
                 </div>
                 <div className="flex items-end justify-between gap-3">
-                    <div className="min-w-0"><p className="text-[24px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(atual.m.revenue)}</p><p className="text-[11.5px] mt-1" style={{ color: colors.textSecondary }}>{atual.m.orders} {atual.m.orders === 1 ? 'venda' : 'vendas'}</p></div>
+                    <div className="min-w-0">
+                        <p className="text-[24px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(atual.m.revenue)}</p>
+                        <p className="text-[11.5px] mt-1" style={{ color: colors.textSecondary }}>{atual.m.orders} {atual.m.orders === 1 ? 'venda' : 'vendas'}</p>
+                        <button onClick={() => pagina.abrir('agora')} className="mt-2.5 h-8 pl-2 pr-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: '#16a34a1c', color: '#15803d' }}>
+                            <span className="w-2 h-2 rounded-full" style={{ background: '#22c55e', boxShadow: '0 0 0 3px #22c55e33' }} />{online === null ? '…' : online} online agora<ChevronRight size={13} />
+                        </button>
+                    </div>
                     <SalesChart orders={paidOrders} period={period} />
                 </div>
                 <button onClick={() => { setExtratoIni(period === 'mes' ? 'mes' : period); pagina.abrir('extrato') }} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
@@ -343,6 +354,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 style={{ bottom: 'calc(var(--shell-bottom, 0px) + 14px)', background: ORANGE, boxShadow: '0 8px 22px #f9731655' }}>
                 <Store size={17} />Venda no balcão
             </button>
+            {pagina.secao === 'agora' && <AgoraNaLoja storeName={store.name} presenca={presenca} onClose={pagina.fechar} />}
             {pagina.secao === 'balcao' && <BalcaoV3 storeId={store.id} storeName={store.name} pixKey={store.pix_key || null} onClose={pagina.fechar} onDone={onSaleCompleted} />}
         </div>
     )

@@ -2,6 +2,7 @@
 // assistido), materiais para baixar e a próxima aula abrindo sozinha. O que já foi concluído e onde parou ficam neste aparelho (localStorage); o acesso vem do banco.
 'use client'
 
+import { useReportStorePresence } from '@/modules/store-presence'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Lock, PlayCircle } from 'lucide-react'
@@ -85,6 +86,8 @@ export default function SalaDeAulaPage() {
     // só áudio = música/álbum: textos e player de música
     const music = !!items?.length && items.filter((i) => i.kind !== 'link').every((i) => i.kind === 'audio' || i.kind === 'document') && items.some((i) => i.kind === 'audio')
     const unit = music ? 'Faixa' : 'Aula'
+    // "Agora na sua loja" do artista/produtor: ouvindo, assistindo ou lendo (sem identidade; o próprio dono não conta)
+    useReportStorePresence(storeId, music ? 'ouvindo' : cur?.kind === 'document' ? 'lendo' : 'assistindo', name || null, !!userId && userId === ownerId)
 
     if (loading || !userId || !items) {
         return <div className="min-h-dvh flex items-center justify-center" style={{ background: C.bg }}><Spinner size={32} color={C.orange} /></div>

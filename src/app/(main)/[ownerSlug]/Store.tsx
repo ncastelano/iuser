@@ -1,6 +1,7 @@
 // src/components/owner/Store.tsx
 'use client'
 
+import { useReportStorePresence } from '@/modules/store-presence'
 import { profileLabel } from '@/lib/profileDisplay'
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
@@ -157,6 +158,8 @@ export function Store({
     const [error, setError] = useState<string | null>(null)
     const [owner, setOwner] = useState<OwnerData | null>(null)
     const [isOwner, setIsOwner] = useState(false)
+    // "Agora na sua loja": avisa (sem identidade) que alguém está vendo a loja; a dona olhando não conta
+    useReportStorePresence(owner?.id, 'loja', null, isOwner)
     // null enquanto carrega (evita mostrar "fechada" num flash antes da
     // resposta chegar) — depois true/false conforme o dono tem assinatura
     // ativa do plano Loja/Combo. Diferente de isStoreOpen (que é sobre
