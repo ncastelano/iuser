@@ -1688,7 +1688,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                                         Chamou você
                                                     </span>
                                                 ) : undefined}
-                                                onApply={() => applyToRide(ride, price)}
+                                                onApply={(p) => applyToRide(ride, p)}
                                                 applying={applyingId === ride.id}
                                                 onInteract={(on) => setSlidingRideId(on ? ride.id : null)}
                                                 applyBlocked={!fromPassenger && rq.shownKind === 'platform' && pickup.state !== 'ready' ? 'Libere sua localização para ver o valor e se candidatar' : null}

@@ -6,7 +6,7 @@
 // Desenho aprovado em /paginateste?lab=corrida.
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { ArrowRight, Bike, Car, ChevronDown, Clock, Flame, TrendingUp, Truck, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -16,6 +16,7 @@ import { humanizeRideSpecs } from '@/lib/rideSpecs'
 import type { VehicleType } from '@/lib/rideVehicle'
 import { perHour as perHourOf, rideValuation } from '@/modules/negotiation/domain'
 import type { OfferRide, OfferRequester } from './RideOfferCard'
+import { RideValuePickContext } from './rideValuePick'
 
 const ORANGE = '#f97316'
 const GREEN = '#16a34a'
@@ -74,7 +75,7 @@ interface RideSummaryCardProps {
     /** faixa extra no topo (ex.: "Chamou você") */
     topBadge?: ReactNode
     /** candidatar DESLIZANDO (/aceitar-corridas): no lugar do botão grande aparece o deslizar, que se candidata pelo valor do card; "Detalhes" é só para ver melhor */
-    onApply?: () => void | Promise<void>
+    onApply?: (price: number) => void | Promise<void>
     applying?: boolean
     /** por que não dá para se candidatar agora (ex.: valor ainda aproximado): aparece no lugar do deslizar */
     applyBlocked?: string | null
@@ -91,14 +92,29 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
     const { tier, extra } = fromPassenger && !isStore ? rideValuation(price, reference) : { tier: 'none' as const, extra: 0 }
     const hot = tier === 'great'
     const accent = tier === 'none' ? colors.textPrimary : hot ? '#ea580c' : GREEN
+    // o valor ESCOLHIDO na lista do card aberto (RideOfferCard dentro do "Detalhes"): passa a ser o valor grande e o do deslizar
+    const [picked, setPicked] = useState<{ price: number | null; blocked: string | null } | null>(null)
+    const onPick = useCallback((p: number | null, b: string | null) => setPicked((cur) => (cur && cur.price === p && cur.blocked === b ? cur : { price: p, blocked: b })), [])
+    const pickCtx = useMemo(() => ({ initial: price, viewOnly: !onApply, set: onPick }), [price, onApply, onPick])
+    const shownPrice = picked?.price ?? price
     const name = requester.name || (requester.slug ? `@${requester.slug}` : 'Passageiro')
     const KindIcon = isStore ? Truck : VEHICLE_ICON[ride.vehicle_type] ?? Car
     const waited = Math.floor((Date.now() - new Date(ride.created_at).getTime()) / 60000)
-    const perHour = perHourOf(price, totalMin)
+    const perHour = perHourOf(shownPrice, totalMin)
     const spec = humanizeRideSpecs(ride)[0]
     const when = ride.scheduled_for
         ? `agendada para ${new Date(ride.scheduled_for).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
         : ago(ride.created_at)
+
+    const cta = onApply ? (
+                        <SlideToConfirm label={`Deslize para se candidatar · ${brl(shownPrice)}`} ariaLabel={`Candidatar por ${brl(shownPrice)}`} busy={applying}
+                            blocked={picked ? (picked.price == null ? 'Digite o valor que você quer cobrar' : picked.blocked) : applyBlocked}
+                            onConfirm={() => onApply(picked?.price ?? price)} onDragChange={onInteract} />
+                    ) : (
+                        <button onClick={onOpen} className="h-12 rounded-full text-white text-[14px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition" style={{ background: hot ? GRADIENT : ORANGE }}>
+                            {ctaLabel} <ArrowRight size={17} />
+                        </button>
+                    )
 
     return (
         <article className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${hot ? `${ORANGE}66` : colors.border}`, boxShadow: hot ? `0 10px 30px ${ORANGE}26` : colors.shadow }}>
@@ -130,8 +146,8 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                 {/* O VALOR */}
                 <div className="flex items-end justify-between gap-3">
                     <div className="min-w-0">
-                        {approx && <p className="text-[11px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>a partir de</p>}
-                        <Money value={price} color={accent} />
+                        {approx && !picked && <p className="text-[11px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>a partir de</p>}
+                        <Money value={shownPrice} color={accent} />
                         <p className="text-[13px] font-black mt-1.5" style={{ color: tier === 'none' ? colors.textSecondary : accent }}>
                             {perHour != null ? `R$ ${Math.round(perHour)} por hora` : toPickup.hasGps ? 'calculando quanto rende…' : 'ative o GPS para ver quanto rende por hora'}
                         </p>
@@ -157,18 +173,13 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                     </p>
                 )}
 
-                {onApply ? (
-                    <SlideToConfirm label={`Deslize para se candidatar · ${brl(price)}`} ariaLabel={`Candidatar por ${brl(price)}`} busy={applying} blocked={applyBlocked} onConfirm={onApply} onDragChange={onInteract} />
-                ) : (
-                    <button onClick={onOpen} className="h-12 rounded-full text-white text-[14px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition" style={{ background: hot ? GRADIENT : ORANGE }}>
-                        {ctaLabel} <ArrowRight size={17} />
-                    </button>
-                )}
-
+                {!open && cta}
                 <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex items-center justify-center gap-1 text-[12px] font-bold py-0.5" style={{ color: colors.textSecondary }}>
-                    {open ? 'Esconder detalhes' : 'Detalhes'} <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
+                    {open ? 'Fechar' : onApply ? 'Escolher outro valor · detalhes' : 'Valores e detalhes'} <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
                 </button>
-                {open && <div className="rounded-2xl p-3" style={{ background: `${colors.border}14`, border: `1px solid ${colors.border}` }}>{details}</div>}
+                {open && <div className="rounded-2xl p-3" style={{ background: `${colors.border}14`, border: `1px solid ${colors.border}` }}><RideValuePickContext.Provider value={pickCtx}>{details}</RideValuePickContext.Provider></div>}
+                {/* aberto: a lista de valores vem ANTES do deslizar (escolhe e desliza logo embaixo) */}
+                {open && cta}
             </div>
         </article>
     )

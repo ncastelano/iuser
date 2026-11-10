@@ -6,8 +6,8 @@
 // lápis pra digitar outro valor), só que dentro do card embaixo do mapa.
 'use client'
 
-import { useState, type ReactNode } from 'react'
-import { Package, PawPrint, Star, CalendarClock, Pencil, X, Users, Car, Baby, ShoppingBag, AlertTriangle, Accessibility, Eye, Banknote, CreditCard, QrCode, MapPin, Building2, Truck, type LucideIcon } from 'lucide-react'
+import { useContext, useEffect, useState, type ReactNode } from 'react'
+import { ChevronDown, Package, PawPrint, Star, CalendarClock, Pencil, X, Users, Car, Baby, ShoppingBag, AlertTriangle, Accessibility, Eye, Banknote, CreditCard, QrCode, MapPin, Building2, Truck, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useInsideShell } from '@/components/InsideShell'
 import { Spinner } from '@/components/Spinner'
@@ -18,6 +18,7 @@ import { computeHourlyEarnings } from '@/lib/driverPricing'
 import { effectiveTimeRate, timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
+import { RideValuePickContext } from './rideValuePick'
 
 const TIME_GRADIENT = 'linear-gradient(135deg, #8b5cf6, #6d28d9)'
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -184,6 +185,41 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const blocked = (price: number) => belowPlatformFloor(price, platFloor) || (protection === 'block' && below(price))
     const [counterOpen, setCounterOpen] = useState(false)
 
+    // ABERTO DENTRO DO CARD ENXUTO (RideSummaryCard): primeiro a LISTA DE VALORES para escolher (o escolhido vira o valor grande e o do deslizar);
+    // o resto (o que a corrida leva, mapa, trechos, como cada valor foi feito) fica recolhido em "Ver detalhes da corrida".
+    const pick = useContext(RideValuePickContext)
+    const embedded = !!pick
+    const [sel, setSel] = useState<string | null>(null)
+    const [showMore, setShowMore] = useState(false)
+    type Opt = { key: string; label: string; value: number; tag?: string }
+    const options: Opt[] = (() => {
+        if (!embedded || ride.offered_price != null || footer || valueBox) return []
+        const raw: Opt[] = []
+        if (ride.passenger_offer != null) raw.push({ key: 'offer', label: 'Oferta do passageiro', value: round2(Number(ride.passenger_offer)) })
+        raw.push({ key: 'iuser', label: pickup && pickup.state !== 'ready' ? 'Tarifa iUser · a partir de' : 'Tarifa iUser', value: round2(platformPrice) })
+        if (myFare != null) raw.push({ key: 'km', label: 'Minha tarifa por km', value: round2(myFare), tag: myFareDriver === 'platform' ? 'mínimo da plataforma' : myFareDriver === 'hourly' ? 'seu mínimo por hora' : undefined })
+        else if (iuserSuggestion != null) raw.push({ key: 'sug', label: 'Sugestão do iUser', value: round2(iuserSuggestion), tag: 'seu mínimo por hora' })
+        if (myTime != null) raw.push({ key: 'tempo', label: timeIsDefault ? 'Por tempo · padrão iUser' : 'Minha tarifa por tempo', value: round2(myTime), tag: timeFloorRaised ? 'mínimo' : undefined })
+        // valores IGUAIS viram uma linha só (ex.: "Tarifa iUser = Minha tarifa por km")
+        const out: Opt[] = []
+        for (const o of raw) {
+            const same = out.find((x) => Math.abs(x.value - o.value) < 0.005)
+            if (same) { same.label = `${same.label} = ${o.label}`; same.tag = same.tag ?? o.tag } else out.push({ ...o })
+        }
+        return out
+    })()
+    const initialKey = options.find((o) => pick && Math.abs(o.value - pick.initial) < 0.005)?.key ?? options[0]?.key ?? null
+    const curKey = sel ?? initialKey
+    const typed = parseMoney(value)
+    const curValue = curKey === 'outro' ? (typed != null && !validateAmount(typed) ? typed : null) : options.find((o) => o.key === curKey)?.value ?? null
+    const whyBlocked = (v: number | null): string | null => v == null ? 'Digite o valor que você quer cobrar'
+        : belowPlatformFloor(v, platFloor) ? platformFloorText(platFloor, minPerMinute)
+        : protection === 'block' && below(v) && minHourly != null && perHour(v) != null ? belowMinimumText(perHour(v) as number, minHourly, 'proposta') : null
+    const curBlocked = whyBlocked(curValue)
+    const setPick = pick?.set
+    const pickLive = embedded && !viewOnly && options.length > 0
+    useEffect(() => { if (pickLive && setPick && curKey) setPick(curValue, curBlocked) }, [pickLive, setPick, curKey, curValue, curBlocked])
+
     const haveTotal = toPickup.km != null && toPickup.min != null && trip.km != null && trip.min != null
     const totalKm = haveTotal ? (toPickup.km as number) + (trip.km as number) : null
     const totalMin = haveTotal ? (toPickup.min as number) + (trip.min as number) : null
@@ -215,10 +251,49 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
         </div>
     )
 
+    // Como cada valor foi feito (fica no fim; aberto dentro do card enxuto, só em "Ver detalhes da corrida")
+    const notes = (
+        <>
+                    {/* Como cada valor foi feito (as caixas ficam estreitas com três lado a lado) */}
+                    <div className="flex flex-col gap-0.5">
+                        {pickup?.state === 'ready' && (
+                            <p className="text-[10px] leading-snug" style={{ color: '#16a34a' }}>
+                                Ir buscar ({kmText(pickup.km)}{pickup.from === 'saved' ? ', pela sua última posição salva' : ''}): {brl(pickup.amount)} pela Tarifa iUser{customPickup > 0 ? ` · ${brl(customPickup)} pelo seu valor por km` : ''}
+                            </p>
+                        )}
+                        {pickup && pickup.state !== 'ready' && (
+                            <p className="text-[10px] leading-snug font-semibold" style={{ color: '#d97706' }}>
+                                {pickup.state === 'waiting' ? 'Localizando... falta somar a distância até a partida' : 'Sem o seu local não dá para somar a distância até a partida: defina o local ou libere o GPS'}
+                            </p>
+                        )}
+                        {pickup && pickup.state !== 'ready' && tripFareNote && (
+                            <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>{tripFareNote}</p>
+                        )}
+                        {myTime != null && minutesTotal != null && rateUsed != null && (
+                            <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>
+                                Por tempo: {Math.round(minutesTotal)} min × {brl(rateUsed)} por minuto ({timeIsDefault ? `padrão do iUser: R$ ${defaultHourly.toLocaleString('pt-BR')} por hora — defina o seu em Tarifa` : 'sua tarifa por tempo'}){timeExtras > 0 ? ` + ${brl(timeExtras)} de extras` : ''}{timeFloorRaised ? ' · subiu até o mínimo' : ''}
+                            </p>
+                        )}
+                        {rateUsed != null && minutesTotal == null && (
+                            <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>Por tempo: ainda falta o tempo até a partida (libere o GPS ou defina o seu local).</p>
+                        )}
+                    </div>
+                    {myFareWhy && (
+                        <p className="text-[10px] leading-snug font-semibold" style={{ color: '#b45309' }}>{myFareWhy}</p>
+                    )}
+                    {platFloor > 0 && (
+                        <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>
+                            Mínimo da plataforma nesta corrida: <strong style={{ color: colors.textPrimary }}>{brl(platFloor)}</strong> · {brl(minPerMinute)} por minuto de trabalho ({minutesTotal != null ? `${Math.round(minutesTotal)} min` : ''})
+                        </p>
+                    )}
+
+        </>
+    )
+
     return (
         <div className="flex flex-col gap-2">
-            {/* Quem pediu e quando */}
-            <div className="flex items-center gap-2">
+            {/* Quem pediu e quando (no card aberto dentro do enxuto, ele já disse) */}
+            {!embedded && <div className="flex items-center gap-2">
                 <PlanAvatarRing userId={requester.id}>
                 {requester.avatarUrl ? (
                     <img src={requester.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
@@ -242,8 +317,62 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         )}
                     </p>
                 </div>
-            </div>
+            </div>}
 
+            {embedded && options.length > 0 && (
+                <div className="flex flex-col gap-1.5" role={viewOnly ? undefined : 'radiogroup'} aria-label="Escolha o valor">
+                    <p className="text-[12px] font-black" style={{ color: colors.textSecondary }}>{viewOnly ? 'Valores desta corrida' : 'Escolha o valor'}</p>
+                    {options.map((o) => {
+                        const on = !viewOnly && curKey === o.key
+                        const h = perHour(o.value)
+                        const low = below(o.value)
+                        return (
+                            <button key={o.key} type="button" role={viewOnly ? undefined : 'radio'} aria-checked={viewOnly ? undefined : on} disabled={viewOnly} onClick={() => setSel(o.key)}
+                                className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition active:scale-[0.99] disabled:active:scale-100"
+                                style={{ border: `1.5px solid ${on ? '#f97316' : colors.border}`, background: on ? '#f9731610' : 'transparent' }}>
+                                {!viewOnly && <span className="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-shrink-0" style={{ border: `2px solid ${on ? '#f97316' : colors.border}` }}>{on && <span className="w-2 h-2 rounded-full" style={{ background: '#f97316' }} />}</span>}
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-[13px] font-black leading-tight" style={{ color: colors.textPrimary }}>{o.label}</span>
+                                    {(h != null || o.tag || low) && (
+                                        <span className="block text-[11px] font-semibold leading-tight mt-0.5" style={{ color: low ? '#d97706' : colors.textSecondary }}>
+                                            {[h != null ? `R$ ${h} por hora` : '', o.tag ?? '', low ? 'abaixo do seu mínimo' : ''].filter(Boolean).join(' · ')}
+                                        </span>
+                                    )}
+                                </span>
+                                <span className="text-[17px] font-black tabular-nums flex-shrink-0" style={{ color: on ? '#ea580c' : colors.textPrimary }}>{brl(o.value)}</span>
+                            </button>
+                        )
+                    })}
+                    {!viewOnly && (
+                        <div className="flex items-center gap-2.5 rounded-2xl px-3 py-2 transition" role="radio" aria-checked={curKey === 'outro'} onClick={() => setSel('outro')}
+                            style={{ border: `1.5px solid ${curKey === 'outro' ? '#f97316' : colors.border}`, background: curKey === 'outro' ? '#f9731610' : 'transparent' }}>
+                            <span className="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-shrink-0" style={{ border: `2px solid ${curKey === 'outro' ? '#f97316' : colors.border}` }}>{curKey === 'outro' && <span className="w-2 h-2 rounded-full" style={{ background: '#f97316' }} />}</span>
+                            <span className="text-[13px] font-black flex-shrink-0" style={{ color: colors.textPrimary }}>Outro valor</span>
+                            <input inputMode="decimal" value={value} placeholder="R$ 0,00" onFocus={() => setSel('outro')}
+                                onChange={(e) => { setSel('outro'); setValue(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9)) }}
+                                className="flex-1 min-w-0 text-right text-[16px] font-black bg-transparent outline-none tabular-nums" style={{ color: colors.textPrimary }} />
+                        </div>
+                    )}
+                    {/* valor que não pode ser enviado: o motivo aparece no próprio deslizar, logo abaixo */}
+                    {!viewOnly && curValue != null && !curBlocked && below(curValue) && minHourly != null && perHour(curValue) != null && (
+                        <p className="text-[11px] font-bold leading-snug" style={{ color: '#b45309' }}>{belowMinimumText(perHour(curValue) as number, minHourly, 'proposta')}</p>
+                    )}
+                    {onEditTariff && (
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                            Ajustar minha tarifa:{' '}
+                            <button type="button" onClick={() => onEditTariff('km')} className="font-black underline" style={{ color: colors.textPrimary }}>por km</button>{' · '}
+                            <button type="button" onClick={() => onEditTariff('tempo')} className="font-black underline" style={{ color: colors.textPrimary }}>por tempo</button>
+                        </p>
+                    )}
+                </div>
+            )}
+            {embedded && (
+                <button type="button" onClick={() => setShowMore((v) => !v)} aria-expanded={showMore} className="flex items-center justify-center gap-1 text-[12px] font-bold py-1" style={{ color: colors.textSecondary }}>
+                    {showMore ? 'Esconder detalhes da corrida' : 'Ver detalhes da corrida'} <ChevronDown size={14} style={{ transform: showMore ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
+                </button>
+            )}
+
+            {(!embedded || showMore) && <>
             {/* Resumo em lista: veículo, o que leva, pagamento... uma linha cada, com ícone e cor */}
             <div className="flex flex-col gap-1">
                 {[
@@ -265,8 +394,10 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
 
             {miniMap}
 
-            {/* De onde pra onde */}
-            <div className="flex items-stretch gap-2.5">
+            {/* De onde pra onde (o card enxuto já diz; aberto dentro dele sobram só as paradas) */}
+            {embedded ? ((ride.stop1_address || ride.stop2_address) ? (
+                <p className="text-[11px] leading-tight" style={{ color: colors.textSecondary }}>Paradas: {[ride.stop1_address, ride.stop2_address].filter(Boolean).map((a) => placeLabel(a as string)).join(' · ')}</p>
+            ) : null) : <div className="flex items-stretch gap-2.5">
                 <div className="flex flex-col items-center py-1 flex-shrink-0">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#22c55e' }} />
                     <span className="flex-1 w-px my-0.5" style={{ background: colors.border }} />
@@ -285,7 +416,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         <span className="font-normal" style={{ color: colors.textSecondary }}>Leva até </span>{placeLabel(ride.destination_address)}
                     </p>
                 </div>
-            </div>
+            </div>}
 
             {/* Quanto falta: cores iguais às linhas do mapa */}
             <div className="flex gap-1.5">
@@ -301,6 +432,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                     Se sair agora, termina por volta das <span className="font-black" style={{ color: colors.textPrimary }}>{arrivalTime}</span>
                 </p>
             )}
+            {embedded && options.length > 0 && notes}
+            </>}
 
             {/* Valor já definido: mesmo desenho das tarifas, com o ganho por hora */}
             {valueBox && (
@@ -352,7 +485,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         </>
                     )}
                 </>
-            )) : ride.passenger_offer != null ? (
+            )) : embedded ? null : ride.passenger_offer != null ? (
                 // NEGOCIAÇÃO: o passageiro ofereceu um valor. Referência, oferta e minha tarifa lado a lado, com o ganho por hora de cada uma.
                 (() => {
                     const offer = Number(ride.passenger_offer)
@@ -528,38 +661,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         </button>}
                     </div>
 
-                    {/* Como cada valor foi feito (as caixas ficam estreitas com três lado a lado) */}
-                    <div className="flex flex-col gap-0.5">
-                        {pickup?.state === 'ready' && (
-                            <p className="text-[10px] leading-snug" style={{ color: '#16a34a' }}>
-                                Ir buscar ({kmText(pickup.km)}{pickup.from === 'saved' ? ', pela sua última posição salva' : ''}): {brl(pickup.amount)} pela Tarifa iUser{customPickup > 0 ? ` · ${brl(customPickup)} pelo seu valor por km` : ''}
-                            </p>
-                        )}
-                        {pickup && pickup.state !== 'ready' && (
-                            <p className="text-[10px] leading-snug font-semibold" style={{ color: '#d97706' }}>
-                                {pickup.state === 'waiting' ? 'Localizando... falta somar a distância até a partida' : 'Sem o seu local não dá para somar a distância até a partida: defina o local ou libere o GPS'}
-                            </p>
-                        )}
-                        {pickup && pickup.state !== 'ready' && tripFareNote && (
-                            <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>{tripFareNote}</p>
-                        )}
-                        {myTime != null && minutesTotal != null && rateUsed != null && (
-                            <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>
-                                Por tempo: {Math.round(minutesTotal)} min × {brl(rateUsed)} por minuto ({timeIsDefault ? `padrão do iUser: R$ ${defaultHourly.toLocaleString('pt-BR')} por hora — defina o seu em Tarifa` : 'sua tarifa por tempo'}){timeExtras > 0 ? ` + ${brl(timeExtras)} de extras` : ''}{timeFloorRaised ? ' · subiu até o mínimo' : ''}
-                            </p>
-                        )}
-                        {rateUsed != null && minutesTotal == null && (
-                            <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>Por tempo: ainda falta o tempo até a partida (libere o GPS ou defina o seu local).</p>
-                        )}
-                    </div>
-                    {myFareWhy && (
-                        <p className="text-[10px] leading-snug font-semibold" style={{ color: '#b45309' }}>{myFareWhy}</p>
-                    )}
-                    {platFloor > 0 && (
-                        <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>
-                            Mínimo da plataforma nesta corrida: <strong style={{ color: colors.textPrimary }}>{brl(platFloor)}</strong> · {brl(minPerMinute)} por minuto de trabalho ({minutesTotal != null ? `${Math.round(minutesTotal)} min` : ''})
-                        </p>
-                    )}
+                    {notes}
 
                     {editing && belowPlatformFloor(parseFloat(value) || 0, platFloor) && (
                         <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>{platformFloorText(platFloor, minPerMinute)}</p>
