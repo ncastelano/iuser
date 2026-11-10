@@ -13,6 +13,7 @@ import { toast } from '@/lib/toast'
 import { releaseOrder } from '@/modules/digital'
 import { hexToRgb } from '@/lib/color'
 import {
+    ChevronRight,
     Send,
     X,
     Store,
@@ -37,6 +38,7 @@ import { getWhatsAppLink } from '@/lib/whatsapp'
 import { handleShareLink } from '@/lib/share'
 import { STORE_STATE_TEXT, brl as brlText } from '@/modules/delivery-search'
 import StoreDeliveryPayment from '@/components/DeliveryPayment/StoreDeliveryPayment'
+import { useFunnelFlip } from './painel/useFunnelFlip'
 
 // Entrega V2 vista pela loja: o estado vem da fase da entrega (o pedido continua com o status dele)
 const RELEASED_PHASES = ['ENTREGA_LIBERADA', 'A_CAMINHO_DA_LOJA', 'CHEGOU_NA_LOJA', 'PEDIDO_RETIRADO', 'A_CAMINHO_DO_CLIENTE', 'ENTREGUE', 'CONCLUIDO']
@@ -270,6 +272,7 @@ export default function StoreOrders({
 
     // Ref para evitar múltiplas chamadas
     const isLoadingRef = useRef(false)
+    const [movedId, setMovedId] = useState<string | null>(null)      // o pedido que acabou de mudar de etapa (vai para o topo da etapa nova)
     const isMountedRef = useRef(true)
     const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
     const [isAutoRefreshing, setIsAutoRefreshing] = useState(false)
@@ -864,6 +867,7 @@ export default function StoreOrders({
     const preparing = groupedOrders.filter(o => o.status === 'preparing')
     const ready = groupedOrders.filter(o => o.status === 'ready')
     const finished = groupedOrders.filter(o => o.status === 'paid')
+    const flipFx = useFunnelFlip(groupedOrders)
     // funil do painel: novos → em preparo → prontos (esperando quem retira) → a caminho do cliente
     const isDelivery = (o: any) => !!o.delivery_address && o.delivery_address !== 'Retirada no local'
     const onTheWay = ready.filter((o) => isDelivery(o) && dispatchInfo.get(o.id)?.stage === 'in_transit')
@@ -1364,53 +1368,94 @@ export default function StoreOrders({
                             )
                             const SHOW = 6
                             const act = async (o: any, next: string) => { setQuickBusy(o.checkout_id); await handleOrderAction(next, o); setQuickBusy(null) }
-                            const Btn = ({ o, next, label, color }: { o: any; next: string; label: string; color: string }) => (
-                                <button type="button" disabled={quickBusy === o.checkout_id} onClick={() => act(o, next)} className="h-9 px-4 rounded-full text-[12px] font-black text-white transition active:scale-95 disabled:opacity-60" style={{ background: color }}>
-                                    {quickBusy === o.checkout_id ? '…' : label}
+                            // muda de etapa COM a animação: fotografa antes, o pedido desce quando a lista nova chega
+                            const goStage = async (o: any, next: string, from: string, to: string) => {
+                                const col = (k: string) => ({ new: '#22c55e', prep: '#ca8a04', ready: '#a855f7', way: '#3b82f6', done: '#2563eb' } as Record<string, string>)[k]
+                                flipFx.marcar(`o${o.checkout_id}`, col(from), col(to))
+                                setMovedId(o.checkout_id)
+                                setQuickBusy(o.checkout_id)
+                                try { await handleOrderAction(next, o) } finally { setQuickBusy(null); setTimeout(() => flipFx.cancelar(), 8000) }
+                            }
+                            const Btn = ({ o, next, label, color, from, to }: { o: any; next: string; label: string; color: string; from?: string; to?: string }) => (
+                                <button type="button" data-acao disabled={quickBusy === o.checkout_id} onClick={() => (from && to ? goStage(o, next, from, to) : act(o, next))} className="h-9 px-4 rounded-full text-[12px] font-black text-white transition active:scale-95 disabled:opacity-60" style={{ background: color }}>
+                                    <span data-troca className="inline-block">{quickBusy === o.checkout_id ? '…' : label}</span>
                                 </button>
                             )
                             const more = (n: number) => n > SHOW && storeSlug ? (
                                 <button type="button" onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)} className="text-[11px] font-black self-start px-1 underline" style={{ color: colors.textSecondary }}>+ {n - SHOW} na página de pedidos</button>
                             ) : null
+                            // o funil do painel (igual ao laboratório /painel-teste): seções EMPILHADAS, nada atrás de aba; o pedido que muda de etapa
+                            // DESCE até a seção seguinte (useFunnelFlip) e fica no topo dela; até 2 por seção ("Ver mais N" leva à página)
+                            const day0 = new Date(); day0.setHours(0, 0, 0, 0)
+                            const finishedToday = finished.filter((o: any) => new Date(o.created_at) >= day0)
                             const sections = [
-                                { key: 'new', title: 'Novos', color: '#22c55e', list: newOrders },
-                                { key: 'prep', title: 'Em preparo', color: '#eab308', list: preparing },
-                                { key: 'ready', title: 'Prontos', color: '#a855f7', list: readyWaiting },
-                                { key: 'way', title: 'A caminho do cliente', color: '#3b82f6', list: onTheWay },
+                                { key: 'new', title: 'Novos', short: 'Novos', color: '#22c55e', list: newOrders },
+                                { key: 'prep', title: 'Em preparo', short: 'Preparo', color: '#ca8a04', list: preparing },
+                                { key: 'ready', title: 'Prontos', short: 'Prontos', color: '#a855f7', list: readyWaiting },
+                                { key: 'way', title: 'A caminho do cliente', short: 'Caminho', color: '#3b82f6', list: onTheWay },
+                                { key: 'done', title: 'Finalizados hoje', short: 'Feitos', color: '#2563eb', list: finishedToday },
                             ]
-                            const total = sections.reduce((n, x) => n + x.list.length, 0)
+                            const colorOf = (k: string) => sections.find((x) => x.key === k)!.color
+                            const firstMoved = (list: any[]) => (movedId ? [...list].sort((a, b) => Number(b.checkout_id === movedId) - Number(a.checkout_id === movedId)) : list)
+                            const PER = 2
+                            const total = sections.slice(0, 4).reduce((n, x) => n + x.list.length, 0)
                             return (
                                 <>
-                                    {total === 0 && (
+                                    <style>{`@keyframes funilBrilho { 0% { box-shadow: 0 0 0 0 var(--funil-cor) } 40% { box-shadow: 0 0 0 5px var(--funil-cor) } 100% { box-shadow: 0 0 0 0 transparent } } @media (prefers-reduced-motion: reduce) { .funil-anim { animation: none !important } }`}</style>
+                                    {/* resumo do funil: tocar leva à seção */}
+                                    <div className="flex items-center justify-between gap-0.5">
+                                        {sections.map((x, i) => (
+                                            <span key={x.key} className="flex items-center gap-0.5 flex-1 min-w-0">
+                                                <button type="button" onClick={() => document.getElementById(`funil-${x.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="flex-1 min-w-0 rounded-2xl py-1.5 text-center active:scale-95 transition" style={{ background: x.list.length ? `${x.color}22` : `${colors.border}30` }}>
+                                                    <span className="block text-[18px] font-black leading-none" style={{ color: x.list.length ? x.color : colors.textSecondary }}>{x.list.length}</span>
+                                                    <span className="block text-[9.5px] font-bold mt-0.5 leading-tight truncate" style={{ color: colors.textSecondary }}>{x.short}</span>
+                                                </button>
+                                                {i < sections.length - 1 && <ChevronRight size={11} style={{ color: colors.textSecondary }} className="flex-shrink-0" />}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    {total === 0 && finishedToday.length === 0 && (
                                         <p className="text-[13px] font-bold px-0.5" style={{ color: colors.textSecondary }}>Nenhum pedido em andamento. Quando chegar um, ele aparece aqui para você aceitar.</p>
                                     )}
-                                    {sections.filter((x) => x.list.length > 0).map((x) => (
-                                        <div key={x.key} className="flex flex-col gap-1.5">
-                                            <Head color={x.color} title={x.title} n={x.list.length} />
-                                            {x.list.slice(0, SHOW).map((o: any) => (
-                                                <FlowRow key={o.checkout_id} order={o} color={x.color} line={lineFor(o)} colors={colors} onOpen={() => setSelectedOrder(o)}>
-                                                    {x.key === 'new' && (
-                                                        <>
-                                                            <button type="button" aria-label="Recusar pedido" title="Recusar" disabled={quickBusy === o.checkout_id}
-                                                                onClick={() => { if (window.confirm('Recusar este pedido? O cliente será avisado.')) act(o, 'rejected') }}
-                                                                className="w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90 disabled:opacity-60" style={{ background: '#ef444418', color: '#dc2626' }}>
-                                                                <X size={16} />
-                                                            </button>
-                                                            <Btn o={o} next="preparing" label="Aceitar" color="#16a34a" />
-                                                        </>
-                                                    )}
-                                                    {x.key === 'prep' && <Btn o={o} next="ready" label="Pronto" color="#d97706" />}
-                                                    {/* entrega: quem conclui é o entregador; a loja só finaliza o que o cliente retira */}
-                                                    {x.key === 'ready' && !isDelivery(o) && <Btn o={o} next="paid" label="Retirado" color="#7c3aed" />}
-                                                </FlowRow>
-                                            ))}
-                                            {more(x.list.length)}
-                                        </div>
-                                    ))}
+                                    {sections.map((x) => {
+                                        const list = firstMoved(x.list)
+                                        return (
+                                            <div key={x.key} id={`funil-${x.key}`} className="flex flex-col gap-2">
+                                                <div data-flip={`h${x.key}`} className="relative flex items-center gap-2">
+                                                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: x.color }} />
+                                                    <h4 className="text-[12px] font-black uppercase tracking-wider" style={{ color: x.color }}>{x.title}</h4>
+                                                    <span className="text-[11px] font-black min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-white" style={{ background: x.list.length ? x.color : colors.border }}>{x.list.length}</span>
+                                                    {x.list.length === 0 && <span className="text-[11.5px] font-semibold" style={{ color: colors.textSecondary }}>nenhum agora</span>}
+                                                </div>
+                                                {list.slice(0, PER).map((o: any) => (
+                                                    <FlowRow key={o.checkout_id} order={o} color={x.color} line={x.key === 'done' ? { text: isDelivery(o) ? 'Entregue' : 'Retirado na loja', tone: 'plain' } : lineFor(o)} colors={colors} onOpen={() => setSelectedOrder(o)}
+                                                        flipKey={`o${o.checkout_id}`} glow={flipFx.chegou === `o${o.checkout_id}`}>
+                                                        {x.key === 'new' && (
+                                                            <>
+                                                                <button type="button" aria-label="Recusar pedido" title="Recusar" disabled={quickBusy === o.checkout_id}
+                                                                    onClick={() => { if (window.confirm('Recusar este pedido? O cliente será avisado.')) act(o, 'rejected') }}
+                                                                    className="w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90 disabled:opacity-60" style={{ background: '#ef444418', color: '#dc2626' }}>
+                                                                    <X size={16} />
+                                                                </button>
+                                                                <Btn o={o} next="preparing" label="Aceitar" color="#16a34a" from="new" to="prep" />
+                                                            </>
+                                                        )}
+                                                        {x.key === 'prep' && <Btn o={o} next="ready" label="Pronto" color="#ca8a04" from="prep" to="ready" />}
+                                                        {/* entrega: quem conclui é o entregador; a loja só finaliza o que o cliente retira */}
+                                                        {x.key === 'ready' && !isDelivery(o) && <Btn o={o} next="paid" label="Retirado" color="#7c3aed" from="ready" to="done" />}
+                                                    </FlowRow>
+                                                ))}
+                                                {x.list.length > PER && storeSlug && (
+                                                    <button type="button" data-flip={`m${x.key}`} onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)} className="relative text-[12px] font-black self-start px-1 flex items-center gap-0.5" style={{ color: x.color }}>
+                                                        Ver mais {x.list.length - PER}<ChevronRight size={13} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
                                     {storeSlug && (
-                                        <button type="button" onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)} className="h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-2 transition active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                        <button type="button" onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)} className="h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-2 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
                                             Ver todos os pedidos e o histórico
-                                            {finished.length > 0 && <span className="px-2 py-0.5 rounded-full text-[10px]" style={{ background: '#3b82f622', color: '#3b82f6' }}>{finished.length} finalizados</span>}
                                         </button>
                                     )}
                                 </>
@@ -1523,7 +1568,7 @@ export default function StoreOrders({
 }
 
 /** Uma linha do FUNIL de pedidos do painel da loja: quem pediu, o que é, quanto, e UMA frase sobre a entrega — com a ação da etapa à direita */
-function FlowRow({ order, color, line, onOpen, children, colors }: { order: any; color: string; line: { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain'; code?: string }; onOpen: () => void; children?: React.ReactNode; colors: any }) {
+function FlowRow({ order, color, line, onOpen, children, colors, flipKey, glow }: { order: any; color: string; line: { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain'; code?: string }; onOpen: () => void; children?: React.ReactNode; colors: any; flipKey?: string; glow?: boolean }) {
     const who = order.buyer_profile_slug ? `@${order.buyer_profile_slug}` : (order.buyer_name || 'Cliente')
     const first = order.items?.[0]
     const more = (order.items?.length || 0) - 1
@@ -1531,7 +1576,10 @@ function FlowRow({ order, color, line, onOpen, children, colors }: { order: any;
     const time = order.created_at ? new Date(order.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
     const tone = { ok: '#16a34a', wait: '#d97706', warn: '#dc2626', plain: colors.textSecondary }[line.tone]
     return (
-        <div onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }} className="rounded-2xl pl-3 pr-2 py-2 flex items-center gap-2 cursor-pointer active:scale-[0.995] transition" style={{ background: `${colors.border}26`, borderLeft: `3px solid ${color}` }}>
+        // a PLACA colorida (a cor da etapa) fica por trás e o cartão por cima, deslocado 4 px: na troca de etapa o cartão cobre a faixa e a cor
+        // muda escondida (useFunnelFlip)
+        <div data-flip={flipKey} data-stage={color} className="funil-anim relative rounded-2xl overflow-hidden" style={{ background: color, ['--funil-cor' as string]: `${color}66`, animation: glow ? 'funilBrilho 1.5s ease-out 1.5s backwards' : undefined }}>
+        <div data-card onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }} className="rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2 cursor-pointer active:scale-[0.995] transition" style={{ background: colors.background, border: `1px solid ${colors.border}`, marginLeft: 4 }}>
             <div className="min-w-0 flex-1">
                 <p className="flex items-baseline gap-1.5">
                     <span className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{who}</span>
@@ -1549,6 +1597,7 @@ function FlowRow({ order, color, line, onOpen, children, colors }: { order: any;
                 </p>
             </div>
             {children && <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>{children}</div>}
+        </div>
         </div>
     )
 }
