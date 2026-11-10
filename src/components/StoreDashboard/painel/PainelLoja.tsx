@@ -32,6 +32,7 @@ import ButtonInPersonSale from '../ButtonInPersonSale'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import { gerenciarItens, SELO } from './gerenciar'
 import { TYPE_INFO } from '@/components/planos/PostpaidFees'
+import LogoFolha from './LogoFolha'
 import StoreTips from '@/components/tips/StoreTips'
 import ExtratoCompleto, { type ExtratoPeriodo } from './ExtratoCompleto'
 import { PaginaPainel, useSecaoUrl } from './Casca'
@@ -66,6 +67,8 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
     // páginas que abrem a partir do painel (?secao=): extrato completo, repasses das entregas e apoios recebidos
     const pagina = useSecaoUrl(PAGINAS)
     const [extratoIni, setExtratoIni] = useState<ExtratoPeriodo>('hoje')
+    const [logoOpen, setLogoOpen] = useState(false)
+    const [logo, setLogo] = useState<string | null>(store.logo_url || null)
 
     // ---------- dados novos (cada um some sozinho se falhar) ----------
     const [pub, setPub] = useState<{ level: number; model: string } | null>(null)
@@ -156,11 +159,13 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             {sec('Sua loja')}
             <div className="rounded-[28px] p-3.5" style={card}>
                 <div className="flex items-center gap-3">
-                    <StoreFrame level={pub?.level || 0} size={48} innerRadius={14}>
-                        <span className="w-12 h-12 rounded-[14px] overflow-hidden flex items-center justify-center" style={{ background: `${colors.border}55` }}>
-                            {store.logo_url ? <img src={store.logo_url} alt="" className="w-full h-full object-cover" /> : <Store size={22} style={{ color: ORANGE }} />}
-                        </span>
-                    </StoreFrame>
+                    <button onClick={() => setLogoOpen(true)} aria-label="Logo e moldura" className="flex-shrink-0 active:scale-95 transition">
+                        <StoreFrame level={pub?.level || 0} size={48} innerRadius={14}>
+                            <span className="w-12 h-12 rounded-[14px] overflow-hidden flex items-center justify-center" style={{ background: `${colors.border}55` }}>
+                                {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Store size={22} style={{ color: ORANGE }} />}
+                            </span>
+                        </StoreFrame>
+                    </button>
                     <div className="min-w-0 flex-1">
                         <p className="text-[17px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{store.name}</p>
                         <p className="text-[11.5px] font-semibold truncate" style={{ color: open ? '#16a34a' : colors.textSecondary }}>{status?.text || (open ? 'Aberta agora' : 'Fechada')}</p>
@@ -317,6 +322,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 })}
             </div>
 
+            {logoOpen && <LogoFolha storeId={store.id} storeName={store.name} logoUrl={logo} level={pub?.level || 0} onClose={() => setLogoOpen(false)} onSaved={(u) => { setLogo(u); setLogoOpen(false) }} />}
             {pagina.secao === 'extrato' && <ExtratoCompleto storeId={store.id} storeName={store.name} inicial={extratoIni} onClose={pagina.fechar} />}
             {pagina.secao === 'repasses' && (
                 <PaginaPainel titulo="Repasses das entregas" sub={store.name} cor="#eab308" icone={<Banknote size={18} />} onClose={pagina.fechar}>
