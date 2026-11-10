@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme } from '@/app/contexts/theme'
 import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio, Trash2, ChevronRight, Building2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
@@ -221,6 +222,8 @@ function extractStreetDisplay(fullAddress: string): string {
     return parts[0].trim()
 }
 
+const ORANGE = '#f97316'
+
 export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true, subject = 'profile', allowGuest = false, onClear, askRadarVisibility = false }: LocationPickerProps) {
     const isStore = subject === 'store'
     const { colors } = useTheme()
@@ -267,7 +270,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     // 'complement' vêm depois, em sequência, só depois do endereço definido.
     // Com askRadarVisibility (e logada), a ÚLTIMA etapa (depois do complemento) é a pergunta "aparecer no Radar ou só salvar o endereço".
     const askVisibility = askRadarVisibility && !isStore && !!userId
-    const [step, setStep] = useState<'visibility' | 'choose' | 'address' | 'number' | 'complement'>('choose')
+    // DUAS etapas (10/11/2026; antes eram 4–5 + uma confirmação): 'address' = ONDE FICA (a busca já aberta, com "Usar minha localização" e
+    // "Marcar no mapa" ao lado) e 'details' = número, complemento e (se for o caso) aparecer no Radar, salvando direto.
+    const [step, setStep] = useState<'visibility' | 'choose' | 'address' | 'number' | 'complement' | 'details'>('address')
     const [radarChoice, setRadarChoice] = useState<boolean | null>(null)
     const [savingChoice, setSavingChoice] = useState(false)
     // o que a pessoa já tinha escolhido (se já tem localização salva, vem marcado)
@@ -282,7 +287,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     }, [askVisibility, userId])
     const totalSteps = askVisibility ? 5 : 4
     const stepNo = (n: number) => n
-    const [method, setMethod] = useState<'search' | 'map' | null>(null)
+    const [method, setMethod] = useState<'search' | 'map' | null>('search')
     // Enquanto busca o GPS do aparelho antes de abrir o mapa (só quando não
     // há localização salva pra centralizar nela) - sem isso o mapa abriria
     // sempre no mesmo ponto fixo (Brasília), em vez de onde a pessoa está.
@@ -334,9 +339,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
             () => {
                 // Sem achar a posição, não abre o mapa num ponto qualquer: volta pras opções com o aviso
                 setResolvingMapEntry(false)
-                setMethod(null)
-                setStep('choose')
-                setError('Não consegui achar sua localização. Libere o acesso ao local no aparelho, ou escolha escrever o endereço / marcar no mapa.')
+                setMethod('search')
+                setStep('address')
+                setError('Não consegui achar sua localização. Libere o acesso ao local no aparelho, ou escreva o endereço / marque no mapa.')
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         )
@@ -839,6 +844,25 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         setShowConfirmDialog(true)
     }, [newNumber, newAddress, newComplement, selectedPosition])
 
+    // ===== SALVAR DIRETO (a etapa de detalhes já mostra o resumo: sem a janela de "Confirmar localização") =====
+    const saveNow = useCallback(async () => {
+        if (!newNumber.trim()) { setNumberError('Escreva o número (ou toque em "Sem número")'); return }
+        if (askVisibility && radarChoice === null) { setError('Escolha se você quer aparecer no Radar'); return }
+        setNumberError(''); setError('')
+        let full = newAddress
+        if (newNumber && !/^s\/?n$/i.test(newNumber.trim()) && !newAddress.includes(newNumber)) {
+            const i = full.indexOf(',')
+            if (i !== -1) full = full.slice(0, i) + `, ${newNumber}` + full.slice(i)
+        }
+        const loc = { lat: selectedPosition.lat, lng: selectedPosition.lng, address: full, addressNumber: newNumber, addressComplement: newComplement }
+        if (askVisibility && userId && radarChoice !== null) {
+            setSavingChoice(true)
+            await saveOwnProfile(supabase, userId, radarChoice ? { show_on_map: true, show_location: true } : { show_on_map: false })
+            setSavingChoice(false)
+        }
+        onSave(loc)
+    }, [newNumber, newAddress, newComplement, selectedPosition, askVisibility, radarChoice, userId, onSave])
+
     // ===== ETAPA 3 -> 4: exige número antes de deixar seguir pro complemento =====
     const handleContinueToComplement = useCallback(() => {
         if (!newNumber.trim()) {
@@ -939,563 +963,232 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                 )
     ) : null
 
-    return (
+    const pill = (primary: boolean) => (primary
+        ? { background: ORANGE, color: '#ffffff' }
+        : { background: `${colors.border}40`, color: colors.textPrimary })
+    const field = { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }
+    const head = (n: number, title: string) => (
+        <div className="flex items-start gap-3 mb-3">
+            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}1f`, color: ORANGE }}><MapPin size={19} /></span>
+            <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{isStore ? 'Localização da loja' : 'Sua localização'} · {n} de 2</p>
+                <p className="text-[17px] font-black leading-tight" style={{ color: colors.textPrimary }}>{title}</p>
+            </div>
+            <button onClick={onClose} aria-label="Fechar" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}><X size={16} /></button>
+        </div>
+    )
+
+    // em PORTAL no body e acima da barra do app: desenhado dentro da página ele ficava por baixo da barra de baixo da 3.0 (a página tem a
+    // própria camada) e preso em ancestrais com desfoque
+    if (typeof document === 'undefined') return null
+    return createPortal(
         <>
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,.5)' }} role="dialog" aria-modal="true" aria-label="Definir localização">
                 <div
-                    className="rounded-2xl p-3 sm:p-4 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
-                    style={{
-                        background: colors.surface,
-                        backdropFilter: 'blur(20px) saturate(180%)',
-                        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                        border: `1px solid ${colors.border}`,
-                        color: colors.textPrimary,
-                    }}
+                    className="w-full sm:max-w-lg rounded-t-[28px] sm:rounded-[28px] px-4 pt-3 pb-[calc(16px+env(safe-area-inset-bottom))] max-h-[92dvh] overflow-y-auto"
+                    style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary, boxShadow: '0 -16px 40px rgba(0,0,0,.25)', marginBottom: 'var(--staging-banner-h, 0px)' }}
                 >
-                    <h3 className="text-base sm:text-lg font-extrabold mb-3 tracking-tight flex items-center gap-2">
-                        <MapPin size={20} style={{ color: '#f97316' }} />
-                        {isStore ? 'Localização da loja' : 'Definir localização'}
-                    </h3>
+                    <div className="flex justify-center mb-2 sm:hidden"><span className="w-10 h-1.5 rounded-full" style={{ background: colors.border }} /></div>
 
-                    {/* ===== ETAPA · COMO DEFINIR ===== */}
-                    {step === 'choose' && (
+                    {/* ===== 1 DE 2 · ONDE FICA (busca já aberta; GPS e mapa ao lado) ===== */}
+                    {step === 'address' && (
                         <>
-                            <div className="flex items-center justify-between mb-3">
-                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa {stepNo(1)} de {totalSteps} · Localização
-                                </p>
-                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
-                                    <X size={16} />
-                                </button>
-                            </div>
+                            {head(1, isStore ? 'Onde fica a loja?' : 'Onde você está?')}
 
-                            {savedAddress && (
-                                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl mb-3"
-                                    style={{ background: `${colors.surface}88`, border: '1px solid #3B82F644' }}
-                                >
-                                    <div className="flex-shrink-0 mt-0.5">
-                                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                            <Home size={14} style={{ color: '#3B82F6' }} />
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                            Localização salva
-                                        </span>
-                                        <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                            {savedAddress}
-                                        </p>
-                                        {savedNumber && (
-                                            <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>Nº {savedNumber}</p>
-                                        )}
-                                        {savedComplement && (
-                                            <p className="text-[11px] mt-0.5 opacity-70 italic" style={{ color: colors.textPrimary }}>"{savedComplement}"</p>
-                                        )}
-
-                                        {/* Apagar a localização salva e começar do zero */}
-                                        {clearControl}
-                                    </div>
+                            {savedAddress && method === 'search' && !newAddress && (
+                                <div className="rounded-2xl px-3 py-2.5 mb-3" style={field}>
+                                    <p className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Localização salva</p>
+                                    <p className="text-[13px] font-bold leading-snug mt-0.5">{savedAddress}{savedNumber ? `, ${savedNumber}` : ''}</p>
+                                    {savedComplement && <p className="text-[11.5px] mt-0.5" style={{ color: colors.textSecondary }}>{savedComplement}</p>}
+                                    {clearControl}
                                 </div>
                             )}
 
                             {askLocationForMap ? (
-                                <div className="flex flex-col gap-3 py-1">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#f9731622', color: '#f97316' }}>
-                                            <Navigation size={18} />
-                                        </div>
-                                        <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Onde você está agora?</p>
-                                    </div>
-                                    <p className="text-xs leading-relaxed" style={{ color: colors.textSecondary }}>
-                                        Se você permitir, abrimos o mapa perto de onde você está pra ficar mais fácil achar o melhor lugar pra marcar. Usamos sua posição só pra isso — ela não é salva.
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={skipCurrentPositionForMap}
-                                            className="flex-1 py-2.5 rounded-xl text-xs font-bold border"
-                                            style={{ borderColor: colors.border, color: colors.textPrimary }}
-                                        >
-                                            Agora não
-                                        </button>
-                                        <button
-                                            onClick={useCurrentPositionForMap}
-                                            className="flex-1 py-2.5 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5"
-                                            style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
-                                        >
-                                            <Navigation size={13} />
-                                            Usar minha localização
-                                        </button>
+                                <div className="rounded-2xl p-3.5 mb-3" style={field}>
+                                    <p className="text-[14px] font-black">Abrir o mapa perto de você?</p>
+                                    <p className="text-[12px] mt-1 leading-snug" style={{ color: colors.textSecondary }}>Usamos sua posição só para centralizar o mapa; ela não é salva.</p>
+                                    <div className="flex gap-2 mt-3">
+                                        <button onClick={skipCurrentPositionForMap} className="flex-1 h-11 rounded-full text-[13px] font-black" style={pill(false)}>Agora não</button>
+                                        <button onClick={useCurrentPositionForMap} className="flex-1 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5" style={pill(true)}><Navigation size={14} />Sim</button>
                                     </div>
                                 </div>
                             ) : resolvingMapEntry ? (
-                                <div className="flex flex-col items-center gap-2 py-6">
-                                    <Spinner size={24} color="#f97316" />
-                                    <p className="text-xs font-medium" style={{ color: colors.textPrimary, opacity: 0.7 }}>
-                                        Obtendo sua localização atual...
-                                    </p>
+                                <div className="flex flex-col items-center gap-2 py-8">
+                                    <Spinner size={24} color={ORANGE} />
+                                    <p className="text-[13px] font-bold" style={{ color: colors.textSecondary }}>Achando onde você está...</p>
                                 </div>
                             ) : (
                                 <>
-                                    <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
-                                        {isStore
-                                            ? (savedAddress ? 'Quer atualizar a localização da loja?' : 'A loja ainda não tem localização definida. Como quer defini-la?')
-                                            : (savedAddress ? 'Quer atualizar sua localização?' : 'Você ainda não tem uma localização definida. Como quer defini-la?')}
-                                    </p>
-
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <button
-                                            onClick={() => chooseMethod('search')}
-                                            className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
-                                            style={{ borderColor: colors.border, background: 'transparent' }}
-                                        >
-                                            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.surface}88`, color: colors.textSecondary }}>
-                                                <Search size={18} />
-                                            </div>
-                                            <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Escrever endereço</span>
-                                            <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Digite o endereço</span>
+                                    <div className="grid grid-cols-2 gap-2 mb-3">
+                                        <button onClick={locateMe} className="h-11 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition" style={pill(true)}>
+                                            <Navigation size={14} />Usar minha localização
                                         </button>
-                                        <button
-                                            onClick={() => chooseMethod('map')}
-                                            className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
-                                            style={{ borderColor: colors.border, background: 'transparent' }}
-                                        >
-                                            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.surface}88`, color: colors.textSecondary }}>
-                                                <MapPin size={18} />
-                                            </div>
-                                            <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Marcar no mapa</span>
-                                            <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Toque ou arraste o pino</span>
-                                        </button>
-                                        <button
-                                            onClick={locateMe}
-                                            className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
-                                            style={{ borderColor: '#f97316', background: 'transparent' }}
-                                        >
-                                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
-                                                <Navigation size={18} />
-                                            </div>
-                                            <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Procurar para mim</span>
-                                            <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Achar onde estou</span>
+                                        <button onClick={() => (method === 'map' ? setMethod('search') : chooseMethod('map'))} className="h-11 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition" style={pill(false)}>
+                                            {method === 'map' ? <><Search size={14} />Escrever endereço</> : <><MapPin size={14} />Marcar no mapa</>}
                                         </button>
                                     </div>
-                                    {error && <p className="text-xs font-semibold mt-3" style={{ color: '#ef4444' }}>{error}</p>}
-                                </>
-                            )}
-                        </>
-                    )}
 
-                    {/* ===== ETAPA 2 DE 4 · ENDEREÇO ===== */}
-                    {step === 'address' && (
-                        <>
-                            <div className="flex items-center justify-between mb-3">
-                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa {stepNo(2)} de {totalSteps} · Endereço
-                                </p>
-                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
-                                    <X size={16} />
-                                </button>
-                            </div>
-
-                            {method === 'search' && (
-                                <>
-                                    <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textPrimary }}>
-                                        Escreva um endereço ou o nome de um lugar (rua e número, bairro, hospital, mercado, loja...): as sugestões aparecem enquanto você escreve. Toque numa delas ou aperte <strong>Enter</strong>.
-                                    </p>
-                                    <div className="flex gap-2 mb-2">
-                                        <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
-                                            style={{ background: `${colors.surface}88`, backdropFilter: 'blur(10px)', border: `1px solid ${colors.border}` }}
-                                        >
-                                            <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.surface}88` }}>
-                                                <Search size={14} color={colors.textPrimary} />
-                                            </div>
-                                            <input
-                                                type="text"
-                                                value={searchQuery}
-                                                onChange={(e) => { setSearchQuery(e.target.value); askSuggestions(e.target.value) }}
-                                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitSearch() } }}
-                                                placeholder="Ex.: Av. Calama 1234 ou Hospital de Base"
-                                                aria-label="Endereço"
-                                                className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
-                                                style={{ color: colors.textPrimary }}
-                                                disabled={loading}
-                                                autoFocus
-                                            />
-                                            <button
-                                                onClick={submitSearch}
-                                                disabled={loading || !searchQuery.trim()}
-                                                className="px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 disabled:opacity-50"
-                                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)' }}
-                                            >
-                                                {loading ? '...' : 'Ir'}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Só números: qualquer rua tem um nº 2933, então o mapa devolve a que achar mais provável — pede a rua junto */}
-                                    {/^\d{1,7}$/.test(searchQuery.trim()) && (
-                                        <p className="text-[11px] leading-snug mb-2 px-3 py-2 rounded-xl" style={{ background: '#f9731614', color: colors.textPrimary, border: '1px solid #f9731640' }}>
-                                            Só o número acha a rua que o mapa achar mais provável. Escreva também o nome da rua, em qualquer ordem: <strong>{searchQuery.trim()} Nome da rua</strong> ou <strong>Rua Nome {searchQuery.trim()}</strong>.
-                                        </p>
-                                    )}
-
-                                    {(suggsLoading || suggs.length > 0) && (
-                                        <div className="rounded-xl overflow-hidden mb-3" style={{ border: `1px solid ${colors.border}`, background: `${colors.surface}cc` }}>
-                                            {suggsLoading && suggs.length === 0 && (
-                                                <p className="px-3 py-2.5 text-[11px] opacity-60" style={{ color: colors.textPrimary }}>Buscando sugestões...</p>
-                                            )}
-                                            {suggs.map((sg, i) => (
-                                                <button
-                                                    key={sg.id}
-                                                    type="button"
-                                                    onClick={() => pickSuggestion(sg)}
-                                                    className="w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-black/5 transition"
-                                                    style={{ borderBottom: i < suggs.length - 1 ? `1px solid ${colors.border}` : 'none' }}
-                                                >
-                                                    {sg.kind === 'poi'
-                                                        ? <Building2 size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#2563eb' }} />
-                                                        : <MapPin size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />}
-                                                    <span className="min-w-0">
-                                                        <span className="block text-[12px] font-black leading-snug truncate" style={{ color: colors.textPrimary }}>{sg.title}</span>
-                                                        {sg.sub && <span className="block text-[10.5px] leading-snug opacity-70 truncate" style={{ color: colors.textPrimary }}>{sg.sub}</span>}
-                                                    </span>
+                                    {method === 'search' && (
+                                        <>
+                                            <div className="flex items-center gap-2 h-12 rounded-full pl-3.5 pr-1.5 mb-2" style={field}>
+                                                <Search size={16} style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="text"
+                                                    value={searchQuery}
+                                                    onChange={(e) => { setSearchQuery(e.target.value); askSuggestions(e.target.value) }}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitSearch() } }}
+                                                    placeholder="Rua e número, bairro ou um lugar"
+                                                    aria-label="Endereço"
+                                                    className="flex-1 min-w-0 bg-transparent outline-none text-[14px]"
+                                                    style={{ color: colors.textPrimary }}
+                                                    disabled={loading}
+                                                    autoFocus
+                                                />
+                                                <button onClick={submitSearch} disabled={loading || !searchQuery.trim()} className="h-9 px-4 rounded-full text-[13px] font-black disabled:opacity-40" style={pill(true)}>
+                                                    {loading ? '...' : 'Ir'}
                                                 </button>
-                                            ))}
-                                        </div>
+                                            </div>
+                                            {/^\d{1,7}$/.test(searchQuery.trim()) && (
+                                                <p className="text-[11.5px] leading-snug mb-2 px-3 py-2 rounded-2xl" style={{ background: `${ORANGE}14`, border: `1px solid ${ORANGE}40` }}>
+                                                    Só o número acha uma rua qualquer. Escreva o nome da rua junto: <b>{searchQuery.trim()} Nome da rua</b>.
+                                                </p>
+                                            )}
+                                            {(suggsLoading || suggs.length > 0) && (
+                                                <div className="rounded-2xl overflow-hidden mb-3" style={field}>
+                                                    {suggsLoading && suggs.length === 0 && <p className="px-3.5 py-3 text-[12px]" style={{ color: colors.textSecondary }}>Buscando...</p>}
+                                                    {suggs.map((sg, i) => (
+                                                        <button key={sg.id} type="button" onClick={() => pickSuggestion(sg)} className="w-full flex items-start gap-2.5 px-3.5 py-2.5 text-left active:opacity-70" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                                                            {sg.kind === 'poi' ? <Building2 size={15} className="mt-0.5 flex-shrink-0" style={{ color: '#2563eb' }} /> : <MapPin size={15} className="mt-0.5 flex-shrink-0" style={{ color: ORANGE }} />}
+                                                            <span className="min-w-0">
+                                                                <span className="block text-[13px] font-black leading-snug truncate">{sg.title}</span>
+                                                                {sg.sub && <span className="block text-[11.5px] leading-snug truncate" style={{ color: colors.textSecondary }}>{sg.sub}</span>}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+
+                                    {method === 'map' && (
+                                        <>
+                                            <p className="text-[12.5px] font-bold mb-2" style={{ color: colors.textSecondary }}>Toque no mapa ou arraste o pino laranja</p>
+                                            <div className="relative w-full h-52 sm:h-60 rounded-2xl overflow-hidden mb-3" style={{ border: `1px solid ${colors.border}`, background: colors.surface }}>
+                                                <div ref={mapContainerRef} className="w-full h-full" />
+                                                {!mapReady && <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}><Spinner size={24} color={ORANGE} /></div>}
+                                            </div>
+                                        </>
                                     )}
                                 </>
-                            )}
-
-                            {method === 'map' && (
-                                <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs font-black" style={{ color: colors.textPrimary }}>
-                                        Toque no mapa ou arraste o pino laranja
-                                    </p>
-                                </div>
-                            )}
-
-                            {method === 'map' && (
-                                <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3"
-                                    style={{ border: `2px solid ${colors.border}`, background: colors.surface }}
-                                >
-                                    <div ref={mapContainerRef} className="w-full h-full" />
-                                    {!mapReady && (
-                                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
-                                            <Spinner size={24} color="#f97316" />
-                                        </div>
-                                    )}
-                                </div>
                             )}
 
                             {allowDriverSync && isDriver && driverModeActive && (
-                                <button
-                                    onClick={() => setShowDeactivateConfirm(true)}
-                                    disabled={savingSync}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-3 transition-all disabled:opacity-60"
-                                    style={{ background: '#22c55e20', border: '1px solid #22c55e60' }}
-                                >
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: '#22c55e' }}>
-                                        {savingSync ? <Spinner size={14} color="#ffffff" /> : <Car size={16} color="#ffffff" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0 text-left">
-                                        <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                            Sincronização para motorista
-                                            {effectiveLiveSync && <Radio size={11} style={{ color: '#22c55e' }} />}
-                                        </span>
-                                        <p className="text-[10px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>
-                                            Modo motorista ativo — toque para desativar
-                                        </p>
-                                    </div>
-                                    <div className="flex-shrink-0 w-10 h-6 rounded-full relative transition-all" style={{ background: '#22c55e' }}>
-                                        <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all" style={{ left: 18 }} />
-                                    </div>
+                                <button onClick={() => setShowDeactivateConfirm(true)} disabled={savingSync} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl mb-3 disabled:opacity-60" style={{ background: '#22c55e18', border: '1px solid #22c55e55' }}>
+                                    <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#22c55e' }}>{savingSync ? <Spinner size={14} color="#ffffff" /> : <Car size={16} color="#ffffff" />}</span>
+                                    <span className="flex-1 min-w-0 text-left">
+                                        <span className="flex items-center gap-1.5 text-[13px] font-black">Sincronização para motorista{effectiveLiveSync && <Radio size={11} style={{ color: '#22c55e' }} />}</span>
+                                        <span className="block text-[11px]" style={{ color: colors.textSecondary }}>Modo motorista ativo — toque para desativar</span>
+                                    </span>
                                 </button>
                             )}
 
                             {(newAddress || resolvingAddress) && (
-                                <div className="space-y-2 mb-3">
-                                    {savedPosition && !effectiveLiveSync && method === 'map' && (
-                                        <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
-                                            style={{ background: `${colors.surface}88`, border: '1px solid #3B82F644' }}
-                                        >
-                                            <div className="flex-shrink-0 mt-0.5">
-                                                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                                    <Home size={14} style={{ color: '#3B82F6' }} />
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                                    Localização salva
-                                                </span>
-                                                <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                                    {savedAddress || 'Carregando endereço...'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
-                                        style={{ background: `${colors.surface}88`, border: '1px solid #F9731644' }}
-                                    >
-                                        <div className="flex-shrink-0 mt-0.5">
-                                            <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
-                                                <MoveVertical size={14} style={{ color: '#f97316' }} />
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                                {effectiveLiveSync ? 'Localização atual (ao vivo)' : 'Endereço selecionado'}
-                                            </span>
-                                            {resolvingAddress ? (
-                                                <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textPrimary }}>
-                                                    Obtendo endereço...
-                                                </p>
-                                            ) : (
-                                                <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                                    {newAddress}
-                                                </p>
-                                            )}
-                                        </div>
+                                <div className="rounded-2xl px-3 py-2.5 mb-3 flex items-start gap-2.5" style={{ background: `${ORANGE}12`, border: `1.5px solid ${ORANGE}66` }}>
+                                    <MapPin size={16} className="mt-0.5 flex-shrink-0" style={{ color: ORANGE }} />
+                                    <div className="min-w-0">
+                                        <p className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{effectiveLiveSync ? 'Localização atual (ao vivo)' : 'Endereço escolhido'}</p>
+                                        <p className="text-[13px] font-bold leading-snug mt-0.5">{resolvingAddress ? 'Achando o endereço...' : newAddress}</p>
                                     </div>
                                 </div>
                             )}
 
-                            {error && (
-                                <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
-                            )}
+                            {error && <p className="text-[12px] font-bold mb-2" style={{ color: '#ef4444' }}>{error}</p>}
 
-                            <div className="flex gap-2 mt-3">
-                                <button
-                                    onClick={() => setStep('choose')}
-                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
-                                    style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
-                                >
-                                    Voltar
-                                </button>
-                                <button
-                                    onClick={() => setStep('number')}
-                                    disabled={!newAddress || resolvingAddress}
-                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
-                                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
-                                >
-                                    {resolvingAddress ? 'Obtendo endereço...' : !newAddress ? 'Selecione um local' : 'Continuar'}
-                                </button>
-                            </div>
+                            <button
+                                onClick={() => {
+                                    setError('')
+                                    // o número já veio no endereço escolhido ("Avenida Calama 1234, ..."): preenche sozinho
+                                    if (!newNumber.trim()) { const m = (newAddress.split(',')[0] || '').match(/\s(\d{1,6}[A-Za-z]?)\s*$/); if (m) setNewNumber(m[1]) }
+                                    setStep('details')
+                                }}
+                                disabled={!newAddress || resolvingAddress}
+                                className="w-full h-12 rounded-full text-[14px] font-black disabled:opacity-40 active:scale-[0.98] transition flex items-center justify-center gap-1.5"
+                                style={pill(true)}
+                            >
+                                {resolvingAddress ? 'Achando o endereço...' : !newAddress ? 'Escolha um endereço' : <>Continuar<ChevronRight size={16} /></>}
+                            </button>
                         </>
                     )}
 
-                    {/* ===== ETAPA 3 DE 4 · NÚMERO ===== */}
-                    {step === 'number' && (
+                    {/* ===== 2 DE 2 · DETALHES (número, complemento e, se for o caso, o Radar) — salva direto ===== */}
+                    {step === 'details' && (
                         <>
-                            <div className="flex items-center justify-between mb-3">
-                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa {stepNo(3)} de {totalSteps} · Número
-                                </p>
-                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
-                                    <X size={16} />
-                                </button>
-                            </div>
+                            {head(2, 'Falta pouco')}
+                            <button onClick={() => setStep('address')} className="w-full rounded-2xl px-3 py-2.5 mb-3 flex items-start gap-2.5 text-left" style={field}>
+                                <MapPin size={16} className="mt-0.5 flex-shrink-0" style={{ color: ORANGE }} />
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-[13px] font-bold leading-snug">{newAddress}</span>
+                                    <span className="block text-[11.5px] font-black mt-0.5" style={{ color: ORANGE }}>Trocar endereço</span>
+                                </span>
+                            </button>
 
-                            <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl mb-3"
-                                style={{ background: `${colors.surface}88`, border: '1px solid #F9731644' }}
-                            >
-                                <div className="flex-shrink-0 mt-0.5">
-                                    <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
-                                        <MoveVertical size={14} style={{ color: '#f97316' }} />
-                                    </div>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                        Endereço
-                                    </span>
-                                    <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                        {newAddress}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
-                                Qual o número?
-                            </p>
-
-                            <div className="px-3 py-2 rounded-xl mb-3"
-                                style={{ background: `${colors.surface}88`, border: `1px solid ${numberError ? '#EF4444' : colors.border}` }}
-                            >
-                                <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1" style={{ color: colors.textPrimary }}>
-                                    <Hash size={12} />
-                                    Número da casa/apto *
+                            <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+                                <label className="block">
+                                    <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Número *</span>
+                                    <input
+                                        type="text" inputMode="numeric" value={newNumber}
+                                        onChange={(e) => { setNewNumber(e.target.value); setNumberError('') }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') saveNow() }}
+                                        placeholder="Ex.: 2836" autoFocus
+                                        className="mt-1 w-full h-12 rounded-2xl px-3.5 text-[15px] font-bold outline-none"
+                                        style={{ ...field, borderColor: numberError ? '#ef4444' : colors.border }}
+                                    />
                                 </label>
+                                <button onClick={() => { setNewNumber('S/N'); setNumberError('') }} className="mt-[22px] h-12 px-3.5 rounded-2xl text-[12.5px] font-black" style={newNumber === 'S/N' ? pill(true) : pill(false)}>Sem número</button>
+                            </div>
+                            {numberError && <p className="text-[11.5px] font-bold mt-1" style={{ color: '#ef4444' }}>{numberError}</p>}
+
+                            <label className="block mt-3">
+                                <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Complemento (opcional)</span>
                                 <input
-                                    type="text"
-                                    value={newNumber}
-                                    onChange={(e) => {
-                                        setNewNumber(e.target.value)
-                                        setNumberError('')
-                                    }}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') handleContinueToComplement() }}
-                                    placeholder="Ex: 2836"
-                                    className="w-full bg-transparent outline-none text-xs font-medium"
-                                    style={{ color: colors.textPrimary }}
-                                    autoFocus
-                                    required
-                                />
-                                {numberError && (
-                                    <p className="text-red-500 text-[10px] mt-1">{numberError}</p>
-                                )}
-                            </div>
-
-                            <div className="flex gap-2 mt-3">
-                                <button
-                                    onClick={() => setStep('address')}
-                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
-                                    style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
-                                >
-                                    Voltar
-                                </button>
-                                <button
-                                    onClick={handleContinueToComplement}
-                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
-                                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
-                                >
-                                    Continuar
-                                </button>
-                            </div>
-                        </>
-                    )}
-
-                    {/* ===== ETAPA 4 DE 4 · COMPLEMENTO ===== */}
-                    {step === 'complement' && (
-                        <>
-                            <div className="flex items-center justify-between mb-3">
-                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa {stepNo(4)} de {totalSteps} · Complemento
-                                </p>
-                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
-                                    <X size={16} />
-                                </button>
-                            </div>
-
-                            <div className="space-y-2 mb-3">
-                                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
-                                    style={{ background: `${colors.surface}88`, border: '1px solid #F9731644' }}
-                                >
-                                    <div className="flex-shrink-0 mt-0.5">
-                                        <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
-                                            <MoveVertical size={14} style={{ color: '#f97316' }} />
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                            Endereço
-                                        </span>
-                                        <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                            {newAddress}
-                                        </p>
-                                        <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>Nº {newNumber}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
-                                Quer adicionar algum complemento?
-                            </p>
-
-                            <div className="px-3 py-2 rounded-xl mb-3"
-                                style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}` }}
-                            >
-                                <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1" style={{ color: colors.textPrimary }}>
-                                    <FileText size={12} />
-                                    Complemento (opcional)
-                                </label>
-                                <input
-                                    type="text"
-                                    value={newComplement}
+                                    type="text" value={newComplement}
                                     onChange={(e) => setNewComplement(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { if (askVisibility) setStep('visibility'); else handleSaveWithConfirmation() } }}
-                                    placeholder="Ex: Casa com parede de cerâmica, portão azul..."
-                                    className="w-full bg-transparent outline-none text-xs font-medium"
-                                    style={{ color: colors.textPrimary }}
-                                    autoFocus
+                                    onKeyDown={(e) => { if (e.key === 'Enter') saveNow() }}
+                                    placeholder="Apto, bloco, portão azul..."
+                                    className="mt-1 w-full h-12 rounded-2xl px-3.5 text-[14px] outline-none"
+                                    style={field}
                                 />
-                            </div>
+                            </label>
 
-                            {error && (
-                                <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
+                            {askVisibility && (
+                                <div className="mt-4">
+                                    <p className="text-[11px] font-black uppercase tracking-wide mb-1.5" style={{ color: colors.textSecondary }}>No Radar</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {([
+                                            { value: true, icon: <Radio size={16} />, title: 'Aparecer', text: 'perto de quem procura' },
+                                            { value: false, icon: <Home size={16} />, title: 'Só salvar', text: 'ninguém vê você no mapa' },
+                                        ] as const).map((o) => {
+                                            const on = radarChoice === o.value
+                                            return (
+                                                <button key={String(o.value)} onClick={() => { setRadarChoice(o.value); setError('') }} className="rounded-2xl p-3 text-left active:scale-[0.98] transition" style={{ border: `1.5px solid ${on ? ORANGE : colors.border}`, background: on ? `${ORANGE}14` : colors.surface }}>
+                                                    <span className="flex items-center gap-1.5 text-[13.5px] font-black" style={{ color: on ? ORANGE : colors.textPrimary }}>{o.icon}{o.title}{on && <Check size={14} className="ml-auto" />}</span>
+                                                    <span className="block text-[11px] mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>{o.text}</span>
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                    <p className="text-[10.5px] mt-1.5" style={{ color: colors.textSecondary }}>Dá para mudar depois em Painel do perfil → Visível no Radar.</p>
+                                </div>
                             )}
 
-                            <div className="flex gap-2 mt-3">
-                                <button
-                                    onClick={() => setStep('number')}
-                                    disabled={loading}
-                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
-                                    style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
-                                >
-                                    Voltar
-                                </button>
-                                <button
-                                    onClick={() => (askVisibility ? setStep('visibility') : handleSaveWithConfirmation())}
-                                    disabled={loading || !newAddress}
-                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
-                                >
-                                    {askVisibility ? <ChevronRight size={14} /> : <Check size={14} />}
-                                    {askVisibility ? 'Continuar' : isStore ? 'Salvar localização da loja' : 'Salvar localização'}
-                                </button>
-                            </div>
-                        </>
-                    )}
-                    {/* ===== ÚLTIMA ETAPA · APARECER NO RADAR OU SÓ GUARDAR O ENDEREÇO ===== */}
-                    {step === 'visibility' && (
-                        <>
-                            <div className="flex items-center justify-between mb-3">
-                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa {totalSteps} de {totalSteps} · Visibilidade
-                                </p>
-                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
-                                    <X size={16} />
-                                </button>
-                            </div>
-                            <p className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que você quer fazer com essa localização?</p>
-                            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Você pode mudar isso quando quiser em Painel do perfil → Visível no Radar.</p>
-                            <div className="flex flex-col gap-2">
-                                {([
-                                    { value: true, icon: <Radio size={18} />, title: 'Aparecer no Radar', text: 'Você aparece no mapa do Radar, perto de quem procura.' },
-                                    { value: false, icon: <Home size={18} />, title: 'Só salvar meu endereço', text: 'Fica guardado para os pedidos que você fizer nas lojas. Ninguém vê você no Radar.' },
-                                ] as const).map((o) => {
-                                    const on = radarChoice === o.value
-                                    return (
-                                        <button
-                                            key={String(o.value)}
-                                            onClick={() => setRadarChoice(o.value)}
-                                            className="flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition active:scale-[0.99]"
-                                            style={{ borderColor: on ? '#f97316' : colors.border, background: on ? '#f973161a' : 'transparent' }}
-                                        >
-                                            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: on ? 'linear-gradient(135deg, #f97316, #dc2626)' : `${colors.border}` , color: on ? '#fff' : colors.textSecondary }}>{o.icon}</span>
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{o.title}</span>
-                                                <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{o.text}</span>
-                                            </span>
-                                            {on && <Check size={18} style={{ color: '#f97316' }} className="flex-shrink-0" />}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                            {error && <p className="text-red-500 text-xs font-medium mt-2 ml-1">{error}</p>}
-                            <div className="flex gap-2 mt-3">
-                                <button
-                                    onClick={() => setStep('complement')}
-                                    disabled={loading || savingChoice}
-                                    className="flex-1 py-3 rounded-full text-sm font-black transition active:scale-95 disabled:opacity-50"
-                                    style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
-                                >
-                                    Voltar
-                                </button>
-                                <button
-                                    onClick={handleSaveWithConfirmation}
-                                    disabled={radarChoice === null || loading || savingChoice || !newAddress}
-                                    className="flex-[1.6] py-3 rounded-full text-sm font-black text-white disabled:opacity-40 flex items-center justify-center gap-2"
-                                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 4px 14px #f9731660' }}
-                                >
-                                    <Check size={15} />
-                                    Salvar localização
+                            {error && <p className="text-[12px] font-bold mt-2" style={{ color: '#ef4444' }}>{error}</p>}
+
+                            <div className="flex gap-2 mt-4">
+                                <button onClick={() => setStep('address')} disabled={loading || savingChoice} className="h-12 px-5 rounded-full text-[13px] font-black disabled:opacity-50" style={pill(false)}>Voltar</button>
+                                <button onClick={saveNow} disabled={loading || savingChoice || !newAddress} className="flex-1 h-12 rounded-full text-[14px] font-black disabled:opacity-40 flex items-center justify-center gap-1.5 active:scale-[0.98] transition" style={pill(true)}>
+                                    {savingChoice ? <Spinner size={16} color="#ffffff" /> : <Check size={16} />}
+                                    {isStore ? 'Salvar local da loja' : 'Salvar localização'}
                                 </button>
                             </div>
                         </>
@@ -1641,6 +1334,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                     animation: slide-up 0.3s ease-out forwards;
                 }
             `}</style>
-        </>
+        </>,
+        document.body,
     )
 }
