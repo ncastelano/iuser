@@ -51,6 +51,8 @@ import StoreFavoriteDrivers from './StoreFavoriteDrivers'
 import StorePromotions from './StorePromotions'
 import StorePaymentMethods from './StorePaymentMethods'
 import StoreWhatsAppBot from './StoreWhatsAppBot'
+import PainelLoja from './painel/PainelLoja'
+import type { PaidOrder } from './painel/SalesChart'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
@@ -164,6 +166,7 @@ export default function StoreDashboard({
     })
     const [showDeleteStore, setShowDeleteStore] = useState(false)
     const [extractPeriod, setExtractPeriod] = useState<ExtractPeriod | null>(null)
+    const [paidOrders, setPaidOrders] = useState<PaidOrder[]>([])          // pedidos pagos do mês (o gráfico do painel 3.0)
 
     useEffect(() => {
         onDialogOpenChange?.(!!extractPeriod || showDeleteStore)
@@ -328,12 +331,20 @@ export default function StoreDashboard({
         // Buscar métricas de vendas (hoje/semana/mês) — uma query só, os 3
         // baldes são filtrados no cliente em cima do mesmo resultado.
         const todayStart = startOfDay()
+        // Só os PAGOS desde o começo do mês (ou da semana, se ela começou no mês anterior): o banco devolve no máximo 1.000 linhas por
+        // consulta, e ler todos os pedidos da loja deixava as vendas recentes de fora numa loja com muitos pedidos.
+        const since = [startOfCurrentMonth(), startOfCurrentWeek()].sort()[0]
         const { data: ordersData } = await supabase
             .from('orders')
             .select('total_amount, status, created_at')
             .eq('store_id', storeId)
+            .eq('status', 'paid')
+            .gte('created_at', since)
+            .order('created_at', { ascending: false })
+            .limit(5000)
 
         const paidOrders = (ordersData || []).filter(o => o.status === 'paid')
+        setPaidOrders(paidOrders.map(o => ({ amount: Number(o.total_amount || 0), at: o.created_at as string })))
         const bucket = (sinceISO: string) => {
             const orders = paidOrders.filter(o => new Date(o.created_at).getTime() >= new Date(sinceISO).getTime())
             return { revenue: orders.reduce((acc, o) => acc + Number(o.total_amount || 0), 0), orders: orders.length }
@@ -687,6 +698,16 @@ export default function StoreDashboard({
                     </>
     )
 
+    // ===== PAINEL DA 3.0 (/painel-loja/<slug>): o "comando do dia" aprovado no laboratório /painel-teste, com os dados de verdade =====
+    if (view === 'painel') return (
+        <div className="w-full px-4 md:px-6 pb-28">
+            {showDebtBanner && <DriverDebtBanner userId={userId} />}
+            <PainelLoja store={store} storeSlug={storeSlug} profileSlug={profileSlug} userId={userId} metrics={metrics} paidOrders={paidOrders}
+                onOpenExtract={setExtractPeriod} onShare={shareStoreLink} onOrderCountsChange={onOrderCountsChange} onSaleCompleted={() => loadDashboard()} />
+            {extractPeriod && <StoreSalesExtractDialog storeId={store.id} storeName={store.name} period={extractPeriod} onClose={() => setExtractPeriod(null)} />}
+        </div>
+    )
+
     return (
         <div className="w-full px-4 md:px-6 pb-28">
             {/* ===== MODAL DE HORÁRIOS ===== */}
@@ -714,14 +735,6 @@ export default function StoreDashboard({
             {showE && infoFirst && insideShell && storeButtonsV3}
 
             {showP && showDebtBanner && <DriverDebtBanner userId={userId} />}
-            {/* ===== Painel (3.0): atalhos no topo — ver, compartilhar e EDITAR a loja ===== */}
-            {view === 'painel' && (
-                <div className="mb-6 grid grid-cols-3 gap-2">
-                    <button onClick={goToPublicStore} className="h-11 rounded-full text-[13px] font-black transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>Ver loja</button>
-                    <button onClick={shareStoreLink} className="h-11 rounded-full text-[13px] font-black transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>Compartilhar</button>
-                    <button onClick={() => router.push(`/editar-loja/${encodeURIComponent(storeSlug)}`)} className="h-11 rounded-full text-[13px] font-black text-white transition active:scale-95" style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>Editar loja</button>
-                </div>
-            )}
 
             {showP && (
             <>
@@ -909,11 +922,6 @@ export default function StoreDashboard({
             {/* ===== Avaliações e comentários dos clientes (produtos e serviços) ===== */}
             {showP && <StoreFeedback storeId={store.id} />}
 
-            {view === 'painel' && (
-                <div className="mb-6">
-                    <StoreVisitors storeId={store.id} />
-                </div>
-            )}
 
             {showE && (
             <>
