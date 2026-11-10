@@ -10,7 +10,8 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { Check, Copy, MessageCircle, Search, Share2, UserSquare2, Users, X } from 'lucide-react'
+import { Check, Copy, MessageCircle, QrCode, Radio, Search, Share2, UserSquare2, Users, X } from 'lucide-react'
+import QRCode from 'qrcode'
 import { toast } from '@/lib/toast'
 import { useTheme } from '@/app/contexts/theme'
 import { iuserPath } from '@/lib/chatLinks'
@@ -67,6 +68,24 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
     const { colors } = useTheme()
     const [copied, setCopied] = useState(false)
     const [canNativeShare, setCanNativeShare] = useState(false)
+    // PARA QUEM ESTÁ PERTO: o QR do link na tela (a pessoa aponta a câmera) e o envio pelo AirDrop (iPhone) / Quick Share (Android), que
+    // mostra um aviso na tela do outro celular — sem parear. Os dois são do próprio aparelho: nada passa por serviço de fora (o QR é feito aqui).
+    const [showQr, setShowQr] = useState(false)
+    const [qrData, setQrData] = useState<string | null>(null)
+    const [nearbyName, setNearbyName] = useState('Quick Share')
+    useEffect(() => {
+        if (typeof navigator === 'undefined') return
+        const ua = navigator.userAgent || ''
+        const ios = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && (navigator as any).maxTouchPoints > 1)
+        setNearbyName(ios || /Macintosh/i.test(ua) ? 'AirDrop' : /Android/i.test(ua) ? 'Quick Share' : 'quem está perto')
+    }, [])
+    useEffect(() => { if (!open) { setShowQr(false); setQrData(null) } }, [open])
+    useEffect(() => {
+        if (!showQr || !url) return
+        let alive = true
+        QRCode.toDataURL(url, { margin: 1, width: 520, errorCorrectionLevel: 'M' }).then((d) => { if (alive) setQrData(d) }).catch(() => { if (alive) setQrData(null) })
+        return () => { alive = false }
+    }, [showQr, url])
     // a MENSAGEM que vai junto do link para fora do iUser: a pessoa pode reescrever antes de mandar
     const [msg, setMsg] = useState(text)
     useEffect(() => { if (open) setMsg(text) }, [open, text])
@@ -334,6 +353,34 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
                     aria-label="Mensagem que vai junto do link"
                     style={{ width: '100%', resize: 'none', borderRadius: 14, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textPrimary, fontSize: 13, padding: '10px 12px', marginBottom: 12, outline: 'none', fontFamily: 'inherit' }}
                 />
+
+                {/* ===== PARA QUEM ESTÁ PERTO: QR na tela e AirDrop / Quick Share ===== */}
+                <p style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textSecondary, margin: '0 0 6px' }}>Para quem está perto</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: showQr ? 10 : 14 }}>
+                    <button
+                        onClick={() => setShowQr((v) => !v)}
+                        aria-pressed={showQr}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, height: 64, borderRadius: 16, cursor: 'pointer', fontWeight: 900, fontSize: 12.5, border: `1.5px solid ${showQr ? '#f97316' : colors.border}`, background: showQr ? '#f97316' : colors.surface, color: showQr ? '#fff' : colors.textPrimary }}
+                    >
+                        <QrCode size={20} />{showQr ? 'Esconder o QR' : 'Mostrar QR'}
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (!canNativeShare) { toast.info('Abra pelo celular', { description: `O envio por ${nearbyName === 'quem está perto' ? 'AirDrop ou Quick Share' : nearbyName} é do próprio celular. Aqui, use o QR.` }); return }
+                            navigator.share({ title, text: msg, url }).then(() => onShared?.()).catch(() => {})
+                        }}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, height: 64, borderRadius: 16, cursor: 'pointer', fontWeight: 900, fontSize: 12.5, border: `1.5px solid ${colors.border}`, background: colors.surface, color: colors.textPrimary, opacity: canNativeShare ? 1 : 0.7 }}
+                    >
+                        <Radio size={20} />{nearbyName === 'quem está perto' ? 'AirDrop / Quick Share' : `Enviar por ${nearbyName}`}
+                    </button>
+                </div>
+                {showQr && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 14, marginBottom: 14, borderRadius: 18, background: '#ffffff', border: `1px solid ${colors.border}` }}>
+                        {qrData ? <img src={qrData} alt="QR Code do link" style={{ width: 220, height: 220 }} /> : <div style={{ width: 220, height: 220, borderRadius: 12, background: '#f3f4f6' }} />}
+                        <p style={{ margin: 0, fontSize: 12.5, fontWeight: 800, color: '#111827', textAlign: 'center' }}>Peça para a pessoa apontar a câmera do celular</p>
+                        <p style={{ margin: 0, fontSize: 11, color: '#6b7280', textAlign: 'center' }}>O link abre na hora{/ref=/.test(url) ? ' e ela entra pela sua indicação' : ''}.</p>
+                    </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
                     {targets.map((t) => (
                         <button
@@ -357,14 +404,6 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
                     </button>
                 </div>
 
-                {canNativeShare && (
-                    <button
-                        onClick={() => navigator.share({ title, text: msg, url }).then(() => onShared?.()).catch(() => {})}
-                        style={{ marginTop: 10, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: `1px dashed ${colors.border}`, background: 'transparent', color: colors.textSecondary, borderRadius: 14, padding: '10px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                    >
-                        <Share2 size={14} /> Mais opções do aparelho
-                    </button>
-                )}
                 </section>
             </div>
         </div>,
