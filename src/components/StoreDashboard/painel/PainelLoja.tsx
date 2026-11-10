@@ -355,7 +355,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 <Store size={17} />Venda no balcão
             </button>
             {pagina.secao === 'agora' && <AgoraNaLoja storeName={store.name} presenca={presenca} onClose={pagina.fechar} />}
-            {pagina.secao === 'balcao' && <BalcaoV3 storeId={store.id} storeName={store.name} pixKey={store.pix_key || null} onClose={pagina.fechar} onDone={onSaleCompleted} />}
+            {pagina.secao === 'balcao' && <BalcaoV3 storeId={store.id} storeName={store.name} pixKey={store.pix_key || null} pixKeyType={store.pix_key_type || null} onClose={pagina.fechar} onDone={onSaleCompleted} />}
         </div>
     )
 }

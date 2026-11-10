@@ -25,7 +25,7 @@ type Forma = 'pix' | 'cartao' | 'dinheiro'
 interface Prod { id: string; name: string; price: number; image_url: string | null; category: string | null }
 interface Recibo { id: string; itens: { name: string; q: number; v: number }[]; subtotal: number; desconto: number; total: number; forma: string; recebido: number | null; troco: number; quando: Date; cliente: string }
 
-export default function BalcaoV3({ storeId, storeName, pixKey, onClose, onDone }: { storeId: string; storeName: string; pixKey: string | null; onClose: () => void; onDone: () => void }) {
+export default function BalcaoV3({ storeId, storeName, pixKey, pixKeyType, onClose, onDone }: { storeId: string; storeName: string; pixKey: string | null; pixKeyType?: string | null; onClose: () => void; onDone: () => void }) {
     const { colors: c } = useTheme()
     const card = { background: c.surface, border: `1px solid ${c.border}` }
     const [prods, setProds] = useState<Prod[] | null>(null)
@@ -61,7 +61,7 @@ export default function BalcaoV3({ storeId, storeName, pixKey, onClose, onDone }
     const troco = forma === 'dinheiro' ? Math.max(0, Math.round((rec - total) * 100) / 100) : 0
     const soma = (id: string, d: number) => setCart((m) => { const n = Math.max(0, (m[id] || 0) + d); const x = { ...m }; if (n) x[id] = n; else delete x[id]; return x })
 
-    const brcode = useMemo(() => (pixKey ? pixBrCode({ key: pixKey, name: storeName, city: 'BRASIL', amount: total }) : null), [pixKey, storeName, total])
+    const brcode = useMemo(() => (pixKey ? pixBrCode({ key: pixKey, keyType: pixKeyType, name: storeName, city: 'BRASIL', amount: total }) : null), [pixKey, pixKeyType, storeName, total])
     useEffect(() => { if (etapa === 'cobrar' && forma === 'pix' && brcode) QRCode.toDataURL(brcode, { margin: 1, width: 360 }).then(setQr).catch(() => setQr(null)) }, [etapa, forma, brcode])
 
     const fechar = useCallback(async () => {
