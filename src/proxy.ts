@@ -61,6 +61,7 @@ const IGNORED_ROUTES = [
     '/flash', // feed de pessoas em tela cheia (3.0)
     '/entregas', // central de entregas do motorista (3.0)
     '/ganhos', // Ganhos do motorista (aba da barra do modo motorista, 3.0)
+    '/canal-do-motorista', // Canal do Motorista: corridas abertas, quanto pagam e os atalhos de quem dirige (página só da 3.0)
     '/atividade', // Atividade (aba da barra da 3.0): avisos; conversas, pedidos, carrinho e biblioteca ficam em /conversas e /carrinho
     '/tres-telas', // ferramenta de desenvolvimento (só local): observação em 3 telas
     '/paginateste', // laboratório da navbar (página de teste, sem link no app)

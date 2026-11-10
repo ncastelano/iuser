@@ -97,9 +97,11 @@ interface AcceptARiderProps {
     onUrgentChange?: (urgent: boolean) => void
     /** As corridas disponíveis numa FILEIRA horizontal (rola para o lado) em vez de uma embaixo da outra: ocupa menos altura na home (usado na 3.0) */
     horizontal?: boolean
+    /** dentro da página /canal-do-motorista: o título já está no cabeçalho da página */
+    embedded?: boolean
 }
 
-export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = false }: AcceptARiderProps) {
+export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = false, embedded = false }: AcceptARiderProps) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
@@ -514,10 +516,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
             <div className="flex items-start justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3 min-w-0">
                     {dragHandle}
-                    <div className="min-w-0">
+                    {!embedded && <div className="min-w-0">
                         <h2 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>Canal do Motorista</h2>
                         <p className="text-xs opacity-60" style={{ color: colors.textPrimary }}>Defina sua tarifa e aceite corridas disponíveis</p>
-                    </div>
+                    </div>}
                 </div>
                 {!driverModeActive && (
                     <ViewServicesButton label="Ativar modo motorista" onClick={goToPainel} />

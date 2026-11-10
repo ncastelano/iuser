@@ -35,6 +35,7 @@ import ListingRowCard from '@/components/ListingRowCard'
 import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
 import Outdoor from '@/components/outdoor/Outdoor'
 import SocialAroundCard from '@/components/v3/SocialAroundCard'
+import DriverChannelCard from '@/components/v3/DriverChannelCard'
 import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 import DigitalStrip from '@/components/v3/DigitalStrip'
 import PromoStrip from '@/components/v3/PromoStrip'
@@ -42,7 +43,6 @@ import SearchSuggestions from '@/components/search/SearchSuggestions'
 import { recordSearch, isRecordable } from '@/modules/search'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
-import AcceptARider from '../../inicio/sections/AcceptARider'
 import CareerPlans from '../../inicio/sections/CareerPlans'
 import { rankStyle } from '@/components/social/SocialProfileCard'
 import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
@@ -644,8 +644,9 @@ export default function ModeloInicialPage() {
             wide: activeRide ? { images: [], cta: activeRide.status === 'pending' ? (activeRide.candidates > 0 ? 'Escolher' : 'Ver') : 'Acompanhar', hot: activeRide.candidates > 0 || activeRide.arrived, sub: activeRide.destination ? `Para ${shortAddress(activeRide.destination)}` : undefined } : undefined,
             icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', nearby: true, icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
-        // Canal do Motorista entre o Radar e o Social (pedido do dono, 10/11/2026): as corridas abertas e quanto cada uma paga
-        { title: 'Canal do Motorista', desc: '', driver: true, icon: Car, color: '#16a34a', onClick: () => go('/aceitar-corridas') },
+        // Canal do Motorista entre o Radar e o Social (pedido do dono, 10/11/2026): o CARTÃO compacto (corridas com valor, tempo e distância);
+        // tudo o mais do canal mora na página /canal-do-motorista
+        { title: 'Canal do Motorista', desc: '', driver: true, icon: Car, color: '#16a34a', onClick: () => go('/canal-do-motorista') },
         { title: 'Social', desc: 'Flash, publicações e gente do iUser', social: true, icon: Users, color: '#f97316', onClick: () => go('/social') },
         { title: 'Buscar imóvel', desc: 'Casa, apartamento, salas comerciais, kitnets, etc.', rentals: true, icon: HomeIcon, color: '#16a34a', onClick: () => go('/imoveis') },
     ]
@@ -717,7 +718,7 @@ export default function ModeloInicialPage() {
                                 {needs.map((a) => {
                                     const Icon = a.icon
                                     if (a.nearby) return <NearbyAroundCard key={a.title} userId={userId} />
-                                    if (a.driver) return <div key={a.title} className="col-span-2 md:col-span-4 empty:hidden"><AcceptARider horizontal /></div>
+                                    if (a.driver) return <DriverChannelCard key={a.title} />
                                     if (a.social) return <SocialAroundCard key={a.title} />
                                     if (a.rentals) return <RentalsPreviewCard key={a.title} title={a.title} desc={a.desc} />
                                     // Sobrou um quadrado sozinho na linha (os outros viraram retângulos): ele também vira retângulo, só sem botão
