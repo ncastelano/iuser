@@ -66,7 +66,7 @@ export function CriarProdutoClient() {
     const [deliveryUnits, setDeliveryUnits] = useState('1')
     const [priceType, setPriceType] = useState('fixed')
     const [category, setCategory] = useState('')
-    const [productType, setProductType] = useState(searchParams.get('type') === 'service' ? 'service' : 'physical')
+    const [productType, setProductType] = useState(searchParams.get('type') === 'service' ? 'service' : searchParams.get('type') === 'digital' ? 'digital' : 'physical')
     const [digitalKind, setDigitalKind] = useState<DigitalProductKind | null>(null)   // o tipo de conteúdo digital que o lojista escolhe
     const [hasAddons, setHasAddons] = useState(false)
 

@@ -1,6 +1,7 @@
 // app/src/app/(main)/[ownerSlug]/catalogo/CatalogoClientPage.tsx
 'use client'
 
+import { orderCategories } from '@/lib/categoryOrder'
 import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -55,6 +56,8 @@ interface Product {
 
 interface StoreInfo {
     id: string
+    /** a ordem das categorias escolhida pela loja; null = a de sempre */
+    category_order?: string[] | null
     name: string
     slug: string
     logo_url: string | null
@@ -232,7 +235,7 @@ export default function CatalogoClientPage() {
             try {
                 const { data: store, error: storeError } = await supabase
                     .from('stores')
-                    .select('id, name, storeSlug, logo_url, banner_url, business_hours, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng, address, owner_id')
+                    .select('id, name, storeSlug, logo_url, banner_url, business_hours, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng, address, owner_id, category_order')
                     .eq('storeSlug', ownerSlug)
                     .maybeSingle()
 
@@ -292,6 +295,7 @@ export default function CatalogoClientPage() {
                     banner_url: bannerUrl,
                     business_hours: store.business_hours,
                     owner_id: store.owner_id,
+                    category_order: Array.isArray((store as any).category_order) ? (store as any).category_order : null,
                 })
 
                 // Link do catálogo compartilhado também vale como convite:
@@ -1062,9 +1066,10 @@ export default function CatalogoClientPage() {
         // promoções primeiro e, depois, as categorias com mais produtos (a mesma ordem dos chips)
         const total: Record<string, number> = {}
         products.forEach(p => { const c = p.category || 'Geral'; total[c] = (total[c] || 0) + 1 })
-        const sortedNames = Object.keys(groups).sort((a, b) => Number(isPromoCategory(b)) - Number(isPromoCategory(a)) || (total[b] || 0) - (total[a] || 0))
+        // a ordem escolhida pela loja (Editar loja → Catálogo) vem primeiro; o resto, pela regra de sempre
+        const sortedNames = orderCategories(Object.keys(groups), storeInfo?.category_order, (n) => total[n] || 0)
         return Object.fromEntries(sortedNames.map(n => [n, groups[n]])) as Record<string, typeof filteredProducts>
-    }, [filteredProducts, products])
+    }, [filteredProducts, products, storeInfo?.category_order])
 
     // ========== CATEGORIAS ==========
     const categories = useMemo(() => {
@@ -1076,9 +1081,9 @@ export default function CatalogoClientPage() {
         })
         return [
             { name: 'Todos', count: baseProducts.length },
-            ...Array.from(cats.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => Number(isPromoCategory(b.name)) - Number(isPromoCategory(a.name)) || b.count - a.count)
+            ...orderCategories([...cats.keys()], storeInfo?.category_order, (n) => cats.get(n) || 0).map((name) => ({ name, count: cats.get(name) || 0 })),
         ]
-    }, [baseProducts])
+    }, [baseProducts, storeInfo?.category_order])
 
     // Acompanha a rolagem: a última seção cujo topo já passou da linha logo abaixo do cabeçalho fixo é "onde a pessoa está"
     useEffect(() => {

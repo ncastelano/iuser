@@ -10,8 +10,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-    AlertCircle, CalendarDays, ChevronRight, ClipboardList, CreditCard, Crown, Eye, GraduationCap, Megaphone, Package, Settings, Share2, Star,
-    Store, Tag, Timer, Truck, Users, Wallet, Zap, Check,
+    AlertCircle, CalendarDays, ChevronRight, ClipboardList, CreditCard, Eye, GraduationCap, Settings, Share2, Star,
+    Store, Check,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -28,6 +28,7 @@ import StoreFeedback from '../StoreFeedback'
 import StoreVisitors from '../StoreVisitors'
 import ButtonInPersonSale from '../ButtonInPersonSale'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
+import { gerenciarItens, SELO } from './gerenciar'
 import SalesChart, { type PaidOrder, type SalesPeriod } from './SalesChart'
 import type { ExtractPeriod } from '../StoreSalesExtractDialog'
 
@@ -98,7 +99,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
         if (att?.orders) a.push({ cor: '#22c55e', icone: <ClipboardList size={17} />, titulo: `${att.orders} ${att.orders === 1 ? 'pedido novo' : 'pedidos novos'}`, sub: 'Aceite para a loja começar a preparar', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Ver pedidos' })
         if (att?.services) a.push({ cor: '#14b8a6', icone: <CalendarDays size={17} />, titulo: `${att.services} ${att.services === 1 ? 'pedido de serviço' : 'pedidos de serviço'}`, sub: 'Clientes esperando o horário ser confirmado', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Ver pendentes' })
         if (att?.digital) a.push({ cor: '#a855f7', icone: <GraduationCap size={17} />, titulo: `${att.digital} ${att.digital === 1 ? 'pagamento digital' : 'pagamentos digitais'} para conferir`, sub: 'Confira o Pix e libere o acesso', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Conferir' })
-        if (!store.pix_key) a.push({ cor: '#ef4444', icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse', ir: editar, rotulo: 'Cadastrar' })
+        if (!store.pix_key) a.push({ cor: '#ef4444', icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse', ir: `${editar}?secao=pagamento`, rotulo: 'Cadastrar' })
         if (plan?.postpaid && plan.debt >= limit) a.push({ cor: '#ef4444', icone: <AlertCircle size={17} />, titulo: 'O Pós-pago chegou ao limite', sub: `Quite ${brl(plan.debt)} para continuar vendendo`, ir: '/planos/pos-pago', rotulo: 'Quitar' })
         return a
     }, [att, store.pix_key, plan, limit, slug, editar])
@@ -110,22 +111,8 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
         </div>
     )
 
-    // ---------- Gerenciar a loja: cada atalho com a SUA cor e o estado (verde = ligado, cinza = desligado, vermelho = falta algo) ----------
-    type Est = 'on' | 'off' | 'warn'
-    const tiles: { t: string; ic: ReactNode; cor: string; texto: string; est: Est }[] = [
-        { t: 'Dados da loja', ic: <Store size={19} />, cor: '#6366f1', texto: store.description ? 'logo, links, modelo' : 'falta a descrição', est: store.description ? 'on' : 'warn' },
-        { t: 'Catálogo', ic: <Package size={19} />, cor: '#3b82f6', texto: 'produtos e serviços', est: 'on' },
-        { t: 'Promoções', ic: <Tag size={19} />, cor: '#ef4444', texto: 'montar combos', est: 'on' },
-        { t: 'Entrega', ic: <Truck size={19} />, cor: '#22c55e', texto: store.iuser_delivery_enabled ? 'iUser ligado' : store.accepts_delivery ? 'eu entrego' : 'só retirada', est: store.accepts_delivery || store.iuser_delivery_enabled ? 'on' : 'off' },
-        { t: 'Pagamento', ic: <Wallet size={19} />, cor: '#16a34a', texto: store.pix_key ? `Pix ✓${store.accepts_card ? ' · cartão' : ''}` : 'falta o Pix', est: store.pix_key ? 'on' : 'warn' },
-        { t: 'Horários', ic: <Timer size={19} />, cor: '#eab308', texto: store.business_hours && Object.keys(store.business_hours).length ? 'definidos' : 'falta definir', est: store.business_hours && Object.keys(store.business_hours).length ? 'on' : 'warn' },
-        ...(hasServices ? [{ t: 'Agenda', ic: <CalendarDays size={19} />, cor: '#8b5cf6', texto: store.allow_scheduling ? 'ligada' : 'desligada', est: (store.allow_scheduling ? 'on' : 'off') as Est }] : []),
-        { t: 'Equipe', ic: <Users size={19} />, cor: '#06b6d4', texto: store.iuser_delivery_enabled ? 'desligada · entrega iUser' : 'entregadores e funcionários', est: store.iuser_delivery_enabled ? 'off' : 'on' },
-        { t: 'Publicações', ic: <Megaphone size={19} />, cor: '#f97316', texto: 'posts da loja', est: 'on' },
-        { t: 'Clube VIP', ic: <Crown size={19} />, cor: '#d97706', texto: store.vip_club_enabled ? (store.vip_club_price ? `${brl(Number(store.vip_club_price))}/mês` : 'grátis') : 'desligado', est: store.vip_club_enabled ? 'on' : 'off' },
-        { t: 'WhatsApp', ic: <Zap size={19} />, cor: '#10b981', texto: store.whatsapp_bot_status === 'connected' ? 'avisos ligados' : 'desligado', est: store.whatsapp_bot_status === 'connected' ? 'on' : 'off' },
-    ]
-    const SELO: Record<Est, string> = { on: '#16a34a', off: '#9ca3af', warn: '#ef4444' }
+    // ---------- Gerenciar a loja: a MESMA lista do Editar loja, cada atalho abre direto a folha/página dele ----------
+    const tiles = gerenciarItens(store, hasServices, { agendaNoPainel: true })
 
     const periodos: { k: SalesPeriod; l: string; m: { revenue: number; orders: number }; ex: ExtractPeriod }[] = [
         { k: 'hoje', l: 'Hoje', m: metrics.daily, ex: 'daily' },
@@ -265,7 +252,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 {tiles.map((g) => {
                     const apagado = g.est === 'off'
                     return (
-                        <button key={g.t} onClick={() => router.push(editar)} className="relative rounded-3xl p-3 text-left active:scale-95 transition" style={{ background: apagado ? colors.surface : `${g.cor}14`, border: `1.5px solid ${apagado ? colors.border : `${g.cor}55`}`, opacity: apagado ? 0.75 : 1 }}>
+                        <button key={g.k} onClick={() => router.push(g.k === 'agenda' ? `/compromissos/${encodeURIComponent(slug)}` : `${editar}?secao=${g.k}`)} className="relative rounded-3xl p-3 text-left active:scale-95 transition" style={{ background: apagado ? colors.surface : `${g.cor}14`, border: `1.5px solid ${apagado ? colors.border : `${g.cor}55`}`, opacity: apagado ? 0.75 : 1 }}>
                             <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full" style={{ background: SELO[g.est] }} />
                             <span className="w-9 h-9 rounded-2xl flex items-center justify-center" style={{ background: apagado ? `${colors.border}60` : `${g.cor}26`, color: apagado ? colors.textSecondary : g.cor }}>{g.ic}</span>
                             <span className="block text-[12.5px] font-black leading-tight mt-2" style={{ color: colors.textPrimary }}>{g.t}</span>

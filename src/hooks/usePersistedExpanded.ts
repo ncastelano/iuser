@@ -1,7 +1,10 @@
 // hooks/usePersistedExpanded.ts
 'use client'
 
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
+
+/** Dentro de uma folha/página do "Editar loja" da 3.0 o card já vem ABERTO (a folha já é aquela coisa); fora dela vale a preferência guardada. */
+export const ForceExpandedContext = createContext(false)
 
 // Lembra se a pessoa deixou um card do dashboard (perfil/loja) aberto ou
 // fechado, pra não abrir tudo de novo a cada visita — alguns desses cards
@@ -32,5 +35,6 @@ export function usePersistedExpanded(key: string, defaultValue: boolean): [boole
         }
     }
 
-    return [expanded, setExpanded]
+    const forced = useContext(ForceExpandedContext)
+    return [forced || expanded, setExpanded]
 }

@@ -6,9 +6,13 @@
 // com o cartão de vidro de cada componente).
 'use client'
 
-import type { ReactNode } from 'react'
+import { useContext, type ReactNode } from 'react'
+import { ForceExpandedContext } from '@/hooks/usePersistedExpanded'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+
+/** dentro de uma folha/página do "Editar loja" da 3.0 a seção já vem ABERTA e sem a seta (a folha já é aquela coisa) */
+export const V3SectionForceOpen = ForceExpandedContext
 
 export const V3_GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -32,7 +36,8 @@ export default function V3Section({
     children?: ReactNode
 }) {
     const { colors } = useTheme()
-    const collapsible = !!onToggle
+    const forced = useContext(V3SectionForceOpen)
+    const collapsible = !!onToggle && !forced
     const open = !collapsible || !!expanded
     return (
         <section

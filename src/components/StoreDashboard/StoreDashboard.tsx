@@ -52,6 +52,8 @@ import StorePromotions from './StorePromotions'
 import StorePaymentMethods from './StorePaymentMethods'
 import StoreWhatsAppBot from './StoreWhatsAppBot'
 import PainelLoja from './painel/PainelLoja'
+import EditarHub from './painel/EditarHub'
+import { parseStoreModel } from '@/lib/storeModel'
 import type { PaidOrder } from './painel/SalesChart'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 
@@ -312,6 +314,11 @@ export default function StoreDashboard({
     const loadDashboard = useCallback(async () => {
         if (!storeSlug || !profileSlug) return
         setLoading(true)
+        try { await loadDashboardInner() } catch (e) { console.error('[painel da loja]', e) } finally { setLoading(false) }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storeSlug, profileSlug])
+
+    const loadDashboardInner = async () => {
 
         const { data: storeData } = await supabase.from('my_stores').select('*').ilike('storeSlug', storeSlug).maybeSingle()
         if (!storeData) { toast.error('Loja não encontrada'); setLoading(false); return }
@@ -380,23 +387,18 @@ export default function StoreDashboard({
             // Só pedido pago conta como "vendido" — antes essa contagem
             // incluía pendente/cancelado, o que inflava "mais vendido"
             // com pedido que nunca virou venda de verdade.
-            const { data: orderIdsData } = await supabase
-                .from('orders')
-                .select('id')
-                .eq('store_id', storeId)
-                .eq('status', 'paid')
-            const orderIds = orderIdsData?.map(o => o.id) || []
+            // Uma consulta só, pelo vínculo com o pedido: antes ia a lista de TODOS os pedidos pagos no endereço (`in.(...)`) e, numa loja com
+            // muitos pedidos, o endereço passava do limite, a consulta falhava e o painel ficava carregando para sempre.
             const salesCountMap = new Map()
-            if (orderIds.length > 0) {
-                const { data: orderItemsSales } = await supabase
-                    .from('order_items')
-                    .select('product_id, quantity')
-                    .in('order_id', orderIds)
-                    .in('product_id', productIds)
-                orderItemsSales?.forEach(s => {
-                    salesCountMap.set(s.product_id, (salesCountMap.get(s.product_id) || 0) + (s.quantity || 1))
-                })
-            }
+            const { data: orderItemsSales } = await supabase
+                .from('order_items')
+                .select('product_id, quantity, orders!inner(store_id, status)')
+                .eq('orders.store_id', storeId)
+                .eq('orders.status', 'paid')
+                .in('product_id', productIds)
+            orderItemsSales?.forEach((s: any) => {
+                salesCountMap.set(s.product_id, (salesCountMap.get(s.product_id) || 0) + (s.quantity || 1))
+            })
 
             const combined = productsData.map(p => ({
                 ...p,
@@ -413,9 +415,7 @@ export default function StoreDashboard({
         // Buscar funcionários
         const { data: empData } = await supabase.from('employees').select('*').eq('store_id', storeId).eq('is_active', true)
         setEmployees(empData || [])
-
-        setLoading(false)
-    }, [storeSlug, profileSlug])
+    }
 
     useEffect(() => { loadDashboard() }, [loadDashboard])
 
@@ -707,6 +707,42 @@ export default function StoreDashboard({
             {extractPeriod && <StoreSalesExtractDialog storeId={store.id} storeName={store.name} period={extractPeriod} onClose={() => setExtractPeriod(null)} />}
         </div>
     )
+
+    // ===== EDITAR LOJA DA 3.0 (/editar-loja/<slug>): a central agrupada do laboratório, com folhas e páginas que reaproveitam os blocos de sempre =====
+    if (view === 'editar' && insideShell) {
+        const mdl = parseStoreModel(store.store_model)
+        const hasServices = mdl === 'services' || mdl === 'mixed' || !!store.allow_scheduling
+        return (
+            <div className="w-full px-4 md:px-6 pb-28">
+                <EditarHub store={store} storeSlug={storeSlug} hasServices={hasServices} whatsapp={showWhatsAppBot}
+                    onShare={shareStoreLink} onDelete={() => setShowDeleteStore(true)} onStoreChange={(p) => setStore((prev: any) => ({ ...prev, ...p }))}
+                    blocos={{
+                        dados: descriptionNode,
+                        horarios: <StoreOperatingDays storeId={store.id} />,
+                        regras: <StoreDepositEditor storeId={store.id} />,
+                        entrega: <><StoreDeliverySettings storeId={store.id} onRefresh={loadDashboard} /><div className="mt-4"><StoreFavoriteDrivers storeId={store.id} v3 /></div></>,
+                        pagamento: <StorePaymentMethods storeId={store.id} onRefresh={loadDashboard} />,
+                        clube: <StoreClubVip storeId={store.id} />,
+                        whatsapp: showWhatsAppBot ? <StoreWhatsAppBot storeId={store.id} /> : null,
+                        equipe: <Employee employees={employees} employeeRoutes={employeeRoutes} assignmentMap={new Map()} expandedEmployee={expandedEmployee} onToggleExpand={setExpandedEmployee} storeId={store.id} storeName={store.name} onRefresh={loadEmployees} />,
+                        publicacoes: <Publication storeId={store.id} />,
+                        promocoes: <StorePromotions storeId={store.id} />,
+                    }} />
+                {showDeleteStore && (
+                    <DeleteConfirmDialog
+                        title={`Excluir ${store.name}`}
+                        description="Isso apaga a loja, produtos, pedidos, publicações e tudo o que está ligado a ela. Não dá pra desfazer."
+                        confirmLabel="Excluir loja"
+                        onConfirm={async (password) => {
+                            await callAdminApi('/api/stores/delete', { storeId: store.id, password })
+                            window.location.href = `/${profileSlug}`
+                        }}
+                        onClose={() => setShowDeleteStore(false)}
+                    />
+                )}
+            </div>
+        )
+    }
 
     return (
         <div className="w-full px-4 md:px-6 pb-28">

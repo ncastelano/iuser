@@ -62,6 +62,7 @@ import { sanitizeStoreLinks, type StoreLink } from '@/lib/storeLinks'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
+import { orderCategories } from '@/lib/categoryOrder'
 import StoreFrame from '@/components/store/StoreFrame'
 import StoreDigitalShelves from '@/components/digital/StoreDigitalShelves'
 import { loadDigitalShowcase, pickFeatured, type ShowcaseItem } from '@/modules/digital'
@@ -104,6 +105,8 @@ interface OwnerData {
     allow_scheduling?: boolean
     chat_enabled?: boolean
     location?: any
+    /** a ordem das categorias escolhida pela loja (Editar loja → Catálogo); null = a de sempre */
+    category_order?: string[] | null
 }
 
 type RatingRow = {
@@ -365,11 +368,10 @@ export function Store({
             if (!groups[cat]) groups[cat] = []
             groups[cat].push(product)
         })
-        // "Promoções" primeiro e, depois, as categorias com mais itens (mesma ordem do catálogo)
-        const promo = (n: string) => /promo/i.test(n)
-        const names = Object.keys(groups).sort((x, y) => Number(promo(y)) - Number(promo(x)) || groups[y].length - groups[x].length)
+        // a ordem que a loja escolheu (Editar loja → Catálogo) e, no resto, "Promoções" primeiro e as com mais itens (mesma ordem do catálogo)
+        const names = orderCategories(Object.keys(groups), owner?.category_order, (n) => groups[n].length)
         return Object.fromEntries(names.map(n => [n, groups[n]])) as Record<string, any[]>
-    }, [filteredProducts])
+    }, [filteredProducts, owner?.category_order])
 
     // ========== RATINGS STATS ==========
     const ratingsStats = useMemo(() => {
@@ -636,6 +638,7 @@ export function Store({
                 links: sanitizeStoreLinks(store.links),
                 store_model: parseStoreModel(store.store_model),
                 store_level: Number(store.store_level) || 0,
+                category_order: Array.isArray(store.category_order) ? store.category_order : null,
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
