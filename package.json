@@ -33,6 +33,7 @@
     "test:upload-r2": "node --test scripts/test-upload-r2.mjs",
     "test:social-links": "node --test scripts/test-social-links.mjs",
     "test:store-links": "node --test scripts/test-store-links.mjs",
+    "test:agenda-timeline": "node --test scripts/test-agenda-timeline.mjs",
     "test:store-presence": "node --test scripts/test-store-presence.mjs",
     "test:pix-brcode": "node --test scripts/test-pix-brcode.mjs",
     "test:category-order": "node --test scripts/test-category-order.mjs",
