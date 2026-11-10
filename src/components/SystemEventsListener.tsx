@@ -5,6 +5,7 @@
 // decide QUEM recebe cada evento; aqui só se apresenta (`lib/islandEvents` traduz o tipo em texto, cor e destino).
 'use client'
 
+import { goWithFocus } from '@/lib/urlFocus'
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -24,10 +25,12 @@ export function SystemEventsListener() {
         const ch = supabase
             .channel(`island-events-${userId}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profile_notifications', filter: `profile_id=eq.${userId}` }, (payload: any) => {
-                const n = payload.new as { id: string; kind: string; meta: Record<string, any> | null; created_at?: string }
+                const n = payload.new as { id: string; kind: string; meta: Record<string, any> | null; ref_id?: string | null; created_at?: string }
                 if (!n || seen.current.has(n.id)) return
                 seen.current.add(n.id)
                 if (seen.current.size > 200) seen.current = new Set(Array.from(seen.current).slice(-100))
+                // o painel da loja e a faixa de pedidos se atualizam na hora (não esperam a próxima checagem)
+                if (/^(order_|delivery_|dues_|digital_order)/.test(n.kind)) window.dispatchEvent(new Event('iuser-orders-changed'))
                 const ev = islandEventFor(n)
                 if (!ev) return
                 // Aviso com RESPOSTA PRONTA (ex.: o entregador chegou → "Já estou descendo"): o botão da ilha responde com um toque; os demais levam ao assunto
@@ -36,7 +39,7 @@ export function SystemEventsListener() {
                     if (error) toast.error(error.message || 'Não consegui enviar a resposta.')
                     else toast.success(`Respondi: “${r.label}”`, { duration: 2500 })
                 }
-                const action = ev.reply ? { label: ev.reply.label, onClick: () => { sendReply(ev.reply!) } } : ev.path ? { label: ev.actionLabel, onClick: () => routerRef.current.push(ev.path as string) } : undefined
+                const action = ev.reply ? { label: ev.reply.label, onClick: () => { sendReply(ev.reply!) } } : ev.path ? { label: ev.actionLabel, onClick: () => goWithFocus(routerRef.current, ev.path as string) } : undefined
                 const opts = { description: ev.title && ev.title !== ev.text ? ev.title : undefined, icon: ev.icon, duration: ev.duration, ...(action ? { action } : {}) }
                 if (ev.level === 'success') toast.success(ev.text, opts)
                 else if (ev.level === 'error') toast.error(ev.text, opts)

@@ -4,7 +4,21 @@
 export type IslandLevel = 'success' | 'info' | 'message' | 'error'
 /** `reply`: o aviso traz uma RESPOSTA PRONTA de um toque (ex.: "Já estou descendo"): o botão da ilha a envia em vez de abrir uma página */
 export interface IslandEvent { level: IslandLevel; title: string; text: string; icon: string; path: string | null; actionLabel: string; duration: number; reply?: { rideId: string; code: string; label: string } }
-export interface RawNotification { kind: string; meta?: Record<string, any> | null }
+export interface RawNotification { kind: string; meta?: Record<string, any> | null; ref_id?: string | null }
+
+// Avisos da LOJA cujo destino é o painel (`/painel-loja/<slug>`): sozinho, o "Ver" levava à página em que a dona já estava e nada acontecia.
+// Aqui o destino ganha o FOCO: o pedido (`?pedido=` — o painel abre a janela do pedido), a corrida da entrega (`?corrida=` — o painel acha o
+// pedido dela) ou os Repasses (`?secao=repasses`). `ref_id` é o que o gatilho do banco grava em profile_notifications.
+const ORDER_REF = new Set(['order_new', 'digital_order_new'])
+const RIDE_REF = new Set(['delivery_driver_accepted', 'delivery_driver_arrived', 'delivery_picked_up', 'delivery_done', 'delivery_issue', 'delivery_driver_cancelled'])
+export function focusPath(kind: string, path: string | null, ref: string | null | undefined): string | null {
+    if (!path || !/^\/painel-loja\/[^/?#]+$/.test(path)) return path
+    if (kind === 'dues_update' || kind === 'dispute_update') return `${path}?secao=repasses`
+    const id = ref && /^[0-9a-f-]{36}$/i.test(ref) ? ref : null
+    if (id && ORDER_REF.has(kind)) return `${path}?pedido=${id}`
+    if (id && RIDE_REF.has(kind)) return `${path}?corrida=${id}`
+    return path
+}
 
 const T = (m: Record<string, any> | null | undefined, k: string) => (m && typeof m[k] === 'string' ? (m[k] as string) : '')
 
@@ -61,7 +75,7 @@ export function islandEventFor(n: RawNotification): IslandEvent | null {
         const title = T(n.meta, 'title'), text = T(n.meta, 'text')
         if (!text && !title) return null
         const replyCode = T(n.meta, 'reply_code'), rideId = T(n.meta, 'ride_id')
-        return { level: cfg.level, title, text: text || title, icon: cfg.icon, path: T(n.meta, 'path') || null, actionLabel: cfg.label, duration: cfg.duration ?? 5200, ...(replyCode && rideId ? { reply: { rideId, code: replyCode, label: T(n.meta, 'reply_label') || 'Responder' } } : {}) }
+        return { level: cfg.level, title, text: text || title, icon: cfg.icon, path: focusPath(n.kind, T(n.meta, 'path') || null, n.ref_id), actionLabel: cfg.label, duration: cfg.duration ?? 5200, ...(replyCode && rideId ? { reply: { rideId, code: replyCode, label: T(n.meta, 'reply_label') || 'Responder' } } : {}) }
     }
     // eventos que já existiam e merecem aparecer na hora
     switch (n.kind) {

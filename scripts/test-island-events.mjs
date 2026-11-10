@@ -1,7 +1,7 @@
 // A tradução dos eventos do sistema em avisos da ilha (src/lib/islandEvents.ts). Rodar: npm run test:island-events
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { islandEventFor } from '../src/lib/islandEvents.ts'
+import { islandEventFor, focusPath } from '../src/lib/islandEvents.ts'
 
 test('pedido e entrega: usam o título, o texto e o destino que o banco mandou', () => {
   const e = islandEventFor({ kind: 'order_ready', meta: { title: 'Pedido pronto', text: 'Pizzaria: seu pedido está pronto', path: '/carrinho?aba=pedidos' } })
@@ -71,4 +71,15 @@ test('espera na corrida: o pedido chega ao motorista com tempo para aprovar; os 
   assert.equal(e?.level, 'message'); assert.equal(e?.actionLabel, 'Responder'); assert.ok(e && e.duration >= 15000); assert.match(e.path, /aceitar-corridas\/mapa/)
   for (const k of ['ride_wait_started', 'ride_wait_declined', 'ride_wait_ended']) assert.ok(islandEventFor({ kind: k, meta: { title: 't', text: 'x', path: '/pedir-motorista' } }), k)
   assert.equal(islandEventFor({ kind: 'ride_wait_requested', meta: {} }), null)
+})
+
+test('aviso da loja com destino no painel leva ao PEDIDO, à corrida da entrega ou aos Repasses (antes ia à mesma página e nada acontecia)', () => {
+  const id = 'a2828e6f-9a59-4dea-808b-316888f226a8'
+  assert.equal(islandEventFor({ kind: 'order_new', ref_id: id, meta: { text: 'Pedido novo', path: '/painel-loja/pizza' } })?.path, `/painel-loja/pizza?pedido=${id}`)
+  assert.equal(islandEventFor({ kind: 'delivery_picked_up', ref_id: id, meta: { text: 'Tito saiu', path: '/painel-loja/pizza' } })?.path, `/painel-loja/pizza?corrida=${id}`)
+  assert.equal(islandEventFor({ kind: 'dues_update', ref_id: id, meta: { text: 'Tito levou a maquininha', path: '/painel-loja/pizza' } })?.path, '/painel-loja/pizza?secao=repasses')
+  // destino que já tem foco, de outra página ou ref estranho: fica como veio
+  assert.equal(focusPath('order_new', '/painel-loja/pizza/pedidos', id), '/painel-loja/pizza/pedidos')
+  assert.equal(focusPath('order_new', '/carrinho?aba=pedidos', id), '/carrinho?aba=pedidos')
+  assert.equal(focusPath('order_new', '/painel-loja/pizza', 'x;drop'), '/painel-loja/pizza')
 })

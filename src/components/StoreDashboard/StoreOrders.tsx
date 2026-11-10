@@ -1,6 +1,7 @@
 // app/(main)/StoreOrders.tsx
 'use client'
 
+import { URL_CHANGE_EVENT } from '@/lib/urlFocus'
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import StoreServiceOrders, { useStoreServiceAppointments } from './StoreServiceOrders'
@@ -543,6 +544,60 @@ export default function StoreOrders({
             console.error('[StoreOrders] Erro em fetchEmployeeRoutes:', err)
         }
     }, [storeId, employees])
+
+    // (a função de recarregar muda a cada render do painel: o canal não pode depender dela, senão reconecta o tempo todo)
+    const loadOrdersRef = useRef(loadOrders)
+    loadOrdersRef.current = loadOrders
+    // A situação do ENTREGADOR muda sem o pedido mudar (aceitou, chegou, saiu para entregar): a lista de pedidos não percebe, então ouve
+    // as entregas da loja no tempo real e os avisos da ilha, e relê na hora (antes esperava a checagem de 20 s)
+    useEffect(() => {
+        if (!storeId) return
+        let t: ReturnType<typeof setTimeout> | null = null
+        const bump = () => { if (t) clearTimeout(t); t = setTimeout(() => { setEtaTick((n) => n + 1); loadOrdersRef.current() }, 400) }
+        const ch = supabase.channel(`store-dispatches-${storeId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'order_delivery_dispatches', filter: `store_id=eq.${storeId}` }, bump)
+            .subscribe()
+        window.addEventListener('iuser-orders-changed', bump)
+        return () => { if (t) clearTimeout(t); window.removeEventListener('iuser-orders-changed', bump); supabase.removeChannel(ch) }
+    }, [storeId])
+
+    // FOCO vindo de um aviso da ilha ("Ver"): ?pedido=<id> ou ?corrida=<id da corrida da entrega> abre a janela daquele pedido e o destaca
+    const [focus, setFocus] = useState<{ pedido?: string; corrida?: string } | null>(null)
+    useEffect(() => {
+        const read = () => {
+            const q = new URLSearchParams(window.location.search)
+            const pedido = q.get('pedido') || undefined, corrida = q.get('corrida') || undefined
+            if (pedido || corrida) setFocus({ pedido, corrida })
+        }
+        read()
+        window.addEventListener('popstate', read)
+        window.addEventListener(URL_CHANGE_EVENT, read)
+        return () => { window.removeEventListener('popstate', read); window.removeEventListener(URL_CHANGE_EVENT, read) }
+    }, [])
+    useEffect(() => {
+        if (!focus || initialLoading) return
+        let alive = true
+        ;(async () => {
+            let orderId = focus.pedido || null
+            if (!orderId && focus.corrida) {
+                const { data } = await supabase.from('ride_requests').select('order_id').eq('id', focus.corrida).maybeSingle()
+                orderId = (data as any)?.order_id || null
+            }
+            if (!alive) return
+            const q = new URLSearchParams(window.location.search); q.delete('pedido'); q.delete('corrida')
+            window.history.replaceState(window.history.state, '', `${window.location.pathname}${q.toString() ? `?${q}` : ''}`)
+            setFocus(null)
+            const o = orderId ? groupedOrders.find((x) => x.id === orderId || (Array.isArray(x.order_ids) && x.order_ids.includes(orderId))) : null
+            if (!o) {
+                toast.info('Esse pedido já não está entre os de agora', { description: 'Ele está na lista completa de pedidos.', action: { label: 'Abrir a lista', onClick: () => router.push(`/painel-loja/${storeSlug}/pedidos`) } })
+                return
+            }
+            setSelectedOrder(o)
+            const el = document.querySelector<HTMLElement>(`[data-flip="o${o.checkout_id}"]`)
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        })()
+        return () => { alive = false }
+    }, [focus, initialLoading, groupedOrders, router, storeSlug])
 
     // ===== AUTO REFRESH A CADA 3 SEGUNDOS =====
     const autoRefresh = useCallback(async () => {

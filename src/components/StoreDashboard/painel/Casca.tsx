@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { ForceExpandedContext } from '@/hooks/usePersistedExpanded'
+import { URL_CHANGE_EVENT } from '@/lib/urlFocus'
 
 /** `?secao=` no endereço, sem recarregar a página (pushState: o voltar do navegador fecha) */
 export function useSecaoUrl<K extends string>(validas: readonly K[]) {
@@ -21,7 +22,9 @@ export function useSecaoUrl<K extends string>(validas: readonly K[]) {
         setSecao(ler())
         const onPop = () => { pushed.current = false; setSecao(ler()) }
         window.addEventListener('popstate', onPop)
-        return () => window.removeEventListener('popstate', onPop)
+        // aviso da ilha que leva a esta mesma página com outro ?secao= (ex.: "Tito levou a maquininha" → Repasses)
+        window.addEventListener(URL_CHANGE_EVENT, onPop)
+        return () => { window.removeEventListener('popstate', onPop); window.removeEventListener(URL_CHANGE_EVENT, onPop) }
     }, [ler])
     const abrir = useCallback((k: K) => {
         const q = new URLSearchParams(window.location.search)
