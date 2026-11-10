@@ -207,16 +207,29 @@ export default function StoreOrders({
     useEffect(() => {
         const ids = groupedOrders.map((o) => o.id).filter(Boolean)
         if (ids.length === 0) return
+        // respostas que chegam fora de ordem (a lista recarrega a cada poucos segundos) não sobrescrevem a mais nova
+        let alive = true
         supabase.from('order_delivery_dispatches').select('id, order_id, ride_request_id, status, stage, final_freight, radius_km, flow_version, phase, frozen_freight').in('order_id', ids).or('status.in.(searching,accepted),and(status.eq.cancelled,phase.eq.SEM_ENTREGADOR)')
             .then(({ data }) => {
+                if (!alive) return
                 setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string)))
                 setAcceptedDispatchIds(new Set((data || []).filter((r) => r.status === 'accepted' && !(r.flow_version === 2 && !isReleasedPhase(r.phase as string))).map((r) => r.order_id as string)))
                 const base = new Map((data || []).map((r) => [r.order_id as string, { id: r.id as string, freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null, driver: null as string | null, driverId: null as string | null, etaMin: null as number | null }]))
-                setDispatchInfo(base)
+                // NÃO apaga o que já se sabe (nome do entregador, tempo de chegada) enquanto a consulta nova não volta: antes a linha piscava
+                // entre "Entregador vai buscar o pedido" e "Rafa vai buscar o pedido" a cada recarga
+                setDispatchInfo((prev) => {
+                    const m = new Map(base)
+                    for (const [oid, cur] of m) {
+                        const old = prev.get(oid)
+                        if (old && old.id === cur.id) m.set(oid, { ...cur, driver: old.driver ?? null, driverId: old.driverId ?? null, etaMin: old.stage === cur.stage ? (old.etaMin ?? null) : null })
+                    }
+                    return m
+                })
                 // quem é o entregador que aceitou (nome público): a loja precisa saber de relance quem vem buscar
                 const rideOf = new Map((data || []).filter((r) => r.status === 'accepted' && r.ride_request_id).map((r) => [r.ride_request_id as string, r.order_id as string]))
                 if (rideOf.size === 0) return
                 supabase.from('ride_requests').select('id, driver_id, origin_lat, origin_lng').in('id', Array.from(rideOf.keys())).then(async ({ data: rides }) => {
+                    if (!alive) return
                     const driverIds = Array.from(new Set((rides || []).map((x) => x.driver_id as string).filter(Boolean)))
                     if (driverIds.length === 0) return
                     const [{ data: profs }, { data: live }] = await Promise.all([
@@ -224,9 +237,11 @@ export default function StoreOrders({
                         // posição ao vivo do entregador da corrida aceita (a loja é quem pediu a corrida, então o banco deixa ver)
                         supabase.from('driver_pricing').select('driver_id, live_lat, live_lng, live_updated_at').in('driver_id', driverIds),
                     ])
+                    if (!alive) return
                     const nameOf = new Map((profs || []).map((p) => [p.id as string, p.name as string]))
                     const posOf = new Map((live || []).map((l) => [l.driver_id as string, l]))
-                    const next = new Map(base)
+                    setDispatchInfo((prev) => {
+                    const next = new Map(prev)
                     for (const x of rides || []) {
                         const oid = rideOf.get(x.id as string)
                         const cur = oid ? next.get(oid) : null
@@ -237,11 +252,14 @@ export default function StoreOrders({
                         const eta = fresh && x.origin_lat != null && x.origin_lng != null
                             ? etaMinutes(haversineKm({ lat: Number(l!.live_lat), lng: Number(l!.live_lng) }, { lat: Number(x.origin_lat), lng: Number(x.origin_lng) }))
                             : null
-                        next.set(oid, { ...cur, driver: nameOf.get(x.driver_id as string) || null, driverId: x.driver_id as string, etaMin: eta })
+                        // posição atrasada um instante não derruba o "chega em ~N min" (fica o último, na mesma etapa)
+                        next.set(oid, { ...cur, driver: nameOf.get(x.driver_id as string) || cur.driver || null, driverId: x.driver_id as string, etaMin: eta ?? cur.etaMin ?? null })
                     }
-                    setDispatchInfo(next)
+                    return next
+                    })
                 })
             })
+        return () => { alive = false }
     }, [groupedOrders, etaTick])
 
     const iuserDelivery = {
