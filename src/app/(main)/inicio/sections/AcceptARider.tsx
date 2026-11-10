@@ -3,6 +3,7 @@
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Car, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint, Clock, ArrowRight, LocateFixed, Plus } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
@@ -29,6 +30,9 @@ import { rideValuation, valuationRank } from '@/modules/negotiation/domain'
 import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 import LocationAskDialog, { isGeoPermissionGranted, rememberLocationAskDismissed, wasLocationAskDismissed } from '@/components/AceitarCorridas/LocationAskDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import LocationPicker from '@/components/LocationPicker'
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
+import { toast } from '@/lib/toast'
 import Outdoor from '@/components/outdoor/Outdoor'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -116,6 +120,16 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
     const gpsFixRef = useRef(false)
     // Sem GPS liberado vale o local salvo em "Definir local": o deslocamento até a partida entra na conta mesmo assim
     const [savedPos, setSavedPos] = useState<[number, number] | null>(null)
+    // "Digitar o local" (pelo diálogo): o mesmo "Definir local" de /aceitar-corridas, salvo no perfil
+    const [typingLocation, setTypingLocation] = useState(false)
+    const saveTypedLocation = async (l: { lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string }) => {
+        if (!contextUserId) return
+        const { error } = await saveOwnProfile(supabase, contextUserId, { address: l.address, address_number: l.addressNumber || null, address_complement: l.addressComplement || null, store_lat: l.lat, store_lng: l.lng })
+        if (error) { toast.error('Não deu para salvar o local', { description: error.message }); return }
+        setSavedPos([l.lng, l.lat])
+        setTypingLocation(false)
+        toast.success('Local salvo', { description: 'Os valores das corridas agora contam a partir dele. Troque quando sair de lá.' })
+    }
     const [livePos, setLivePos] = useState<[number, number] | null>(null)
     const fallbackPos = livePos ?? savedPos
     const pos = gps ?? fallbackPos
@@ -653,7 +667,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
                     status={gpsStatus === 'granted' ? 'idle' : gpsStatus}
                     onAllow={requestGps}
                     onLater={() => { rememberLocationAskDismissed(); setLocAskDismissed(true) }}
+                    onType={contextUserId ? () => { rememberLocationAskDismissed(); setLocAskDismissed(true); setTypingLocation(true) } : undefined}
                 />
+                {/* em portal: um ancestral com desfoque prenderia o position:fixed do LocationPicker dentro da seção */}
+                {typingLocation && typeof document !== 'undefined' && createPortal(<LocationPicker initialLocation={null} onSave={saveTypedLocation} onClose={() => setTypingLocation(false)} />, document.body)}
 
                 {openRides.length > 0 && (
                     <div className="flex flex-col gap-3">

@@ -2061,6 +2061,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 status={gpsStatus === 'granted' ? 'idle' : gpsStatus}
                 onAllow={requestGps}
                 onLater={() => { rememberLocationAskDismissed(); setLocAskDismissed(true) }}
+                onType={() => { rememberLocationAskDismissed(); setLocAskDismissed(true); setShowLocationDialog(true) }}
             />
 
             {showVehicleDialog && (
