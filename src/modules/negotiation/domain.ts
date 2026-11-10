@@ -339,3 +339,17 @@ export function centsLabel(digits: string): string {
     const v = (Number(digits || '0') / 100).toFixed(2).split('.')
     return `${v[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${v[1]}`
 }
+
+// ===== ATÉ 3 VALORES NUMA CANDIDATURA =====
+export const MAX_OFFER_VALUES = 3
+/** Junta os valores marcados pelo motorista: o MENOR é o principal (proposed_price) e os outros, até 2, vão em alt_prices.
+ *  Mesma regra do banco (ride_applications_alt_prices): sem repetir, cada um a mais acima do principal e no máximo o triplo dele. */
+export function packOffer(values: number[]): { price: number; alts: number[]; problem: string | null } | null {
+    const vals = [...new Set(values.filter((v) => Number.isFinite(v) && v > 0).map(round2))].sort((a, b) => a - b)
+    if (!vals.length) return null
+    const [price, ...alts] = vals
+    const br = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+    const problem = vals.length > MAX_OFFER_VALUES ? `Escolha no máximo ${MAX_OFFER_VALUES} valores`
+        : alts.some((v) => v > round2(price * OTHER_VALUE_MAX_FACTOR)) ? `Os valores vão até o triplo do menor (${br(round2(price * OTHER_VALUE_MAX_FACTOR))})` : null
+    return { price, alts, problem }
+}

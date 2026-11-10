@@ -234,3 +234,13 @@ test('campo de dinheiro: dígitos entram pela direita', () => {
     assert.equal(centsLabel('3250'), '32,50'); assert.equal(centsLabel(''), '0,00'); assert.equal(centsLabel('123456'), '1.234,56')
     assert.equal(centsToValue(''), null)
 })
+
+import { packOffer, MAX_OFFER_VALUES } from '../src/modules/negotiation/domain.ts'
+test('até 3 valores: o menor é o principal, os outros vão a mais, sem repetir e até o triplo', () => {
+    assert.equal(MAX_OFFER_VALUES, 3)
+    assert.deepEqual(packOffer([25.96, 18.7, 25.96]), { price: 18.7, alts: [25.96], problem: null })
+    assert.deepEqual(packOffer([30, 20, 40]), { price: 20, alts: [30, 40], problem: null })
+    assert.match(packOffer([20, 61]).problem, /triplo/)
+    assert.match(packOffer([10, 11, 12, 13]).problem, /no máximo 3/)
+    assert.equal(packOffer([]), null)
+})

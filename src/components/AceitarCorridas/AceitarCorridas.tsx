@@ -986,7 +986,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [radiusRides, candidacies.length, !!acceptedRide, acceptedRide?.order_id])
 
-    const applyToRide = async (ride: RideCardData, price: number) => {
+    const applyToRide = async (ride: RideCardData, price: number, alts?: number[]) => {
         if (price <= 0) {
             toast.error('Informe um valor válido')
             return
@@ -1013,7 +1013,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         try {
             const ri = routeInfoById[ride.id]
             const minutes = ri && ri.toPickupMin != null ? ri.toPickupMin + ri.tripMin : null
-            await submitRideApplication(user.id, ride.id, price, minutes)
+            await submitRideApplication(user.id, ride.id, price, minutes, alts)
 
             toast.success('Candidatura enviada!')
             setCustomPriceFor(null)
@@ -1624,7 +1624,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         timeRate={ride.customTariff?.pricePerMinute ?? null}
                                         timeExtras={computeRideExtras(ride.ride_type, flagsOfRide, ride.customTariff ?? platformShape)}
                                         applying={applyingId === ride.id}
-                                        onApply={(price) => applyToRide(ride, price)}
+                                        onApply={(price, alts) => applyToRide(ride, price, alts)}
                                         onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
                                         minHourly={ride.order_id ? null : earningGoal.minHourly}
                                         protection={earningGoal.protection}
@@ -1688,7 +1688,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                                         Chamou você
                                                     </span>
                                                 ) : undefined}
-                                                onApply={(p) => applyToRide(ride, p)}
+                                                onApply={(p, alts) => applyToRide(ride, p, alts)}
                                                 applying={applyingId === ride.id}
                                                 onInteract={(on) => setSlidingRideId(on ? ride.id : null)}
                                                 applyBlocked={!fromPassenger && rq.shownKind === 'platform' && pickup.state !== 'ready' ? 'Libere sua localização para ver o valor e se candidatar' : null}

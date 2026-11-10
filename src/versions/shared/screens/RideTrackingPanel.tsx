@@ -80,6 +80,8 @@ interface Candidate {
     applicantId: string
     status: 'pending' | 'accepted' | 'rejected'
     proposedPrice: number | null
+    /** os valores a mais que o motorista mandou (até 2): o passageiro escolhe entre eles e o principal */
+    altPrices: number[]
     name: string | null
     profileSlug: string | null
     avatarUrl: string | undefined
@@ -162,7 +164,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
 
         const { data: applications } = await supabase
             .from('ride_applications')
-            .select('id, applicant_id, status, proposed_price')
+            .select('id, applicant_id, status, proposed_price, alt_prices')
             .eq('ride_request_id', rideId)
             .order('created_at', { ascending: true })
 
@@ -273,6 +275,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 applicantId: a.applicant_id,
                 status: a.status,
                 proposedPrice: a.proposed_price,
+                altPrices: ((a as { alt_prices?: number[] | null }).alt_prices || []).map(Number),
                 name: p?.name || null,
                 profileSlug: p?.profileSlug || null,
                 avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
@@ -307,8 +310,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         if (!firstLoad.current) {
             for (const c of nextCandidates) {
                 if (!knownCandidateIds.current.has(c.applicationId)) {
-                    toast.info(`${c.name || 'Um motorista'} se candidatou ao seu pedido!`, {
-                        description: c.proposedPrice != null ? `Proposta: R$ ${c.proposedPrice.toFixed(2)}` : undefined,
+                    toast.info('Um motorista se candidatou ao seu pedido!', {
+                        description: c.proposedPrice != null ? `${[c.carModel, c.carColor].filter(Boolean).join(' · ') || 'Motorista'} · R$ ${c.proposedPrice.toFixed(2).replace('.', ',')}${c.altPrices.length ? ` (ou mais ${c.altPrices.length} valor${c.altPrices.length > 1 ? 'es' : ''})` : ''}` : undefined,
                     })
                 }
             }
@@ -330,7 +333,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 const p = profilesById.get(rideRow.driver_id)
                 const vehicle = vehiclesById.get(rideRow.driver_id)
                 setDriver({
-                    applicationId: '', applicantId: rideRow.driver_id, status: 'accepted', proposedPrice: null,
+                    applicationId: '', applicantId: rideRow.driver_id, status: 'accepted', proposedPrice: null, altPrices: [],
                     name: p?.name || null, profileSlug: p?.profileSlug || null, avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                     lat: null, lng: null, etaMin: null, etaDistanceKm: null, routeCoords: null,
                     carModel: vehicle?.car_model || null, carColor: vehicle?.car_color || null, carPlate: vehicle?.car_plate || null,
@@ -480,7 +483,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 })
                 candidateLayerIdsRef.current.push(layerId)
 
-                const firstName = (c.name || 'Candidato').split(' ')[0]
+                // antes de escolher, o passageiro vê o CARRO e o valor, não quem é (como na 99)
+                const firstName = c.carModel || 'Motorista'
                 const priceText = c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : '—'
                 const etaText = c.etaMin != null ? `${Math.max(1, Math.round(c.etaMin))} min` : ''
 
@@ -491,10 +495,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         <div>${firstName}</div>
                         <div style="font-weight:600;opacity:0.9;">${priceText}${etaText ? ' · ' + etaText : ''}</div>
                     </div>
-                    ${c.avatarUrl
-                        ? `<img src="${c.avatarUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:3px solid ${color};box-shadow:0 2px 6px rgba(0,0,0,0.4);" />`
-                        : `<div style="width:32px;height:32px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`
-                    }
+                    <div style="width:32px;height:32px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>
                 `
                 const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat([c.lng!, c.lat!]).addTo(map)
                 candidateMarkersRef.current.push(marker)
@@ -602,11 +603,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         }
     }, [map])
 
-    const acceptCandidate = async (applicationId: string, applicantId: string) => {
+    const acceptCandidate = async (applicationId: string, applicantId: string, price?: number) => {
         setDecidingId(applicationId)
         try {
             // Escolher o motorista é uma operação do servidor: confere dono, candidatura real e corrida pendente
-            const { error: rideError } = await supabase.rpc('select_ride_driver', { p_ride: rideId, p_application: applicationId })
+            const { error: rideError } = await supabase.rpc('select_ride_driver', { p_ride: rideId, p_application: applicationId, ...(price != null ? { p_price: price } : {}) })
             if (rideError) {
                 if (/já foi decidido/i.test(rideError.message)) {
                     toast.error('Este pedido já foi decidido.')
@@ -891,7 +892,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         </p>
                     )}
                     <h3 className="text-xs font-black mb-2" style={{ color: colors.textPrimary }}>
-                        {candidates.length === 0 ? 'Aguardando candidatos...' : `${candidates.length} motorista${candidates.length > 1 ? 's' : ''} se candidataram`}
+                        {candidates.length === 0 ? 'Aguardando candidatos...' : candidates.length === 1 ? '1 motorista se candidatou' : `${candidates.length} motoristas se candidataram`}
                     </h3>
                     {candidates.length === 0 ? (
                         <div className="flex items-center gap-2 px-3 py-3 rounded-xl" style={{ background: `${colors.border}30` }}>
@@ -900,218 +901,62 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         </div>
                     ) : (
                         <>
-                        {compact && (
-                            <div className="flex flex-col gap-2">
-                                {candidates.map((c, i) => {
-                                    const pickupEtaMin = c.etaMin != null ? Math.max(1, Math.round(c.etaMin)) : null
-                                    const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
-                                    const rating = c.ratingCount > 0 ? (c.ratingAvg || 0).toFixed(1) : null
-                                    const vehicle = [c.carModel, c.carColor].filter(Boolean).join(' · ')
-                                    return (
-                                        <div key={c.applicationId} className="flex flex-col gap-1.5 rounded-2xl px-2.5 py-2 min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                            <PlanAvatarRing userId={c.applicantId}>
-                                                {c.avatarUrl ? (
-                                                    <img src={c.avatarUrl} className="w-9 h-9 rounded-full object-cover" style={{ border: `2px solid ${color}` }} alt="" />
-                                                ) : (
-                                                    <span className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: color }}>
-                                                        <MapPin size={14} color="#fff" />
-                                                    </span>
-                                                )}
-                                            </PlanAvatarRing>
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-[12px] font-black block truncate" style={{ color: colors.textPrimary }}>{c.profileSlug ? `@${c.profileSlug}` : c.name || 'Candidato'}</span>
-                                                <div className="flex items-center gap-1.5 text-[10px] font-bold min-w-0" style={{ color: colors.textSecondary }}>
-                                                    <span className="text-[12px] font-black flex-shrink-0" style={{ color: '#f97316' }}>{c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor'}</span>
-                                                    {pickupEtaMin != null && <span className="flex items-center gap-0.5 flex-shrink-0"><Clock size={9} />{pickupEtaMin} min</span>}
-                                                    {rating && <span className="flex-shrink-0" style={{ color: '#f97316' }}>★ {rating}</span>}
-                                                    {(vehicle || c.carPlate) && <span className="truncate">{[vehicle, c.carPlate].filter(Boolean).join(' · ')}</span>}
-                                                </div>
-                                            </div>
-                                            {c.status === 'pending' ? (
-                                                decidingId === c.applicationId ? (
-                                                    <Spinner size={14} color={colors.textSecondary} />
-                                                ) : (
-                                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                        <button onClick={() => acceptCandidate(c.applicationId, c.applicantId)} className="h-8 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1" style={{ background: '#22c55e', color: '#fff' }}>
-                                                            <Check size={12} />Aceitar
-                                                        </button>
-                                                        <button onClick={() => rejectCandidate(c.applicationId)} className="w-8 h-8 flex items-center justify-center rounded-full" style={{ background: '#ef44441a', color: '#ef4444' }} aria-label="Recusar">
-                                                            <X size={13} />
-                                                        </button>
-                                                    </div>
-                                                )
-                                            ) : (
-                                                <span className="text-[10px] font-black uppercase flex-shrink-0" style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}>{c.status === 'accepted' ? 'Aceito' : 'Recusado'}</span>
-                                            )}
-                                        </div>
-                                        {c.status === 'pending' && <CandidateNegotiation applicationId={c.applicationId} proposedPrice={c.proposedPrice} offers={offers} rideOffer={ride.passenger_offer} minAmount={tripMinAmount} onChanged={load} />}
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        )}
-                        <div className={compact ? 'hidden' : 'grid grid-cols-2 gap-2'}>
+                        {/* Como na 99: cada candidato é um CARRO com nota, tempo e o(s) valor(es) — sem nome, foto, @ nem placa até o passageiro escolher
+                            (depois de escolhido aparece a ficha completa do motorista). Se ele mandou mais de um valor, o passageiro toca no que quer. */}
+                        <div className="flex flex-col gap-2">
                             {candidates.map((c, i) => {
                                 const pickupEtaMin = c.etaMin != null ? Math.max(1, Math.round(c.etaMin)) : null
-                                const destArrival = pickupEtaMin != null
-                                    ? formatClockTime(new Date(Date.now() + (pickupEtaMin + (ride.duration_min ?? 0)) * 60000))
-                                    : null
+                                const destArrival = pickupEtaMin != null ? formatClockTime(new Date(Date.now() + (pickupEtaMin + (ride.duration_min ?? 0)) * 60000)) : null
                                 const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
-                                const roundedRating = Math.round(c.ratingAvg || 0)
-
+                                const rating = c.ratingCount > 0 ? (c.ratingAvg || 0).toFixed(1).replace('.', ',') : null
+                                const car = [c.carModel, c.carColor].filter(Boolean).join(' · ') || (VEHICLE_TYPE_LABELS[ride.vehicle_type as VehicleType] ?? 'Motorista')
+                                const prices = c.proposedPrice != null ? [c.proposedPrice, ...c.altPrices] : []
+                                const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+                                const deciding = decidingId === c.applicationId
                                 return (
-                                <div key={c.applicationId} className="flex flex-col items-center text-center gap-1.5 rounded-2xl px-2.5 py-3 min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                    <PlanAvatarRing userId={c.applicantId}>
-                                    {c.avatarUrl ? (
-                                        <img src={c.avatarUrl} className="w-11 h-11 rounded-full object-cover" style={{ border: `2px solid ${color}` }} alt="" />
-                                    ) : (
-                                        <span className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: color }}>
-                                            <MapPin size={16} color="#fff" />
-                                        </span>
-                                    )}
-                                    </PlanAvatarRing>
-
-                                    <div className="w-full min-w-0">
-                                        <span className="text-[11px] font-bold block truncate" style={{ color: colors.textPrimary }}>
-                                            {(c.profileSlug ? `@${c.profileSlug}` : c.name || 'Candidato')}
-                                        </span>
-                                        <span className="text-[11px] font-black block mt-0.5 truncate" style={{ color: '#f97316' }}>
-                                            {c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor'}
-                                        </span>
-                                    </div>
-
-                                    {(pickupEtaMin != null || destArrival) && (
-                                        <span
-                                            className="flex items-center gap-1 text-[9px] font-bold leading-tight"
-                                            style={{ color: colors.textSecondary }}
-                                            title="Estimativa a partir da localização salva do motorista, não é uma posição ao vivo"
-                                        >
-                                            <Clock size={9} className="flex-shrink-0" />
-                                            {pickupEtaMin != null ? `${pickupEtaMin} min` : ''}
-                                            {pickupEtaMin != null && destArrival && ' · '}
-                                            {destArrival && `chega às ${destArrival}`}
-                                        </span>
-                                    )}
-
-                                    {(c.carModel || c.carColor || c.carPlate || c.carPhotoUrl) && (
-                                        <div className="flex items-center gap-1.5 w-full min-w-0 justify-center">
-                                            {c.carPhotoUrl ? (
-                                                <img src={c.carPhotoUrl} className="w-6 h-6 rounded-md object-cover flex-shrink-0" alt="" />
-                                            ) : (
-                                                <span className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
-                                                    <Car size={11} style={{ color: colors.textSecondary }} />
-                                                </span>
-                                            )}
-                                            <span className="text-[10px] font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {[c.carModel, c.carColor].filter(Boolean).join(' · ') || 'Não informado'}
-                                            </span>
-                                            {c.carPlate && (
-                                                <span
-                                                    className="flex-shrink-0 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-                                                    style={{ background: `${colors.border}40`, color: colors.textPrimary }}
-                                                >
-                                                    {c.carPlate}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {c.services.length > 0 && (
-                                        <div className="flex gap-1 flex-wrap justify-center">
-                                            {c.services.map((sid) => {
-                                                const opt = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sid)
-                                                if (!opt) return null
-                                                const Icon = opt.icon
-                                                return (
-                                                    <span
-                                                        key={sid}
-                                                        className="flex items-center justify-center w-5 h-5 rounded-full"
-                                                        style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                                        title={opt.label}
-                                                    >
-                                                        <Icon size={10} />
-                                                    </span>
-                                                )
-                                            })}
-                                        </div>
-                                    )}
-
-                                    {c.ratingCount > 0 && (
-                                        <span className="text-[10px] font-black" style={{ color: '#f97316' }}>
-                                            {'★'.repeat(roundedRating)}{'☆'.repeat(5 - roundedRating)} {(c.ratingAvg || 0).toFixed(1)}
-                                        </span>
-                                    )}
-
-                                    {c.store && (c.store.slug || c.profileSlug) && (
-                                        <a
-                                            href={`/${c.store.slug || c.profileSlug}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="flex flex-col items-center gap-1 p-1.5 rounded-lg w-full min-w-0 cursor-pointer transition-opacity hover:opacity-80"
-                                            style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
-                                        >
-                                            <div className="flex items-center gap-1 w-full min-w-0 justify-center">
-                                                {c.store.logoUrl ? (
-                                                    <img src={c.store.logoUrl} className="w-4 h-4 rounded-full object-cover flex-shrink-0" alt="" />
-                                                ) : (
-                                                    <span className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
-                                                        <Store size={9} style={{ color: colors.textSecondary }} />
-                                                    </span>
-                                                )}
-                                                <span className="text-[9px] font-black truncate" style={{ color: colors.textPrimary }}>{c.store.name}</span>
+                                    <div key={c.applicationId} className="rounded-2xl p-3 flex flex-col gap-2.5 min-w-0" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${color}` }}>
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {c.carPhotoUrl
+                                                ? <img src={c.carPhotoUrl} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" alt="" />
+                                                : <span className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}><Car size={24} /></span>}
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-[14px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{car}</p>
+                                                <p className="text-[12px] font-bold mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5" style={{ color: colors.textSecondary }}>
+                                                    {rating && <span style={{ color: '#f59e0b' }}>★ {rating}<span style={{ color: colors.textSecondary }}> ({c.ratingCount})</span></span>}
+                                                    {pickupEtaMin != null && <span className="inline-flex items-center gap-0.5"><Clock size={11} />chega em {pickupEtaMin} min</span>}
+                                                    {destArrival && <span>· termina às {destArrival}</span>}
+                                                </p>
                                             </div>
-
-                                            {c.store.products.length > 0 && (
-                                                <div className="flex -space-x-1.5">
-                                                    {c.store.products.map((prod) => (
-                                                        <div
-                                                            key={prod.id}
-                                                            className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0"
-                                                            style={{ background: `${colors.border}30`, border: `1px solid ${colors.surface}` }}
-                                                            title={prod.name}
-                                                        >
-                                                            {prod.imageUrl && (
-                                                                <img src={prod.imageUrl} className="w-full h-full object-cover" alt="" />
-                                                            )}
-                                                        </div>
+                                            {c.status === 'pending' && !deciding && (
+                                                <button onClick={() => rejectCandidate(c.applicationId)} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full" style={{ background: `${colors.border}40`, color: colors.textSecondary }} aria-label="Recusar este motorista">
+                                                    <X size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                        {c.status !== 'pending' ? (
+                                            <span className="text-[11px] font-black uppercase" style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}>{c.status === 'accepted' ? 'Aceito' : 'Recusado'}</span>
+                                        ) : deciding ? (
+                                            <div className="flex justify-center py-2"><Spinner size={16} color={colors.textSecondary} /></div>
+                                        ) : prices.length <= 1 ? (
+                                            <button onClick={() => acceptCandidate(c.applicationId, c.applicantId, prices[0])} className="h-11 rounded-full text-[14px] font-black text-white flex items-center justify-center gap-1.5 active:scale-[0.98] transition" style={{ background: '#22c55e' }}>
+                                                <Check size={15} />{prices[0] != null ? `Escolher · ${brl(prices[0])}` : 'Escolher'}
+                                            </button>
+                                        ) : (
+                                            <div>
+                                                <p className="text-[11px] font-bold mb-1.5" style={{ color: colors.textSecondary }}>Escolha o valor</p>
+                                                <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${prices.length}, minmax(0, 1fr))` }}>
+                                                    {prices.map((v, k) => (
+                                                        <button key={v} onClick={() => acceptCandidate(c.applicationId, c.applicantId, v)} className="h-12 rounded-2xl flex flex-col items-center justify-center active:scale-[0.97] transition"
+                                                            style={k === 0 ? { background: '#22c55e', color: '#fff' } : { background: '#22c55e14', color: '#15803d', border: '1.5px solid #22c55e66' }}>
+                                                            <span className="text-[15px] font-black tabular-nums leading-tight">{brl(v)}</span>
+                                                            {k === 0 && <span className="text-[9px] font-bold opacity-90 leading-tight">menor</span>}
+                                                        </button>
                                                     ))}
                                                 </div>
-                                            )}
-                                        </a>
-                                    )}
-
-                                    {c.status === 'pending' ? (
-                                        decidingId === c.applicationId ? (
-                                            <Spinner size={14} color={colors.textSecondary} />
-                                        ) : (
-                                            <div className="flex items-center gap-1.5 mt-0.5 w-full">
-                                                <button
-                                                    onClick={() => acceptCandidate(c.applicationId, c.applicantId)}
-                                                    className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-bold"
-                                                    style={{ background: '#22c55e', color: '#fff' }}
-                                                >
-                                                    <Check size={11} />
-                                                    Aceitar
-                                                </button>
-                                                <button
-                                                    onClick={() => rejectCandidate(c.applicationId)}
-                                                    className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full"
-                                                    style={{ background: '#ef4444', color: '#fff' }}
-                                                    aria-label="Recusar"
-                                                >
-                                                    <X size={12} />
-                                                </button>
                                             </div>
-                                        )
-                                    ) : (
-                                        <span className="text-[9px] font-black uppercase" style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}>
-                                            {c.status === 'accepted' ? 'Aceito' : 'Recusado'}
-                                        </span>
-                                    )}
-                                    {c.status === 'pending' && <CandidateNegotiation applicationId={c.applicationId} proposedPrice={c.proposedPrice} offers={offers} rideOffer={ride.passenger_offer} minAmount={tripMinAmount} onChanged={load} />}
-                                </div>
+                                        )}
+                                        {c.status === 'pending' && <CandidateNegotiation applicationId={c.applicationId} proposedPrice={c.proposedPrice} offers={offers} rideOffer={ride.passenger_offer} minAmount={tripMinAmount} onChanged={load} />}
+                                    </div>
                                 )
                             })}
                         </div>

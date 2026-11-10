@@ -75,7 +75,7 @@ interface RideSummaryCardProps {
     /** faixa extra no topo (ex.: "Chamou você") */
     topBadge?: ReactNode
     /** candidatar DESLIZANDO (/aceitar-corridas): no lugar do botão grande aparece o deslizar, que se candidata pelo valor do card; "Detalhes" é só para ver melhor */
-    onApply?: (price: number) => void | Promise<void>
+    onApply?: (price: number, alts?: number[]) => void | Promise<void>
     applying?: boolean
     /** por que não dá para se candidatar agora (ex.: valor ainda aproximado): aparece no lugar do deslizar */
     applyBlocked?: string | null
@@ -93,10 +93,12 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
     const hot = tier === 'great'
     const accent = tier === 'none' ? colors.textPrimary : hot ? '#ea580c' : GREEN
     // o valor ESCOLHIDO na lista do card aberto (RideOfferCard dentro do "Detalhes"): passa a ser o valor grande e o do deslizar
-    const [picked, setPicked] = useState<{ price: number | null; blocked: string | null; own: boolean } | null>(null)
-    const onPick = useCallback((p: number | null, b: string | null, own: boolean) => setPicked((cur) => (cur && cur.price === p && cur.blocked === b && cur.own === own ? cur : { price: p, blocked: b, own })), [])
+    const [picked, setPicked] = useState<{ prices: number[] | null; blocked: string | null; own: boolean } | null>(null)
+    const onPick = useCallback((p: number[] | null, b: string | null, own: boolean) => setPicked((cur) => (cur && String(cur.prices) === String(p) && cur.blocked === b && cur.own === own ? cur : { prices: p, blocked: b, own })), [])
     const pickCtx = useMemo(() => ({ initial: price, viewOnly: !onApply, set: onPick }), [price, onApply, onPick])
-    const shownPrice = picked?.price ?? price
+    const pickedPrices = picked?.prices ?? null
+    const shownPrice = pickedPrices?.[0] ?? price
+    const extraCount = pickedPrices ? pickedPrices.length - 1 : 0
     const name = requester.name || (requester.slug ? `@${requester.slug}` : 'Passageiro')
     const KindIcon = isStore ? Truck : VEHICLE_ICON[ride.vehicle_type] ?? Car
     const waited = Math.floor((Date.now() - new Date(ride.created_at).getTime()) / 60000)
@@ -107,9 +109,9 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
         : ago(ride.created_at)
 
     const cta = onApply ? (
-                        <SlideToConfirm label={`Deslize para se candidatar · ${brl(shownPrice)}`} ariaLabel={`Candidatar por ${brl(shownPrice)}`} busy={applying}
-                            blocked={picked ? (picked.price == null ? 'Digite o valor que você quer cobrar' : picked.blocked) : applyBlocked}
-                            onConfirm={() => onApply(picked?.price ?? price)} onDragChange={onInteract} />
+                        <SlideToConfirm label={extraCount > 0 ? `Deslize para enviar ${extraCount + 1} valores` : `Deslize para se candidatar · ${brl(shownPrice)}`} ariaLabel={extraCount > 0 ? `Enviar ${extraCount + 1} valores, a partir de ${brl(shownPrice)}` : `Candidatar por ${brl(shownPrice)}`} busy={applying}
+                            blocked={picked ? (picked.prices == null ? 'Escolha um valor' : picked.blocked) : applyBlocked}
+                            onConfirm={() => onApply(pickedPrices?.[0] ?? price, pickedPrices ? pickedPrices.slice(1) : undefined)} onDragChange={onInteract} />
                     ) : (
                         <button onClick={onOpen} className="h-12 rounded-full text-white text-[14px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition" style={{ background: hot ? GRADIENT : ORANGE }}>
                             {ctaLabel} <ArrowRight size={17} />
@@ -148,6 +150,7 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                     <div className="min-w-0">
                         {approx && !picked && <p className="text-[11px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>a partir de</p>}
                         <Money value={shownPrice} color={accent} />
+                        {extraCount > 0 && pickedPrices && <p className="text-[12px] font-black mt-1" style={{ color: ORANGE }}>ou {pickedPrices.slice(1).map(brl).join(' ou ')}</p>}
                         <p className="text-[13px] font-black mt-1.5" style={{ color: tier === 'none' ? colors.textSecondary : accent }}>
                             {perHour != null ? `R$ ${Math.round(perHour)} por hora` : toPickup.hasGps ? 'calculando quanto rende…' : 'ative o GPS para ver quanto rende por hora'}
                         </p>

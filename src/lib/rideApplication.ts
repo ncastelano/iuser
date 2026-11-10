@@ -8,7 +8,8 @@ import { hourlyCheck } from '@/modules/negotiation'
 import { belowMinimumText } from '@/modules/negotiation/domain'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 
-export async function submitRideApplication(userId: string, rideId: string, price: number, minutes?: number | null): Promise<void> {
+/** `alts` = até 2 valores a mais (maiores que `price`, até o triplo): o passageiro escolhe um deles ou o principal (o banco confere) */
+export async function submitRideApplication(userId: string, rideId: string, price: number, minutes?: number | null, alts?: number[]): Promise<void> {
     // Ganho mínimo por hora do motorista em modo "não aceitar abaixo": vale para QUALQUER forma de candidatura (card, aviso do celular...)
     const check = await hourlyCheck(rideId, price, minutes)
     if (check?.belowPlatform && check.platformMin != null) {
@@ -21,6 +22,7 @@ export async function submitRideApplication(userId: string, rideId: string, pric
         ride_request_id: rideId,
         applicant_id: userId,
         proposed_price: price,
+        ...(alts && alts.length ? { alt_prices: alts } : {}),
     })
     if (error) throw error
 

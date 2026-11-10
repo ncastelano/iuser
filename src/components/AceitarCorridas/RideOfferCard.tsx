@@ -7,7 +7,7 @@
 'use client'
 
 import { useContext, useEffect, useState, type ReactNode } from 'react'
-import { ChevronDown, Package, PawPrint, Star, CalendarClock, Pencil, X, Users, Car, Baby, ShoppingBag, AlertTriangle, Accessibility, Eye, Banknote, CreditCard, QrCode, MapPin, Building2, Truck, type LucideIcon } from 'lucide-react'
+import { Check, ChevronDown, Package, PawPrint, Star, CalendarClock, Pencil, X, Users, Car, Baby, ShoppingBag, AlertTriangle, Accessibility, Eye, Banknote, CreditCard, QrCode, MapPin, Building2, Truck, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useInsideShell } from '@/components/InsideShell'
 import { Spinner } from '@/components/Spinner'
@@ -15,7 +15,7 @@ import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
-import { effectiveTimeRate, timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney, otherValueRange, otherValueProblem, centsDigits, centsToValue, centsLabel } from '@/modules/negotiation/domain'
+import { effectiveTimeRate, timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney, otherValueRange, otherValueProblem, centsDigits, centsToValue, centsLabel, packOffer, MAX_OFFER_VALUES } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { RideValuePickContext } from './rideValuePick'
@@ -85,7 +85,8 @@ interface RideOfferCardProps {
     // Os valores de cada trecho (ir buscar, a corrida, total) vêm da tarifa PRÓPRIA do motorista em vez da Tarifa iUser (o motorista usa "Minha tarifa")
     valueFromOwn?: boolean
     applying?: boolean
-    onApply?: (price: number) => void
+    /** `alts` = os valores a mais (até 2) que o motorista marcou; o passageiro escolhe um deles ou o principal */
+    onApply?: (price: number, alts?: number[]) => void
     // Entrega de loja: propor a Minha tarifa (o cliente decide). O valor é recalculado no servidor.
     onCounter?: () => void
     toPickup: { km: number | null; min: number | null; hasGps: boolean }
@@ -189,7 +190,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     // o resto (o que a corrida leva, mapa, trechos, como cada valor foi feito) fica recolhido em "Ver detalhes da corrida".
     const pick = useContext(RideValuePickContext)
     const embedded = !!pick
-    const [sel, setSel] = useState<string | null>(null)
+    const [marked, setMarked] = useState<string[] | null>(null)   // null = só o valor que o card enxuto mostrava
+    const [limitHint, setLimitHint] = useState(false)
     const [showMore, setShowMore] = useState(false)
     type Opt = { key: string; label: string; value: number; tag?: string }
     const options: Opt[] = (() => {
@@ -209,21 +211,33 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
         return out
     })()
     const initialKey = options.find((o) => pick && Math.abs(o.value - pick.initial) < 0.005)?.key ?? options[0]?.key ?? null
-    const curKey = sel ?? initialKey
+    // ATÉ 3 VALORES: o motorista marca os que quiser mandar (o passageiro vê um cartão só, com as opções, e escolhe um)
+    const keys = marked ?? (initialKey ? [initialKey] : [])
+    const outroOpen = keys.includes('outro')
+    const toggle = (k: string) => {
+        setLimitHint(false)
+        if (keys.includes(k)) { if (keys.length > 1) setMarked(keys.filter((x) => x !== k)); return }
+        if (keys.length >= MAX_OFFER_VALUES) { setLimitHint(true); return }
+        setMarked([...keys, k])
+    }
     // "Outro valor": só SOBE — do menor valor entre as opções até o triplo dele; digitado como na maquininha (os dígitos entram pela direita)
     const [outro, setOutro] = useState('')
     const range = otherValueRange(options.map((o) => o.value))
     const typed = centsToValue(outro)
     const outroProblem = otherValueProblem(typed, range)
-    const curValue = curKey === 'outro' ? typed : options.find((o) => o.key === curKey)?.value ?? null
-    const whyBlocked = (v: number | null): string | null => v == null ? 'Digite o valor que você quer cobrar'
-        : curKey === 'outro' && outroProblem ? outroProblem
-        : belowPlatformFloor(v, platFloor) ? platformFloorText(platFloor, minPerMinute)
-        : protection === 'block' && below(v) && minHourly != null && perHour(v) != null ? belowMinimumText(perHour(v) as number, minHourly, 'proposta') : null
-    const curBlocked = whyBlocked(curValue)
+    const chosen = keys.map((k) => (k === 'outro' ? typed : options.find((o) => o.key === k)?.value ?? null)).filter((v): v is number => v != null)
+    const packed = packOffer(chosen)
+    const curValue = packed?.price ?? null
+    const curBlocked: string | null = outroOpen && outroProblem ? outroProblem
+        : !packed ? 'Escolha um valor'
+        : packed.problem ? packed.problem
+        : belowPlatformFloor(packed.price, platFloor) ? platformFloorText(platFloor, minPerMinute)
+        : protection === 'block' && below(packed.price) && minHourly != null && perHour(packed.price) != null ? belowMinimumText(perHour(packed.price) as number, minHourly, 'proposta') : null
+    const sendNow = () => { if (packed && !curBlocked) onApply?.(packed.price, packed.alts) }
     const setPick = pick?.set
     const pickLive = embedded && !viewOnly && options.length > 0
-    useEffect(() => { if (pickLive && setPick && curKey) setPick(curValue, curBlocked, curKey === 'outro') }, [pickLive, setPick, curKey, curValue, curBlocked])
+    const pricesKey = packed ? [packed.price, ...packed.alts].join(',') : ''
+    useEffect(() => { if (pickLive && setPick) setPick(pricesKey ? pricesKey.split(',').map(Number) : null, curBlocked, outroOpen) }, [pickLive, setPick, pricesKey, curBlocked, outroOpen])
 
     const haveTotal = toPickup.km != null && toPickup.min != null && trip.km != null && trip.min != null
     const totalKm = haveTotal ? (toPickup.km as number) + (trip.km as number) : null
@@ -325,17 +339,20 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
             </div>}
 
             {embedded && options.length > 0 && (
-                <div className="flex flex-col gap-1.5" role={viewOnly ? undefined : 'radiogroup'} aria-label="Escolha o valor">
-                    <p className="text-[12px] font-black" style={{ color: colors.textSecondary }}>{viewOnly ? 'Valores desta corrida' : 'Escolha o valor'}</p>
+                <div className="flex flex-col gap-1.5" role={viewOnly ? undefined : 'group'} aria-label="Escolha os valores">
+                    <p className="text-[12px] font-black flex items-baseline justify-between gap-2" style={{ color: colors.textSecondary }}>
+                        <span>{viewOnly ? 'Valores desta corrida' : 'Escolha até 3 valores'}</span>
+                        {!viewOnly && <span className="text-[11px] font-bold">o passageiro escolhe um</span>}
+                    </p>
                     {options.map((o) => {
-                        const on = !viewOnly && curKey === o.key
+                        const on = !viewOnly && keys.includes(o.key)
                         const h = perHour(o.value)
                         const low = below(o.value)
                         return (
-                            <button key={o.key} type="button" role={viewOnly ? undefined : 'radio'} aria-checked={viewOnly ? undefined : on} disabled={viewOnly} onClick={() => setSel(o.key)}
+                            <button key={o.key} type="button" role={viewOnly ? undefined : 'checkbox'} aria-checked={viewOnly ? undefined : on} disabled={viewOnly} onClick={() => toggle(o.key)}
                                 className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition active:scale-[0.99] disabled:active:scale-100"
                                 style={{ border: `1.5px solid ${on ? '#f97316' : colors.border}`, background: on ? '#f9731610' : 'transparent' }}>
-                                {!viewOnly && <span className="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-shrink-0" style={{ border: `2px solid ${on ? '#f97316' : colors.border}` }}>{on && <span className="w-2 h-2 rounded-full" style={{ background: '#f97316' }} />}</span>}
+                                {!viewOnly && <span className="w-[18px] h-[18px] rounded-md flex items-center justify-center flex-shrink-0" style={{ border: `2px solid ${on ? '#f97316' : colors.border}`, background: on ? '#f97316' : 'transparent' }}>{on && <Check size={12} color="#fff" strokeWidth={3.5} />}</span>}
                                 <span className="min-w-0 flex-1">
                                     <span className="block text-[13px] font-black leading-tight" style={{ color: colors.textPrimary }}>{o.label}</span>
                                     {(h != null || o.tag || low) && (
@@ -348,9 +365,9 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             </button>
                         )
                     })}
-                    {!viewOnly && (curKey !== 'outro' ? (
-                        <button type="button" role="radio" aria-checked={false} onClick={() => setSel('outro')} className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition active:scale-[0.99]" style={{ border: `1.5px dashed ${colors.border}` }}>
-                            <span className="w-[18px] h-[18px] rounded-full flex-shrink-0" style={{ border: `2px solid ${colors.border}` }} />
+                    {!viewOnly && (!outroOpen ? (
+                        <button type="button" role="checkbox" aria-checked={false} onClick={() => toggle('outro')} className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition active:scale-[0.99]" style={{ border: `1.5px dashed ${colors.border}` }}>
+                            <span className="w-[18px] h-[18px] rounded-md flex-shrink-0" style={{ border: `2px solid ${colors.border}` }} />
                             <span className="min-w-0 flex-1">
                                 <span className="block text-[13px] font-black leading-tight" style={{ color: colors.textPrimary }}>Outro valor</span>
                                 {range && <span className="block text-[11px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>só para cima · até {brl(range.max)}</span>}
@@ -358,30 +375,31 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             <Pencil size={15} style={{ color: colors.textSecondary }} />
                         </button>
                     ) : (
-                        <div role="radio" aria-checked className="rounded-2xl px-3 py-3 flex flex-col gap-2" style={{ border: '1.5px solid #f97316', background: '#f9731610' }}>
+                        <div role="checkbox" aria-checked className="rounded-2xl px-3 py-3 flex flex-col gap-2" style={{ border: '1.5px solid #f97316', background: '#f9731610' }}>
                             <div className="flex items-center gap-2.5">
-                                <span className="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-shrink-0" style={{ border: '2px solid #f97316' }}><span className="w-2 h-2 rounded-full" style={{ background: '#f97316' }} /></span>
+                                <span className="w-[18px] h-[18px] rounded-md flex items-center justify-center flex-shrink-0" style={{ background: '#f97316' }}><Check size={12} color="#fff" strokeWidth={3.5} /></span>
                                 <span className="text-[13px] font-black flex-1" style={{ color: colors.textPrimary }}>Outro valor</span>
-                                <button type="button" onClick={() => { setSel(null); setOutro('') }} aria-label="Voltar às opções" className="w-7 h-7 rounded-full flex items-center justify-center" style={{ color: colors.textSecondary }}><X size={15} /></button>
+                                <button type="button" onClick={() => { setOutro(''); setLimitHint(false); setMarked(keys.length > 1 ? keys.filter((k) => k !== 'outro') : initialKey ? [initialKey] : []) }} aria-label="Tirar o outro valor" className="w-7 h-7 rounded-full flex items-center justify-center" style={{ color: colors.textSecondary }}><X size={15} /></button>
                             </div>
                             {/* digitado como na maquininha: o R$ e a vírgula ficam à vista enquanto se digita */}
                             <label className="flex items-center gap-1.5 rounded-2xl px-4 h-14" style={{ background: colors.background, border: `1.5px solid ${outro && outroProblem ? '#dc2626' : colors.border}` }}>
                                 <span className="text-[18px] font-black" style={{ color: colors.textSecondary }}>R$</span>
                                 <input autoFocus inputMode="numeric" aria-label="Outro valor em reais" value={outro ? centsLabel(outro) : ''} placeholder="0,00"
                                     onChange={(e) => setOutro(centsDigits(e.target.value))}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' && typed != null && !curBlocked) onApply?.(typed) }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') sendNow() }}
                                     className="flex-1 min-w-0 bg-transparent outline-none text-[26px] font-black tabular-nums" style={{ color: colors.textPrimary }} />
                             </label>
                             <p className="text-[11px] font-bold leading-snug" style={{ color: outro && outroProblem ? '#dc2626' : colors.textSecondary }}>
                                 {outro && outroProblem ? outroProblem : range ? `De ${brl(range.min)} até ${brl(range.max)}${typed != null && perHour(typed) != null ? ` · R$ ${perHour(typed)} por hora` : ''}` : ''}
                             </p>
                             {outro && !outroProblem && curBlocked && <p className="text-[11px] font-bold leading-snug" style={{ color: '#dc2626' }}>{curBlocked}</p>}
-                            <button type="button" onClick={() => typed != null && onApply?.(typed)} disabled={applying || typed == null || !!curBlocked}
+                            <button type="button" onClick={sendNow} disabled={applying || !packed || !!curBlocked}
                                 className="h-12 rounded-full text-[14px] font-black text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-45" style={{ background: '#f97316' }}>
-                                {applying ? <Spinner size={14} /> : typed != null ? `Enviar valor · ${brl(typed)}` : 'Enviar valor'}
+                                {applying ? <Spinner size={14} /> : !packed ? 'Enviar valor' : packed.alts.length ? `Enviar ${packed.alts.length + 1} valores` : `Enviar valor · ${brl(packed.price)}`}
                             </button>
                         </div>
                     ))}
+                    {!viewOnly && limitHint && <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>No máximo {MAX_OFFER_VALUES} valores: desmarque um para trocar.</p>}
                     {/* valor que não pode ser enviado: o motivo aparece no próprio deslizar, logo abaixo */}
                     {!viewOnly && curValue != null && !curBlocked && below(curValue) && minHourly != null && perHour(curValue) != null && (
                         <p className="text-[11px] font-bold leading-snug" style={{ color: '#b45309' }}>{belowMinimumText(perHour(curValue) as number, minHourly, 'proposta')}</p>
