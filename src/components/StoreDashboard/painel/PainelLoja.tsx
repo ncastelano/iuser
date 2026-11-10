@@ -28,11 +28,11 @@ import StoreMissions from '../StoreMissions'
 import StoreDigital from '../StoreDigital'
 import StoreFeedback from '../StoreFeedback'
 import StoreVisitors from '../StoreVisitors'
-import ButtonInPersonSale from '../ButtonInPersonSale'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import { gerenciarItens, SELO } from './gerenciar'
 import { TYPE_INFO } from '@/components/planos/PostpaidFees'
 import LogoFolha from './LogoFolha'
+import BalcaoV3 from './BalcaoV3'
 import StoreTips from '@/components/tips/StoreTips'
 import ExtratoCompleto, { type ExtratoPeriodo } from './ExtratoCompleto'
 import { PaginaPainel, useSecaoUrl } from './Casca'
@@ -40,7 +40,7 @@ import SalesChart, { type PaidOrder, type SalesPeriod } from './SalesChart'
 import type { ExtractPeriod } from '../StoreSalesExtractDialog'
 
 const ORANGE = '#f97316'
-const PAGINAS = ['extrato', 'repasses', 'apoios'] as const
+const PAGINAS = ['extrato', 'repasses', 'apoios', 'balcao'] as const
 type PaginaK = typeof PAGINAS[number]
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -337,9 +337,13 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 </PaginaPainel>
             )}
 
-            {/* ===== VENDA NO BALCÃO ===== */}
-            {sec('Venda no balcão')}
-            <ButtonInPersonSale storeId={store.id} storeName={store.name} storeSlug={storeSlug} profileSlug={profileSlug} onSaleCompleted={onSaleCompleted} />
+            {/* ===== VENDA NO BALCÃO: botão FIXO acima da barra (o fluxo novo: itens → revisar → cobrar → recibo) ===== */}
+            <div className="h-16" />
+            <button onClick={() => pagina.abrir('balcao')} className="fixed right-4 z-30 h-12 px-5 rounded-full text-[14px] font-black text-white flex items-center gap-2 active:scale-95 transition"
+                style={{ bottom: 'calc(var(--shell-bottom, 0px) + 14px)', background: ORANGE, boxShadow: '0 8px 22px #f9731655' }}>
+                <Store size={17} />Venda no balcão
+            </button>
+            {pagina.secao === 'balcao' && <BalcaoV3 storeId={store.id} storeName={store.name} pixKey={store.pix_key || null} onClose={pagina.fechar} onDone={onSaleCompleted} />}
         </div>
     )
 }

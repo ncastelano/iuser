@@ -703,7 +703,7 @@ export default function StoreDashboard({
         <div className="w-full px-4 md:px-6 pb-28">
             {showDebtBanner && <DriverDebtBanner userId={userId} />}
             <PainelLoja store={store} storeSlug={storeSlug} profileSlug={profileSlug} userId={userId} metrics={metrics} paidOrders={paidOrders}
-                onOpenExtract={setExtractPeriod} onShare={shareStoreLink} onOrderCountsChange={onOrderCountsChange} onSaleCompleted={() => loadDashboard()} />
+                onOpenExtract={setExtractPeriod} onShare={shareStoreLink} onOrderCountsChange={onOrderCountsChange} onSaleCompleted={() => { loadDashboardInner().catch(() => {}) }} />
             {extractPeriod && <StoreSalesExtractDialog storeId={store.id} storeName={store.name} period={extractPeriod} onClose={() => setExtractPeriod(null)} />}
         </div>
     )
