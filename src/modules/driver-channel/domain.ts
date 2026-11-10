@@ -1,7 +1,9 @@
 // CANAL DO MOTORISTA — o cartão compacto da home da 3.0: cada corrida aberta vira um "tile" com o VALOR, o TEMPO e a DISTÂNCIA (o que quem
 // pensa em dirigir quer ver de relance). Regra pura e testada (npm run test:driver-channel); quem fala com o banco é load.ts.
-// O valor mostrado: a OFERTA do passageiro (se ele ofereceu), o FRETE da loja (entrega) ou a Tarifa iUser da corrida "a partir de"
-// (partida → chegada, sem o deslocamento de quem dirige — por isso "a partir de"), nunca abaixo do mínimo da plataforma.
+// O VALOR é o MESMO do card de /aceitar-corridas: load.ts faz a conta de lib/rideQuote (rota do mapa, deslocamento até a partida,
+// Minha tarifa, piso por hora e mínimo da plataforma) e aqui só se monta o tile e se decide o tipo (valorizada/corrida/entrega).
+import { perHour, rideValuation } from '../negotiation/domain.ts'
+
 
 export interface OfferRow {
     id: string
@@ -43,29 +45,34 @@ export function shortPlace(addr: string | null | undefined): string {
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100
-/** minutos de ir buscar o passageiro que o cartão supõe (o R$/h conta o trabalho todo: sem isso uma corrida de 3 min parecia render R$ 160/h) */
-export const PICKUP_MIN = 5
 
-/**
- * @param fareOf  Tarifa iUser da corrida (partida → chegada) pelo veículo e tipo
- * @param floorOf mínimo da plataforma pelos minutos da corrida
- */
-export function tileOf(r: OfferRow, fareOf: (km: number, vehicle: string, rideType: string | null) => number, floorOf: (minutes: number | null) => number): ChannelTile {
-    const km = r.distance_km != null ? Number(r.distance_km) : null
-    const minutes = r.duration_min != null ? Math.max(1, Math.round(Number(r.duration_min))) : null
+/** o que a conta de /aceitar-corridas (lib/rideQuote) devolveu para esta corrida — o cartão mostra exatamente isso */
+export interface TileQuote {
+    /** o valor destacado: oferta do passageiro, frete da loja, Minha tarifa (se o motorista usa a dele) ou a Tarifa iUser (+ deslocamento) */
+    price: number
+    /** a Tarifa iUser da mesma corrida (com o deslocamento): a base da "valorizada" */
+    platform: number
+    /** a oferta do passageiro é o valor destacado */
+    fromPassenger: boolean
+    /** "a partir de": Tarifa iUser sem o deslocamento até a partida (sem a posição de quem dirige) */
+    approx: boolean
+    /** km e minutos da corrida (partida → chegada) que o card de /aceitar-corridas mostra */
+    tripKm: number | null
+    tripMin: number | null
+    /** minutos de trabalho (ir buscar + corrida); null = sem a posição de quem dirige */
+    totalMin: number | null
+}
+
+export function tileOf(r: OfferRow, q: TileQuote): ChannelTile {
     const vehicle = r.vehicle_type || 'carro'
     const isDelivery = !!r.order_id
-    const iuser = km != null ? Math.max(fareOf(km, vehicle, r.ride_type), floorOf(minutes)) : floorOf(minutes)
-    let value: number, approx = false, kind: TileKind = isDelivery ? 'entrega' : 'corrida'
-    if (isDelivery && r.offered_price != null) value = Number(r.offered_price)
-    else if (r.passenger_offer != null && Number(r.passenger_offer) > 0) {
-        value = Number(r.passenger_offer)
-        if (iuser > 0 && value >= iuser * 1.2) kind = 'valorizada'
-    } else { value = iuser; approx = true }
-    value = round2(value)
+    // a mesma regra do card de /aceitar-corridas: só a oferta do PASSAGEIRO 20% acima da Tarifa iUser é "valorizada"
+    const kind: TileKind = isDelivery ? 'entrega' : q.fromPassenger && rideValuation(q.price, q.platform).tier === 'great' ? 'valorizada' : 'corrida'
     return {
-        id: r.id, kind, value, approx, minutes, km: km != null ? round2(km) : null,
-        perHour: minutes ? Math.round((value / (minutes + PICKUP_MIN)) * 60) : null,
+        id: r.id, kind, value: round2(q.price), approx: q.approx,
+        minutes: q.tripMin != null ? Math.max(1, Math.round(q.tripMin)) : null,
+        km: q.tripKm != null ? round2(q.tripKm) : null,
+        perHour: (() => { const h = perHour(q.price, q.totalMin); return h != null ? Math.round(h) : null })(),
         route: `${shortPlace(r.origin_address)} → ${shortPlace(r.destination_address)}`,
         vehicle: isDelivery ? 'Entrega de loja' : VEHICLE[vehicle] || 'Corrida',
         href: `/aceitar-corridas?ride=${r.id}`,

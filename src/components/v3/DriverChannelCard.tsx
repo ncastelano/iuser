@@ -3,7 +3,7 @@
 // "Canal do Motorista" da home 3.0, no molde do card "Social": cabeçalho que abre a página do canal (/canal-do-motorista) e uma grade de
 // CORRIDAS ABERTAS — cada uma com o valor, o tempo, a distância, quanto rende por hora e o trajeto (bairro → bairro). Mostra 4 por vez e,
 // havendo mais, passa para as próximas a cada 5 s; tocar numa abre a corrida em /aceitar-corridas. Visitante (ride_offers não é público)
-// vê o convite para entrar. A conta de cada valor é a regra pura de modules/driver-channel (o R$/h soma 5 min de ir buscar).
+// vê o convite para entrar. O valor de cada uma é a MESMA conta de /aceitar-corridas (lib/rideQuote, em modules/driver-channel/load.ts).
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Car, ChevronRight, Flame, Package } from 'lucide-react'
@@ -37,7 +37,7 @@ export default function DriverChannelCard() {
         if (!userId) { setData(null); return }
         if (!loaded) return
         let alive = true
-        const run = () => loadChannelTiles({ minPerMinute, myKinds: (kindsKey ? kindsKey.split(',') : []) as VehicleKind[] }).then((d) => { if (alive) setData(d) })
+        const run = () => loadChannelTiles({ userId, minPerMinute, myKinds: (kindsKey ? kindsKey.split(',') : []) as VehicleKind[] }).then((d) => { if (alive) setData(d) })
         run()
         const t = setInterval(() => { if (!document.hidden) run() }, 30000)
         return () => { alive = false; clearInterval(t) }
