@@ -21,9 +21,9 @@ export const isCreatorModel = (m: StoreModel): m is CreatorModel => m === 'studi
 
 /** Como a página de uma loja de CRIADOR se monta: o nome da aba dos conteúdos, se tem destaque no topo e a ordem das prateleiras. */
 export function creatorPage(m: CreatorModel) {
-    if (m === 'studio') return { tab: 'Músicas e vídeos', hero: true, shelfOrder: ['musicas', 'filmes', 'cursos', 'audiolivros', 'arquivos', 'programas'], heroKinds: ['album', 'musica', 'playlist', 'filme', 'aula', 'curso'] }
-    if (m === 'content') return { tab: 'Audiolivros e podcasts', hero: true, shelfOrder: ['audiolivros', 'musicas', 'cursos', 'filmes', 'arquivos', 'programas'], heroKinds: ['audiolivro', 'podcast'] }
-    return { tab: 'Livros', hero: false, shelfOrder: ['arquivos', 'audiolivros', 'cursos', 'musicas', 'filmes', 'programas'], heroKinds: [] as string[] }
+    if (m === 'studio') return { tab: 'Músicas e vídeos', hero: true, shelfOrder: ['musicas', 'filmes', 'cursos', 'podcasts', 'audiolivros', 'arquivos', 'programas'], heroKinds: ['album', 'musica', 'playlist', 'filme', 'aula', 'curso'] }
+    if (m === 'content') return { tab: 'Audiolivros e podcasts', hero: true, shelfOrder: ['audiolivros', 'podcasts', 'musicas', 'cursos', 'filmes', 'arquivos', 'programas'], heroKinds: ['audiolivro', 'podcast'] }
+    return { tab: 'Livros', hero: false, shelfOrder: ['arquivos', 'audiolivros', 'podcasts', 'cursos', 'musicas', 'filmes', 'programas'], heroKinds: [] as string[] }
 }
 
 export function parseStoreModel(v: unknown): StoreModel {

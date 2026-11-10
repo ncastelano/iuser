@@ -78,7 +78,7 @@ test('resumo a partir das contagens e filtros da vitrine', () => {
     assert.equal(summaryFromCounts({ videos: 0, audios: 0, docs: 0, links: 0, seconds: 0 }), 'Conteúdo em preparação')
     assert.equal(summaryFromCounts({ videos: 8, audios: 0, docs: 1, links: 0, seconds: 86 }), '8 aulas em vídeo · 1 arquivo · 1:26')
     assert.equal(summaryFromCounts({ videos: 1, audios: 0, docs: 0, links: 0, seconds: 14 }), '1 aula em vídeo · 0:14')
-    assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'musicas', 'audiolivros', 'filmes', 'programas', 'arquivos'])
+    assert.deepEqual(SHOWCASE_FILTERS.map((f) => f.id), ['todos', 'cursos', 'aulas', 'playlists', 'musicas', 'audiolivros', 'podcasts', 'filmes', 'programas', 'arquivos'])
     assert.ok(SHOWCASE_FILTERS.find((f) => f.id === 'arquivos').kinds.includes('ebook'))
     assert.equal(PRODUCT_KIND_LABEL.aula, 'Aula única')
 })
@@ -244,10 +244,13 @@ test('todo tipo tem rótulo, dá para o lojista escolher e o banco aceita a mesm
 
 test('prateleiras: cada tipo cai numa só, vazia some, ordem fixa', () => {
     const it = (kind, n) => ({ kind, n })
-    const out = groupIntoShelves([it('filme', 1), it('album', 2), it('curso', 3), it('audiolivro', 4), it('musica', 5), it('programa', 6), it('ebook', 7)])
-    assert.deepEqual(out.map((s) => s.id), ['cursos', 'musicas', 'audiolivros', 'filmes', 'arquivos', 'programas'])
+    const out = groupIntoShelves([it('filme', 1), it('album', 2), it('curso', 3), it('audiolivro', 4), it('musica', 5), it('programa', 6), it('ebook', 7), it('podcast', 8)])
+    assert.deepEqual(out.map((s) => s.id), ['cursos', 'musicas', 'audiolivros', 'podcasts', 'filmes', 'arquivos', 'programas'])
     assert.deepEqual(out.find((s) => s.id === 'musicas').items.map((x) => x.n), [2, 5])
     assert.deepEqual(groupIntoShelves([]), [])
+    // playlist de vídeos vai para Cursos e aulas; a de áudio fica nas músicas
+    const pl = groupIntoShelves([{ kind: 'playlist', videos: 5, n: 1 }, { kind: 'playlist', videos: 0, n: 2 }])
+    assert.deepEqual(pl.map((s) => [s.id, s.items.map((x) => x.n)]), [['cursos', [1]], ['musicas', [2]]])
     const todos = Object.keys(PRODUCT_KIND_LABEL)
     assert.deepEqual(todos.filter((k) => !SHELVES.some((s) => s.kinds.includes(k))), [])   // nenhum tipo fica sem prateleira
 })

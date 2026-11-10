@@ -137,18 +137,21 @@ export const isDigitalProductKind = (v: unknown): v is DigitalProductKind => typ
 export const SHELVES: { id: string; title: string; kinds: DigitalProductKind[] }[] = [
     { id: 'cursos', title: 'Cursos e aulas', kinds: ['curso', 'aula'] },
     { id: 'musicas', title: 'Músicas e álbuns', kinds: ['musica', 'album', 'playlist'] },
-    { id: 'audiolivros', title: 'Audiolivros e podcasts', kinds: ['audiolivro', 'podcast'] },
+    { id: 'audiolivros', title: 'Audiolivros', kinds: ['audiolivro'] },
+    { id: 'podcasts', title: 'Podcasts', kinds: ['podcast'] },
     { id: 'filmes', title: 'Filmes e vídeos', kinds: ['filme'] },
     { id: 'arquivos', title: 'E-books e arquivos', kinds: ['ebook', 'arquivo'] },
     { id: 'programas', title: 'Programas', kinds: ['programa'] },
 ]
 /** Distribui os produtos nas prateleiras (vazia some; o que não tem prateleira conhecida não se perde: vai para "Outros").
  *  `order` (ids de SHELVES) muda a ordem — cada modelo de loja de criador começa pelo que é dele; `titles` troca o nome (Editora: "Livros"). */
-export function groupIntoShelves<T extends { kind: DigitalProductKind }>(items: T[], order?: string[], titles?: Record<string, string>): { id: string; title: string; items: T[] }[] {
+export function groupIntoShelves<T extends { kind: DigitalProductKind; videos?: number }>(items: T[], order?: string[], titles?: Record<string, string>): { id: string; title: string; items: T[] }[] {
     const shelves = order ? [...SHELVES].sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99)) : SHELVES
-    const out = shelves.map((sh) => ({ id: sh.id, title: titles?.[sh.id] || sh.title, items: items.filter((i) => sh.kinds.includes(i.kind)) }))
+    // playlist de VÍDEOS (aulas) não é música: vai para "Cursos e aulas"; playlist só de áudio fica em "Músicas e álbuns"
+    const shelfKind = (i: T): DigitalProductKind => (i.kind === 'playlist' && (i.videos ?? 0) > 0 ? 'curso' : i.kind)
+    const out = shelves.map((sh) => ({ id: sh.id, title: titles?.[sh.id] || sh.title, items: items.filter((i) => sh.kinds.includes(shelfKind(i))) }))
     const known = new Set(SHELVES.flatMap((sh) => sh.kinds))
-    const rest = items.filter((i) => !known.has(i.kind))
+    const rest = items.filter((i) => !known.has(shelfKind(i)))
     if (rest.length) out.push({ id: 'outros', title: 'Outros', items: rest })
     return out.filter((sh) => sh.items.length > 0)
 }
@@ -157,11 +160,12 @@ export const isAudioKind = (k: DigitalProductKind) => k === 'musica' || k === 'a
 /** Filtros da vitrine (/digitais): chave → rótulo e quais tipos entram */
 export const SHOWCASE_FILTERS: { id: string; label: string; kinds: DigitalProductKind[] | null }[] = [
     { id: 'todos', label: 'Todos', kinds: null },
-    { id: 'cursos', label: 'Cursos', kinds: ['curso'] },
+    { id: 'cursos', label: 'Cursos e aulas', kinds: ['curso', 'aula'] },
     { id: 'aulas', label: 'Aulas únicas', kinds: ['aula'] },
     { id: 'playlists', label: 'Playlists', kinds: ['playlist'] },
     { id: 'musicas', label: 'Músicas', kinds: ['musica', 'album'] },
-    { id: 'audiolivros', label: 'Audiolivros e podcasts', kinds: ['audiolivro', 'podcast'] },
+    { id: 'audiolivros', label: 'Audiolivros', kinds: ['audiolivro'] },
+    { id: 'podcasts', label: 'Podcasts', kinds: ['podcast'] },
     { id: 'filmes', label: 'Filmes', kinds: ['filme'] },
     { id: 'programas', label: 'Programas', kinds: ['programa'] },
     { id: 'arquivos', label: 'E-books e arquivos', kinds: ['ebook', 'arquivo'] },

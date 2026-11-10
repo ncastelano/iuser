@@ -133,7 +133,7 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                         {approx && <p className="text-[11px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>a partir de</p>}
                         <Money value={price} color={accent} />
                         <p className="text-[13px] font-black mt-1.5" style={{ color: tier === 'none' ? colors.textSecondary : accent }}>
-                            {perHour != null ? `dá uns R$ ${Math.round(perHour)} por hora` : toPickup.hasGps ? 'calculando quanto rende…' : 'ative o GPS para ver quanto rende por hora'}
+                            {perHour != null ? `R$ ${Math.round(perHour)} por hora` : toPickup.hasGps ? 'calculando quanto rende…' : 'ative o GPS para ver quanto rende por hora'}
                         </p>
                     </div>
                     {thumb && <div className="w-[118px] h-[78px] rounded-2xl overflow-hidden flex-shrink-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>{thumb}</div>}

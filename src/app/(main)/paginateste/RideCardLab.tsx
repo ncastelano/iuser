@@ -95,7 +95,7 @@ function RideCard({ s, openByDefault = false }: { s: Sample; openByDefault?: boo
                     <div>
                         <Money value={s.price} color={accent} />
                         <p className="text-[13px] font-black mt-1.5" style={{ color: tier === 'none' ? colors.textSecondary : accent }}>
-                            dá uns R$ {perHour(s.price, total)} por hora
+                            R$ {perHour(s.price, total)} por hora
                         </p>
                     </div>
                     <div className="w-[118px] h-[78px] rounded-2xl overflow-hidden flex-shrink-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>

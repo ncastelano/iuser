@@ -19,6 +19,8 @@ export default function DigitaisPage() {
     const [debounced, setDebounced] = useState('')
     const [filter, setFilter] = useState('todos')
 
+    // ?tipo=<filtro> (vem do "Ver todos" da vitrine da home); lido depois de montar para não quebrar a hidratação
+    useEffect(() => { const t = new URLSearchParams(window.location.search).get('tipo'); if (t && SHOWCASE_FILTERS.some((f) => f.id === t)) setFilter(t) }, [])
     useEffect(() => { const t = setTimeout(() => setDebounced(q), 250); return () => clearTimeout(t) }, [q])
     useEffect(() => {
         let alive = true
