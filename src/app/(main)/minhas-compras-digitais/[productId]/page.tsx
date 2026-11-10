@@ -99,7 +99,7 @@ export default function SalaDeAulaPage() {
             <div className="max-w-6xl mx-auto px-4 flex flex-col gap-4">
                 {/* topo */}
                 <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => router.push('/minhas-compras-digitais')} aria-label="Voltar" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-90" style={{ background: C.surface2, border: `1px solid ${C.line}` }}><ArrowLeft size={18} /></button>
+                    <button type="button" onClick={() => (window.history.length > 1 ? router.back() : router.push('/minhas-compras-digitais'))} aria-label="Voltar" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-90" style={{ background: C.surface2, border: `1px solid ${C.line}` }}><ArrowLeft size={18} /></button>
                     <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: C.orange }}>{programOnly ? 'Meus programas' : music ? 'Minha música' : 'Sala de aula'}</p>
                         <h1 className="text-base sm:text-lg font-black leading-tight truncate">{name || 'Conteúdo'}</h1>

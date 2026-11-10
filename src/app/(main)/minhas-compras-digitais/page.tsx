@@ -24,7 +24,7 @@ export default function MinhasComprasDigitaisPage() {
         <div className="min-h-dvh px-4 py-6 pb-28" style={{ background: colors.background, paddingTop: 'max(1.5rem, var(--shell-top, 0px))' }}>
             <div className="max-w-2xl mx-auto flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => router.back()} aria-label="Voltar" className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><ArrowLeft size={18} /></button>
+                    <button type="button" onClick={() => (window.history.length > 1 ? router.back() : router.push('/'))} aria-label="Voltar" className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><ArrowLeft size={18} /></button>
                     <div>
                         <h1 className="text-xl font-black" style={{ color: colors.textPrimary }}>Minhas compras digitais</h1>
                         <p className="text-[12px]" style={{ color: colors.textSecondary }}>Cursos, aulas e arquivos que você já pode abrir.</p>
