@@ -926,6 +926,12 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                                     {pickupEtaMin != null && <span className="inline-flex items-center gap-0.5"><Clock size={11} />chega em {pickupEtaMin} min</span>}
                                                     {destArrival && <span>· termina às {destArrival}</span>}
                                                 </p>
+                                                {/* o que o carro oferece (ar-condicionado, Wi-Fi, carregador, som, aceita pet): o passageiro não pede, ele vê */}
+                                                {c.services.length > 0 && (
+                                                    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
+                                                        {c.services.map((sid) => { const o = DRIVER_SERVICE_OPTIONS.find((x) => x.id === sid); if (!o) return null; const SIcon = o.icon; return <span key={sid} className="inline-flex items-center gap-0.5"><SIcon size={11} />{o.label}</span> })}
+                                                    </p>
+                                                )}
                                             </div>
                                             {c.status === 'pending' && !deciding && (
                                                 <button onClick={() => rejectCandidate(c.applicationId)} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full" style={{ background: `${colors.border}40`, color: colors.textSecondary }} aria-label="Recusar este motorista">
