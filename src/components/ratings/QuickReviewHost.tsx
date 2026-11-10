@@ -97,6 +97,49 @@ async function loadPending(userId: string): Promise<Pending[]> {
     return out
 }
 
+/** Há OUTRA janela cobrindo a tela (definir localização, folha, diálogo...)? Olha a pilha de elementos no centro da tela: alguma camada
+ *  fixa, de z-index ≥ 50, que cobre quase a tela toda e não é a avaliação. Assim o cartão de avaliar não pula na frente do que a pessoa
+ *  está fazendo — espera a janela fechar. (Barra e páginas não cobrem a tela inteira com z alto; os fundos animados têm z baixo.) */
+function otherOverlayOpen(): boolean {
+    if (typeof document === 'undefined') return false
+    if (document.querySelector('[aria-modal="true"]:not([data-quick-review] *):not([data-quick-review])')) return true
+    const vw = window.innerWidth, vh = window.innerHeight
+    for (const el of document.elementsFromPoint(vw / 2, vh / 2) as HTMLElement[]) {
+        if (el.closest('[data-quick-review]')) continue
+        let p: HTMLElement | null = el
+        while (p && p !== document.body) {
+            const cs = getComputedStyle(p)
+            if (cs.position === 'fixed') {
+                const z = Number(cs.zIndex) || 0
+                const r = p.getBoundingClientRect()
+                if (z >= 50 && r.width >= vw * 0.9 && r.height >= vh * 0.8) return true
+                break
+            }
+            p = p.parentElement
+        }
+    }
+    return false
+}
+
+function useOtherOverlay(active: boolean) {
+    const [blocked, setBlocked] = useState(true)   // começa esperando: só aparece depois de conferir que nada está aberto
+    useEffect(() => {
+        if (!active) return
+        let clearAt = 0
+        const tick = () => {
+            const now = otherOverlayOpen()
+            if (now) { clearAt = 0; setBlocked(true) }
+            // depois que a outra janela fecha, espera um instante antes de aparecer (não "pula" no rosto da pessoa)
+            else if (!clearAt) clearAt = Date.now() + 1200
+            else if (Date.now() >= clearAt) setBlocked(false)
+        }
+        tick()
+        const t = setInterval(tick, 500)
+        return () => clearInterval(t)
+    }, [active])
+    return blocked
+}
+
 export function QuickReviewHost() {
     const isV3 = useIsV3()
     const { userId, loading } = useProfile()
@@ -119,7 +162,8 @@ export function QuickReviewHost() {
         return () => { window.removeEventListener('iuser-orders-changed', again); window.removeEventListener('focus', again) }
     }, [isV3, loading, userId, load])
 
-    if (!isV3 || quiet || !userId || fila.length === 0) return null
+    const blocked = useOtherOverlay(isV3 && !quiet && fila.length > 0)
+    if (!isV3 || quiet || !userId || fila.length === 0 || blocked) return null
     const atual = fila[0]
     return <QuickReviewCard key={atual.key} item={atual} userId={userId} posicao={fila.length > 1 ? `mais ${fila.length - 1} para avaliar` : null}
         onDone={() => setFila((f) => f.slice(1))}
@@ -161,7 +205,7 @@ function QuickReviewCard({ item, userId, posicao, onDone, onLater }: { item: Pen
 
     if (!mounted) return null
     return createPortal(
-        <div className="fixed inset-x-0 top-0 z-[110] flex items-end justify-center" style={{ bottom: 'var(--staging-banner-h, 0px)' }}>
+        <div data-quick-review className="fixed inset-x-0 top-0 z-[110] flex items-end justify-center" style={{ bottom: 'var(--staging-banner-h, 0px)' }}>
             <style>{`@keyframes qrSobe { from { opacity: 0; transform: translateY(40px) } to { opacity: 1; transform: none } } @media (prefers-reduced-motion: reduce) { .qr-card { animation: none !important } }`}</style>
             <button aria-label="Avaliar depois" onClick={onLater} className="absolute inset-0" style={{ background: 'rgba(0,0,0,.35)' }} />
             <div role="dialog" aria-modal="true" aria-label="Avaliar" className="qr-card relative w-full max-w-md rounded-t-[28px] px-4 pt-3 pb-[calc(14px+env(safe-area-inset-bottom))]"
