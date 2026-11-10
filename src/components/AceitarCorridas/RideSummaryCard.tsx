@@ -93,8 +93,8 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
     const hot = tier === 'great'
     const accent = tier === 'none' ? colors.textPrimary : hot ? '#ea580c' : GREEN
     // o valor ESCOLHIDO na lista do card aberto (RideOfferCard dentro do "Detalhes"): passa a ser o valor grande e o do deslizar
-    const [picked, setPicked] = useState<{ price: number | null; blocked: string | null } | null>(null)
-    const onPick = useCallback((p: number | null, b: string | null) => setPicked((cur) => (cur && cur.price === p && cur.blocked === b ? cur : { price: p, blocked: b })), [])
+    const [picked, setPicked] = useState<{ price: number | null; blocked: string | null; own: boolean } | null>(null)
+    const onPick = useCallback((p: number | null, b: string | null, own: boolean) => setPicked((cur) => (cur && cur.price === p && cur.blocked === b && cur.own === own ? cur : { price: p, blocked: b, own })), [])
     const pickCtx = useMemo(() => ({ initial: price, viewOnly: !onApply, set: onPick }), [price, onApply, onPick])
     const shownPrice = picked?.price ?? price
     const name = requester.name || (requester.slug ? `@${requester.slug}` : 'Passageiro')
@@ -179,7 +179,7 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                 </button>
                 {open && <div className="rounded-2xl p-3" style={{ background: `${colors.border}14`, border: `1px solid ${colors.border}` }}><RideValuePickContext.Provider value={pickCtx}>{details}</RideValuePickContext.Provider></div>}
                 {/* aberto: a lista de valores vem ANTES do deslizar (escolhe e desliza logo embaixo) */}
-                {open && cta}
+                {open && !picked?.own && cta}
             </div>
         </article>
     )

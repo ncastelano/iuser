@@ -8,7 +8,8 @@ export interface RideValuePick {
     initial: number
     /** só mostrar os valores (home): sem escolher e sem candidatar */
     viewOnly: boolean
-    /** valor escolhido (null = "outro valor" ainda vazio) e, se não puder ser enviado, por quê */
-    set: (price: number | null, blocked: string | null) => void
+    /** valor escolhido (null = "outro valor" ainda vazio), se não puder ser enviado, por quê, e `own` = é o "Outro valor" digitado
+     *  (ele tem o PRÓPRIO botão "Enviar valor"; o deslizar do card enxuto some para não ter dois jeitos de mandar a mesma coisa) */
+    set: (price: number | null, blocked: string | null, own: boolean) => void
 }
 export const RideValuePickContext = createContext<RideValuePick | null>(null)

@@ -218,3 +218,19 @@ test('tarifa por tempo em R$ por hora: o mínimo é o ganho por hora do iUser (R
     assert.ok(hourlyOptions(40).every((v) => v >= 40))
     assert.equal(hourlyOptions(65)[0], 65); assert.ok(hourlyOptions(65).every((v) => v >= 65))
 })
+
+import { otherValueRange, otherValueProblem, centsDigits, centsToValue, centsLabel, OTHER_VALUE_MAX_FACTOR } from '../src/modules/negotiation/domain.ts'
+test('outro valor: só sobe, do menor valor das opções até o triplo dele', () => {
+    const r = otherValueRange([25.96, 18.7, 25.96])
+    assert.deepEqual(r, { min: 18.7, max: 56.1 }); assert.equal(OTHER_VALUE_MAX_FACTOR, 3)
+    assert.equal(otherValueProblem(18.7, r), null); assert.equal(otherValueProblem(56.1, r), null)
+    assert.match(otherValueProblem(18.69, r), /só pode aumentar/)
+    assert.match(otherValueProblem(56.11, r), /triplo/)
+    assert.ok(otherValueProblem(null, r))
+    assert.equal(otherValueRange([]), null)
+})
+test('campo de dinheiro: dígitos entram pela direita', () => {
+    assert.equal(centsDigits('R$ 0032,5a0'), '3250'); assert.equal(centsToValue('3250'), 32.5)
+    assert.equal(centsLabel('3250'), '32,50'); assert.equal(centsLabel(''), '0,00'); assert.equal(centsLabel('123456'), '1.234,56')
+    assert.equal(centsToValue(''), null)
+})

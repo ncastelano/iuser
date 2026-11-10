@@ -310,3 +310,32 @@ export function negotiationError(err: { message?: string; hint?: string | null }
         default: return err?.message || 'Não foi possível concluir. Tente de novo.'
     }
 }
+
+// ===== "OUTRO VALOR" NO CARD DA CORRIDA =====
+/** o valor digitado só pode SUBIR: no mínimo o menor valor entre as opções do card e no máximo o TRIPLO dele */
+export const OTHER_VALUE_MAX_FACTOR = 3
+export function otherValueRange(optionValues: number[]): { min: number; max: number } | null {
+    const vals = optionValues.filter((v) => Number.isFinite(v) && v > 0)
+    if (!vals.length) return null
+    const min = round2(Math.min(...vals))
+    return { min, max: round2(min * OTHER_VALUE_MAX_FACTOR) }
+}
+export function otherValueProblem(value: number | null, range: { min: number; max: number } | null): string | null {
+    if (value == null || !(value > 0)) return 'Digite o valor que você quer cobrar'
+    if (!range) return null
+    const br = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+    if (value < range.min) return `O valor só pode aumentar: no mínimo ${br(range.min)}`
+    if (value > range.max) return `No máximo ${br(range.max)} (o triplo do menor valor)`
+    return null
+}
+/** campo de dinheiro que se digita como na maquininha: cada dígito entra pela direita ("3250" → 32,50) */
+export function centsDigits(raw: string): string {
+    return raw.replace(/\D/g, '').replace(/^0+/, '').slice(0, 7)
+}
+export function centsToValue(digits: string): number | null {
+    return digits ? Number(digits) / 100 : null
+}
+export function centsLabel(digits: string): string {
+    const v = (Number(digits || '0') / 100).toFixed(2).split('.')
+    return `${v[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${v[1]}`
+}

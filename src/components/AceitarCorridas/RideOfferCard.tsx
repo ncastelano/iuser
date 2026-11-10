@@ -15,7 +15,7 @@ import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
-import { effectiveTimeRate, timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney } from '@/modules/negotiation/domain'
+import { effectiveTimeRate, timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney, otherValueRange, otherValueProblem, centsDigits, centsToValue, centsLabel } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { RideValuePickContext } from './rideValuePick'
@@ -210,15 +210,20 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     })()
     const initialKey = options.find((o) => pick && Math.abs(o.value - pick.initial) < 0.005)?.key ?? options[0]?.key ?? null
     const curKey = sel ?? initialKey
-    const typed = parseMoney(value)
-    const curValue = curKey === 'outro' ? (typed != null && !validateAmount(typed) ? typed : null) : options.find((o) => o.key === curKey)?.value ?? null
+    // "Outro valor": só SOBE — do menor valor entre as opções até o triplo dele; digitado como na maquininha (os dígitos entram pela direita)
+    const [outro, setOutro] = useState('')
+    const range = otherValueRange(options.map((o) => o.value))
+    const typed = centsToValue(outro)
+    const outroProblem = otherValueProblem(typed, range)
+    const curValue = curKey === 'outro' ? typed : options.find((o) => o.key === curKey)?.value ?? null
     const whyBlocked = (v: number | null): string | null => v == null ? 'Digite o valor que você quer cobrar'
+        : curKey === 'outro' && outroProblem ? outroProblem
         : belowPlatformFloor(v, platFloor) ? platformFloorText(platFloor, minPerMinute)
         : protection === 'block' && below(v) && minHourly != null && perHour(v) != null ? belowMinimumText(perHour(v) as number, minHourly, 'proposta') : null
     const curBlocked = whyBlocked(curValue)
     const setPick = pick?.set
     const pickLive = embedded && !viewOnly && options.length > 0
-    useEffect(() => { if (pickLive && setPick && curKey) setPick(curValue, curBlocked) }, [pickLive, setPick, curKey, curValue, curBlocked])
+    useEffect(() => { if (pickLive && setPick && curKey) setPick(curValue, curBlocked, curKey === 'outro') }, [pickLive, setPick, curKey, curValue, curBlocked])
 
     const haveTotal = toPickup.km != null && toPickup.min != null && trip.km != null && trip.min != null
     const totalKm = haveTotal ? (toPickup.km as number) + (trip.km as number) : null
@@ -343,16 +348,40 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             </button>
                         )
                     })}
-                    {!viewOnly && (
-                        <div className="flex items-center gap-2.5 rounded-2xl px-3 py-2 transition" role="radio" aria-checked={curKey === 'outro'} onClick={() => setSel('outro')}
-                            style={{ border: `1.5px solid ${curKey === 'outro' ? '#f97316' : colors.border}`, background: curKey === 'outro' ? '#f9731610' : 'transparent' }}>
-                            <span className="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-shrink-0" style={{ border: `2px solid ${curKey === 'outro' ? '#f97316' : colors.border}` }}>{curKey === 'outro' && <span className="w-2 h-2 rounded-full" style={{ background: '#f97316' }} />}</span>
-                            <span className="text-[13px] font-black flex-shrink-0" style={{ color: colors.textPrimary }}>Outro valor</span>
-                            <input inputMode="decimal" value={value} placeholder="R$ 0,00" onFocus={() => setSel('outro')}
-                                onChange={(e) => { setSel('outro'); setValue(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9)) }}
-                                className="flex-1 min-w-0 text-right text-[16px] font-black bg-transparent outline-none tabular-nums" style={{ color: colors.textPrimary }} />
+                    {!viewOnly && (curKey !== 'outro' ? (
+                        <button type="button" role="radio" aria-checked={false} onClick={() => setSel('outro')} className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition active:scale-[0.99]" style={{ border: `1.5px dashed ${colors.border}` }}>
+                            <span className="w-[18px] h-[18px] rounded-full flex-shrink-0" style={{ border: `2px solid ${colors.border}` }} />
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[13px] font-black leading-tight" style={{ color: colors.textPrimary }}>Outro valor</span>
+                                {range && <span className="block text-[11px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>só para cima · até {brl(range.max)}</span>}
+                            </span>
+                            <Pencil size={15} style={{ color: colors.textSecondary }} />
+                        </button>
+                    ) : (
+                        <div role="radio" aria-checked className="rounded-2xl px-3 py-3 flex flex-col gap-2" style={{ border: '1.5px solid #f97316', background: '#f9731610' }}>
+                            <div className="flex items-center gap-2.5">
+                                <span className="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-shrink-0" style={{ border: '2px solid #f97316' }}><span className="w-2 h-2 rounded-full" style={{ background: '#f97316' }} /></span>
+                                <span className="text-[13px] font-black flex-1" style={{ color: colors.textPrimary }}>Outro valor</span>
+                                <button type="button" onClick={() => { setSel(null); setOutro('') }} aria-label="Voltar às opções" className="w-7 h-7 rounded-full flex items-center justify-center" style={{ color: colors.textSecondary }}><X size={15} /></button>
+                            </div>
+                            {/* digitado como na maquininha: o R$ e a vírgula ficam à vista enquanto se digita */}
+                            <label className="flex items-center gap-1.5 rounded-2xl px-4 h-14" style={{ background: colors.background, border: `1.5px solid ${outro && outroProblem ? '#dc2626' : colors.border}` }}>
+                                <span className="text-[18px] font-black" style={{ color: colors.textSecondary }}>R$</span>
+                                <input autoFocus inputMode="numeric" aria-label="Outro valor em reais" value={outro ? centsLabel(outro) : ''} placeholder="0,00"
+                                    onChange={(e) => setOutro(centsDigits(e.target.value))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' && typed != null && !curBlocked) onApply?.(typed) }}
+                                    className="flex-1 min-w-0 bg-transparent outline-none text-[26px] font-black tabular-nums" style={{ color: colors.textPrimary }} />
+                            </label>
+                            <p className="text-[11px] font-bold leading-snug" style={{ color: outro && outroProblem ? '#dc2626' : colors.textSecondary }}>
+                                {outro && outroProblem ? outroProblem : range ? `De ${brl(range.min)} até ${brl(range.max)}${typed != null && perHour(typed) != null ? ` · R$ ${perHour(typed)} por hora` : ''}` : ''}
+                            </p>
+                            {outro && !outroProblem && curBlocked && <p className="text-[11px] font-bold leading-snug" style={{ color: '#dc2626' }}>{curBlocked}</p>}
+                            <button type="button" onClick={() => typed != null && onApply?.(typed)} disabled={applying || typed == null || !!curBlocked}
+                                className="h-12 rounded-full text-[14px] font-black text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-45" style={{ background: '#f97316' }}>
+                                {applying ? <Spinner size={14} /> : typed != null ? `Enviar valor · ${brl(typed)}` : 'Enviar valor'}
+                            </button>
                         </div>
-                    )}
+                    ))}
                     {/* valor que não pode ser enviado: o motivo aparece no próprio deslizar, logo abaixo */}
                     {!viewOnly && curValue != null && !curBlocked && below(curValue) && minHourly != null && perHour(curValue) != null && (
                         <p className="text-[11px] font-bold leading-snug" style={{ color: '#b45309' }}>{belowMinimumText(perHour(curValue) as number, minHourly, 'proposta')}</p>
