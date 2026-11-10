@@ -55,14 +55,16 @@ import StoreVipClubMember from './StoreVipClubMember'
 import StoreHeaderV3 from '@/components/v3/StoreHeaderV3'
 import StoreAgendaV3 from '@/components/v3/StoreAgendaV3'
 import ReviewsV3 from '@/components/v3/ReviewsV3'
-import { pageActions, parseStoreModel, type StoreModel } from '@/lib/storeModel'
+import { creatorPage, isCreatorModel, pageActions, parseStoreModel, type StoreModel } from '@/lib/storeModel'
+import FeaturedHero from '@/components/digital/FeaturedHero'
+import BookShelf from '@/components/digital/BookShelf'
 import { sanitizeStoreLinks, type StoreLink } from '@/lib/storeLinks'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 import StoreFrame from '@/components/store/StoreFrame'
 import StoreDigitalShelves from '@/components/digital/StoreDigitalShelves'
-import { loadDigitalShowcase, type ShowcaseItem } from '@/modules/digital'
+import { loadDigitalShowcase, pickFeatured, type ShowcaseItem } from '@/modules/digital'
 import PostpaidLimitText from '@/components/PostpaidLimitText'
 
 interface StoreProps {
@@ -271,15 +273,22 @@ export function Store({
     const goods = useMemo(() => products.filter(p => p.type !== 'service' && !digitalIds.has(p.id)), [products, digitalIds])
     const services = useMemo(() => products.filter(p => p.type === 'service'), [products])
     const catalogList = activeTab === 'services' ? services : goods
-    // loja que só vende conteúdo digital abre direto na aba "Digitais" (uma vez; depois a pessoa escolhe)
+    // Modelo da loja (produtos / atendimento / mista / Studio / Conteúdo / Editora): define o botão central, a ordem das abas e se os serviços viram linhas
+    const model = parseStoreModel(owner?.store_model)
+    // loja de CRIADOR (Studio = música e vídeo, Conteúdo = audiolivros e podcasts, Editora = livros): a página abre nos conteúdos e, no Studio e no
+    // Conteúdo, o topo é o DESTAQUE (a música/álbum/vídeo principal) no lugar do botão de comprar
+    const creator = isCreatorModel(model) ? creatorPage(model) : null
+    const featured = useMemo(() => (creator?.hero ? pickFeatured(digitalItems, creator.heroKinds) : null), [digitalItems, model])   // eslint-disable-line react-hooks/exhaustive-deps
+    const reloadDigital = useCallback(() => { if (owner?.id) loadDigitalShowcase(100, undefined, owner.id).then(setDigitalItems).catch(() => {}) }, [owner?.id])
+    // loja de criador, ou que só vende conteúdo digital, abre direto na aba de conteúdos (uma vez; depois a pessoa escolhe)
     const autoDigital = useRef(false)
     useEffect(() => {
-        if (autoDigital.current || digitalItems.length === 0) return
+        if (autoDigital.current || !owner) return
+        if (creator) { autoDigital.current = true; setActiveTab('digital'); return }
+        if (digitalItems.length === 0) return
         autoDigital.current = true
         if (goods.length === 0 && services.length === 0) setActiveTab('digital')
-    }, [digitalItems, goods.length, services.length])
-    // Modelo da loja (produtos / atendimento / mista): define o botão central, a ordem das abas e se os serviços viram linhas
-    const model = parseStoreModel(owner?.store_model)
+    }, [digitalItems, goods.length, services.length, owner, model])   // eslint-disable-line react-hooks/exhaustive-deps
     const actions = pageActions(model, !!owner?.allow_scheduling, goods.length > 0)
 
     // Se a loja só tem serviços (nenhum produto), a aba de serviços já abre na frente
@@ -1069,7 +1078,7 @@ export function Store({
                     allowScheduling={!!owner.allow_scheduling}
                     onOpenSchedule={() => { setScheduleProductId(null); setSchedulePick(null); setShowScheduleModal(true) }}
                     onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
-                    agendaSlot={owner.allow_scheduling && model !== 'products' ? (
+                    agendaSlot={creator?.hero && featured ? <FeaturedHero item={featured} ownerHint={isOwner} /> : owner.allow_scheduling && model !== 'products' && !isCreatorModel(model) ? (
                         <StoreAgendaV3
                             storeId={owner.id}
                             colors={colors}
@@ -1469,15 +1478,21 @@ export function Store({
                 />
             )}
 
+            {/* ===== DESTAQUE (Studio / Conteúdo): no lugar do botão de comprar, a música/álbum/vídeo ou o audiolivro/podcast principal ===== */}
+            {!v3 && creator?.hero && featured && <FeaturedHero item={featured} ownerHint={isOwner} />}
+
             {/* ===== TABS ===== */}
             <div className={v3 ? 'flex' : 'flex rounded-2xl p-1.5 gap-1'} style={v3 ? { borderBottom: `1px solid ${colors.border}60` } : cardStyle}>
                 {(() => {
                     const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
                     const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
-                    const digitalTab = { id: 'digital', label: 'Digitais', count: digitalItems.length }
+                    const digitalTab = { id: 'digital', label: creator?.tab || 'Digitais', count: digitalItems.length }
                     // Normal: Produtos, Serviços, Avaliações. Sem produtos, mas com serviços: Serviços vem na frente.
-                    const digitalTabs = digitalItems.length > 0 ? [digitalTab] : []     // "Digitais" só aparece se a loja tem conteúdo digital
-                    const catalogTabs = (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab, ...digitalTabs] : [productsTab, ...digitalTabs, servicesTab]
+                    const digitalTabs = digitalItems.length > 0 || creator ? [digitalTab] : []     // "Digitais" só aparece se a loja tem conteúdo digital (loja de criador: sempre)
+                    // loja de criador: os conteúdos primeiro; Produtos e Serviços só se existirem (a dona sempre vê Produtos, para poder cadastrar)
+                    const catalogTabs = creator
+                        ? [digitalTab, ...(goods.length > 0 || isOwner ? [productsTab] : []), ...(services.length > 0 ? [servicesTab] : [])]
+                        : (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab, ...digitalTabs] : [productsTab, ...digitalTabs, servicesTab]
                     return v3 ? catalogTabs : [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
                 })().map(tab => {
                     const isActive = activeTab === tab.id
@@ -1836,7 +1851,26 @@ export function Store({
                 {/* TAB DIGITAIS: as prateleiras por tipo (cursos, músicas, audiolivros, filmes, e-books, programas) */}
                 {activeTab === 'digital' && (
                     <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
-                        <StoreDigitalShelves items={digitalItems} />
+                        {(() => {
+                            const ownerCtl = isOwner && owner && creator?.hero ? { storeId: owner.id, heroKinds: creator.heroKinds, onChanged: reloadDigital } : undefined
+                            if (digitalItems.length === 0) return (
+                                <p className="text-[13px] text-center py-8" style={{ color: colors.textSecondary }}>
+                                    {isOwner ? <>Nenhum conteúdo publicado ainda. <button onClick={() => router.push(`/${ownerSlug}/criar-produto`)} className="font-black underline" style={{ color: '#f97316' }}>Publicar o primeiro</button></> : 'Esta loja ainda não publicou conteúdos.'}
+                                </p>
+                            )
+                            if (model === 'publisher') {
+                                // Editora: a ESTANTE de livros primeiro (com prévia das páginas); o resto, se houver, em prateleiras embaixo
+                                const books = digitalItems.filter((d) => d.kind === 'ebook' || d.kind === 'arquivo')
+                                const rest = digitalItems.filter((d) => d.kind !== 'ebook' && d.kind !== 'arquivo')
+                                return (
+                                    <div className="space-y-6">
+                                        {books.length > 0 && <BookShelf items={books} />}
+                                        {rest.length > 0 && <StoreDigitalShelves items={rest} order={creator?.shelfOrder} />}
+                                    </div>
+                                )
+                            }
+                            return <StoreDigitalShelves items={digitalItems} order={creator?.shelfOrder} owner={ownerCtl} />
+                        })()}
                     </div>
                 )}
 

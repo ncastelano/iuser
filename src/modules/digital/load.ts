@@ -210,6 +210,10 @@ export interface ShowcaseItem {
     kind: DigitalProductKind; summary: string; videos: number; seconds: number; freeItems: number
     /** Vídeo que toca como prévia na vitrine (a prévia curta ou a 1ª aula grátis); null = o curso não tem prévia */
     previewItemId: string | null; previewSeconds: number; previewSource: 'teaser' | 'lesson' | null
+    /** a loja marcou como destaque (Studio/Conteúdo) */
+    isFeatured: boolean
+    /** livro com prévia em PDF: quantas páginas (null = sem prévia) */
+    bookPreviewPages: number | null
 }
 
 const publicImage = (bucket: string, path: string | null) => (path ? (path.startsWith('http') ? path : supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl) : null)
@@ -225,6 +229,7 @@ export async function loadDigitalShowcase(limit = 24, search?: string, storeId?:
         summary: summaryFromCounts({ videos: r.videos, audios: r.audios, docs: r.docs, links: r.links, apps: r.apps || 0, seconds: Number(r.seconds || 0) }),
         videos: r.videos, seconds: Number(r.seconds || 0), freeItems: r.free_items || 0,
         previewItemId: r.preview_item_id || null, previewSeconds: previewPlaySeconds(r.preview_seconds), previewSource: r.preview_source || null,
+        isFeatured: !!r.is_featured, bookPreviewPages: r.book_preview_pages ?? null,
     }))
 }
 
@@ -260,4 +265,24 @@ export async function fetchDigitalKind(productId: string): Promise<DigitalProduc
 export async function saveDigitalKind(productId: string, kind: DigitalProductKind): Promise<void> {
     const { error } = await supabase.from('products').update({ digital_kind: kind }).eq('id', productId)
     if (error) throw new Error(error.message)
+}
+
+/** A prévia em PDF de um livro (qualquer pessoa): o item e quantas páginas */
+export async function fetchBookPreview(productId: string): Promise<{ itemId: string; pages: number } | null> {
+    const { data, error } = await supabase.rpc('get_digital_book_preview', { p_product: productId })
+    if (error) return null
+    const r = ((data || []) as { item_id: string; pages: number }[])[0]
+    return r ? { itemId: r.item_id, pages: r.pages } : null
+}
+/** A dona marca o destaque da loja (null tira) */
+export async function setStoreFeatured(storeId: string, productId: string | null): Promise<void> {
+    const { error } = await supabase.rpc('set_store_featured', { p_store: storeId, p_product: productId })
+    if (error) throw new Error(error.message)
+}
+/** A dona gera a prévia do livro: o servidor recorta as primeiras N páginas do PDF */
+export async function makeBookPreview(itemId: string, pages: number): Promise<{ pages: number }> {
+    const r = await fetch('/api/digital/book-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId, pages }) })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(j.error || 'Não foi possível gerar a prévia.')
+    return j
 }

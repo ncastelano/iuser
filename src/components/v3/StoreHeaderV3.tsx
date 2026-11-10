@@ -5,6 +5,7 @@
 // quando a tela está dentro da casca da 3.0 (`useInsideShell`).
 'use client'
 
+import type { StoreModel } from '@/lib/storeModel'
 import { useState, type ReactNode } from 'react'
 import LinkLinesV3, { type LinkLine } from './LinkLinesV3'
 import type { StoreLink } from '@/lib/storeLinks'
@@ -45,7 +46,7 @@ export interface StoreHeaderV3Props {
     links: StoreLink[]
     allowScheduling: boolean
     /** modelo da loja: quais botões centrais aparecem (Comprar, Agendar, os dois) — ver lib/storeModel */
-    model?: 'products' | 'services' | 'mixed'
+    model?: StoreModel
     showBuy?: boolean
     showSchedule?: boolean
     /** loja de atendimento com produtos: "Produtos" vira um botão discreto */

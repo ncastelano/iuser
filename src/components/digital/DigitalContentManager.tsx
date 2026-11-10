@@ -11,7 +11,7 @@ import { addAppItem, addFileItem, addLinkItem, APP_NOTES_MAX, APP_PLATFORM_LABEL
 import { kindIcon } from './DigitalCurriculum'
 import MySpace from '@/components/uploads/MySpace'
 import { fetchMyUploadLimits } from '@/lib/myUploadLimits'
-import { bucketForKind, DIGITAL_HEAVY_KIND, DIGITAL_UPLOAD_KIND, fetchDigitalKind, saveDigitalKind, type DigitalProductKind } from '@/modules/digital'
+import { bucketForKind, DIGITAL_HEAVY_KIND, DIGITAL_UPLOAD_KIND, fetchDigitalKind, saveDigitalKind, makeBookPreview, BOOK_PREVIEW_MAX_PAGES, type DigitalProductKind } from '@/modules/digital'
 import DigitalKindPicker from './DigitalKindPicker'
 import { r2Availability, type R2Availability } from '@/lib/r2Upload'
 import { heavyUploadInfo } from '@/lib/r2Types'
@@ -21,6 +21,7 @@ export default function DigitalContentManager({ productId }: { productId: string
     const { colors } = useTheme()
     const { userId } = useProfile()
     const [items, setItems] = useState<OwnItem[]>([])
+    const [previewPages, setPreviewPages] = useState('10')                     // prévia do livro: quantas páginas
     const [kind, setKind] = useState<DigitalProductKind | null>(null)         // o tipo de conteúdo escolhido pelo lojista (prateleira da loja)
     useEffect(() => { fetchDigitalKind(productId).then(setKind).catch(() => {}) }, [productId])
     const chooseKind = async (k: DigitalProductKind) => {
@@ -200,6 +201,25 @@ export default function DigitalContentManager({ productId }: { productId: string
                     })}
                 </div>
             ))}
+
+            {/* PRÉVIA DO LIVRO (Editora): o servidor recorta as primeiras páginas do PDF num arquivo à parte — quem não comprou só abre esse */}
+            {(() => {
+                const pdf = items.find((x) => x.kind === 'document' && !x.is_teaser && (x.mime_type === 'application/pdf' || /\.pdf$/i.test(x.file_name || x.storage_path || '')))
+                if (!pdf) return null
+                const current = items.find((x) => x.kind === 'document' && x.is_teaser)
+                return (
+                    <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: '#8b5cf612', border: '1px solid #8b5cf644' }}>
+                        <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Prévia do livro</p>
+                        <p className="text-[11px] leading-snug" style={{ color: colors.textSecondary }}>Escolha quantas páginas do começo de <b>{pdf.title}</b> qualquer pessoa pode ler antes de comprar. Livro grátis abre inteiro para quem pegar.</p>
+                        <div className="flex items-center gap-2">
+                            <input type="number" min={1} max={BOOK_PREVIEW_MAX_PAGES} value={previewPages} onChange={(e) => setPreviewPages(e.target.value)} className="w-20 h-10 rounded-xl px-3 text-sm font-bold" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }} aria-label="Páginas da prévia" />
+                            <span className="text-[12px]" style={{ color: colors.textSecondary }}>páginas</span>
+                            <button type="button" disabled={busy} onClick={() => run(async () => { const r = await makeBookPreview(pdf.id, Number(previewPages)); toast.success(`Prévia pronta: ${r.pages} páginas`) })} className="ml-auto h-10 px-4 rounded-full text-[13px] font-black text-white disabled:opacity-50" style={{ background: '#8b5cf6' }}>{current ? 'Refazer prévia' : 'Gerar prévia'}</button>
+                        </div>
+                        {current && <p className="text-[11px] font-bold" style={{ color: '#7c3aed' }}>Prévia no ar: {current.title}</p>}
+                    </div>
+                )
+            })()}
         </div>
     )
 }

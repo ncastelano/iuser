@@ -142,9 +142,11 @@ export const SHELVES: { id: string; title: string; kinds: DigitalProductKind[] }
     { id: 'arquivos', title: 'E-books e arquivos', kinds: ['ebook', 'arquivo'] },
     { id: 'programas', title: 'Programas', kinds: ['programa'] },
 ]
-/** Distribui os produtos nas prateleiras (vazia some; o que não tem prateleira conhecida não se perde: vai para "Outros") */
-export function groupIntoShelves<T extends { kind: DigitalProductKind }>(items: T[]): { id: string; title: string; items: T[] }[] {
-    const out = SHELVES.map((sh) => ({ id: sh.id, title: sh.title, items: items.filter((i) => sh.kinds.includes(i.kind)) }))
+/** Distribui os produtos nas prateleiras (vazia some; o que não tem prateleira conhecida não se perde: vai para "Outros").
+ *  `order` (ids de SHELVES) muda a ordem — cada modelo de loja de criador começa pelo que é dele; `titles` troca o nome (Editora: "Livros"). */
+export function groupIntoShelves<T extends { kind: DigitalProductKind }>(items: T[], order?: string[], titles?: Record<string, string>): { id: string; title: string; items: T[] }[] {
+    const shelves = order ? [...SHELVES].sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99)) : SHELVES
+    const out = shelves.map((sh) => ({ id: sh.id, title: titles?.[sh.id] || sh.title, items: items.filter((i) => sh.kinds.includes(i.kind)) }))
     const known = new Set(SHELVES.flatMap((sh) => sh.kinds))
     const rest = items.filter((i) => !known.has(i.kind))
     if (rest.length) out.push({ id: 'outros', title: 'Outros', items: rest })
@@ -351,4 +353,22 @@ export function clubLine(s: StoreDigitalSummary): string {
     const price = (s.clubPriceCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\s/g, ' ')
     const members = s.clubPayingMembers === 1 ? '1 assinante' : `${s.clubPayingMembers} assinantes`
     return `Clube de ${price} por mês · ${members}${s.clubIncludesMusic ? ' · música incluída' : ''}`
+}
+
+
+/** O DESTAQUE do topo (Studio: música/álbum/vídeo principal; Conteúdo: audiolivro/podcast): o que a loja marcou, se for de um tipo do
+ *  topo; senão o primeiro desses tipos (a vitrine já vem do mais visto para o menos). Sem nenhum, não há destaque. */
+export function pickFeatured<T extends { kind: DigitalProductKind; isFeatured?: boolean }>(items: T[], heroKinds: string[]): T | null {
+    const ok = items.filter((i) => heroKinds.includes(i.kind))
+    return ok.find((i) => i.isFeatured) || ok[0] || null
+}
+/** Rótulo do destaque pelo tipo */
+export function featuredLabel(kind: DigitalProductKind): string {
+    return kind === 'album' || kind === 'playlist' ? 'Álbum principal' : kind === 'musica' ? 'Música principal' : kind === 'filme' || kind === 'aula' || kind === 'curso' ? 'Vídeo principal' : kind === 'podcast' ? 'Podcast em destaque' : 'Audiolivro em destaque'
+}
+/** Prévia de livro: quantas páginas o lojista pode mostrar (1 a 50) */
+export const BOOK_PREVIEW_MAX_PAGES = 50
+export function validPreviewPages(n: unknown): number | null {
+    const v = Math.floor(Number(n))
+    return Number.isFinite(v) && v >= 1 && v <= BOOK_PREVIEW_MAX_PAGES ? v : null
 }

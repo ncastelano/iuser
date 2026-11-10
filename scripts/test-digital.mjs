@@ -256,3 +256,31 @@ test('áudio se ouve, o resto se assiste/abre', () => {
     for (const k of ['musica', 'album', 'audiolivro', 'podcast', 'playlist']) assert.equal(isAudioKind(k), true, k)
     for (const k of ['curso', 'aula', 'filme', 'ebook', 'arquivo', 'programa']) assert.equal(isAudioKind(k), false, k)
 })
+
+// ---- lojas de criador (migration 60): ordem das prateleiras por modelo, destaque do topo e prévia de livro
+import { pickFeatured, featuredLabel, validPreviewPages } from '../src/modules/digital/domain.ts'
+
+test('cada modelo começa pelas prateleiras dele e a Editora chama a estante de "Livros"', () => {
+    const it = (kind) => ({ kind })
+    const items = [it('ebook'), it('musica'), it('audiolivro'), it('filme')]
+    assert.deepEqual(groupIntoShelves(items, ['audiolivros', 'musicas']).map((s) => s.id), ['audiolivros', 'musicas', 'filmes', 'arquivos'])
+    assert.equal(groupIntoShelves(items, ['arquivos'], { arquivos: 'Livros' })[0].title, 'Livros')
+})
+
+test('destaque: o que a loja marcou, se for do tipo do topo; senão o primeiro desse tipo', () => {
+    const a = { id: 'a', kind: 'curso' }, b = { id: 'b', kind: 'musica' }, c = { id: 'c', kind: 'album', isFeatured: true }, d = { id: 'd', kind: 'ebook', isFeatured: true }
+    assert.equal(pickFeatured([a, b, c], ['album', 'musica']).id, 'c')
+    assert.equal(pickFeatured([a, b], ['album', 'musica']).id, 'b')
+    assert.equal(pickFeatured([d, a], ['audiolivro', 'podcast']), null)          // marcado, mas não é do tipo do topo: não vale
+    assert.equal(featuredLabel('album'), 'Álbum principal')
+    assert.equal(featuredLabel('filme'), 'Vídeo principal')
+    assert.equal(featuredLabel('audiolivro'), 'Audiolivro em destaque')
+})
+
+test('prévia de livro: de 1 a 50 páginas', () => {
+    assert.equal(validPreviewPages(10), 10)
+    assert.equal(validPreviewPages('3'), 3)
+    assert.equal(validPreviewPages(0), null)
+    assert.equal(validPreviewPages(51), null)
+    assert.equal(validPreviewPages('x'), null)
+})
