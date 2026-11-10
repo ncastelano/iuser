@@ -7,6 +7,7 @@
 // Só apresentação: os dados e a ação de curtir chegam prontos de `ProductClientPage.tsx`.
 'use client'
 
+import ReviewPhoto from '@/components/ratings/ReviewPhoto'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ChevronDown, Heart } from 'lucide-react'
@@ -23,6 +24,7 @@ export interface ProductReviewV3 {
     id: string
     rating: number
     comment: string | null
+    photo_path?: string | null
     is_anonymous: boolean
     created_at: string
     profiles: { id?: string; name: string | null; avatar_url: string | null; profileSlug?: string | null } | null
@@ -175,6 +177,7 @@ export default function ProductReviewsV3({
                             </span>
                         </div>
                         {r.comment && <p className="mt-1.5 text-[14px] leading-relaxed" style={{ color: colors.textPrimary }}>{r.comment}</p>}
+                        <ReviewPhoto path={r.photo_path} />
                         <div className="mt-1.5 flex items-center gap-4">
                         <button
                             onClick={() => onToggleLike(r.id)}

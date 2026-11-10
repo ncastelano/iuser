@@ -5,6 +5,7 @@
 // (`product_reviews`, públicas); só leitura. Parte do painel da loja (o painel é o "feedback do que está acontecendo").
 'use client'
 
+import ReviewPhoto from '@/components/ratings/ReviewPhoto'
 import { useEffect, useMemo, useState } from 'react'
 import { Star } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -42,7 +43,7 @@ export default function StoreFeedback({ storeId }: { storeId: string }) {
         const load = async () => {
             const { data } = await supabase
                 .from('product_reviews')
-                .select('id, rating, comment, created_at, profile_id, product_id, is_anonymous')
+                .select('id, rating, comment, photo_path, created_at, profile_id, product_id, is_anonymous')
                 .eq('store_id', storeId)
                 .order('created_at', { ascending: false })
                 .limit(120)
@@ -68,7 +69,7 @@ export default function StoreFeedback({ storeId }: { storeId: string }) {
     const count = (k: 'product' | 'service') => reviews.filter((r) => kindOf(r) === k).length
     const avg = shown.length ? shown.reduce((a, r) => a + r.rating, 0) / shown.length : 0
     const dist = [5, 4, 3, 2, 1].map((n) => ({ n, c: shown.filter((r) => r.rating === n).length }))
-    const withComment = shown.filter((r) => (r.comment || '').trim())
+    const withComment = shown.filter((r) => (r.comment || '').trim() || (r as any).photo_path)
 
     const body = loading ? (
         <div className="flex flex-col gap-2" aria-hidden>
@@ -132,6 +133,7 @@ export default function StoreFeedback({ storeId }: { storeId: string }) {
                                     {item && <span className="text-[10px] font-black px-2 py-0.5 rounded-full max-w-[40%] truncate" style={{ background: item.type === 'service' ? '#7c3aed20' : '#f9731620', color: item.type === 'service' ? '#7c3aed' : '#f97316' }}>{item.name}</span>}
                                 </div>
                                 <p className="text-[13px] mt-2 leading-snug" style={{ color: colors.textPrimary }}>{r.comment}</p>
+                                <ReviewPhoto path={(r as any).photo_path} size={64} />
                             </div>
                         )
                     })}

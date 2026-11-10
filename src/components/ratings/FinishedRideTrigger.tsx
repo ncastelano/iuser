@@ -1,5 +1,6 @@
 'use client'
 
+import { useIsV3 } from '@/components/MaintenanceNotice'
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -16,6 +17,8 @@ interface PendingRideReview {
 
 export function FinishedRideTrigger() {
     const { userId, loading: profileLoading } = useProfile()
+    // na 3.0 quem pergunta é a avaliação rápida (QuickReviewHost): este aviso grande fica só na 2.0
+    const isV3 = useIsV3()
     // No painel do administrador o aviso "Avalie agora" não aparece: ele cobria a tela inteira e engolia os cliques de quem está decidindo coisas
     const pathname = usePathname()
     const quiet = !!pathname?.startsWith('/administrador')
@@ -112,7 +115,7 @@ export function FinishedRideTrigger() {
     return (
         <>
             <AnimatePresence>
-                {showPrompt && !quiet && pending.length > 0 && (
+                {showPrompt && !isV3 && !quiet && pending.length > 0 && (
                     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}

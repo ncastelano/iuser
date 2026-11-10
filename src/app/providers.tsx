@@ -1,6 +1,7 @@
 // app/providers.tsx
 'use client'
 
+import { QuickReviewHost } from '@/components/ratings/QuickReviewHost'
 import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FontLoader } from '@/components/FontLoader'
@@ -63,6 +64,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <OrderNotification />
         <FinishedRideTrigger />
         <FinishedOrderTrigger />
+        {/* 3.0: avaliação rápida (estrelas, comentário e foto num cartão só); a 2.0 segue com os dois avisos acima */}
+        <QuickReviewHost />
         <RideAcceptedDialog />
         <DriverLiveLocationBroadcaster />
         <DriverRideAlertListener />

@@ -701,7 +701,7 @@ export function Store({
 
             const { data: storeRatings } = await supabase
                 .from('product_reviews')
-                .select('id, rating, comment, is_anonymous, profile_id, created_at, products(name), profiles(id, name, avatar_url, "profileSlug")')
+                .select('id, rating, comment, photo_path, is_anonymous, profile_id, created_at, products(name), profiles(id, name, avatar_url, "profileSlug")')
                 .eq('store_id', store.id)
                 .order('created_at', { ascending: false })
 

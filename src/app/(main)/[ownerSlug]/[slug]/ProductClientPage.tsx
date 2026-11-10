@@ -305,7 +305,7 @@ export function ProductClientPage({
 
         supabase
             .from('product_reviews')
-            .select('id, rating, comment, is_anonymous, created_at, profiles(id, name, avatar_url, "profileSlug")')
+            .select('id, rating, comment, photo_path, is_anonymous, created_at, profiles(id, name, avatar_url, "profileSlug")')
             .eq('product_id', productId)
             .order('created_at', { ascending: false })
             .then(async ({ data }) => {

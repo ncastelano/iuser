@@ -1,5 +1,6 @@
 'use client'
 
+import { useIsV3 } from '@/components/MaintenanceNotice'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -21,6 +22,8 @@ function orderItemsSummary(items: { product_name: string }[]): string {
 
 export function FinishedOrderTrigger() {
     const { userId, loading: profileLoading } = useProfile()
+    // na 3.0 quem pergunta é a avaliação rápida (QuickReviewHost): este aviso grande fica só na 2.0 (os avisos de status continuam)
+    const isV3 = useIsV3()
     const [unreviewedOrders, setUnreviewedOrders] = useState<any[]>([])
     const [reviewOrder, setReviewOrder] = useState<any>(null)
     const [showPrompt, setShowPrompt] = useState(false)
@@ -201,7 +204,7 @@ export function FinishedOrderTrigger() {
     return (
         <>
             <AnimatePresence>
-                {showPrompt && unreviewedOrders.length > 0 && (
+                {showPrompt && !isV3 && unreviewedOrders.length > 0 && (
                     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}
