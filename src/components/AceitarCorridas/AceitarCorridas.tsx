@@ -1072,9 +1072,27 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             return () => clearTimeout(t)
         }
         focusedRef.current = true
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // ABRE primeiro e só depois rola, para o TOPO do cartão (já aberto, mais alto) ficar logo abaixo do título fixo da página — antes rolava
+        // até o meio da tela com o cartão fechado e, ao abrir, a parte de baixo ficava atrás da barra do app
         setHighlightRideId(focusRideId)
         setExpandedRideId(focusRideId)
+        const toTop = (smooth: boolean) => {
+            const card = document.getElementById(`ride-card-${focusRideId}`)
+            if (!card) return
+            // o que fica preso no alto (título da página, abas fixas) e o topo da casca da 3.0
+            let topCover = 0
+            document.querySelectorAll<HTMLElement>('header, [class*="sticky"]').forEach((h) => {
+                const cs = getComputedStyle(h)
+                if (cs.position !== 'sticky' && cs.position !== 'fixed') return
+                const r = h.getBoundingClientRect()
+                if (r.top < 160 && r.bottom > topCover && r.height < window.innerHeight / 2) topCover = r.bottom
+            })
+            const dy = card.getBoundingClientRect().top - topCover - 10
+            if (Math.abs(dy) > 2) window.scrollBy({ top: dy, behavior: smooth ? 'smooth' : 'auto' })
+        }
+        el.scrollIntoView({ block: 'start' })
+        setTimeout(() => toTop(true), 120)
+        setTimeout(() => toTop(true), 700)   // de novo depois que o mapa e os valores do cartão aberto terminam de crescer
         setTimeout(() => setHighlightRideId(null), 3000)
     }, [focusRideId, loading, rides, candidacies, activeTab])
 
