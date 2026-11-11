@@ -54,7 +54,7 @@ def arr(xs):
 
 
 def setup():
-    for slug, kind, _, model, color, plate, services, seats, baby, trunk in DRIVERS:
+    for i, (slug, kind, _, model, color, plate, services, seats, baby, trunk) in enumerate(DRIVERS):
         pid = q_local(f'''select id from profiles where "profileSlug"={lit(slug)}''')
         if not pid:
             print('  (perfil não encontrado:', slug, ')'); continue
@@ -67,6 +67,12 @@ def setup():
                         services=excluded.services, passenger_capacity=excluded.passenger_capacity, has_baby_seat=excluded.has_baby_seat,
                         trunk_bags_pequena=excluded.trunk_bags_pequena, trunk_bags_media=excluded.trunk_bags_media, trunk_bags_grande=excluded.trunk_bags_grande,
                         trunk_suitcases_pequena=excluded.trunk_suitcases_pequena, trunk_suitcases_media=excluded.trunk_suitcases_media, trunk_suitcases_grande=excluded.trunk_suitcases_grande''')
+        # 2 de cada 3 têm a chave Pix cadastrada (o passageiro que paga por Pix vê "Recebe por Pix" ou "Ainda sem Pix" em cada candidato)
+        if i % 3 != 2:
+            q_local(f'''insert into driver_payout_keys (driver_id, pix_key_type, pix_key, consent_at, updated_at)
+                        values ('{pid}', 'phone', '6999{i:07d}', now(), now()) on conflict (driver_id) do nothing''')
+        else:
+            q_local(f"delete from driver_payout_keys where driver_id = '{pid}'")
 
 
 tick = 0

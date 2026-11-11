@@ -22,6 +22,7 @@ import { speak } from '@/lib/voiceNavigation'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import CandidateNegotiation from '@/components/negotiation/CandidateNegotiation'
 import CarAmenities from '@/components/ride/CarAmenities'
+import RideDriverPix from '@/components/ride/RideDriverPix'
 import { loadOffers, type PriceOffer } from '@/modules/negotiation'
 import { platformFloor } from '@/modules/negotiation/domain'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
@@ -67,6 +68,7 @@ interface RideRow {
     share_token: string
     passenger_offer: number | null
     agreed_price: number | null
+    payment_method: string | null
 }
 
 interface CandidateStore {
@@ -131,6 +133,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     const rideStatusForPage = ride?.status ?? null
     useEffect(() => { onRideStatus?.(rideStatusForPage); return () => onRideStatus?.(null) }, [rideStatusForPage, onRideStatus])
     const [candidates, setCandidates] = useState<Candidate[]>([])
+    // pagando por Pix: quais candidatos têm a chave cadastrada (só sim/não; a chave só aparece depois de escolher)
+    const [pixApplicants, setPixApplicants] = useState<Set<string> | null>(null)
     // propostas de cada motorista (histórico da negociação); as de agora definem o que a tela mostra
     const [offers, setOffers] = useState<PriceOffer[]>([])
     const minPerMinute = useRideMinimum()
@@ -147,7 +151,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, vehicle_type, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token, passenger_offer, agreed_price')
+            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, vehicle_type, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token, passenger_offer, agreed_price, payment_method')
             .eq('id', rideId)
             .single()
 
@@ -608,6 +612,16 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         }
     }, [map])
 
+    const candidateKey = candidates.map((c) => c.applicantId).join(',')
+    useEffect(() => {
+        if (!ride || ride.status !== 'pending' || ride.payment_method !== 'pix' || !candidateKey) { setPixApplicants(null); return }
+        let alive = true
+        supabase.rpc('get_ride_applicants_pix', { p_ride: ride.id }).then(({ data, error }) => {
+            if (alive && !error) setPixApplicants(new Set(((data as string[] | null) || []).map(String)))
+        })
+        return () => { alive = false }
+    }, [ride?.id, ride?.status, ride?.payment_method, candidateKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
     const acceptCandidate = async (applicationId: string, applicantId: string, price?: number) => {
         setDecidingId(applicationId)
         try {
@@ -881,6 +895,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 </div>
             )}
 
+            {/* Pagando por Pix: a chave do motorista escolhido (ou o aviso de que ele ainda não cadastrou) */}
+            {ride.status === 'accepted' && driver && ride.payment_method === 'pix' && (
+                <RideDriverPix rideId={ride.id} driverName={driver.name} amount={ride.agreed_price ?? driver.proposedPrice ?? null} />
+            )}
+
             {/* Tempo de espera (embarque, parada, desembarque): o passageiro pede, o motorista aprova e o relógio anda para os dois */}
             {ride.status === 'accepted' && driver && (
                 <RideWaitBox rideId={ride.id} role="passenger" rideStarted={!!ride.ride_started_at} rideActive basePrice={ride.agreed_price ?? driver?.proposedPrice ?? null} />
@@ -936,6 +955,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                                 </p>
                                                 {/* o que o carro TEM e o que NÃO tem (ar, Wi-Fi, carregador, som, pet), lugares e cadeirinha: o passageiro compara antes de escolher */}
                                                 <div className="mt-1.5"><CarAmenities services={c.services} seats={c.seats} babySeat={c.babySeat} compact /></div>
+                                                {ride.payment_method === 'pix' && pixApplicants && (
+                                                    <p className="mt-1.5 text-[11px] font-black" style={{ color: pixApplicants.has(c.applicantId) ? '#16a34a' : '#b45309' }}>
+                                                        {pixApplicants.has(c.applicantId) ? '✓ Recebe por Pix' : 'Ainda sem Pix cadastrado · combine o pagamento'}
+                                                    </p>
+                                                )}
                                             </div>
                                             {c.status === 'pending' && !deciding && (
                                                 <button onClick={() => rejectCandidate(c.applicationId)} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full" style={{ background: `${colors.border}40`, color: colors.textSecondary }} aria-label="Recusar este motorista">

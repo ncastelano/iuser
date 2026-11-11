@@ -1,4 +1,5 @@
-// Motorista: chave Pix para receber o frete das entregas do novo fluxo. Privada: só aparece à loja que for te pagar, e só na hora do pagamento.
+// Motorista: a chave Pix para RECEBER — do passageiro que paga a corrida por Pix (depois de escolhê-lo) e da loja nas entregas. Privada: só aparece a quem
+// for te pagar, e só na hora (get_ride_driver_pix / get_delivery_payment_view).
 // Tom de conversa (é dinheiro que ELE vai receber): diz o ganho primeiro, o cuidado com a chave logo antes do botão. Tocar em "Salvar" é a autorização
 // (o texto acima do botão diz exatamente o que se autoriza); o banco continua exigindo `p_consent`.
 'use client'
@@ -36,8 +37,7 @@ export default function DriverPayoutPix() {
     }
     useEffect(() => { load() }, [])
 
-    // Só aparece quando o novo fluxo estiver valendo (ou já houver chave): hoje, em produção, fica invisível
-    if (!status || (!status.required && !status.registered)) return null
+    if (!status) return null
 
     const t = TYPES.find((x) => x.id === type) || TYPES[0]
 
@@ -49,7 +49,7 @@ export default function DriverPayoutPix() {
             toast.error(error.hint === 'invalid_pix' ? `Essa chave não parece um ${t.label.toLowerCase()} válido. Confere pra gente?` : error.message)
             return
         }
-        toast.success('Prontinho! Agora o frete cai direto no seu Pix.')
+        toast.success('Prontinho! Agora você recebe direto no seu Pix.')
         setKey(''); setEditing(false); load()
     }
 
@@ -59,7 +59,7 @@ export default function DriverPayoutPix() {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white" style={{ background: GREEN }}><Check size={18} strokeWidth={3} /></span>
                 <div className="min-w-0 flex-1">
                     <p className="text-sm font-black">Tudo certo para receber</p>
-                    <p className="truncate text-xs opacity-70">O frete cai no seu Pix · {PIX_TYPE_LABEL[status.type || ''] || 'Chave'} {status.masked}</p>
+                    <p className="truncate text-xs opacity-70">Passageiros e lojas pagam no seu Pix · {PIX_TYPE_LABEL[status.type || ''] || 'Chave'} {status.masked}</p>
                 </div>
                 <button type="button" className="shrink-0 text-xs font-black underline" onClick={() => setEditing(true)}>Trocar</button>
             </div>
@@ -71,8 +71,9 @@ export default function DriverPayoutPix() {
             <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white" style={{ background: ORANGE }}><Banknote size={20} /></span>
                 <div>
-                    <p className="text-base font-black leading-tight">Onde você quer receber seu frete?</p>
-                    <p className="mt-1 text-xs opacity-80">Nas entregas das lojas, a loja te paga direto no Pix. Deixe sua chave aqui e é só aceitar e receber.</p>
+                    {!editing && <p className="mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white" style={{ background: ORANGE }}>Você ainda não cadastrou seu Pix</p>}
+                    <p className="text-base font-black leading-tight">Onde você quer receber?</p>
+                    <p className="mt-1 text-xs opacity-80">Quem escolhe pagar a corrida por Pix vê sua chave assim que te escolhe, e nas entregas a loja te paga por ela. Deixe aqui e é só aceitar e receber.</p>
                 </div>
             </div>
 
@@ -95,7 +96,7 @@ export default function DriverPayoutPix() {
 
             <p className="flex items-start gap-2 text-xs opacity-75">
                 <Lock size={14} className="mt-0.5 shrink-0" />
-                <span>Sua chave fica guardada com a gente. A loja só vê quando você aceitar uma entrega dela, e só para te pagar.</span>
+                <span>Sua chave fica guardada com a gente. Só vê quem vai te pagar: o passageiro que te escolheu e paga por Pix, ou a loja da entrega que você aceitou.</span>
             </p>
 
             <div className="flex gap-2">
