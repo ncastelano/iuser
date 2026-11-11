@@ -1,10 +1,11 @@
 'use client'
 
-// A página de BUSCA DO LOCAL DE PARTIDA do /pedir-motorista (11/11/2026, decisão do dono): além do campo, mostra sem precisar digitar
-//   • atalhos: "Usar minha localização" e "Marcar no mapa";
+// As páginas de BUSCA DO LOCAL do /pedir-motorista (11/11/2026, decisão do dono): além do campo, mostram sem precisar digitar
+//   • atalhos: "Minha localização" e "Marcar no mapa";
 //   • SEUS LUGARES RECENTES (partidas e chegadas que a pessoa já usou);
-//   • EMPRESAS DO iUSER por perto (lojas com endereço público), cada uma com uma ESTIMATIVA do valor (modules/ride-places: corrida pela
-//     Tarifa iUser, nunca abaixo do mínimo de uma corrida, + R$ 6 de deslocamento ≈ 3 km).
+//   • EMPRESAS DO iUSER por perto (lojas com endereço público).
+// Só a página de CHEGADA mostra VALOR (`priceFrom` = a partida): a ESTIMATIVA da corrida da partida até cada lugar (modules/ride-places:
+// Tarifa iUser, nunca abaixo do mínimo de uma corrida, + R$ 6 de deslocamento ≈ 3 km). Na PARTIDA não há valor: a pessoa sai dali.
 // Ao digitar, os resultados da busca (que a tela desenha em cima) continuam aparecendo e estas listas embaixo passam a mostrar só o que bate
 // com o texto. A posição e o endereço das lojas são colunas PÚBLICAS de `stores` (o comércio é público; nada de pessoa aqui).
 import { useEffect, useMemo, useState } from 'react'
@@ -25,12 +26,13 @@ interface StoreSpot { id: string; name: string; address: string; coords: [number
 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
 const short = (a: string) => a.split(',').slice(0, 2).join(',').trim()
 
-export default function PlaceSearchExtras({ query, refPoint, estimateTo, recents, locating, onUseMyLocation, onPickOnMap, onPick }: {
+export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents, locating, onUseMyLocation, onPickOnMap, onPick }: {
     query: string
     /** onde a pessoa está (o centro do mapa): de onde se mede "perto" */
     refPoint: [number, number] | null
-    /** o destino já escolhido: a estimativa passa a ser da corrida DESSE lugar até lá */
-    estimateTo: [number, number] | null
+    /** página de CHEGADA: mostra o valor estimado da corrida a partir daqui (a partida; null = ainda sem partida, "a partir de").
+     *  undefined = página de PARTIDA: sem valores */
+    priceFrom?: [number, number] | null
     recents: PlacePick[]
     locating: boolean
     onUseMyLocation: () => void
@@ -69,13 +71,14 @@ export default function PlaceSearchExtras({ query, refPoint, estimateTo, recents
 
     const estimate = (place: [number, number] | null) => {
         const shape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE.carro
-        const km = estimateTo ? roadKm(place, estimateTo) : roadKm(refPoint, place)
+        const km = roadKm(priceFrom, place)
         return placeEstimate(km, (k) => computeSuggestedPrice(k, shape, 'pessoa'), getMinRideFare())
     }
     const typing = query.trim().length > 0
     const recentList = useMemo(() => recents.filter((r) => matches(r.address, query)).slice(0, typing ? 4 : 5), [recents, query, typing])
-    const storeList = useMemo(() => (stores || []).filter((s) => matches(`${s.name} ${s.address} ${s.category || ''}`, query)).slice(0, typing ? 5 : 8), [stores, query, typing])
-    const estimateNote = estimateTo ? 'corrida até o seu destino + deslocamento' : 'corrida daqui até lá + deslocamento'
+    // na CHEGADA, o lugar da própria partida (a menos de 100 m dela) não é destino
+    const storeList = useMemo(() => (stores || []).filter((s) => matches(`${s.name} ${s.address} ${s.category || ''}`, query) && !(priceFrom && haversineKm(priceFrom, s.coords) < 0.1)).slice(0, typing ? 5 : 8), [stores, query, typing, priceFrom])
+    const showPrice = priceFrom !== undefined
 
     const row = (key: string, icon: React.ReactNode, title: string, sub: string, place: PlacePick) => {
         const est = estimate(place.coords)
@@ -86,7 +89,7 @@ export default function PlaceSearchExtras({ query, refPoint, estimateTo, recents
                     <span className="block text-[13.5px] font-bold truncate" style={{ color: colors.textPrimary }}>{title}</span>
                     {sub && <span className="block text-[11.5px] truncate" style={{ color: colors.textSecondary }}>{sub}</span>}
                 </span>
-                {place.coords && (
+                {showPrice && place.coords && (
                     <span className="text-right flex-shrink-0">
                         <span className="block text-[13px] font-black tabular-nums" style={{ color: '#16a34a' }}>{est.approx ? 'a partir de ' : '≈ '}{brl(est.value)}</span>
                     </span>
@@ -119,7 +122,7 @@ export default function PlaceSearchExtras({ query, refPoint, estimateTo, recents
             <section className="mt-4">
                 <p className="px-4 mb-1 text-[11px] font-black uppercase tracking-wide flex items-center justify-between gap-2" style={{ color: colors.textSecondary }}>
                     <span>Empresas do iUser {refPoint ? 'por perto' : ''}</span>
-                    <span className="normal-case tracking-normal font-semibold">valor estimado</span>
+                    {showPrice && <span className="normal-case tracking-normal font-semibold">valor estimado</span>}
                 </p>
                 {stores === null ? (
                     <div className="flex justify-center py-4"><Spinner size={18} color={colors.textSecondary} /></div>
@@ -131,10 +134,14 @@ export default function PlaceSearchExtras({ query, refPoint, estimateTo, recents
                         s.logoUrl
                             ? <img src={s.logoUrl} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
                             : <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f9731622' }}><StoreIcon size={16} style={{ color: '#ea580c' }} /></span>,
-                        s.name, [short(s.address), km != null ? (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1).replace('.', ',')} km`) : ''].filter(Boolean).join(' · '),
+                        s.name, [short(s.address), km != null ? `${km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1).replace('.', ',')} km`}${priceFrom ? ' da partida' : ''}` : ''].filter(Boolean).join(' · '),
                         { address: `${s.name} — ${s.address}`, coords: s.coords })
                 })}
-                {storeList.length > 0 && <p className="px-4 pt-1 text-[10.5px]" style={{ color: colors.textSecondary }}>Valor estimado: {estimateNote} (≈ 3 km, R$ 6). O valor de verdade sai no pedido.</p>}
+                {showPrice && (storeList.length > 0 || recentList.length > 0) && (
+                    <p className="px-4 pt-1 text-[10.5px]" style={{ color: colors.textSecondary }}>
+                        Valor estimado: {priceFrom ? 'a corrida da sua partida até lá' : 'escolha a partida para ver o valor certo; por enquanto, o mínimo da corrida'} + R$ 6 de deslocamento do motorista (≈ 3 km). O valor de verdade sai no pedido.
+                    </p>
+                )}
             </section>
         </div>
     )

@@ -1201,6 +1201,16 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
             void resolveCity(c.lng, c.lat).then((city) => { if (city) { cityResolvedRef.current = true; setCityContext(city) } })
         }
     }
+    // escolheu um lugar recente ou uma empresa na página de busca da CHEGADA
+    const pickDestinationPlace = (p: PlacePick) => {
+        if (p.coords) { selectSuggestion('destination', { place_name: p.address, center: p.coords }); return }
+        setDestination(p)
+        addRecentRideDestination(p)
+        setRecentDestinations(getRecentRideDestinations())
+        persistPlace('destination', p)
+        setActiveField(null)
+        setSuggestions([])
+    }
     // escolheu um lugar recente ou uma empresa na página de busca da PARTIDA
     const pickOriginPlace = (p: PlacePick) => {
         if (p.coords) { selectSuggestion('origin', { place_name: p.address, center: p.coords }); return }
@@ -1827,7 +1837,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 value={addressForField(activeField)}
                                 onChange={(e) => handleAddressChange(activeField as 'origin' | 'destination' | 'stop0' | 'stop1', e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
-                                placeholder={activeField === 'origin' ? (requestFor === 'objeto' ? 'Local de retirada' : 'Local de partida') : activeField === 'destination' ? 'Local de chegada' : activeField === 'stop0' ? 'Onde vai ser a 1ª parada?' : 'Onde vai ser a 2ª parada?'}
+                                placeholder={activeField === 'origin' ? (requestFor === 'objeto' ? 'Local de retirada' : 'Local de partida') : activeField === 'destination' ? (requestFor === 'pessoa' ? 'Local de chegada' : 'Local de entrega') : activeField === 'stop0' ? 'Onde vai ser a 1ª parada?' : 'Onde vai ser a 2ª parada?'}
                                 className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm focus:outline-none"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                             />
@@ -1876,16 +1886,20 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 </button>
                             )
                         })}
-                        {activeField === 'origin' && (
+                        {/* PARTIDA: atalhos, recentes e empresas por perto, SEM valor (a pessoa sai dali). CHEGADA: o mesmo, com o VALOR ESTIMADO da
+                            corrida da partida até cada lugar (+ R$ 6 de deslocamento) — modules/ride-places */}
+                        {(activeField === 'origin' || activeField === 'destination') && (
                             <PlaceSearchExtras
-                                query={origin.address}
-                                refPoint={searchRef}
-                                estimateTo={destination.coords}
-                                recents={[...recentOrigins, ...recentDestinations].filter((p, i, all) => all.findIndex((x) => x.address === p.address) === i)}
-                                locating={locatingOrigin}
-                                onUseMyLocation={() => { useMyLocationAsOrigin(true); setActiveField(null); setSuggestions([]) }}
-                                onPickOnMap={() => startPickingOnMap('origin')}
-                                onPick={pickOriginPlace}
+                                query={activeField === 'origin' ? origin.address : destination.address}
+                                refPoint={activeField === 'destination' ? (origin.coords ?? searchRef) : searchRef}
+                                priceFrom={activeField === 'destination' ? origin.coords : undefined}
+                                recents={(activeField === 'origin' ? [...recentOrigins, ...recentDestinations] : [...recentDestinations, ...recentOrigins])
+                                    .filter((p, i, all) => all.findIndex((x) => x.address === p.address) === i)
+                                    .filter((p) => (activeField === 'origin' ? p.address !== destination.address : p.address !== origin.address))}
+                                locating={activeField === 'origin' ? locatingOrigin : locatingDestination}
+                                onUseMyLocation={() => { if (activeField === 'origin') useMyLocationAsOrigin(true); else useMyLocationAsDestination(); setActiveField(null); setSuggestions([]) }}
+                                onPickOnMap={() => startPickingOnMap(activeField)}
+                                onPick={activeField === 'origin' ? pickOriginPlace : pickDestinationPlace}
                             />
                         )}
                     </div>
