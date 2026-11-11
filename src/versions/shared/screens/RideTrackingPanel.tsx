@@ -662,12 +662,15 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     const cancelRide = async () => {
         setCancelling(true)
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('ride_requests')
                 .update({ status: 'cancelled', cancelled_by: 'requester' })
                 .eq('id', rideId)
                 .in('status', ['pending', 'accepted'])
+                .select('id')
             if (error) throw error
+            // nada mudou (já tinha acabado, ou não era um pedido seu): não diga "cancelada" — confira de novo
+            if (!data || data.length === 0) { toast.error('Não foi possível cancelar: a corrida já tinha mudado. Atualizamos a tela.'); onExit(); return }
             toast.success('Corrida cancelada.')
             notifyRideStatus(rideId, 'cancelled')
             onExit()

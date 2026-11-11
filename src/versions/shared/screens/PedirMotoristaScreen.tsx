@@ -813,6 +813,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                 .from('ride_requests')
                 .select('id, origin_address, origin_lat, origin_lng, destination_address, destination_lat, destination_lng')
                 .eq('requester_id', contextUserId)
+                .is('order_id', null)   // entrega de pedido de loja é pedida pela LOJA (o dono é o solicitante): não é uma corrida da pessoa
                 .in('status', ['pending', 'accepted'])
                 .order('created_at', { ascending: false })
                 .limit(1)
@@ -1676,6 +1677,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     .from('ride_requests')
                     .select('id')
                     .eq('requester_id', user.id)
+                    .is('order_id', null)   // entrega de pedido de loja é pedida pela LOJA (o dono é o solicitante): não é uma corrida da pessoa
                     .in('status', ['pending', 'accepted'])
                     .order('created_at', { ascending: false })
                     .limit(1)

@@ -452,6 +452,7 @@ export default function ModeloInicialPage() {
                 .from('ride_requests')
                 .select('id, status, destination_address, driver_en_route, driver_arrived_at, ride_started_at')
                 .eq('requester_id', userId)
+                .is('order_id', null)   // entrega de pedido de loja é pedida pela LOJA (o dono é o solicitante): não é uma corrida da pessoa
                 .in('status', ['pending', 'accepted'])
                 .order('created_at', { ascending: false })
                 .limit(1)
