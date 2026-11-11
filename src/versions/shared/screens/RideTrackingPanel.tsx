@@ -21,6 +21,7 @@ import { handleShareLink } from '@/lib/share'
 import { speak } from '@/lib/voiceNavigation'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import CandidateNegotiation from '@/components/negotiation/CandidateNegotiation'
+import CarAmenities from '@/components/ride/CarAmenities'
 import { loadOffers, type PriceOffer } from '@/modules/negotiation'
 import { platformFloor } from '@/modules/negotiation/domain'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
@@ -95,6 +96,8 @@ interface Candidate {
     carPlate: string | null
     carPhotoUrl: string | undefined
     services: string[]
+    seats: number | null
+    babySeat: boolean
     ratingAvg: number | null
     ratingCount: number
     lastComment: string | null
@@ -184,11 +187,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
 
         // Ficha do carro (modelo, cor, foto, serviços) — pública, pro
         // passageiro comparar os candidatos além do preço.
-        let vehiclesById = new Map<string, { car_model: string | null; car_color: string | null; car_plate: string | null; car_photo_url: string | null; services: string[] }>()
+        let vehiclesById = new Map<string, { car_model: string | null; car_color: string | null; car_plate: string | null; car_photo_url: string | null; services: string[]; passenger_capacity?: number | null; has_baby_seat?: boolean | null }>()
         if (idsToFetch.length > 0) {
             const { data: vehicles } = await supabase
                 .from('driver_vehicles')
-                .select('driver_id, vehicle_kind, car_model, car_color, car_plate, car_photo_url, services')
+                .select('driver_id, vehicle_kind, car_model, car_color, car_plate, car_photo_url, services, passenger_capacity, has_baby_seat')
                 .in('driver_id', idsToFetch)
             // Motorista pode ter vários veículos — prefere o que atende essa corrida.
             const rideKind = kindForRideType(rideRow.vehicle_type)
@@ -289,6 +292,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 carPlate: vehicle?.car_plate || null,
                 carPhotoUrl: vehicle?.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(vehicle.car_photo_url).data.publicUrl : undefined,
                 services: vehicle?.services || [],
+                seats: vehicle?.passenger_capacity ?? null,
+                babySeat: !!vehicle?.has_baby_seat,
                 ratingAvg: rating?.avg ?? null,
                 ratingCount: rating?.count ?? 0,
                 lastComment: rating?.lastComment ?? null,
@@ -338,7 +343,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                     lat: null, lng: null, etaMin: null, etaDistanceKm: null, routeCoords: null,
                     carModel: vehicle?.car_model || null, carColor: vehicle?.car_color || null, carPlate: vehicle?.car_plate || null,
                     carPhotoUrl: vehicle?.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(vehicle.car_photo_url).data.publicUrl : undefined,
-                    services: vehicle?.services || [], ratingAvg: null, ratingCount: 0, lastComment: null, store: null,
+                    services: vehicle?.services || [], seats: vehicle?.passenger_capacity ?? null, babySeat: !!vehicle?.has_baby_seat, ratingAvg: null, ratingCount: 0, lastComment: null, store: null,
                 })
             }
         } else {
@@ -783,7 +788,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
             </div>
 
             {/* Motorista aceito — ficha compacta e horizontal: foto do
-                motorista e do carro quadradas lado a lado, placa em
+                motorista REDONDA (o anel de borda é redondo) e a do carro ao lado, placa em
                 destaque, e o resto (tipo de veículo, duração, serviços)
                 só como ícone, tudo numa linha só. */}
             {ride.status === 'accepted' && driver && (
@@ -791,9 +796,9 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                     <div className="flex items-center gap-2">
                         <PlanAvatarRing userId={ride.driver_id}>
                         {driver.avatarUrl ? (
-                            <img src={driver.avatarUrl} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" alt="" />
+                            <img src={driver.avatarUrl} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
                         ) : (
-                            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
                                 <Car size={16} />
                             </div>
                         )}
@@ -926,12 +931,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                                     {pickupEtaMin != null && <span className="inline-flex items-center gap-0.5"><Clock size={11} />chega em {pickupEtaMin} min</span>}
                                                     {destArrival && <span>· termina às {destArrival}</span>}
                                                 </p>
-                                                {/* o que o carro oferece (ar-condicionado, Wi-Fi, carregador, som, aceita pet): o passageiro não pede, ele vê */}
-                                                {c.services.length > 0 && (
-                                                    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
-                                                        {c.services.map((sid) => { const o = DRIVER_SERVICE_OPTIONS.find((x) => x.id === sid); if (!o) return null; const SIcon = o.icon; return <span key={sid} className="inline-flex items-center gap-0.5"><SIcon size={11} />{o.label}</span> })}
-                                                    </p>
-                                                )}
+                                                {/* o que o carro TEM e o que NÃO tem (ar, Wi-Fi, carregador, som, pet), lugares e cadeirinha: o passageiro compara antes de escolher */}
+                                                <div className="mt-1.5"><CarAmenities services={c.services} seats={c.seats} babySeat={c.babySeat} compact /></div>
                                             </div>
                                             {c.status === 'pending' && !deciding && (
                                                 <button onClick={() => rejectCandidate(c.applicationId)} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full" style={{ background: `${colors.border}40`, color: colors.textSecondary }} aria-label="Recusar este motorista">

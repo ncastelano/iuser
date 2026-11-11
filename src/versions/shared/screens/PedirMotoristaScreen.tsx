@@ -68,7 +68,7 @@ import { useActiveDriversLayer } from '@/lib/useActiveDriversLayer'
 import RadarDriverCard from '@/components/radar/RadarDriverCard'
 import type { RadarDriverItem } from '@/lib/radarDrivers'
 import { haversineKm } from '@/lib/mapboxRoute'
-import { DRIVER_SERVICE_OPTIONS, driverServiceLabel } from '@/lib/driverServices'
+import CarAmenities from '@/components/ride/CarAmenities'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -497,6 +497,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     // dentro do card quando o conteúdo realmente não cabe nesse teto.
     const SHEET_MIN_VH = 22
     const SHEET_MAX_VH = 60
+    // a tela final (veículo, junto, pagamento, pedir) cabe inteira, sem rolar: ela pode subir mais sobre o mapa
+    const FINAL_MAX_VH = 86
     const SHEET_PADDING_PX = 48 // pt-4 (16px) + pb-8 (32px) do container, não incluído na medição do conteúdo
     const [contentHeightPx, setContentHeightPx] = useState(0)
     const sheetResizeObserverRef = useRef<ResizeObserver | null>(null)
@@ -511,9 +513,10 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         ro.observe(node)
         sheetResizeObserverRef.current = ro
     }, [])
+    const sheetMaxVh = step === 'final' ? FINAL_MAX_VH : SHEET_MAX_VH
     const sheetHeightVh = contentHeightPx > 0
-        ? Math.min(SHEET_MAX_VH, Math.max(SHEET_MIN_VH, ((contentHeightPx + SHEET_PADDING_PX) / window.innerHeight) * 100))
-        : SHEET_MAX_VH
+        ? Math.min(sheetMaxVh, Math.max(SHEET_MIN_VH, ((contentHeightPx + SHEET_PADDING_PX) / window.innerHeight) * 100))
+        : sheetMaxVh
 
     // ===== ADICIONAIS: PESSOA (além de quem pediu) — cada item é um contador,
     // 0 significa que não tem esse adicional =====
@@ -567,6 +570,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
     // ===== PAGAMENTO =====
     const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | 'cartao' | null>(null)
+    const [paymentMissing, setPaymentMissing] = useState(false)
+    useEffect(() => { if (paymentMethod) setPaymentMissing(false) }, [paymentMethod])
     const [cashChangeFor, setCashChangeFor] = useState('')
     const [cardIsContactless, setCardIsContactless] = useState<boolean | null>(null)
 
@@ -1286,6 +1291,11 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
             toast.error('Preencha o endereço de origem e destino')
             return
         }
+        if (!paymentMethod) {
+            setStep('final'); setPaymentMissing(true)
+            toast.error('Escolha a forma de pagamento')
+            return
+        }
         // As fotos (File) não sobrevivem ao login/rascunho — se faltar uma, leva
         // a pessoa de volta pra etapa e pro campo que precisa dela.
         const missingPhoto =
@@ -1701,16 +1711,12 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     const [moreOpts, setMoreOpts] = useState(false)
     const moreOptsCount = (hasSpecialNeeds ? 1 : 0) + (originNeedsAccess ? 1 : 0) + (destinationNeedsAccess ? 1 : 0)
     const moreOptsOpen = moreOpts || moreOptsCount > 0
-    // o que os motoristas ativos agora oferecem (ar-condicionado, Wi-Fi, carregador...), por tipo de veículo e no total: a pessoa não pede mais, ela vê
-    const SERVICE_ORDER = DRIVER_SERVICE_OPTIONS.map((o) => o.id)
-    const servicesOf = (list: RadarDriverItem[]) => SERVICE_ORDER.filter((id) => list.some((d) => d.services.includes(id)))
-    const servicesByKind: Record<'carro' | 'moto' | 'bicicleta' | 'qualquer', string[]> = {
-        carro: servicesOf(mapDrivers.filter((d) => d.kind === 'carro')),
-        moto: servicesOf(mapDrivers.filter((d) => d.kind === 'moto')),
-        bicicleta: servicesOf(mapDrivers.filter((d) => d.kind === 'bicicleta')),
-        qualquer: [],
-    }
-    const allServices = servicesOf(mapDrivers)
+    // os carros por perto do tipo escolhido ("qualquer" = todos), do mais perto ao mais longe da partida
+    const nearbyCars = mapDrivers
+        .filter((d) => vehicleTypeChoice === 'qualquer' || d.kind === vehicleTypeChoice)
+        .map((d) => ({ d, km: origin.coords ? haversineKm(origin.coords, [d.lng, d.lat]) : null }))
+        .sort((a, b) => (a.km ?? 99) - (b.km ?? 99))
+        .slice(0, 12)
 
     const inputStyle = { color: colors.textPrimary }
 
@@ -1754,8 +1760,10 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                 )}
 
                 {/* Card do motorista escolhido no mapa */}
+                {/* por cima da TELA toda (não só do mapa, que na etapa final fica baixinho), com o fundo escurecido: tocar fora fecha */}
                 {pickedDriver && driversEnabled && (
-                    <div className="absolute inset-x-3 bottom-3 z-30 max-w-md mx-auto flex flex-col justify-end max-h-[calc(100%-5rem)]">
+                    <div className="fixed inset-0 z-50 flex flex-col justify-end p-3" style={{ background: 'rgba(0,0,0,0.45)', top: 'var(--shell-top, 0px)' }} onClick={(e) => { if (e.target === e.currentTarget) setPickedDriver(null) }}>
+                    <div className="w-full max-w-md mx-auto flex flex-col justify-end max-h-[calc(100dvh-var(--shell-top,0px)-1.5rem)]">
                         <RadarDriverCard
                             driver={pickedDriver}
                             distanceKm={origin.coords ? haversineKm(origin.coords, [pickedDriver.lng, pickedDriver.lat]) : null}
@@ -1768,6 +1776,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             onClose={() => setPickedDriver(null)}
                             go={(path) => router.push(path)}
                         />
+                    </div>
                     </div>
                 )}
 
@@ -2228,18 +2237,15 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {/* ===== ETAPA: VEÍCULO ===== */}
                     {step === 'final' && requestFor && (
                         <>
-                            {/* resumo do trajeto: tocar volta para mudar */}
-                            <button type="button" onClick={() => setStep('where')} className="w-full flex items-center gap-2.5 rounded-2xl px-3 py-2.5 mb-3 text-left active:scale-[0.99] transition" style={{ background: `${colors.border}30` }}>
-                                <span className="flex flex-col items-center gap-0.5 flex-shrink-0"><span className="w-2 h-2 rounded-full" style={{ background: '#22c55e' }} /><span className="w-px h-2.5" style={{ background: colors.border }} /><span className="w-2 h-2 rounded-full" style={{ background: '#ef4444' }} /></span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="block text-[12px] font-bold truncate" style={{ color: colors.textPrimary }}>{shortAddress(origin.address)}</span>
-                                    <span className="block text-[12px] font-bold truncate" style={{ color: colors.textPrimary }}>{shortAddress(destination.address)}</span>
-                                </span>
+                            {/* resumo do trajeto numa linha: tocar volta para mudar */}
+                            <button type="button" onClick={() => setStep('where')} className="w-full flex items-center gap-2 rounded-full px-3 h-9 mb-2.5 text-left active:scale-[0.99] transition" style={{ background: `${colors.border}30` }}>
+                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                                <span className="min-w-0 flex-1 text-[12px] font-bold truncate" style={{ color: colors.textPrimary }}>{shortAddress(origin.address)} <span style={{ color: colors.textSecondary }}>→</span> {shortAddress(destination.address)}</span>
                                 <span className="text-[11px] font-black flex-shrink-0" style={{ color: '#ea580c' }}>Mudar</span>
                             </button>
-                            <h2 className="text-[13px] font-black mb-2" style={{ color: colors.textPrimary }}>Veículo</h2>
+                            <h2 className="text-[13px] font-black mb-1.5" style={{ color: colors.textPrimary }}>Veículo</h2>
 
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className={v3 ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-2 gap-2'}>
                                 {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => {
                                     const active = vehicleTypeChoice === kind
                                     const Icon = kind === 'moto' ? Motorbike : kind === 'bicicleta' ? Bike : kind === 'qualquer' ? Shuffle : Car
@@ -2253,24 +2259,18 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                             disabled={!allowed}
                                             onClick={() => chooseVehicle(kind)}
                                             className={v3
-                                                ? 'flex items-center gap-2.5 min-h-[58px] py-2 px-3 rounded-2xl text-left transition active:scale-95 disabled:opacity-40'
+                                                ? 'flex flex-col items-center justify-start gap-0.5 py-1.5 px-1 rounded-2xl text-center transition active:scale-95 disabled:opacity-40'
                                                 : 'flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:hover:scale-100'}
                                             style={active ? { background: v3 ? '#f97316' : GRADIENT } : { background: `${colors.border}30`, border: v3 ? '1px solid transparent' : `1px solid ${colors.border}` }}
                                         >
-                                            <div className={`${v3 ? 'w-9 h-9' : 'w-12 h-12'} flex-shrink-0 rounded-full flex items-center justify-center`} style={{ background: active ? 'rgba(255,255,255,0.25)' : v3 ? '#f9731622' : GRADIENT, color: active || !v3 ? '#fff' : '#ea580c' }}>
-                                                <Icon size={v3 ? 18 : 22} />
+                                            <div className={`${v3 ? 'w-7 h-7' : 'w-12 h-12'} flex-shrink-0 rounded-full flex items-center justify-center`} style={{ background: active ? 'rgba(255,255,255,0.25)' : v3 ? '#f9731622' : GRADIENT, color: active || !v3 ? '#fff' : '#ea580c' }}>
+                                                <Icon size={v3 ? 15 : 22} />
                                             </div>
-                                            <span className="min-w-0 flex flex-col">
-                                                <span className="text-xs font-black leading-tight" style={{ color: active ? '#fff' : colors.textPrimary }}>{v3 && kind === 'carro' ? 'Carro' : VEHICLE_TYPE_LABELS[kind]}</span>
+                                            <span className={v3 ? 'min-w-0 flex flex-col items-center' : 'min-w-0 flex flex-col'}>
+                                                <span className="text-xs font-black leading-tight" style={{ color: active ? '#fff' : colors.textPrimary }}>{v3 ? (kind === 'carro' ? 'Carro' : kind === 'qualquer' ? 'Qualquer' : VEHICLE_TYPE_LABELS[kind]) : VEHICLE_TYPE_LABELS[kind]}</span>
                                                 {v3 && driversLoaded && (
                                                     <span className="text-[10px] font-bold leading-tight" style={{ color: active ? 'rgba(255,255,255,0.85)' : activeNow > 0 ? '#16a34a' : colors.textSecondary }}>
-                                                        {activeNow > 0 ? `${activeNow} ativo${activeNow > 1 ? 's' : ''} agora` : 'nenhum agora'}
-                                                    </span>
-                                                )}
-                                                {/* o que os motoristas desse tipo, ativos agora, oferecem (ar-condicionado, Wi-Fi...): a pessoa não pede, ela VÊ */}
-                                                {v3 && servicesByKind[kind].length > 0 && (
-                                                    <span className="flex items-center gap-1 mt-0.5" aria-label={servicesByKind[kind].map(driverServiceLabel).join(', ')}>
-                                                        {servicesByKind[kind].map((sid) => { const o = DRIVER_SERVICE_OPTIONS.find((x) => x.id === sid); if (!o) return null; const SIcon = o.icon; return <SIcon key={sid} size={11} style={{ color: active ? '#fff' : colors.textSecondary }} /> })}
+                                                        {v3 ? (activeNow > 0 ? `${activeNow} agora` : 'nenhum') : activeNow > 0 ? `${activeNow} ativo${activeNow > 1 ? 's' : ''} agora` : 'nenhum agora'}
                                                     </span>
                                                 )}
                                             </span>
@@ -2279,11 +2279,32 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 })}
                             </div>
 
-                            {v3 && allServices.length > 0 && (
-                                <p className="text-[11px] mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1" style={{ color: colors.textSecondary }}>
-                                    <span className="font-bold">Por perto oferecem:</span>
-                                    {allServices.map((sid) => { const o = DRIVER_SERVICE_OPTIONS.find((x) => x.id === sid); if (!o) return null; const SIcon = o.icon; return <span key={sid} className="inline-flex items-center gap-1"><SIcon size={12} />{o.label}</span> })}
-                                </p>
+                            {/* CARROS POR PERTO: cada motorista ativo do tipo escolhido, com o que o carro TEM e o que NÃO tem (ar, Wi-Fi, carregador,
+                                som, pet), lugares e cadeirinha — o passageiro compara antes de pedir; tocar abre o card completo (e "Chamar este motorista") */}
+                            {v3 && nearbyCars.length > 0 && (
+                                <div className="mt-2.5">
+                                    <p className="text-[12px] font-black mb-1" style={{ color: colors.textPrimary }}>
+                                        Carros por perto <span className="font-semibold" style={{ color: colors.textSecondary }}>· o que cada um tem</span>
+                                    </p>
+                                    <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 snap-x scroll-pl-4" style={{ scrollbarWidth: 'none' }}>
+                                        {nearbyCars.map(({ d, km }) => (
+                                            <button key={d.id} type="button" onClick={() => setPickedDriver(d)} className="snap-start flex-shrink-0 w-[236px] rounded-2xl p-2 text-left active:scale-[0.98] transition" style={{ background: `${colors.border}30` }}>
+                                                <span className="flex items-center gap-2">
+                                                    {d.photoUrl ? <img src={d.photoUrl} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
+                                                        : <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f9731622', color: '#ea580c' }}>{d.kind === 'moto' ? <Motorbike size={17} /> : d.kind === 'bicicleta' ? <Bike size={17} /> : <Car size={17} />}</span>}
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block text-[12.5px] font-black truncate" style={{ color: colors.textPrimary }}>{[d.model, d.color].filter(Boolean).join(' · ')}</span>
+                                                        <span className="block text-[10.5px] font-bold truncate" style={{ color: colors.textSecondary }}>
+                                                            {d.rating != null && d.ratingCount > 0 ? <span style={{ color: '#f59e0b' }}>★ {d.rating.toFixed(1).replace('.', ',')} </span> : 'novo · '}
+                                                            {km != null ? `${km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1).replace('.', ',')} km`} de você` : ''}
+                                                        </span>
+                                                    </span>
+                                                </span>
+                                                <span className="block mt-1.5"><CarAmenities services={d.services} seats={d.capacity} babySeat={d.babySeat} compact /></span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             )}
                             {requestFor === 'animal' && petWeightRange && petWeightRange !== 'ate_5kg' && (
                                 <div className="px-3 py-2.5 rounded-lg text-xs font-semibold mt-3" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
@@ -2328,7 +2349,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             {requestFor === 'pessoa' ? (
                                 <>
                                     {/* O título vem DEPOIS da pergunta de deficiência, pra não parecer que ela faz parte de "Quem vai com você?" */}
-                                    <h2 className="text-[13px] font-black mb-2 mt-4" style={{ color: colors.textPrimary }}>
+                                    <h2 className="text-[13px] font-black mb-1.5 mt-3" style={{ color: colors.textPrimary }}>
                                         Vai mais alguém ou algo junto? <span className="font-semibold" style={{ color: colors.textSecondary }}>(opcional)</span>
                                     </h2>
                                     {/* Cada adicional é um contador — 0 significa que não tem esse adicional */}
@@ -2773,7 +2794,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             ) : (
                                 <button
                                     onClick={() => setShowNotes(true)}
-                                    className="text-xs font-bold mt-3"
+                                    className="text-xs font-bold mt-2"
                                     style={{ color: colors.accent }}
                                 >
                                     + Adicionar observação
@@ -2804,7 +2825,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {/* ===== ETAPA: FORMA DE PAGAMENTO ===== */}
                     {step === 'final' && requestFor && (
                         <>
-                            <h2 className="text-[13px] font-black mb-2 mt-4" style={{ color: colors.textPrimary }}>Pagamento <span className="font-semibold" style={{ color: colors.textSecondary }}>· direto ao motorista</span></h2>
+                            <h2 id="pagamento-corrida" className="text-[13px] font-black mb-1.5 mt-3" style={{ color: colors.textPrimary }}>Pagamento <span style={{ color: '#ef4444' }}>*</span> <span className="font-semibold" style={{ color: paymentMissing ? '#ef4444' : colors.textSecondary }}>{paymentMissing ? '· escolha como vai pagar' : '· direto ao motorista'}</span></h2>
 
                             <div className="grid grid-cols-3 gap-2">
                                 {([
@@ -2825,7 +2846,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                             className={v3
                                                 ? 'flex items-center justify-center gap-1.5 h-11 px-2 rounded-full transition active:scale-95'
                                                 : 'flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95'}
-                                            style={active ? { background: v3 ? '#f97316' : GRADIENT } : { background: `${colors.border}30`, border: v3 ? '1px solid transparent' : `1px solid ${colors.border}` }}
+                                            style={active ? { background: v3 ? '#f97316' : GRADIENT } : { background: `${colors.border}30`, border: paymentMissing ? '1.5px solid #ef4444' : v3 ? '1px solid transparent' : `1px solid ${colors.border}` }}
                                         >
                                             {v3 ? <Icon size={16} style={{ color: active ? '#fff' : '#ea580c' }} /> : (
                                             <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
@@ -2882,7 +2903,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 No objeto, "Onde entregar?" fica sempre à vista. */}
                             {requestFor !== 'objeto' && (
                                 <button type="button" onClick={() => setMoreOpts((v) => !v)} aria-expanded={moreOptsOpen}
-                                    className="w-full flex items-center gap-2 mt-4 rounded-2xl px-3 py-2.5 text-left active:scale-[0.99] transition" style={{ background: `${colors.border}30` }}>
+                                    className="w-full flex items-center gap-2 mt-3 rounded-full px-3 h-9 text-left active:scale-[0.99] transition" style={{ background: `${colors.border}30` }}>
                                     <Accessibility size={15} style={{ color: '#ea580c' }} />
                                     <span className="min-w-0 flex-1 text-[13px] font-black" style={{ color: colors.textPrimary }}>
                                         Mais opções <span className="font-semibold" style={{ color: colors.textSecondary }}>· acessibilidade, condomínio</span>
@@ -3021,13 +3042,17 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                     {v3 ? <ArrowLeft size={18} /> : 'Voltar'}
                                 </button>
                                 <button
-                                    onClick={() => { if (!shoppingSizeMissing()) handleRequestConfirm() }}
+                                    onClick={() => {
+                                        // o pagamento é OBRIGATÓRIO: sem ele o botão avisa e marca a seção em vermelho
+                                        if (!paymentMethod) { setPaymentMissing(true); toast.error('Escolha a forma de pagamento'); document.getElementById('pagamento-corrida')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
+                                        if (!shoppingSizeMissing()) handleRequestConfirm()
+                                    }}
                                     disabled={submitting || !origin.address.trim() || !destination.address.trim()}
                                     className={`flex-1 ${v3 ? 'h-12 rounded-full text-[15px]' : 'py-3.5 rounded-xl uppercase text-sm tracking-wider'} font-black transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2`}
-                                    style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff' }}
+                                    style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff', opacity: paymentMethod ? 1 : 0.6 }}
                                 >
                                     {submitting ? <Spinner size={18} /> : <Car size={18} />}
-                                    {calledDriver ? `Chamar ${calledDriver.name?.split(' ')[0] || 'o motorista'}` : 'Pedir motorista'}
+                                    {!paymentMethod ? 'Escolha o pagamento' : calledDriver ? `Chamar ${calledDriver.name?.split(' ')[0] || 'o motorista'}` : 'Pedir motorista'}
                                 </button>
                             </div>
                         </>

@@ -75,7 +75,7 @@ for (const p of products) {
 }
 
 await upsert('driver_pricing', [{ driver_id: ids.motorista, pricing_mode: 'platform', driver_mode_active: true }], 'driver_id').catch((e) => console.warn('driver_pricing:', e.message))
-await upsert('driver_vehicles', [{ driver_id: ids.motorista, vehicle_kind: 'moto', services: ['pessoa', 'objeto'] }], 'driver_id,vehicle_kind').catch((e) => console.warn('driver_vehicles:', e.message))
+await upsert('driver_vehicles', [{ driver_id: ids.motorista, vehicle_kind: 'moto', services: [] /* comodidades (ar_condicionado, wifi...), não tipos de corrida */ }], 'driver_id,vehicle_kind').catch((e) => console.warn('driver_vehicles:', e.message))
 await api('POST', '/rest/v1/follows', [{ follower_id: ids.cliente, following_id: ids.prestador }], { Prefer: 'resolution=ignore-duplicates' }).catch(() => {})
 
 console.log(`Pronto. Entre no app de staging com qualquer e-mail acima e a senha do STAGING_TEST_PASSWORD. Loja: /loja-teste`)
