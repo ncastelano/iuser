@@ -107,7 +107,7 @@ test('valor mínimo da plataforma: minutos × mínimo por minuto, arredondado pa
     assert.equal(belowPlatformFloor(18.99, 19), true)
     assert.equal(belowPlatformFloor(19, 19), false)
     assert.equal(belowPlatformFloor(5, 0), false)
-    assert.equal(platformFloorText(19, 0.5), 'O valor mínimo da plataforma para esta corrida é R$ 19,00 (R$ 0,50 por minuto de trabalho).')
+    assert.equal(platformFloorText(19, 0.5), 'O valor mínimo da plataforma para esta corrida é R$ 19,00 (R$ 30 por hora de trabalho).')
     assert.match(negotiationError({ hint: 'below_platform_min', message: 'O valor mínimo é R$ 19,00' }), /R\$ 19,00/)
 })
 
@@ -119,14 +119,15 @@ test('valor mínimo de UMA corrida: R$ 8,00, vale o maior entre ele e os minutos
     assert.equal(platformFloor(12, 0.8, 12), 12)           // piso configurado mais alto
     assert.equal(platformFloor(30, 0, 8), 0)               // entrega de loja (mínimo por minuto 0) fica de fora
     assert.equal(platformFloorText(8, 0.8), 'O valor mínimo de uma corrida é R$ 8,00.')
-    assert.match(platformFloorText(30.4, 0.8), /R\$ 30,40 \(R\$ 0,80 por minuto/)
+    assert.match(platformFloorText(30.4, 0.8), /R\$ 30,40 \(R\$ 48 por hora de trabalho/)
     setMinRideFare(10); assert.equal(platformFloor(5, 0.8), 10); setMinRideFare(DEFAULT_MIN_RIDE_FARE)
 })
 
-test('mínimo padrão R$ 0,80 por minuto, teto R$ 1,00; só o admin eleva o teto', () => {
-    assert.equal(DEFAULT_MIN_PER_MINUTE, 0.8)
+test('mínimo padrão R$ 40 por hora (0,6667 por minuto), teto R$ 1,00 por minuto; só o admin eleva o teto', () => {
+    assert.equal(DEFAULT_MIN_PER_MINUTE, 0.6667)
+    assert.equal(Math.round(DEFAULT_MIN_PER_MINUTE * 60), 40)
     assert.equal(DEFAULT_MIN_PER_MINUTE_CAP, 1)
-    assert.equal(platformFloor(38, DEFAULT_MIN_PER_MINUTE, 0), 30.4)              // 38 min não saem por menos de R$ 30,40
+    assert.equal(platformFloor(38, DEFAULT_MIN_PER_MINUTE, 0), 25.34)             // 38 min a R$ 40/h não saem por menos de R$ 25,34
     assert.equal(minPerMinuteProblem(0.8), null)
     assert.equal(minPerMinuteProblem(1), null)                                  // no teto: vale
     assert.equal(minPerMinuteProblem(0), null)                                  // 0 desliga
@@ -149,7 +150,7 @@ test('o que decidiu a Minha tarifa: km, ganho mínimo por hora ou mínimo da pla
     assert.equal(fareDriver(7, 12, 12), 'platform')      // empate com o da plataforma: é regra da plataforma
     assert.equal(fareDriver(7, 7, 7), 'km')                // nada subiu a tarifa
     assert.equal(fareDriverText('km', 7, null, 0.8), '')
-    assert.match(fareDriverText('platform', 7, null, 0.8), /mínimo da plataforma \(R\$ 0,80 por minuto/)
+    assert.match(fareDriverText('platform', 7, null, 0.8), /mínimo da plataforma \(R\$ 48 por hora de trabalho/)
     assert.match(fareDriverText('hourly', 7, 60, 0.8), /ganho mínimo de R\$ 60,00 por hora/)
 })
 

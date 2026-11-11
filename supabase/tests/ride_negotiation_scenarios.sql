@@ -45,8 +45,8 @@ BEGIN
     SELECT id INTO D1 FROM profiles WHERE is_active AND id <> P AND id NOT IN (SELECT driver_id FROM driver_earning_goals) AND id NOT IN (SELECT driver_id FROM driver_pricing) ORDER BY created_at OFFSET 1 LIMIT 1;
     SELECT id INTO D2 FROM profiles WHERE is_active AND id NOT IN (P, D1) AND id NOT IN (SELECT driver_id FROM driver_earning_goals) AND id NOT IN (SELECT driver_id FROM driver_pricing) ORDER BY created_at OFFSET 2 LIMIT 1;
 
-    -- o padrão de fábrica do mínimo por minuto é R$ 0,80 e o teto R$ 1,00 (conferido no cenário 17)
-    IF (SELECT column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ride_negotiation_settings' AND column_name = 'min_per_minute') NOT LIKE '0.80%' THEN RAISE EXCEPTION '0: padrão do mínimo deveria ser 0.80'; END IF;
+    -- o padrão de fábrica do mínimo é R$ 40 por hora (0,6667 por minuto; migration ...65) e o teto R$ 1,00 por minuto (conferido no cenário 17)
+    IF (SELECT column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ride_negotiation_settings' AND column_name = 'min_per_minute') NOT LIKE '0.6667%' THEN RAISE EXCEPTION '0: padrão do mínimo deveria ser 0.6667 (R$ 40/h)'; END IF;
     -- os cenários 1-16 testam a negociação em si, com valores pequenos: sem o piso da plataforma (o cenário 17 testa só ele)
     UPDATE ride_negotiation_settings SET min_per_minute = 0;
 
@@ -280,6 +280,7 @@ BEGIN
     PERFORM pg_temp.expect_fail('select admin_set_ride_minimum_cap(25)', NULL);     -- fora de R$ 0,01 a R$ 20
     PERFORM pg_temp.expect_fail('select admin_set_ride_minimum(-1)', NULL);
     IF (SELECT count(*) FROM admin_config_audit WHERE scope = 'ride_minimum' AND setting = 'max_per_minute' AND changed_by = P) <> 1 THEN RAISE EXCEPTION '17: mudança do teto não ficou auditada'; END IF;
+    UPDATE ride_negotiation_settings SET min_ride_fare = 0;   -- o mínimo de UMA corrida (R$ 8, migration ...44) é outra regra: fora deste cenário
     PERFORM admin_set_ride_minimum(0, P);                    -- 0 desliga
     IF _ride_trip_floor(ride) <> 0 THEN RAISE EXCEPTION '17: com 0 não há piso'; END IF;
     IF has_function_privilege('authenticated', 'public.admin_set_ride_minimum(numeric,uuid)', 'execute') OR has_function_privilege('anon', 'public.admin_set_ride_minimum(numeric,uuid)', 'execute')

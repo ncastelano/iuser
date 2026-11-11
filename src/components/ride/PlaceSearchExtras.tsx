@@ -4,8 +4,11 @@
 //   • atalhos: "Minha localização" e "Marcar no mapa";
 //   • SEUS LUGARES RECENTES (partidas e chegadas que a pessoa já usou);
 //   • EMPRESAS DO iUSER por perto (lojas com endereço público).
-// Só a página de CHEGADA mostra VALOR (`priceFrom` = a partida): a ESTIMATIVA da corrida da partida até cada lugar (modules/ride-places:
-// Tarifa iUser, nunca abaixo do mínimo de uma corrida, + R$ 6 de deslocamento ≈ 3 km). Na PARTIDA não há valor: a pessoa sai dali.
+// Só a página de CHEGADA mostra VALOR (`priceFrom` = a partida): a ESTIMATIVA da corrida da partida até cada lugar, com a MESMA conta do
+// card do motorista (modules/ride-places → lib/rideQuote): distância e TEMPO reais pelas ruas (Mapbox Matrix, uma consulta para todos os
+// lugares da tela), o deslocamento do motorista ativo MAIS PERTO da partida (sem ninguém: 3 km ≈ R$ 6), a Tarifa iUser do VEÍCULO escolhido
+// (Carro · Moto · Bicicleta, trocável aqui mesmo) e os mínimos (R$ 40 por hora de trabalho e o mínimo de uma corrida). Na PARTIDA não há
+// valor: a pessoa sai dali.
 // Ao digitar, os resultados da busca (que a tela desenha em cima) continuam aparecendo e estas listas embaixo passam a mostrar só o que bate
 // com o texto. A posição e o endereço das lojas são colunas PÚBLICAS de `stores` (o comércio é público; nada de pessoa aqui).
 import { useEffect, useMemo, useState } from 'react'
@@ -14,10 +17,10 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
-import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE } from '@/lib/driverPricing'
-import { getMinRideFare } from '@/modules/negotiation/domain'
+import { computePickupFee, computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricing } from '@/lib/driverPricing'
 import { loadMinRideFare } from '@/modules/negotiation'
-import { haversineKm, matches, placeEstimate, roadKm } from '@/modules/ride-places'
+import { useRideMinimum } from '@/hooks/useRideMinimum'
+import { haversineKm, legFromKm, matches, placeQuote, roadKm, type Leg } from '@/modules/ride-places'
 
 export interface PlacePick { address: string; coords: [number, number] | null }
 
@@ -25,14 +28,49 @@ interface StoreSpot { id: string; name: string; address: string; coords: [number
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
 const short = (a: string) => a.split(',').slice(0, 2).join(',').trim()
+export type VehicleKindChoice = 'carro' | 'moto' | 'bicicleta'
+const ptKey = (c: [number, number]) => `${c[0].toFixed(5)},${c[1].toFixed(5)}`
 
-export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents, locating, onUseMyLocation, onPickOnMap, onPick }: {
+/** distância e tempo REAIS pelas ruas de `from` até cada destino (e do motorista até `from`), numa consulta só ao Mapbox Matrix (até 25 pontos).
+ *  Falhou: null (quem chama cai na linha reta). Guarda por chave para não repetir ao digitar. */
+const matrixCache = new Map<string, { legs: Record<string, Leg>; pickup: Leg | null } | null>()
+async function fetchMatrix(from: [number, number], dests: [number, number][], driver: [number, number] | null, kind: VehicleKindChoice) {
+    const key = `${kind}|${ptKey(from)}|${driver ? ptKey(driver) : ''}|${dests.map(ptKey).join(';')}`
+    if (matrixCache.has(key)) return matrixCache.get(key)!
+    const coords = [from, ...(driver ? [driver] : []), ...dests]
+    const destStart = driver ? 2 : 1
+    const profile = kind === 'bicicleta' ? 'cycling' : 'driving'
+    const url = `https://api.mapbox.com/directions-matrix/v1/mapbox/${profile}/${coords.map((c) => `${c[0]},${c[1]}`).join(';')}`
+        + `?sources=${driver ? '0;1' : '0'}&destinations=${[...(driver ? [0] : []), ...dests.map((_, i) => destStart + i)].join(';')}&annotations=distance,duration&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`
+    try {
+        const r = await fetch(url)
+        const j = await r.json()
+        if (!r.ok || j.code !== 'Ok') throw new Error(j.message || 'matrix')
+        const off = driver ? 1 : 0   // com o motorista, a 1ª coluna é a partida
+        const legs: Record<string, Leg> = {}
+        dests.forEach((d, i) => {
+            const m = j.distances?.[0]?.[off + i], sec = j.durations?.[0]?.[off + i]
+            if (m != null && sec != null) legs[ptKey(d)] = { km: m / 1000, min: sec / 60 }
+        })
+        const pm = driver ? j.distances?.[1]?.[0] : null, ps = driver ? j.durations?.[1]?.[0] : null
+        const out = { legs, pickup: pm != null && ps != null ? { km: pm / 1000, min: ps / 60 } : null }
+        matrixCache.set(key, out)
+        return out
+    } catch { matrixCache.set(key, null); return null }
+}
+
+export default function PlaceSearchExtras({ query, refPoint, priceFrom, vehicleKind = 'carro', onVehicleKind, pickupFrom = null, recents, locating, onUseMyLocation, onPickOnMap, onPick }: {
     query: string
     /** onde a pessoa está (o centro do mapa): de onde se mede "perto" */
     refPoint: [number, number] | null
     /** página de CHEGADA: mostra o valor estimado da corrida a partir daqui (a partida; null = ainda sem partida: vale o mínimo, também com "±").
      *  undefined = página de PARTIDA: sem valores */
     priceFrom?: [number, number] | null
+    /** o veículo da estimativa (o mesmo do pedido; trocar aqui troca lá) */
+    vehicleKind?: VehicleKindChoice
+    onVehicleKind?: (k: VehicleKindChoice) => void
+    /** onde está o motorista ativo mais perto da partida (do tipo escolhido); null = ninguém por perto (vale 3 km) */
+    pickupFrom?: [number, number] | null
     recents: PlacePick[]
     locating: boolean
     onUseMyLocation: () => void
@@ -42,6 +80,7 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents,
     const { colors } = useTheme()
     const [stores, setStores] = useState<StoreSpot[] | null>(null)
     const [, setTariffTick] = useState(0)
+    const minPerMinute = useRideMinimum()
 
     // a tarifa e o mínimo da corrida vêm do banco (Admin → Tarifas)
     useEffect(() => { void Promise.all([loadPlatformTariffs(supabase), loadMinRideFare()]).then(() => setTariffTick((n) => n + 1)).catch(() => {}) }, [])
@@ -69,16 +108,42 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents,
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [refKey])
 
-    const estimate = (place: [number, number] | null) => {
-        const shape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE.carro
-        const km = roadKm(priceFrom, place)
-        return placeEstimate(km, (k) => computeSuggestedPrice(k, shape, 'pessoa'), getMinRideFare())
-    }
     const typing = query.trim().length > 0
     const recentList = useMemo(() => recents.filter((r) => matches(r.address, query)).slice(0, 8), [recents, query, typing])
     // na CHEGADA, o lugar da própria partida (a menos de 100 m dela) não é destino
     const storeList = useMemo(() => (stores || []).filter((s) => matches(`${s.name} ${s.address} ${s.category || ''}`, query) && !(priceFrom && haversineKm(priceFrom, s.coords) < 0.1)).slice(0, typing ? 5 : 8), [stores, query, typing, priceFrom])
     const showPrice = priceFrom !== undefined
+
+    // a rota de verdade (distância e tempo) da partida até cada lugar da tela, e do motorista mais perto até a partida
+    const [matrix, setMatrix] = useState<{ legs: Record<string, Leg>; pickup: Leg | null } | null>(null)
+    const destPts = useMemo(() => {
+        const seen = new Set<string>()
+        const pts: [number, number][] = []
+        for (const c of [...recentList.map((r) => r.coords), ...(stores || []).slice(0, 14).map((st) => st.coords)]) {
+            if (!c || seen.has(ptKey(c))) continue
+            seen.add(ptKey(c)); pts.push(c)
+        }
+        return pts.slice(0, 22)
+    }, [recentList, stores])
+    const destKey = destPts.map(ptKey).join(';')
+    useEffect(() => {
+        if (!showPrice || !priceFrom || destPts.length === 0) { setMatrix(null); return }
+        let alive = true
+        void fetchMatrix(priceFrom, destPts, pickupFrom, vehicleKind).then((m) => { if (alive) setMatrix(m) })
+        return () => { alive = false }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showPrice, priceFrom?.[0], priceFrom?.[1], pickupFrom?.[0], pickupFrom?.[1], destKey, vehicleKind])
+
+    const shape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
+    const pickupLeg: Leg | null = matrix?.pickup ?? (pickupFrom && priceFrom ? legFromKm(roadKm(pickupFrom, priceFrom) ?? 0) : null)
+    const estimate = (place: [number, number] | null) => {
+        const trip: Leg | null = !priceFrom || !place ? null : matrix?.legs[ptKey(place)] ?? legFromKm(roadKm(priceFrom, place) ?? 0)
+        return placeQuote<DriverPricing>({
+            trip, pickup: pickupLeg, shape, minPerMinute,
+            tripFare: (sh, km) => (km != null ? computeSuggestedPrice(km, sh, 'pessoa') : sh.baseFee + sh.extraFees.pessoa),
+            pickupFee: (sh, km) => computePickupFee(sh, km),
+        })
+    }
 
     const row = (key: string, icon: React.ReactNode, title: string, sub: string, place: PlacePick) => {
         const est = estimate(place.coords)
@@ -136,7 +201,16 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents,
             <section className="mt-4">
                 <p className="px-4 mb-1 text-[11px] font-black uppercase tracking-wide flex items-center justify-between gap-2" style={{ color: colors.textSecondary }}>
                     <span>Empresas do iUser {refPoint ? 'por perto' : ''}</span>
-                    {showPrice && <span className="normal-case tracking-normal font-semibold">valor estimado</span>}
+                    {showPrice && (onVehicleKind ? (
+                        <span className="normal-case tracking-normal flex items-center gap-1" role="radiogroup" aria-label="Veículo da estimativa">
+                            {(['carro', 'moto', 'bicicleta'] as VehicleKindChoice[]).map((k) => (
+                                <button key={k} type="button" role="radio" aria-checked={vehicleKind === k} onClick={() => onVehicleKind(k)}
+                                    className="h-6 px-2 rounded-full text-[10.5px] font-black" style={vehicleKind === k ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textSecondary }}>
+                                    {k === 'carro' ? 'Carro' : k === 'moto' ? 'Moto' : 'Bike'}
+                                </button>
+                            ))}
+                        </span>
+                    ) : <span className="normal-case tracking-normal font-semibold">valor estimado</span>)}
                 </p>
                 {stores === null ? (
                     <div className="flex justify-center py-4"><Spinner size={18} color={colors.textSecondary} /></div>
@@ -153,7 +227,7 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents,
                 })}
                 {showPrice && (storeList.length > 0 || recentList.length > 0) && (
                     <p className="px-4 pt-1 text-[10.5px]" style={{ color: colors.textSecondary }}>
-                        Valor estimado: {priceFrom ? 'a corrida da sua partida até lá' : 'escolha a partida para ver o valor certo; por enquanto, o mínimo da corrida'} + R$ 6 de deslocamento do motorista (≈ 3 km). O valor de verdade sai no pedido.
+                        Valor estimado {vehicleKind === 'moto' ? 'de moto' : vehicleKind === 'bicicleta' ? 'de bicicleta' : 'de carro'}: {priceFrom ? `a corrida da sua partida até lá${matrix ? ' pelas ruas' : ''}` : 'escolha a partida para ver o valor certo; por enquanto, o mínimo'} + o deslocamento do motorista {pickupLeg ? `mais perto (${pickupLeg.km.toFixed(1).replace('.', ',')} km)` : '(≈ 3 km, ninguém por perto agora)'}, nunca abaixo de R$ {Math.round(minPerMinute * 60)} por hora de trabalho. O valor de verdade sai no pedido.
                     </p>
                 )}
             </section>

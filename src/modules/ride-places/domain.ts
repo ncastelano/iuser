@@ -1,12 +1,43 @@
-// Sugestões de lugares do /pedir-motorista (página de busca do local): lugares recentes e EMPRESAS DO iUSER, cada uma com uma ESTIMATIVA
-// de valor (decisão do dono, 11/11/2026): a corrida pela Tarifa iUser — nunca abaixo do valor mínimo de uma corrida — MAIS R$ 6 fixos, que
-// fazem as vezes de ~3 km de deslocamento do motorista até a partida (ainda não se sabe quem vai). É só uma ideia do preço; o valor de
-// verdade sai na hora do pedido (rota, motorista, ofertas). Regra pura: npm run test:ride-places.
+// Sugestões de lugares do /pedir-motorista (páginas de busca da partida e da chegada): lugares recentes e EMPRESAS DO iUSER. Só a CHEGADA
+// mostra a ESTIMATIVA do valor (decisão do dono, 11/11/2026), feita com a MESMA conta que o motorista vê no card da corrida (`lib/rideQuote`):
+//   • a corrida da partida até o lugar pela Tarifa iUser do VEÍCULO escolhido, com a distância e o TEMPO reais pelas ruas (Mapbox Matrix;
+//     sem resposta, linha reta × 1,3 a 40 km/h);
+//   • + o DESLOCAMENTO do motorista até a partida: do motorista ativo mais perto (pela tarifa por km); sem ninguém por perto, 3 km (≈ R$ 6);
+//   • nunca abaixo do mínimo da plataforma (R$ 40 por hora do tempo de buscar + corrida) nem do valor mínimo de uma corrida.
+// Mostrada como "± R$ X": o valor de verdade sai no pedido (qual motorista aceita, trânsito, ofertas). Regra pura: npm run test:ride-places.
+import { rideQuote } from '../../lib/rideQuote.ts'
 
-/** o deslocamento do motorista até a partida, pré-estabelecido (≈ 3 km) */
-export const PICKUP_ESTIMATE = 6
+/** sem motorista por perto, o deslocamento suposto até a partida (≈ R$ 6 na Tarifa iUser de carro) */
+export const PICKUP_DEFAULT_KM = 3
+/** velocidade média para o tempo quando não há a rota de verdade (a mesma do resto do app) */
+export const AVG_KMH = 40
 /** linha reta → caminho pelas ruas (aproximado) */
 export const ROAD_FACTOR = 1.3
+
+export interface Leg { km: number; min: number }
+export const legFromKm = (km: number): Leg => ({ km, min: (km / AVG_KMH) * 60 })
+
+/**
+ * A estimativa de uma corrida até um lugar: `trip` = partida → lugar; `pickup` = motorista → partida (null = os 3 km supostos).
+ * Sem `trip` (ainda sem partida), só o mínimo + o deslocamento.
+ */
+export function placeQuote<S>(o: {
+    trip: Leg | null
+    pickup: Leg | null
+    shape: S
+    tripFare: (shape: S, km: number | null) => number
+    pickupFee: (shape: S, km: number) => number
+    minPerMinute: number
+}): { value: number; perHour: number | null } {
+    const trip = o.trip ?? { km: 0, min: 0 }
+    const pickup = o.pickup ?? legFromKm(PICKUP_DEFAULT_KM)
+    const q = rideQuote<S>({
+        offeredPrice: null, distanceKm: trip.km, routeKm: trip.km, platformShape: o.shape, customShape: null, useCustom: false,
+        pickupKm: pickup.km, pickupMin: pickup.min, tripMin: trip.min, minHourly: null, minPerMinute: o.minPerMinute,
+        tripFare: o.tripFare, pickupFee: o.pickupFee,
+    })
+    return { value: q.platform, perHour: q.perHour }
+}
 
 export function haversineKm(a: [number, number], b: [number, number]): number {
     const R = 6371
@@ -14,15 +45,6 @@ export function haversineKm(a: [number, number], b: [number, number]): number {
     const dLng = ((b[0] - a[0]) * Math.PI) / 180
     const s = Math.sin(dLat / 2) ** 2 + Math.cos((a[1] * Math.PI) / 180) * Math.cos((b[1] * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
     return 2 * R * Math.asin(Math.sqrt(s))
-}
-
-/**
- * Estimativa da corrida até/de um lugar: tarifa da corrida (pelos km de rua) com o mínimo de uma corrida, + R$ 6 de deslocamento.
- * Sem ponto de referência (km = null), fica no mínimo + R$ 6 ("a partir de").
- */
-export function placeEstimate(km: number | null, tripFare: (km: number) => number, minFare: number): { value: number; approx: boolean } {
-    const trip = km != null && Number.isFinite(km) ? Math.max(minFare, tripFare(km)) : minFare
-    return { value: Math.round((trip + PICKUP_ESTIMATE) * 100) / 100, approx: km == null }
 }
 
 /** km de rua entre dois pontos (linha reta × fator), ou null se faltar um deles */

@@ -76,8 +76,11 @@ export function hourlyOptions(defaultHourly: number): number[] {
 }
 
 // ===== VALOR MÍNIMO DA PLATAFORMA (por minuto de trabalho) =====
-/** Padrão: R$ 0,80 por minuto (= R$ 48 por hora). O valor de verdade mora no banco (Admin → Tarifas); este só vale até ele carregar. */
-export const DEFAULT_MIN_PER_MINUTE = 0.8
+/** Padrão: R$ 40 POR HORA de trabalho (= R$ 0,6667 por minuto; decisão do dono, 11/11/2026 — antes R$ 0,80/min = R$ 48/h). O valor de verdade
+ *  mora no banco (Admin → Tarifas, editado em R$ por hora); este só vale até ele carregar. */
+export const DEFAULT_MIN_PER_MINUTE = 0.6667
+/** o mínimo da plataforma dito em R$ por HORA (é assim que se fala dele nas telas) */
+export const perHourText = (perMinute: number) => `R$ ${Math.round(perMinute * 60).toLocaleString('pt-BR')} por hora`
 /** Teto padrão do mínimo: R$ 1,00 por minuto. Só o administrador geral eleva o teto (Admin → Tarifas); o banco confere. */
 export const DEFAULT_MIN_PER_MINUTE_CAP = 1
 /** Teto absoluto do que o admin pode liberar (igual ao CHECK do banco). */
@@ -125,7 +128,7 @@ export function fareDriver(distanceFare: number, hourlyFloorValue: number | null
 /** Frase curta do que segurou a Minha tarifa (vazia quando foi a conta por km, que é a tarifa dele mesmo). */
 export function fareDriverText(driver: FareDriver, distanceFare: number, minHourly: number | null, perMinute: number): string {
     const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
-    if (driver === 'platform') return `Sua tarifa por km daria ${brl(round2(distanceFare))}, mas o mínimo da plataforma (${brl(perMinute)} por minuto de trabalho) é maior e vale para toda corrida de passageiro.`
+    if (driver === 'platform') return `Sua tarifa por km daria ${brl(round2(distanceFare))}, mas o mínimo da plataforma (${perHourText(perMinute)} de trabalho) é maior e vale para toda corrida de passageiro.`
     if (driver === 'hourly') return `Sua tarifa por km daria ${brl(round2(distanceFare))}, mas o seu ganho mínimo de ${brl(minHourly ?? 0)} por hora pede mais para esta corrida.`
     return ''
 }
@@ -198,7 +201,7 @@ export const belowPlatformFloor = (amount: number | null | undefined, floor: num
 export function platformFloorText(floor: number, minPerMinute: number, minFare: number = minRideFareNow): string {
     const m = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`
     if (minFare > 0 && round2(floor) <= round2(minFare)) return `O valor mínimo de uma corrida é ${m(minFare)}.`
-    return `O valor mínimo da plataforma para esta corrida é ${m(floor)} (${m(minPerMinute)} por minuto de trabalho).`
+    return `O valor mínimo da plataforma para esta corrida é ${m(floor)} (${perHourText(minPerMinute)} de trabalho).`
 }
 
 /** Está abaixo do mínimo do motorista? (sem mínimo ou sem como medir: não) */

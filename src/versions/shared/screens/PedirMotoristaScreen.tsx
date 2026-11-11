@@ -1743,6 +1743,18 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     const moreOptsCount = (hasSpecialNeeds ? 1 : 0) + (originNeedsAccess ? 1 : 0) + (destinationNeedsAccess ? 1 : 0)
     const moreOptsOpen = moreOpts || moreOptsCount > 0
     // os carros por perto do tipo escolhido ("qualquer" = todos), do mais perto ao mais longe da partida
+    // a estimativa da página de chegada usa o veículo do pedido ("qualquer" = carro) e o motorista ATIVO mais perto da partida desse tipo
+    const estimateKind: 'carro' | 'moto' | 'bicicleta' = vehicleTypeChoice === 'qualquer' ? 'carro' : vehicleTypeChoice
+    const nearestDriverToOrigin: [number, number] | null = (() => {
+        if (!origin.coords) return null
+        let best: [number, number] | null = null, bestKm = Infinity
+        for (const d of mapDrivers) {
+            if (d.kind !== estimateKind) continue
+            const km = haversineKm(origin.coords, [d.lng, d.lat])
+            if (km < bestKm) { bestKm = km; best = [d.lng, d.lat] }
+        }
+        return best
+    })()
     const nearbyCars = mapDrivers
         .filter((d) => vehicleTypeChoice === 'qualquer' || d.kind === vehicleTypeChoice)
         .map((d) => ({ d, km: origin.coords ? haversineKm(origin.coords, [d.lng, d.lat]) : null }))
@@ -1893,6 +1905,9 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 query={activeField === 'origin' ? origin.address : destination.address}
                                 refPoint={activeField === 'destination' ? (origin.coords ?? searchRef) : searchRef}
                                 priceFrom={activeField === 'destination' ? origin.coords : undefined}
+                                vehicleKind={estimateKind}
+                                onVehicleKind={(k) => chooseVehicle(k)}
+                                pickupFrom={nearestDriverToOrigin}
                                 recents={(activeField === 'origin' ? [...recentOrigins, ...recentDestinations] : [...recentDestinations, ...recentOrigins])
                                     .filter((p, i, all) => all.findIndex((x) => x.address === p.address) === i)
                                     .filter((p) => (activeField === 'origin' ? p.address !== destination.address : p.address !== origin.address))}

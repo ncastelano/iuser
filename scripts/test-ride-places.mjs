@@ -1,14 +1,29 @@
 // npm run test:ride-places — estimativa e filtro das sugestões de lugares do /pedir-motorista (src/modules/ride-places/domain.ts)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { placeEstimate, roadKm, matches, PICKUP_ESTIMATE } from '../src/modules/ride-places/domain.ts'
+import { placeQuote, legFromKm, roadKm, matches, PICKUP_DEFAULT_KM } from '../src/modules/ride-places/domain.ts'
+import { setMinRideFare } from '../src/modules/negotiation/domain.ts'
 
-const fare = (km) => 7 + Math.max(0, km - 3) * 2     // tarifa de exemplo (R$ 7 até 3 km, R$ 2 por km depois)
-test('estimativa = corrida (nunca abaixo do mínimo) + R$ 6 de deslocamento', () => {
-    assert.equal(PICKUP_ESTIMATE, 6)
-    assert.deepEqual(placeEstimate(10, fare, 8), { value: 27, approx: false })   // 21 + 6
-    assert.deepEqual(placeEstimate(1, fare, 8), { value: 14, approx: false })    // 7 sobe para o mínimo 8, + 6
-    assert.deepEqual(placeEstimate(null, fare, 8), { value: 14, approx: true })  // sem referência: mínimo + 6, "a partir de"
+// tarifa de exemplo: R$ 7 até 3 km, R$ 2 por km depois; deslocamento R$ 2 por km
+const shape = { base: 7, perKm: 2 }
+const tripFare = (s, km) => (km == null ? s.base : s.base + Math.max(0, km - 3) * s.perKm)
+const pickupFee = (s, km) => Math.round(km * s.perKm * 100) / 100
+const quote = (trip, pickup, minPerMinute = 40 / 60) => placeQuote({ trip, pickup, shape, tripFare, pickupFee, minPerMinute }).value
+
+test('estimativa = a conta do card do motorista: corrida + deslocamento, com os mínimos', () => {
+    setMinRideFare(8)
+    assert.equal(PICKUP_DEFAULT_KM, 3)
+    // 10 km em 15 min, motorista a 2 km/4 min: 21 + 4 = 25; o piso (19 min × R$ 40/h = 12,67) não vale
+    assert.equal(quote({ km: 10, min: 15 }, { km: 2, min: 4 }), 25)
+    // sem motorista por perto: 3 km supostos (R$ 6), como o dono definiu
+    assert.equal(quote({ km: 10, min: 15 }, null), 27)
+    // corrida curta e LENTA: o mínimo de R$ 40 por hora manda (30 + 4,5 min = 34,5 min × 0,6667 ≈ 23)
+    assert.ok(Math.abs(quote({ km: 2, min: 30 }, null) - 23) < 0.05)
+    // ainda sem partida: só o mínimo da corrida + o deslocamento suposto
+    assert.equal(quote(null, null), 13)
+})
+test('perna pela distância: tempo a 40 km/h', () => {
+    assert.deepEqual(legFromKm(10), { km: 10, min: 15 })
 })
 test('km de rua = linha reta × 1,3', () => {
     const km = roadKm([-63.9039, -8.7612], [-63.8990, -8.7640])

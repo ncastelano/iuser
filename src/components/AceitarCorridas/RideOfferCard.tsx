@@ -15,7 +15,7 @@ import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
-import { effectiveTimeRate, timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney, otherValueRange, otherValueProblem, centsDigits, centsToValue, centsLabel, packOffer, MAX_OFFER_VALUES } from '@/modules/negotiation/domain'
+import { effectiveTimeRate, timeFare, fareParts, fareDriver, fareDriverText, belowMinimum, belowMinimumText, belowPlatformFloor, platformFloor, platformFloorText, hourlyFloor, perHour as perHourOfMinutes, quickValues, round2, suggestedFare, validateAmount, parseMoney, otherValueRange, otherValueProblem, perHourText, centsDigits, centsToValue, centsLabel, packOffer, MAX_OFFER_VALUES } from '@/modules/negotiation/domain'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { RideValuePickContext } from './rideValuePick'
@@ -302,7 +302,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                     )}
                     {platFloor > 0 && (
                         <p className="text-[10px] leading-snug" style={{ color: colors.textSecondary }}>
-                            Mínimo da plataforma nesta corrida: <strong style={{ color: colors.textPrimary }}>{brl(platFloor)}</strong> · {brl(minPerMinute)} por minuto de trabalho ({minutesTotal != null ? `${Math.round(minutesTotal)} min` : ''})
+                            Mínimo da plataforma nesta corrida: <strong style={{ color: colors.textPrimary }}>{brl(platFloor)}</strong> · {perHourText(minPerMinute)} de trabalho ({minutesTotal != null ? `${Math.round(minutesTotal)} min` : ''})
                         </p>
                     )}
 
