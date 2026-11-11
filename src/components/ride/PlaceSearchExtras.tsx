@@ -75,7 +75,7 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents,
         return placeEstimate(km, (k) => computeSuggestedPrice(k, shape, 'pessoa'), getMinRideFare())
     }
     const typing = query.trim().length > 0
-    const recentList = useMemo(() => recents.filter((r) => matches(r.address, query)).slice(0, typing ? 4 : 5), [recents, query, typing])
+    const recentList = useMemo(() => recents.filter((r) => matches(r.address, query)).slice(0, 8), [recents, query, typing])
     // na CHEGADA, o lugar da própria partida (a menos de 100 m dela) não é destino
     const storeList = useMemo(() => (stores || []).filter((s) => matches(`${s.name} ${s.address} ${s.category || ''}`, query) && !(priceFrom && haversineKm(priceFrom, s.coords) < 0.1)).slice(0, typing ? 5 : 8), [stores, query, typing, priceFrom])
     const showPrice = priceFrom !== undefined
@@ -112,10 +112,24 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents,
 
             {recentList.length > 0 && (
                 <section className="mt-4">
-                    <p className="px-4 mb-1 text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Seus lugares recentes</p>
-                    {recentList.map((r) => row(`r-${r.address}`,
-                        <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}><History size={16} style={{ color: colors.textSecondary }} /></span>,
-                        short(r.address), r.address.split(',').slice(2, 4).join(',').trim(), r))}
+                    <p className="px-4 mb-1.5 text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Seus lugares recentes</p>
+                    {/* fileira HORIZONTAL de cartõezinhos (ocupa uma altura só); na chegada cada um leva o valor estimado */}
+                    <div className="flex gap-2 overflow-x-auto px-4 pb-1 snap-x scroll-pl-4" style={{ scrollbarWidth: 'none' }}>
+                        {recentList.map((r) => {
+                            const est = estimate(r.coords)
+                            const [title, ...rest] = r.address.split(/ — |,/).map((x) => x.trim()).filter(Boolean)
+                            return (
+                                <button key={`r-${r.address}`} type="button" onClick={() => onPick(r)} className="snap-start flex-shrink-0 w-[170px] rounded-2xl px-3 py-2 text-left active:scale-[0.98] transition" style={{ background: `${colors.border}30` }}>
+                                    <span className="flex items-center gap-1.5">
+                                        <History size={12} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                        <span className="text-[12.5px] font-bold truncate" style={{ color: colors.textPrimary }}>{title}</span>
+                                    </span>
+                                    <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{rest.slice(0, 2).join(', ') || ' '}</span>
+                                    {showPrice && r.coords && <span className="block text-[12px] font-black tabular-nums mt-0.5" style={{ color: '#16a34a' }}>{est.approx ? 'a partir de ' : '≈ '}{brl(est.value)}</span>}
+                                </button>
+                            )
+                        })}
+                    </div>
                 </section>
             )}
 
