@@ -189,6 +189,8 @@ export default function StoreOrders({
     const [iuserDeliveryEnabled, setIuserDeliveryEnabled] = useState(false)
     const [dispatchedOrderIds, setDispatchedOrderIds] = useState<Set<string>>(new Set())
     const [acceptedDispatchIds, setAcceptedDispatchIds] = useState<Set<string>>(new Set())
+    // pedidos cuja entrega JÁ FOI CONFERIDA no banco: só esses podem dizer "Sem entregador" (antes da resposta chegar, ou se ela falhar, NÃO se conclui nada)
+    const [checkedOrderIds, setCheckedOrderIds] = useState<Set<string>>(new Set())
     const [dispatchInfo, setDispatchInfo] = useState<Map<string, { id: string; freight: number; radius: number; stage: string; v2State?: string | null; frozen?: number | null; driver?: string | null; driverId?: string | null; etaMin?: number | null }>>(new Map())
     const [callDriverOrder, setCallDriverOrder] = useState<any>(null)
     // a posição dos entregadores muda: refaz o "chega em X min" a cada 20 s (com a aba à vista)
@@ -206,13 +208,23 @@ export default function StoreOrders({
 
     // Pedidos que já têm motorista iUser chamado (corrida ativa ligada ao pedido).
     useEffect(() => {
-        const ids = groupedOrders.map((o) => o.id).filter(Boolean)
+        // SÓ os pedidos de entrega em andamento: mandar os ids de TODOS (finalizados inclusive) estourava o tamanho do endereço da consulta numa loja
+        // movimentada, a resposta falhava e a tela concluía "Sem entregador" para todo mundo — inclusive pedido com entregador a caminho.
+        const ids = groupedOrders
+            .filter((o) => ['pending', 'preparing', 'ready'].includes(o.status) && o.delivery_address && o.delivery_address !== 'Retirada no local')
+            .map((o) => o.id).filter(Boolean)
         if (ids.length === 0) return
         // respostas que chegam fora de ordem (a lista recarrega a cada poucos segundos) não sobrescrevem a mais nova
         let alive = true
-        supabase.from('order_delivery_dispatches').select('id, order_id, ride_request_id, status, stage, final_freight, radius_km, flow_version, phase, frozen_freight').in('order_id', ids).or('status.in.(searching,accepted),and(status.eq.cancelled,phase.eq.SEM_ENTREGADOR)')
-            .then(({ data }) => {
+        const chunks: string[][] = []
+        for (let i = 0; i < ids.length; i += 80) chunks.push(ids.slice(i, i + 80))
+        Promise.all(chunks.map((part) => supabase.from('order_delivery_dispatches').select('id, order_id, ride_request_id, status, stage, final_freight, radius_km, flow_version, phase, frozen_freight').in('order_id', part).or('status.in.(searching,accepted),and(status.eq.cancelled,phase.eq.SEM_ENTREGADOR)')))
+            .then((results) => {
                 if (!alive) return
+                // falhou alguma parte: fica com o que já se sabia (nunca apaga e nunca diz "Sem entregador" por causa de erro de rede)
+                if (results.some((r) => r.error)) return
+                const data = results.flatMap((r) => r.data || [])
+                setCheckedOrderIds(new Set(ids))
                 setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string)))
                 setAcceptedDispatchIds(new Set((data || []).filter((r) => r.status === 'accepted' && !(r.flow_version === 2 && !isReleasedPhase(r.phase as string))).map((r) => r.order_id as string)))
                 const base = new Map((data || []).map((r) => [r.order_id as string, { id: r.id as string, freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null, driver: null as string | null, driverId: null as string | null, etaMin: null as number | null }]))
@@ -266,6 +278,7 @@ export default function StoreOrders({
     const iuserDelivery = {
         enabled: iuserDeliveryEnabled,
         dispatchedIds: dispatchedOrderIds,
+        checkedIds: checkedOrderIds,
         acceptedIds: acceptedDispatchIds,
         info: dispatchInfo,
         onCall: (order: any) => setCallDriverOrder(order),
@@ -952,7 +965,7 @@ export default function StoreOrders({
             const a = assignmentMap.get(o.checkout_id)
             return { text: a ? `Entregador: ${a.employeeName}` : 'Entrega pela loja', tone: 'plain' }
         }
-        if (!dispatchedOrderIds.has(o.id)) return { text: 'Sem entregador', tone: 'warn' }
+        if (!dispatchedOrderIds.has(o.id)) return checkedOrderIds.has(o.id) ? { text: 'Sem entregador', tone: 'warn' } : { text: 'Conferindo o entregador…', tone: 'wait' }
         const accepted = acceptedDispatchIds.has(o.id)
         const info = dispatchInfo.get(o.id)
         // entregador já na loja e o pedido ainda não está pronto: quem está esperando é ELE — fica em âmbar para a loja ver
@@ -969,7 +982,9 @@ export default function StoreOrders({
         const addr = selectedOrder.delivery_address as string | undefined
         if (!addr || addr === 'Retirada no local') return { label: 'Retirada na loja', text: 'O cliente busca o pedido na loja. Não tem entregador.', tone: 'pickup' as const }
         if (!iuserDeliveryEnabled) return undefined
-        if (!dispatchedOrderIds.has(selectedOrder.id)) return { label: 'Entregador do iUser', text: 'Ainda sem entregador. Use o caminhão na lista para chamar um.', tone: 'warn' as const }
+        if (!dispatchedOrderIds.has(selectedOrder.id)) return checkedOrderIds.has(selectedOrder.id)
+            ? { label: 'Entregador do iUser', text: 'Ainda sem entregador. Use o caminhão na lista para chamar um.', tone: 'warn' as const }
+            : { label: 'Entregador do iUser', text: 'Conferindo o entregador…', tone: 'wait' as const }
         const accepted = acceptedDispatchIds.has(selectedOrder.id)
         return { label: 'Entregador do iUser', text: driverText(dispatchInfo.get(selectedOrder.id), accepted), tone: accepted ? ('ok' as const) : ('wait' as const) }
     })()
@@ -1769,7 +1784,7 @@ function OrderButton({
                                 Cliente retira na loja
                             </span>
                         )}
-                        {!isInPerson && !isPaid && order.status !== 'rejected' && iuserDelivery?.enabled && order.delivery_address && order.delivery_address !== 'Retirada no local' && !iuserDelivery.dispatchedIds.has(order.id) && (
+                        {!isInPerson && !isPaid && order.status !== 'rejected' && iuserDelivery?.enabled && order.delivery_address && order.delivery_address !== 'Retirada no local' && !iuserDelivery.dispatchedIds.has(order.id) && !!iuserDelivery.checkedIds?.has(order.id) && (
                             <span className="self-start text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: '#f59e0b22', color: '#b45309' }}>
                                 Sem motorista{['preparing', 'ready'].includes(order.status) ? ' · toque no caminhão para chamar' : ' ainda'}
                             </span>
