@@ -714,11 +714,13 @@ export default function ModeShell({ children }: {
         `}</style>
         <Suspense fallback={null}><ChatThreadWatcher onChange={(open, aba) => { setThreadOpen(open); setAbaParam(aba) }} /></Suspense>
 
-        {/* A página: começa logo abaixo da área segura (a ilha do topo foi mesclada à barra de baixo); sem cartão deslizando (o menu virou o hub) */}
+        {/* A página: começa logo abaixo da área segura (a ilha do topo foi mesclada à barra de baixo); sem cartão deslizando (o menu virou o hub).
+            SEM z-index: ele criava uma camada (z 2) que prendia TODA janela aberta de dentro de uma página (pedido, extrato, equipe...) ABAIXO da barra
+            (z 40), que ficava por cima dos botões delas. Sem a camada, o z-50/z-[110] das janelas vale de verdade. */}
         <div
             className="relative"
             style={{
-                background: colors.background, zIndex: 2,
+                background: colors.background,
                 marginTop: navH,
                 minHeight: `calc(100dvh - ${navH})`,
                 ['--shell-top' as string]: navH,

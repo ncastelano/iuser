@@ -1,6 +1,7 @@
 // components/OrderModal.tsx
 'use client'
 
+import { createPortal } from 'react-dom'
 import OrderReviewPanel from '@/components/OrderReviewPanel'
 import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck, Globe, Store, ShoppingCart, CreditCard, Coins, Calendar, User, Phone } from 'lucide-react'
@@ -191,7 +192,9 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
         return map[option] || option
     }
 
-    return (
+    // Em PORTAL no body: dentro do painel (que cria a própria camada) o z-[110] perdia para a barra de baixo da 3.0, que ficava por cima do botão "Finalizar".
+    if (typeof document === 'undefined') return null
+    return createPortal(
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
 
@@ -450,5 +453,5 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                 </div>
             </div>
         </div>
-    )
+    , document.body)
 }   
