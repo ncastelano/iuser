@@ -101,13 +101,51 @@ class Pool:
 POOL = Pool()
 # Contas reservadas para a pessoa mexer na mão no navegador (Ana Silva e Felipe Costa): o simulador não age por elas
 RESERVED = ('28e08603-96b0-49fc-867e-efc3d8e7d63b', 'e72ff0cd-7a15-4177-b615-a035d3ef569c')
-RESERVED_SQL = ','.join(f"'{x}'" for x in RESERVED)
+RESERVED_SQL = ','.join(f"'{x}'" for x in RESERVED) + ",(select id from auth.users where email = 'cliente-007@staging.iuser.test')"   # + a Gabriela: no TEATRO ela é conduzida pela tela
 STATE = {'appt_age': {}, 'ride_tick': {}}
+# Donos que atendem à mão no app (admin-teste, a Pizzaria Forno de Ouro): o simulador NÃO aceita pedidos nem confirma agendamentos das lojas deles
+MANUAL_OWNERS = ('c86da741-189b-4eab-a347-08166081b31a',)
+MANUAL_SQL = ','.join(f"'{x}'" for x in MANUAL_OWNERS)
+THEATER_OWNER_SLUGS = ('helena-prado',)   # com o Teatro ligado, a Helena (a clínica e o perfil dela) é atendida pela tela, não por este simulador
+THEATER_STORE_SLUGS = ('24h-farmacia-plantao',)   # e a Farmácia Plantão 24h tem as entregas feitas pelos entregadores das telas (o alimentador do Teatro a atende)
+
+
+def manual_sql():
+    """Donos que NÃO são atendidos por este simulador: os da pessoa (sempre) e os do Teatro (enquanto ele roda)."""
+    if not theater_on():
+        return MANUAL_SQL
+    return (MANUAL_SQL + ', ' + "(select id from profiles where \"profileSlug\" in (" + ','.join(f"'{x}'" for x in THEATER_OWNER_SLUGS) + "))"
+            + ', ' + "(select owner_id from stores where \"storeSlug\" in (" + ','.join(f"'{x}'" for x in THEATER_STORE_SLUGS) + "))")
+
+# Motoristas que entregam para a Pizzaria Forno de Ouro (seed-entregadores.mjs) agem só pelo simulador da pizzaria; entrega de loja (order_id) também
+PIZZA_DRIVERS_SQL = "(select u.id from auth.users u where u.email like 'entregador-%@staging.iuser.test')"
+# Com o TEATRO ligado (página /tres-telas), quem conduz a motorista de corridas (Eva) e a dona da pizzaria (admin-teste, que também é motorista) são as TELAS: este simulador não mexe nelas.
+THEATER_SLUGS = ('rede-eva-administradora', 'admin-teste')
+_theater_cache = {'at': 0.0, 'on': False}
+
+
+def theater_on():
+    now = time.time()
+    if now - _theater_cache['at'] > 5:
+        _theater_cache['at'] = now
+        try:
+            st = json.loads(open(os.path.expanduser('~/.iuser-sim/status.json')).read())
+            _theater_cache['on'] = '--theater' in (st.get('sims', {}).get('pizzaria', {}).get('args') or [])
+        except Exception:  # noqa: BLE001
+            _theater_cache['on'] = False
+    return _theater_cache['on']
+
+
+def theater_drivers_sql():
+    """Lista (SQL) das contas que o Teatro conduz pelas telas; vazia quando o Teatro está desligado."""
+    if not theater_on():
+        return '(select id from profiles where false)'
+    return "(select id from profiles where \"profileSlug\" in (" + ','.join(f"'{x}'" for x in THEATER_SLUGS) + "))"
 
 
 # ---------------------------------------------------------------- ações das pessoas
 def act_buy(p):
-    s = R.choice(POOL.stores)
+    s = R.choice([x for x in POOL.stores if x['owner_id'] not in MANUAL_OWNERS] or POOL.stores)   # a loja atendida À MÃO (pizzaria do admin) só recebe os pedidos do simulador dela
     goods = [g for g in POOL.goods if g['store_id'] == s['id']]
     if not goods:
         return 'sem produtos'
@@ -157,12 +195,12 @@ def act_community(p):
 
 
 def act_review(p):
-    rows = q_local(f"""select o.id as order_id, o.store_id, oi.product_id from orders o join order_items oi on oi.order_id = o.id
-        where o.buyer_id = {esc(p['id'])}::uuid and o.status = 'paid' and not exists (select 1 from product_reviews r where r.order_id = o.id and r.profile_id = o.buyer_id) limit 1""")
+    rows = q_local(f"""select o.checkout_id as order_id, o.store_id, oi.product_id from orders o join order_items oi on oi.order_id = o.id
+        where o.buyer_id = {esc(p['id'])}::uuid and o.status = 'paid' and not exists (select 1 from product_reviews r where r.order_id = o.checkout_id and r.profile_id = o.buyer_id) limit 1""")
     if not rows:
         # ninguém com pedido pago esperando avaliação: pega alguém que tenha
-        rows = q_local("""select o.buyer_id, o.id as order_id, o.store_id, oi.product_id from orders o join order_items oi on oi.order_id = o.id
-            where o.status = 'paid' and o.buyer_id is not null and not exists (select 1 from product_reviews r where r.order_id = o.id and r.profile_id = o.buyer_id) order by random() limit 1""")
+        rows = q_local("""select o.buyer_id, o.checkout_id as order_id, o.store_id, oi.product_id from orders o join order_items oi on oi.order_id = o.id
+            where o.status = 'paid' and o.buyer_id is not null and not exists (select 1 from product_reviews r where r.order_id = o.checkout_id and r.profile_id = o.buyer_id) order by random() limit 1""")
         if not rows:
             return 'sem pedido pago para avaliar'
         p = {'id': rows[0]['buyer_id'], 'name': 'um comprador'}
@@ -195,9 +233,31 @@ def act_follow(p):
     return f"passou a seguir @{target['slug']}"
 
 
+FLASH_TEXTS = ['Bom dia, Porto Velho! ☀️', 'Alguém indica um bom eletricista?', 'Acabei de pedir pelo iUser, chegou rapidinho!', 'Domingo de sol e churrasco 🔥', 'Quem vai no evento da praça?',
+               'Hoje o trânsito tá pesado demais 😅', 'Fechei um serviço pelo iUser, muito prático', 'Pizza de sexta com a família 🍕', 'Estudando pra prova, sem tempo pra nada 📚',
+               'Vendi tudo que fiz hoje, gratidão!', 'Procurando babá de confiança pra sábado', 'O melhor açaí da cidade? Aceito indicações.', 'Quem mais tá sem sono a essa hora?']
+FLASH_COMMENTS = ['Muito bom!', 'Adorei 😍', 'Parabéns!', 'Onde fica?', 'Top demais', 'Também quero!', 'Show de bola', 'Verdade!', 'Boa!', 'Me chama no privado']
+
+
+def act_flash(p):
+    """Flash (feed de pessoas): posta um flash, curte ou comenta o de alguém."""
+    recent = q_local("select id from flashes order by created_at desc limit 30")
+    r = R.random()
+    if r < 0.4 or not recent:
+        text = R.choice(FLASH_TEXTS)
+        as_user(p['id'], f"insert into flashes (author_id, content) values ({esc(p['id'])}::uuid, {esc(text)});")
+        return f"postou um flash: “{text[:40]}”"
+    f = R.choice(recent)
+    if r < 0.8:
+        as_user(p['id'], f"insert into flash_likes (flash_id, profile_id) values ({esc(f['id'])}::uuid, {esc(p['id'])}::uuid) on conflict do nothing;")
+        return 'curtiu um flash'
+    as_user(p['id'], f"insert into flash_comments (flash_id, author_id, content) values ({esc(f['id'])}::uuid, {esc(p['id'])}::uuid, {esc(R.choice(FLASH_COMMENTS))});")
+    return 'comentou num flash'
+
+
 ACTIONS = {
     'buy': (act_buy, 30), 'schedule': (act_schedule, 16), 'comment': (act_comment, 16), 'community': (act_community, 12),
-    'review': (act_review, 12), 'publish': (act_publish, 6), 'follow': (act_follow, 8),
+    'review': (act_review, 12), 'publish': (act_publish, 6), 'follow': (act_follow, 8), 'flash': (act_flash, 14),
 }
 
 
@@ -231,6 +291,18 @@ REQUESTS = [
     ('massageador', 'Massagem relaxante para dor nas costas no meu escritório.', 'Rua Tenreiro Aranha, 90, Centro, Porto Velho - RO'),
     ('psicologa', 'Busco psicóloga para acompanhamento semanal, de preferência online à noite.', 'Atendimento online'),
 ]
+# Pedidos de madrugada (tipo "outro" com nome próprio): quem trabalha à noite (seed-24h.mjs) se candidata a eles
+NIGHT_REQUESTS = [
+    ('outro', 'Preciso de um vigilante para a obra da minha casa, das 19h às 6h, a semana toda.', 'Rua Rafael Vaz e Silva, 410, São Cristóvão, Porto Velho - RO', 'Vigilante noturno'),
+    ('outro', 'Babá para pernoite neste sábado: duas crianças de 3 e 6 anos, saio às 20h e volto de manhã.', 'Rua das Palmeiras, 230, Porto Velho - RO', 'Babá noturna'),
+    ('outro', 'Cuidadora para minha mãe de 82 anos, plantão de noite, com experiência em medicação.', 'Rua José Bonifácio, 120, Olaria, Porto Velho - RO', 'Cuidadora noturna'),
+    ('outro', 'Segurança para uma festa de aniversário, 80 convidados, das 21h às 3h.', 'Av. Calama, 880, Embratel, Porto Velho - RO', 'Segurança para evento'),
+    ('outro', 'Fiquei trancado para fora de casa, preciso de chaveiro agora.', 'Av. Sete de Setembro, 900, Porto Velho - RO', 'Chaveiro 24h'),
+    ('outro', 'Carro com pane na BR-364, preciso de guincho o quanto antes.', 'Av. Jorge Teixeira, 1500, Industrial, Porto Velho - RO', 'Guincho 24h'),
+    ('outro', 'Preciso de técnica de enfermagem para plantão em casa durante a noite, paciente acamado.', 'Rua Campos Sales, 45, Centro, Porto Velho - RO', 'Técnica de enfermagem (noite)'),
+    ('outro', 'Cuidar do meu cachorro com pernoite enquanto viajo na quinta e na sexta.', 'Av. Rio Madeira, 700, Mato Grosso, Porto Velho - RO', 'Pet sitter com pernoite'),
+    ('eletricista', 'Caiu a energia de metade da casa de madrugada, preciso de eletricista de emergência.', 'Rua Euclides da Cunha, 77, Liberdade, Porto Velho - RO', None),
+]
 REQ_NOTES = ['Posso receber a partir das 14h.', 'Urgente, se possível ainda hoje.', 'Material por minha conta.', 'Combinamos o valor antes.', None, None]
 CHAT_MORE = ['Pessoal, alguém já usou o agendamento do iUser?', 'Acabei de fazer um pedido e o frete foi rapidinho', 'Quem tem indicação de mecânico de confiança?', 'Bom dia, comunidade! ☀️',
              'Hoje é dia de feira, quem vai?', 'Esse app tá ajudando muito meu negócio', 'Passando pra agradecer as dicas de ontem', 'Alguém sabe se a padaria do centro abre domingo?',
@@ -256,26 +328,34 @@ def approx_coords(addr):
 
 def post_service_request():
     p = R.choice(POOL.customers)
-    t, desc, addr = R.choice(REQUESTS)
+    custom = None
+    if R.random() < 0.35:
+        t, desc, addr, custom = R.choice(NIGHT_REQUESTS)
+    else:
+        t, desc, addr = R.choice(REQUESTS)
     note = R.choice(REQ_NOTES)
     c = approx_coords(addr)
     # ~60% dos pedidos têm foto (geradas por scripts/local/seed-request-photos.mjs, uma por tipo de serviço)
-    photos = f"array['http://127.0.0.1:54321/storage/v1/object/public/service-request-photos/sim/{t}-{R.randint(1, 2)}.jpg']" if R.random() < 0.6 else "'{}'"
-    as_user(p['id'], f"""insert into service_requests (requester_id, service_type, location_address, location_needs_access, description, notes, photo_urls, status, approx_lat, approx_lng)
-        values ({esc(p['id'])}::uuid, {esc(t)}, {esc(addr)}, {'true' if R.random() < 0.2 else 'false'}, {esc(desc)}, {esc(note) if note else 'null'}, {photos}, 'pending', {c[0] if c else 'null'}, {c[1] if c else 'null'});""")
-    log(f"  🧰 {p['name']} publicou um pedido de {t} em Procurar serviço")
+    photos = f"array['http://127.0.0.1:54321/storage/v1/object/public/service-request-photos/sim/{t}-{R.randint(1, 2)}.jpg']" if (R.random() < 0.6 and t != 'outro') else "'{}'"
+    as_user(p['id'], f"""insert into service_requests (requester_id, service_type, custom_service, location_address, location_needs_access, description, notes, photo_urls, status, approx_lat, approx_lng)
+        values ({esc(p['id'])}::uuid, {esc(t)}, {esc(custom) if custom else 'null'}, {esc(addr)}, {'true' if R.random() < 0.2 else 'false'}, {esc(desc)}, {esc(note) if note else 'null'}, {photos}, 'pending', {c[0] if c else 'null'}, {c[1] if c else 'null'});""")
+    log(f"  🧰 {p['name']} publicou um pedido de {custom or t} em Procurar serviço")
     return p, t
 
 
 def apply_to_service_request():
-    row = q_local("select id, service_type, requester_id from service_requests where status = 'pending' order by random() limit 1")
+    row = q_local("select id, service_type, custom_service, requester_id from service_requests where status = 'pending' order by random() limit 1")
     if not row or not POOL.owners:
         return
     r = row[0]
-    o = R.choice([x for x in POOL.owners if x['id'] != r['requester_id']] or POOL.owners)
+    night = [x for x in POOL.owners if str(x.get('slug') or '').startswith('noite-') and x['id'] != r['requester_id']]
+    if night and (r.get('custom_service') or r['service_type'] == 'eletricista') and R.random() < 0.85:
+        o = R.choice(night)  # pedido de madrugada: quem trabalha à noite responde
+    else:
+        o = R.choice([x for x in POOL.owners if x['id'] != r['requester_id']] or POOL.owners)
     try:
         as_user(o['id'], f"insert into service_applications (service_request_id, applicant_id, status) values ({esc(r['id'])}::uuid, {esc(o['id'])}::uuid, 'pending');")
-        log(f"  🤝 {o['name']} se candidatou a um pedido de {r['service_type']}")
+        log(f"  🤝 {o['name']} se candidatou a um pedido de {r.get('custom_service') or r['service_type']}")
     except Exception as e:  # noqa: BLE001
         msg = str(e).splitlines()[0][:110]
         if 'duplicate' not in msg:
@@ -345,7 +425,7 @@ def requests_round():
 
 # ---------------------------------------------------------------- relógio das lojas e agendas
 def tick_orders():
-    rows = q_local("select o.id, o.status, s.owner_id from orders o join stores s on s.id = o.store_id where o.status in ('pending','preparing','ready') order by random() limit 8")
+    rows = q_local(f"select o.id, o.status, s.owner_id from orders o join stores s on s.id = o.store_id where o.store_visible and o.status in ('pending','preparing','ready') and s.owner_id not in ({manual_sql()}) order by random() limit 8")
     for r in rows:
         nxt = {'pending': R.choices(['preparing', 'rejected'], [92, 8])[0], 'preparing': R.choice(['ready', 'paid']), 'ready': 'paid'}[r['status']]
         try:
@@ -361,9 +441,10 @@ CLIENT_COMMENTS = ['Cliente pontual e educado', 'Tudo tranquilo', 'Chegou um pou
 
 def tick_appointments():
     """Agendamentos: o dono confirma, depois marca "serviço feito" (RPC complete_appointment) e os dois lados se avaliam (RPC submit_appointment_review)."""
-    rows = q_local("""select a.id, a.status, a.service_name, a.customer_id,
+    rows = q_local(f"""select a.id, a.status, a.service_name, a.customer_id,
         case when a.store_id is not null then (select s.owner_id from stores s where s.id = a.store_id) else a.provider_profile_id end as svc_owner
-        from appointments a where a.status in ('pending','confirmed') and a.created_at > now() - interval '2 hours' order by random() limit 8""")
+        from appointments a where a.status in ('pending','confirmed') and a.created_at > now() - interval '2 hours'
+          and coalesce((select s.owner_id from stores s where s.id = a.store_id), a.provider_profile_id) not in ({manual_sql()}) order by random() limit 8""")
     for r in rows:
         if not r['svc_owner']:
             continue
@@ -377,12 +458,12 @@ def tick_appointments():
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ agendamento {r['id'][:8]} ({r['status']}→{nxt}): {str(e).splitlines()[0][:100]}")
     # serviços feitos que ainda não foram avaliados: o cliente avalia o serviço e o dono avalia o cliente
-    done = q_local("""select a.id, a.customer_id, a.service_name,
+    done = q_local(f"""select a.id, a.customer_id, a.service_name,
         case when a.store_id is not null then (select s.owner_id from stores s where s.id = a.store_id) else a.provider_profile_id end as svc_owner,
         exists (select 1 from appointment_reviews r where r.appointment_id = a.id and r.kind = 'service') as has_service,
         exists (select 1 from appointment_reviews r where r.appointment_id = a.id and r.kind = 'client') as has_client
         from appointments a where a.status = 'completed' and a.completed_at is not null and a.completed_at > now() - interval '3 hours'
-        order by random() limit 6""")
+          and coalesce((select s.owner_id from stores s where s.id = a.store_id), a.provider_profile_id) not in ({manual_sql()}) order by random() limit 6""")
     for r in done:
         if not r['svc_owner'] or r['svc_owner'] == r['customer_id']:
             continue
@@ -409,7 +490,8 @@ def refresh_drivers():
     """Mantém os motoristas ativos com posição fresca (e se mexendo um pouco)."""
     psql(['-c', """update driver_pricing set
         live_lat = coalesce(live_lat, -8.7625) + (random() - 0.5) * 0.002, live_lng = coalesce(live_lng, -63.9040) + (random() - 0.5) * 0.002,
-        live_updated_at = now(), live_location_sync = true where driver_mode_active"""])
+        live_updated_at = now(), live_location_sync = true where driver_mode_active
+        and driver_id not in (select u.id from auth.users u where u.email like 'entregador-%@staging.iuser.test')"""])
 
 
 def request_rides(target):
@@ -438,14 +520,17 @@ def request_rides(target):
 
 def drive_rides():
     # 1) motoristas livres se candidatam às corridas pendentes
-    pend = q_local("select id, distance_km, origin_lat, origin_lng from ride_requests where status = 'pending' order by created_at")
+    pend = q_local("""select r.id, r.distance_km, r.origin_lat, r.origin_lng, public._ride_trip_floor(r.id) as floor from ride_requests r join auth.users u on u.id = r.requester_id
+        where r.status = 'pending' and r.order_id is null and u.email like 'cliente-%@staging.iuser.test' order by r.created_at""")   # corrida de quem testa à mão: candidatos-corrida.py
     if pend:
-        free = q_local("""select dp.driver_id as id, p.name from driver_pricing dp join profiles p on p.id = dp.driver_id where dp.driver_mode_active and dp.driver_id not in (__R__)
+        free = q_local(("""select dp.driver_id as id, p.name from driver_pricing dp join profiles p on p.id = dp.driver_id where dp.driver_mode_active and dp.driver_id not in (__R__)
+            and dp.driver_id not in """ + PIZZA_DRIVERS_SQL + """
+            and dp.driver_id not in """ + theater_drivers_sql() + """
             and not exists (select 1 from ride_requests r where r.driver_id = dp.driver_id and r.status = 'accepted')
-            and (select count(*) from ride_applications a where a.applicant_id = dp.driver_id and a.status = 'pending') < 2 order by random() limit 6""".replace('__R__', RESERVED_SQL))
+            and (select count(*) from ride_applications a where a.applicant_id = dp.driver_id and a.status = 'pending') < 2 order by random() limit 6""").replace('__R__', RESERVED_SQL))
         for d in free:
             r = R.choice(pend)
-            price = round(7 + float(r['distance_km'] or 3) * 2.1 + R.random() * 2, 2)
+            price = max(float(r['floor'] or 0), round(7 + float(r['distance_km'] or 3) * 2.1 + R.random() * 2, 2))
             try:
                 as_user(d['id'], f"insert into ride_applications (ride_request_id, applicant_id, proposed_price) values ({esc(r['id'])}::uuid, {esc(d['id'])}::uuid, {price});")
                 log(f"  🙋 {d['name']} se candidatou a uma corrida (R$ {price:.2f})".replace('.', ',', 1) if False else f"  🙋 {d['name']} se candidatou a uma corrida (R$ {price})")
@@ -455,7 +540,7 @@ def drive_rides():
                     log(f"  ✗ {d['name']} não pôde se candidatar: {msg}")
     # 2) passageiros escolhem um dos candidatos
     for r in q_local("""select r.id, r.requester_id, (select a.id from ride_applications a where a.ride_request_id = r.id and a.status = 'pending' order by random() limit 1) as app
-        from ride_requests r where r.status = 'pending' and exists (select 1 from ride_applications a where a.ride_request_id = r.id and a.status = 'pending')
+        from ride_requests r join auth.users u on u.id = r.requester_id where r.status = 'pending' and u.email like 'cliente-%@staging.iuser.test' and exists (select 1 from ride_applications a where a.ride_request_id = r.id and a.status = 'pending')
         and r.created_at < now() - interval '8 seconds' order by random() limit 6"""):
         try:
             as_user(r['requester_id'], f"select select_ride_driver({esc(r['id'])}::uuid, {esc(r['app'])}::uuid);")
@@ -464,7 +549,7 @@ def drive_rides():
             log(f"  ✗ escolha de motorista falhou: {str(e).splitlines()[0][:110]}")
     # 3) corridas aceitas andam um passo por tick
     for r in q_local("""select id, driver_id, requester_id, destination_lat, destination_lng, driver_en_route, driver_arrived_at is not null as arrived, ride_started_at is not null as started
-        from ride_requests where status = 'accepted' and driver_id is not null"""):
+        from ride_requests where status = 'accepted' and driver_id is not null and order_id is null and driver_id not in (""" + RESERVED_SQL + """) and driver_id not in """ + theater_drivers_sql()):
         did, rid = r['driver_id'], r['id']
         try:
             if not r['driver_en_route']:
@@ -474,11 +559,32 @@ def drive_rides():
             elif not r['started']:
                 as_user(did, f"update ride_requests set ride_started_at = now() where id = {esc(rid)}::uuid;"); step = 'corrida iniciada'
             else:
-                as_user(did, f"select complete_ride({esc(rid)}::uuid, {r['destination_lat']}, {r['destination_lng']});"); step = 'CORRIDA CONCLUÍDA'
-                rate_ride(rid, did, r['requester_id'])
+                # PARADAS NO MEIO DA CORRIDA: o passageiro pede tempo de espera, o motorista aprova, passa um tempo e alguém encerra. A espera JÁ vale R$ 3,00 ao ser aprovada
+                # (cobre 3 min) e, passando disso, R$ 0,60 por minuto — algumas duram mais de 3 min de propósito para o valor da corrida crescer. A corrida só termina sem espera aberta.
+                w = q_local(f"select id, status, extract(epoch from (now() - coalesce(started_at, requested_at)))::int as age from ride_waits where ride_request_id = {esc(rid)}::uuid and status in ('requested','active') limit 1")
+                n_waits = int(q_local(f"select count(*)::int as n from ride_waits where ride_request_id = {esc(rid)}::uuid")[0]['n'])
+                if w:
+                    wid = w[0]['id']; age = int(w[0]['age'] or 0)
+                    goal = 45 + (int(wid.replace('-', '')[:6], 16) % 60) if int(wid.replace('-', '')[6:8], 16) % 100 < 60 else 200 + (int(wid.replace('-', '')[:6], 16) % 100)   # 60%: 45–105 s; 40%: 200–300 s
+                    if w[0]['status'] == 'requested':
+                        ok = (int(wid.replace('-', '')[8:10], 16) % 10) != 0                      # 90% o motorista aprova
+                        as_user(did, f"select respond_ride_wait({esc(wid)}::uuid, {'true' if ok else 'false'});"); step = 'espera APROVADA (já vale R$ 3,00)' if ok else 'espera recusada'
+                    elif age >= goal:
+                        by = R.choice([did, r['requester_id']])
+                        as_user(by, f"select end_ride_wait({esc(wid)}::uuid);"); step = f'espera encerrada ({age} s)'
+                    else:
+                        continue
+                elif n_waits == 0 and R.random() < 0.5:
+                    as_user(r['requester_id'], f"select request_ride_wait({esc(rid)}::uuid, 'stop', {esc(R.choice(STOP_NOTES))});"); step = 'passageiro pediu uma PARADA'
+                else:
+                    as_user(did, f"select complete_ride({esc(rid)}::uuid, {r['destination_lat']}, {r['destination_lng']});"); step = 'CORRIDA CONCLUÍDA'
+                    rate_ride(rid, did, r['requester_id'])
             log(f"  🚦 corrida {rid[:8]}: {step}")
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ corrida {rid[:8]} ({'' if r['driver_en_route'] else 'saída'}): {str(e).splitlines()[0][:120]}")
+
+
+STOP_NOTES = ['Comprar água', 'Passar na farmácia', 'Pegar uma encomenda', 'Caixa eletrônico', 'Buscar alguém', 'Comprar um lanche']
 
 
 def rate_ride(rid, driver, passenger):

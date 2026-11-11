@@ -3,12 +3,15 @@
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { User, Store, Home, MapPin, LayoutDashboard, X, Car } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import RadarSection from './inicio/sections/RadarSection'
 import RentalShowcase from './inicio/sections/RentalShowcase'
+import DigitalShowcase from './inicio/sections/DigitalShowcase'
+import PromoShowcase from './inicio/sections/PromoShowcase'
+import Outdoor from '@/components/outdoor/Outdoor'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import AcceptARider from './inicio/sections/AcceptARider'
 import MyServiceRequests from './inicio/sections/MyServiceRequests'
@@ -19,7 +22,6 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import OrderSection from '@/components/OrderSection'
-import AnnouncementBanner from '@/components/AnnouncementBanner'
 import SearchResultsSection from './inicio/SearchResultsSection'
 import LastSearched from '@/components/LastSearched'
 import { supabase } from '@/lib/supabase/client'
@@ -53,13 +55,16 @@ const pendingHomeReturn: { value: { saved: string | null; anchor: string | null 
 
 const DEFAULT_SECTIONS = [
     'categorias',
+    'outdoorLojas',
     'meusPedidos',
     'servicosOferecidos',
     'radar',
+    'promoShowcase',
     'servicosProcurados',
     'storeList',
     'canalMotorista',
     'productShowcase',
+    'digitalShowcase',
     'publicationShowcase',
     'rentalShowcase',
     'communities',
@@ -238,10 +243,24 @@ function HomePageContent() {
                         const at = filtered.indexOf('publicationShowcase')
                         filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'communities', ...filtered.slice(at + 1)] : filtered
                     }
+                    // Cursos e produtos digitais: entram logo abaixo dos produtos em destaque
+                    if (!filtered.includes('digitalShowcase')) {
+                        const at = filtered.indexOf('productShowcase')
+                        filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'digitalShowcase', ...filtered.slice(at + 1)] : filtered
+                    }
                     // Imóveis para alugar: entra logo abaixo das publicações em destaque (antes das comunidades)
                     if (!filtered.includes('rentalShowcase')) {
                         const at = filtered.indexOf('publicationShowcase')
                         filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'rentalShowcase', ...filtered.slice(at + 1)] : filtered
+                    }
+                    // Outdoor de lojas: logo abaixo da busca/categorias (o Header da 2.0 já tem a busca, então é a 1ª seção)
+                    if (!filtered.includes('outdoorLojas')) {
+                        filtered = ['outdoorLojas', ...filtered]
+                    }
+                    // Promoções das lojas: entram logo abaixo do Radar
+                    if (!filtered.includes('promoShowcase')) {
+                        const at = filtered.indexOf('radar')
+                        filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'promoShowcase', ...filtered.slice(at + 1)] : filtered
                     }
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
                     let final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
@@ -502,7 +521,7 @@ function HomePageContent() {
             }
 
             if (error) {
-                alert('Erro ao salvar: ' + error.message)
+                toast.error('Erro ao salvar: ' + error.message)
             } else {
                 if (data) {
                     setSavedLocation({
@@ -513,10 +532,10 @@ function HomePageContent() {
                         addressComplement: data.address_complement || ''
                     })
                 }
-                alert('Localização salva com sucesso!')
+                toast.success('Localização salva com sucesso!')
             }
         } catch (err) {
-            alert('Erro: ' + (err as Error).message)
+            toast.error('Erro: ' + (err as Error).message)
         } finally {
             setIsSavingLocation(false)
             setShowLocationDialog(false)
@@ -580,6 +599,12 @@ function HomePageContent() {
                 return <ProductShowcase />
             case 'publicationShowcase':
                 return <FeaturedPublications maxItems={6} />
+            case 'outdoorLojas':   // (o id antigo fica, para não perder a ordem que as pessoas já salvaram) agora é o OUTDOOR iUSER: os perfis com mais pontos
+                return <Outdoor kind="pessoas" />
+            case 'promoShowcase':
+                return <PromoShowcase />
+            case 'digitalShowcase':
+                return <DigitalShowcase />
             case 'rentalShowcase':
                 return <RentalShowcase />
             case 'communities':
@@ -792,8 +817,8 @@ function HomePageContent() {
                             <button
                                 onClick={() => setShowLocationDialog(true)}
                                 disabled={isSavingLocation}
-                                className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
-                                style={{ color: colors.textPrimary }}
+                                className="flex items-center gap-1.5 text-xs font-bold h-8 px-3 rounded-full transition-colors disabled:opacity-50"
+                                style={{ color: colors.textPrimary, background: `${colors.border}40`, border: `1px solid ${colors.border}` }}
                             >
                                 <MapPin size={14} />
                                 {isSavingLocation
@@ -828,8 +853,6 @@ function HomePageContent() {
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
-                        {/* Aviso geral (abaixo da busca): apresenta a versão 3.0 (AnnouncementBanner) */}
-                        {!isSearching && !searchFocused && <AnnouncementBanner />}
                         {/* Enquanto está digitando, "Resultados para..." vem primeiro e
                             "Últimos acessados" fica embaixo. Sem busca ativa, o histórico
                             some (refocar sem limpar continua reexibindo os mesmos resultados

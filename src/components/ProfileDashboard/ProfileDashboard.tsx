@@ -10,7 +10,7 @@ import { useFontStore } from '@/store/useFontStore'
 import { Spinner } from '@/components/Spinner'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import ColloriUser from '@/components/ColloriUser'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
@@ -106,6 +106,14 @@ export default function ProfileDashboard({
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [initialLoadDone, setInitialLoadDone] = useState(false)
+
+    // ?secao=notificacoes (o sininho da barra da 3.0): rola até as notificações assim que o perfil carrega e de novo quando o conteúdo de cima termina de abrir (a altura muda)
+    useEffect(() => {
+        if (!profile?.id || new URLSearchParams(window.location.search).get('secao') !== 'notificacoes') return
+        const go = () => document.getElementById('notificacoes-do-perfil')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+        const timers = [setTimeout(go, 400), setTimeout(go, 1600)]
+        return () => timers.forEach(clearTimeout)
+    }, [profile?.id])
 
     const [orders, setOrders] = useState<any[]>([])
     const [metrics, setMetrics] = useState({
@@ -780,12 +788,12 @@ export default function ProfileDashboard({
 
     const formatStatus = (status: string) => {
         const statusMap: Record<string, { label: string; color: string }> = {
-            pending: { label: 'Pendente', color: '#3b82f6' },
+            pending: { label: 'Pendente', color: '#16a34a' },
             preparing: { label: 'Preparando', color: '#f59e0b' },
             ready: { label: 'Pronto', color: '#8b5cf6' },
             in_transit: { label: 'Em trânsito', color: '#06b6d4' },
             delivered: { label: 'Entregue', color: '#22c55e' },
-            paid: { label: 'Finalizado', color: '#10b981' },
+            paid: { label: 'Finalizado', color: '#3b82f6' },
             cancelled: { label: 'Cancelado', color: '#ef4444' },
         }
         return statusMap[status] || { label: status, color: '#6b7280' }
@@ -1413,8 +1421,8 @@ export default function ProfileDashboard({
             {/* ===== VISITANTES DO PERFIL — logo abaixo dos botões ===== */}
             {visitantesNode}
 
-            {/* ===== NOTIFICAÇÕES DO PERFIL — tudo o que acontece com o perfil ===== */}
-            <div className="mb-6">
+            {/* ===== NOTIFICAÇÕES DO PERFIL — tudo o que acontece com o perfil (o sininho da barra da 3.0 leva aqui: ?secao=notificacoes) ===== */}
+            <div id="notificacoes-do-perfil" className="mb-6" style={{ scrollMarginTop: 'calc(var(--shell-top, 0px) + 12px)' }}>
                 <ProfileNotification userId={profile.id} />
             </div>
 

@@ -6,6 +6,7 @@
 
 import { Clock, Star, Store as StoreIcon, Tag, Truck } from 'lucide-react'
 import { resolveCategoria } from '@/lib/categorias'
+import StoreFrame from '@/components/store/StoreFrame'
 
 export interface StoreCardItem {
     id: string
@@ -13,6 +14,8 @@ export interface StoreCardItem {
     slug: string
     logo: string | null
     category: string | null
+    /** Nível da loja (0 = sem moldura): a moldura do nível vai em volta do cartão */
+    level?: number
     /** Só existe quando a loja já foi avaliada */
     rating: number | null
     ratingsCount?: number
@@ -35,6 +38,7 @@ export default function StoreImageCard({ s, onClick, fluid = false }: {
     const catLabel = cat?.nome || s.category
     const catColor = cat?.color || '#2563eb'
     return (
+        <StoreFrame level={s.level} ring={3} innerRadius={24} fluid={fluid} clip={false} bg="#ffffff" className={fluid ? '' : 'snap-start flex-shrink-0'}>
         <button
             onClick={onClick}
             className={`${fluid ? 'w-full h-[270px]' : 'snap-start flex-shrink-0 w-[208px] sm:w-[232px] h-[280px]'} relative text-left rounded-3xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]`}
@@ -79,5 +83,6 @@ export default function StoreImageCard({ s, onClick, fluid = false }: {
                 )}
             </span>
         </button>
+        </StoreFrame>
     )
 }

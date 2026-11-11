@@ -6,7 +6,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { parseCoords } from '@/lib/geoParse'
 import { haversineKm } from '@/lib/mapboxRoute'
-import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 import { getRequestTitle } from '@/lib/serviceTypes'
 
 // 'imovel' = anúncio de aluguel; 'pedido' = pedido de serviço que alguém PRECISA (não o serviço que alguém oferece: esse é 'servico')
@@ -46,8 +45,8 @@ export async function fetchNearest(origin: { lat: number; lng: number } | null, 
     ])
 
     // Perfis que não querem aparecer no mapa não entram com os serviços dele
-    const hiddenOwners = await getProfilesHiddenFromMap((products || []).filter((p: any) => !p.store_id).map((p: any) => p.owner_id))
-    const visibleProducts = (products || []).filter((p: any) => p.store_id || !p.owner_id || !hiddenOwners.has(p.owner_id))
+    // "Visível no Radar" é só da PESSOA: serviço e produto seguem a regra de cada um (ativo + local próprio)
+    const visibleProducts = products || []
 
     const storeById = new Map((stores || []).map((s: any) => [s.id, s]))
     // Com local: distância até o item (e ignora o que não tem coordenada). Sem local: não

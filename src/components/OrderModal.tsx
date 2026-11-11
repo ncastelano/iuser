@@ -1,7 +1,9 @@
 // components/OrderModal.tsx
 'use client'
 
+import { createPortal } from 'react-dom'
 import OrderReviewPanel from '@/components/OrderReviewPanel'
+import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck, Globe, Store, ShoppingCart, CreditCard, Coins, Calendar, User, Phone } from 'lucide-react'
 
 export interface GroupedOrder {
@@ -40,11 +42,11 @@ function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): 
 const statusMap = {
     'pending': {
         label: 'Novo Pedido',
-        color: '#3b82f6',
-        gradient: 'from-blue-500 to-blue-600',
-        bg: 'bg-blue-50',
-        border: 'border-blue-200',
-        text: 'text-blue-600',
+        color: '#22c55e',
+        gradient: 'from-green-500 to-emerald-500',
+        bg: 'bg-green-50',
+        border: 'border-green-200',
+        text: 'text-green-600',
         icon: Package,
         next: 'preparing',
         nextLabel: 'Aceitar Pedido',
@@ -76,11 +78,11 @@ const statusMap = {
     },
     'paid': {
         label: 'Finalizado',
-        color: '#22c55e',
-        gradient: 'from-green-500 to-emerald-500',
-        bg: 'bg-green-50',
-        border: 'border-green-200',
-        text: 'text-green-600',
+        color: '#3b82f6',
+        gradient: 'from-blue-500 to-blue-600',
+        bg: 'bg-blue-50',
+        border: 'border-blue-200',
+        text: 'text-blue-600',
         icon: CheckCircle,
         next: null,
         nextLabel: ''
@@ -108,6 +110,8 @@ interface OrderModalProps {
         employeeName: string
         status: string
     }
+    /** Quem leva (ou que o cliente retira): o entregador do iUser que vem buscar, com o tempo até chegar; ou a retirada na loja */
+    deliveryLine?: { label: string; text: string; tone: 'ok' | 'wait' | 'warn' | 'pickup' }
 }
 
 const formatAssignmentStatus = (status: string) => {
@@ -119,7 +123,7 @@ const formatAssignmentStatus = (status: string) => {
     }
 }
 
-export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assignmentInfo }: OrderModalProps) {
+export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assignmentInfo, deliveryLine }: OrderModalProps) {
     const currentStatus = statusMap[order.status as keyof typeof statusMap] || statusMap['pending']
     const StatusIcon = currentStatus.icon
 
@@ -188,7 +192,9 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
         return map[option] || option
     }
 
-    return (
+    // Em PORTAL no body: dentro do painel (que cria a própria camada) o z-[110] perdia para a barra de baixo da 3.0, que ficava por cima do botão "Finalizar".
+    if (typeof document === 'undefined') return null
+    return createPortal(
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
 
@@ -279,6 +285,20 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                                 <p className="text-xs font-bold text-gray-700">{formattedDate}</p>
                             </div>
                         </div>
+
+                        {/* Entregador do iUser que vem buscar (ou retirada na loja) */}
+                        {deliveryLine && !assignmentInfo && (() => {
+                            const tones = { ok: ['#16a34a', '#16a34a14', '#16a34a40'], wait: ['#d97706', '#f59e0b14', '#f59e0b40'], warn: ['#b45309', '#f59e0b1f', '#f59e0b60'], pickup: ['#4b5563', '#6b72801a', '#6b728040'] }[deliveryLine.tone]
+                            return (
+                                <div className="rounded-xl p-3 border" style={{ color: tones[0], background: tones[1], borderColor: tones[2] }}>
+                                    <div className="flex items-center gap-2">
+                                        {deliveryLine.tone === 'pickup' ? <Store size={14} /> : <Truck size={14} />}
+                                        <span className="text-[10px] font-black uppercase tracking-wider">{deliveryLine.label}</span>
+                                    </div>
+                                    <p className="text-sm font-bold mt-1 text-gray-800">{deliveryLine.text}</p>
+                                </div>
+                            )
+                        })()}
 
                         {/* Informação do entregador (se existir) */}
                         {assignmentInfo && (
@@ -394,6 +414,9 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                             </div>
                         </div>
 
+                        {/* Prova da entrega (código do cliente ou foto do entregador) */}
+                        {deliveryAddress && <div className="-mx-3.5"><DeliveryProofCard orderId={order.id as string} role="store" light enabled={['preparing', 'ready', 'paid'].includes(order.status)} /></div>}
+
                         {/* Troca de avaliações (só aparece em pedido concluído, se a loja ligou) */}
                         {order.status === 'paid' && <OrderReviewPanel orderId={order.id} />}
 
@@ -430,5 +453,5 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                 </div>
             </div>
         </div>
-    )
+    , document.body)
 }   

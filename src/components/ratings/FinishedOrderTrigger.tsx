@@ -1,13 +1,15 @@
 'use client'
 
+import { useIsV3 } from '@/components/MaintenanceNotice'
 import { useEffect, useState, useRef } from 'react'
+import { closeAllReviews, latestToReview, reviewsSeenUntil, REVIEW_WINDOW_MS } from '@/lib/reviewPrompt'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { Star, X, ShoppingCart, ArrowRight, Sparkles, MessageSquareHeart } from 'lucide-react'
 import { ReviewModal } from './ReviewModal'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMerchantStore } from '@/store/useMerchantStore'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 function formatOrderDate(iso: string): string {
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -21,6 +23,8 @@ function orderItemsSummary(items: { product_name: string }[]): string {
 
 export function FinishedOrderTrigger() {
     const { userId, loading: profileLoading } = useProfile()
+    // na 3.0 quem pergunta é a avaliação rápida (QuickReviewHost): este aviso grande fica só na 2.0 (os avisos de status continuam)
+    const isV3 = useIsV3()
     const [unreviewedOrders, setUnreviewedOrders] = useState<any[]>([])
     const [reviewOrder, setReviewOrder] = useState<any>(null)
     const [showPrompt, setShowPrompt] = useState(false)
@@ -44,7 +48,10 @@ export function FinishedOrderTrigger() {
             `)
             .eq('buyer_id', userId)
             .eq('status', 'paid')
+            // sem acúmulo (lib/reviewPrompt): só os dos últimos 2 dias, e só o MAIS RECENTE vira pergunta
+            .gte('created_at', new Date(Date.now() - REVIEW_WINDOW_MS).toISOString())
             .order('created_at', { ascending: false })
+            .limit(30)
 
         if (ordersError) {
             console.error('Error fetching orders:', ordersError)
@@ -73,7 +80,8 @@ export function FinishedOrderTrigger() {
             const reviewedOrderIds = new Set(reviews?.map(r => r.order_id) || [])
             const dismissedOrderIds = new Set(JSON.parse(localStorage.getItem('dismissed_reviews') || '[]'))
 
-            const pending = orders.filter((o: any) => !reviewedOrderIds.has(o.id) && !dismissedOrderIds.has(o.id))
+            const latest = latestToReview(orders.filter((o: any) => !reviewedOrderIds.has(o.id) && !dismissedOrderIds.has(o.id)).map((o: any) => ({ ...o, at: o.created_at })), reviewsSeenUntil(userId))
+            const pending = latest ? [latest] : []
 
             setUnreviewedOrders(pending)
             setPendingReviewsCount(pending.length)
@@ -105,9 +113,9 @@ export function FinishedOrderTrigger() {
                 if (newStatus === 'pending') {
                     toast.success(`📦 Pedido Recebido!`, {
                         description: `A loja ${storeName} recebeu seu pedido e logo irá confirmar.`,
-                        icon: <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse border-2 border-white" />,
+                        icon: <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse border-2 border-white" />,
                         style: {
-                            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '1.5rem'
@@ -139,9 +147,9 @@ export function FinishedOrderTrigger() {
                 } else if (newStatus === 'paid') {
                     toast.success(`🎉 Pedido Finalizado!`, {
                         description: `Obrigado por comprar na ${storeName}! Avalie agora.`,
-                        icon: <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-white" />,
+                        icon: <div className="w-3 h-3 bg-blue-500 rounded-full border-2 border-white" />,
                         style: {
-                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '1.5rem'
@@ -173,12 +181,21 @@ export function FinishedOrderTrigger() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profileLoading, userId])
 
+    // outra pergunta foi fechada/respondida (corrida, ou a 3.0): a marca subiu, então esta também some
+    useEffect(() => {
+        const again = () => { void checkOrders() }
+        window.addEventListener('iuser-reviews-closed', again)
+        return () => window.removeEventListener('iuser-reviews-closed', again)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId])
+
     const handleClose = () => {
         const currentOrder = unreviewedOrders[0]
         if (currentOrder) {
             const dismissedOrderIds = JSON.parse(localStorage.getItem('dismissed_reviews') || '[]')
             dismissedOrderIds.push(currentOrder.id)
             localStorage.setItem('dismissed_reviews', JSON.stringify(dismissedOrderIds))
+            if (userId) closeAllReviews(userId)   // fechou: nada mais antigo volta a ser perguntado
             checkOrders()
         }
     }
@@ -201,7 +218,7 @@ export function FinishedOrderTrigger() {
     return (
         <>
             <AnimatePresence>
-                {showPrompt && unreviewedOrders.length > 0 && (
+                {showPrompt && !isV3 && unreviewedOrders.length > 0 && (
                     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -287,6 +304,7 @@ export function FinishedOrderTrigger() {
                     storeId={reviewOrder.storeId}
                     onSuccess={() => {
                         setReviewOrder(null)
+                        if (userId) closeAllReviews(userId)
                         checkOrders()
                     }}
                 />

@@ -16,10 +16,10 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import FreeTrialGift from '@/components/FreeTrialGift'
 import { PostpaidFees, TYPE_INFO, type ChargeType } from '@/components/planos/PostpaidFees'
 import { Spinner } from '@/components/Spinner'
+import { usePostpaidLimit } from '@/lib/postpaid'
 import { Car, Wrench, ShoppingBag, Package, Megaphone, CalendarCheck, CalendarPlus, Wallet, Info } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-const DEBT_LIMIT = 50
 const MAX_ROWS = 1000
 
 interface Charge {
@@ -40,6 +40,7 @@ const fmtDate = (iso: string) =>
 const short = (addr?: string | null) => (addr || '').split(',')[0]
 
 export default function PosPagoDetails() {
+    const DEBT_LIMIT = usePostpaidLimit()
     const router = useRouter()
     const { colors } = useTheme()
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -133,7 +134,7 @@ export default function PosPagoDetails() {
                     <div>
                         <h1 className="text-2xl font-black" style={{ color: colors.textPrimary }}>Plano Pós-pago</h1>
                         <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                            Sem mensalidade. Cada serviço realizado gera um crédito (o valor varia por tipo — veja abaixo) e você paga via Pix quando o total chegar a R$ 50,00.
+                            Sem mensalidade. Cada serviço realizado gera um crédito (o valor varia por tipo — veja abaixo) e você paga via Pix quando o total chegar a {brl(DEBT_LIMIT)}.
                         </p>
                     </div>
 
@@ -160,7 +161,7 @@ export default function PosPagoDetails() {
                                 </div>
                                 <p className="text-xs mt-2" style={{ color: colors.textSecondary }}>
                                     {debt >= DEBT_LIMIT
-                                        ? 'Você chegou ao limite de R$ 50,00: quite para voltar a oferecer serviços.'
+                                        ? `Você chegou ao limite de ${brl(DEBT_LIMIT)}: quite para voltar a oferecer serviços.`
                                         : `Faltam ${brl(Math.max(0, DEBT_LIMIT - debt))} para o limite de ${brl(DEBT_LIMIT)}.`}
                                 </p>
                             </div>

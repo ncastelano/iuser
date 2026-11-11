@@ -1,6 +1,9 @@
 'use client'
 
+import { useIsV3 } from '@/components/MaintenanceNotice'
 import { useEffect, useState } from 'react'
+import { closeAllReviews, latestToReview, reviewsSeenUntil, REVIEW_WINDOW_MS } from '@/lib/reviewPrompt'
+import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { Star, X, Car, ArrowRight } from 'lucide-react'
@@ -15,6 +18,11 @@ interface PendingRideReview {
 
 export function FinishedRideTrigger() {
     const { userId, loading: profileLoading } = useProfile()
+    // na 3.0 quem pergunta é a avaliação rápida (QuickReviewHost): este aviso grande fica só na 2.0
+    const isV3 = useIsV3()
+    // No painel do administrador o aviso "Avalie agora" não aparece: ele cobria a tela inteira e engolia os cliques de quem está decidindo coisas
+    const pathname = usePathname()
+    const quiet = !!pathname?.startsWith('/administrador')
     const [pending, setPending] = useState<PendingRideReview[]>([])
     const [reviewTarget, setReviewTarget] = useState<PendingRideReview | null>(null)
     const [showPrompt, setShowPrompt] = useState(false)
@@ -24,9 +32,14 @@ export function FinishedRideTrigger() {
 
         const { data: completedRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, driver_id')
+            .select('id, requester_id, driver_id, order_id, created_at, ride_started_at')
             .or(`requester_id.eq.${userId},driver_id.eq.${userId}`)
             .eq('status', 'completed')
+            // sem acúmulo (lib/reviewPrompt): só as dos últimos 2 dias, e só a MAIS RECENTE vira pergunta
+            .gte('created_at', new Date(Date.now() - REVIEW_WINDOW_MS).toISOString())
+            // só as mais recentes: a API devolve no máximo 1.000 linhas, e quem tem muito histórico via corridas já avaliadas como "pendentes"
+            .order('created_at', { ascending: false })
+            .limit(300)
 
         if (!completedRides || completedRides.length === 0) {
             setPending([])
@@ -34,15 +47,24 @@ export function FinishedRideTrigger() {
             return
         }
 
-        const { data: myReviews } = await supabase
-            .from('ride_reviews')
-            .select('ride_request_id')
-            .eq('reviewer_id', userId)
+        // avaliações só dessas corridas (e não "todas as minhas": passa de 1.000 linhas e o corte da API deixava corrida avaliada como pendente)
+        const myReviews: { ride_request_id: string }[] = []
+        const rideIds = completedRides.map((r) => r.id)
+        for (let i = 0; i < rideIds.length; i += 150) {
+            const { data } = await supabase
+                .from('ride_reviews')
+                .select('ride_request_id')
+                .eq('reviewer_id', userId)
+                .in('ride_request_id', rideIds.slice(i, i + 150))
+            if (data) myReviews.push(...data)
+        }
 
-        const reviewedIds = new Set((myReviews || []).map((r) => r.ride_request_id))
+        const reviewedIds = new Set(myReviews.map((r) => r.ride_request_id))
         const dismissedIds = new Set(JSON.parse(localStorage.getItem('dismissed_ride_reviews') || '[]'))
 
-        const unreviewed = completedRides.filter((r) => !reviewedIds.has(r.id) && !dismissedIds.has(r.id) && r.driver_id)
+        // Entrega de pedido de loja: quem avalia é o cliente (a compra); o motorista não é chamado a avaliar a cada entrega da central de entregas
+        const latest = latestToReview(completedRides.filter((r) => !reviewedIds.has(r.id) && !dismissedIds.has(r.id) && r.driver_id && !(r.order_id && r.driver_id === userId)).map((r) => ({ ...r, at: r.ride_started_at || r.created_at })), reviewsSeenUntil(userId))
+        const unreviewed = latest ? [latest] : []
 
         if (unreviewed.length === 0) {
             setPending([])
@@ -71,6 +93,13 @@ export function FinishedRideTrigger() {
     }
 
     useEffect(() => {
+        const again = () => { void checkRides() }
+        window.addEventListener('iuser-reviews-closed', again)
+        return () => window.removeEventListener('iuser-reviews-closed', again)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId])
+
+    useEffect(() => {
         if (profileLoading) return
         checkRides()
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,6 +111,7 @@ export function FinishedRideTrigger() {
             const dismissedIds = JSON.parse(localStorage.getItem('dismissed_ride_reviews') || '[]')
             dismissedIds.push(current.rideRequestId)
             localStorage.setItem('dismissed_ride_reviews', JSON.stringify(dismissedIds))
+            if (userId) closeAllReviews(userId)   // fechou: nada mais antigo volta a ser perguntado
             checkRides()
         }
     }
@@ -97,7 +127,7 @@ export function FinishedRideTrigger() {
     return (
         <>
             <AnimatePresence>
-                {showPrompt && pending.length > 0 && (
+                {showPrompt && !isV3 && !quiet && pending.length > 0 && (
                     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -163,6 +193,7 @@ export function FinishedRideTrigger() {
                     revieweeId={reviewTarget.counterpartId}
                     revieweeName={reviewTarget.counterpartName}
                     onSuccess={() => {
+                        if (userId) closeAllReviews(userId)
                         setReviewTarget(null)
                         checkRides()
                     }}

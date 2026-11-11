@@ -1,7 +1,7 @@
 // Modelos de loja (src/lib/storeModel.ts). Rodar: npm run test:store-model
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseStoreModel, pageActions, suggestModelForCategory } from '../src/lib/storeModel.ts'
+import { parseStoreModel, pageActions, suggestModelForCategory, isCreatorModel, creatorPage, STORE_MODELS } from '../src/lib/storeModel.ts'
 
 test('parse: valor desconhecido vira mista', () => {
     assert.equal(parseStoreModel('products'), 'products')
@@ -26,4 +26,29 @@ test('sugestão pela categoria', () => {
     assert.equal(suggestModelForCategory('servicos'), 'services')
     assert.equal(suggestModelForCategory('alimentacao'), 'products')
     assert.equal(suggestModelForCategory('transporte'), 'mixed')
+})
+
+test('modelos de criador: Studio (música e vídeo), Conteúdo (audiolivros e podcasts), Editora (livros)', () => {
+    for (const m of ['studio', 'content', 'publisher']) {
+        assert.equal(parseStoreModel(m), m)
+        assert.equal(isCreatorModel(m), true)
+        const a = pageActions(m, true, true)
+        assert.equal(a.buy, false, m)          // sem botão de comprar no topo
+        assert.equal(a.schedule, false, m)     // nem de agendar
+    }
+    assert.equal(isCreatorModel('mixed'), false)
+    assert.equal(creatorPage('studio').tab, 'Músicas e vídeos')
+    assert.equal(creatorPage('studio').hero, true)
+    assert.ok(creatorPage('studio').heroKinds.includes('filme'))
+    assert.equal(creatorPage('content').tab, 'Audiolivros e podcasts')
+    assert.deepEqual(creatorPage('content').heroKinds, ['audiolivro', 'podcast'])
+    assert.equal(creatorPage('publisher').tab, 'Livros')
+    assert.equal(creatorPage('publisher').hero, false)
+    assert.equal(STORE_MODELS.length, 6)
+})
+
+test('o banco aceita exatamente os modelos que o código conhece', async () => {
+    const { readFileSync } = await import('node:fs')
+    const mig = readFileSync('supabase/migrations/20261130000060_creator_store_models.sql', 'utf8')
+    for (const m of STORE_MODELS) assert.ok(mig.includes(`'${m.id}'`), m.id)
 })

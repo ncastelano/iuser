@@ -11,15 +11,17 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { loadOutdoor, pointsById, pointsLabel } from '@/modules/outdoor'
 import { ArrowLeft, Search, Store, ShoppingCart, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera, ChevronDown, Check, Car } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Spinner } from '@/components/Spinner'
 import RadarSonar from '@/components/radar/RadarSonar'
 import RadarItemDetails from '@/components/radar/RadarItemDetails'
 import RadarDriverDetails from '@/components/radar/RadarDriverDetails'
 import { fetchRadarDrivers } from '@/lib/radarDrivers'
 import { mountMapAvatarMarker } from '@/components/MapAvatarMarker'
+import { cachedStoreLevels, levelOf, loadStoreLevels } from '@/modules/store-levels'
 import { vehicleGlyphSvg } from '@/lib/vehicleMarkerIcon'
 import { createRadarPulse, ensureRadarPulseStyles, type RadarPulse, type PulseEntry, type PulseState } from '@/components/radar/radarPulse'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
@@ -27,9 +29,9 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import Header, { type Tab } from '@/components/Header'
 import LocationPicker from '@/components/LocationPicker'
+import RadarLocationPrompt from '@/components/radar/RadarLocationPrompt'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { parseCoords } from '@/lib/geoParse'
-import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 import type { UiVersion } from '@/versions/registry'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
@@ -77,9 +79,12 @@ type RankKey =
     | 'views_desc' | 'views_asc' | 'sales_desc' | 'sales_asc'
     | 'comments_desc' | 'comments_asc' | 'followers_desc' | 'followers_asc'
     | 'rating_desc' | 'rating_asc' | 'recent_desc' | 'recent_asc'
+    | 'outdoor_desc' | 'outdoor_asc'
 
 // Sempre em pares: o "mais" e o "menos" de cada critério.
 const RANK_GROUPS: { id: string; title: string; storesOnly?: boolean; desc: { key: RankKey; label: string }; asc: { key: RankKey; label: string } }[] = [
+    // O Outdoor vem sempre primeiro (e é o filtro com que o Radar abre): a pontuação do tipo (lojas, serviços, produtos, pessoas), a mesma dos Outdoors do app
+    { id: 'outdoor', title: 'Outdoor', desc: { key: 'outdoor_desc', label: 'Outdoor' }, asc: { key: 'outdoor_asc', label: 'Menos pontos' } },
     { id: 'views', title: 'Visualizações', desc: { key: 'views_desc', label: 'Mais vistos' }, asc: { key: 'views_asc', label: 'Menos vistos' } },
     { id: 'sales', title: 'Vendas', desc: { key: 'sales_desc', label: 'Mais vendidos' }, asc: { key: 'sales_asc', label: 'Menos vendidos' } },
     { id: 'comments', title: 'Comentários', desc: { key: 'comments_desc', label: 'Mais comentados' }, asc: { key: 'comments_asc', label: 'Menos comentados' } },
@@ -88,7 +93,12 @@ const RANK_GROUPS: { id: string; title: string; storesOnly?: boolean; desc: { ke
     { id: 'recent', title: 'Novidade', desc: { key: 'recent_desc', label: 'Mais recentes' }, asc: { key: 'recent_asc', label: 'Mais antigos' } },
 ]
 
-function rankLabel(key: RankKey): string {
+const OUTDOOR_NOUN: Record<string, string> = { lojas: 'lojas', servicos: 'serviços', produtos: 'produtos', pessoas: 'pessoas', motoristas: 'motoristas' }
+/** "Outdoor de lojas" no lugar de só "Outdoor", conforme o que está sendo visto */
+function outdoorLabel(mode: string): string { return `Outdoor de ${OUTDOOR_NOUN[mode] || 'lojas'}` }
+
+function rankLabel(key: RankKey, mode: string = 'lojas'): string {
+    if (key === 'outdoor_desc') return outdoorLabel(mode)
     for (const g of RANK_GROUPS) {
         if (g.desc.key === key) return g.desc.label
         if (g.asc.key === key) return g.asc.label
@@ -98,7 +108,7 @@ function rankLabel(key: RankKey): string {
 
 type RadarMetrics = { stores: Record<string, { sales: number; comments: number; followers: number }>; products: Record<string, { sales: number; comments: number }> }
 
-function metricValue(item: any, key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null): number {
+function metricValue(item: any, key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null, points: Record<string, number> = {}): number {
     const base = key.split('_')[0]
     const m: any = metrics ? (isStoreMode ? metrics.stores[item.id] : metrics.products[item.id]) : null
     switch (base) {
@@ -108,14 +118,15 @@ function metricValue(item: any, key: RankKey, isStoreMode: boolean, metrics: Rad
         case 'followers': return Number(m?.followers) || 0
         case 'rating': return (Number(item.ratings_avg) || 0) * 1000 + (Number(item.ratings_count) || 0)
         case 'recent': return item.created_at ? new Date(item.created_at).getTime() : 0
+        case 'outdoor': return Number(points[item.id]) || 0
         default: return 0
     }
 }
 
-function sortByRank(items: any[], key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null): any[] {
+function sortByRank(items: any[], key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null, points: Record<string, number> = {}): any[] {
     const dir = key.endsWith('_asc') ? 1 : -1
     return [...items].sort((a, b) => {
-        const diff = metricValue(a, key, isStoreMode, metrics) - metricValue(b, key, isStoreMode, metrics)
+        const diff = metricValue(a, key, isStoreMode, metrics, points) - metricValue(b, key, isStoreMode, metrics, points)
         return diff !== 0 ? dir * diff : String(a.name || '').localeCompare(String(b.name || ''))
     })
 }
@@ -137,6 +148,12 @@ function CrownBadge({ rank, size = 28 }: { rank: number; size?: number }) {
 }
 
 type EdgeIndicator = { id: string; x: number; y: number; angle: number; item: any; rank: number; km: number }
+
+// Onde o mapa começa quando a pessoa não define o local (Porto Velho - RO)
+const PORTO_VELHO = { lat: -8.7612, lng: -63.9039 }
+// Visitante: o local digitado fica só neste aparelho (a mesma chave da home); a escolha da pergunta vale só enquanto a aba está aberta
+const DEVICE_LOCATION_KEY = 'iuser_device_location'
+const RADAR_LOC_CHOICE_KEY = 'iuser_radar_loc_choice'
 
 export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const v3 = ui === 'v3'
@@ -163,7 +180,9 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // Motoristas disponíveis agora (só para quem está logado): vêm de get_radar_drivers, com a posição aproximada
     const [drivers, setDrivers] = useState<any[]>([])
     const [metrics, setMetrics] = useState<RadarMetrics | null>(null)
-    const [rankKey, setRankKey] = useState<RankKey>('views_desc')
+    const [rankKey, setRankKey] = useState<RankKey>('outdoor_desc')
+    // pontos do Outdoor do tipo que está na tela (id → pontos); vazio enquanto carrega ou em motoristas
+    const [outdoorPts, setOutdoorPts] = useState<Record<string, number>>({})
     const [showRankMenu, setShowRankMenu] = useState(false)
     const [edgeIndicators, setEdgeIndicators] = useState<EdgeIndicator[]>([])
     const [stores, setStores] = useState<any[]>([])
@@ -179,6 +198,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
     const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets')
     const [loadingLocation, setLoadingLocation] = useState(true)
+    // Pergunta "onde você está?" (sem local definido): aberta, buscando o GPS e o erro dele
+    const [locPromptOpen, setLocPromptOpen] = useState(false)
+    const [locPromptBusy, setLocPromptBusy] = useState(false)
+    const [locPromptError, setLocPromptError] = useState<string | null>(null)
     const [userAddress, setUserAddress] = useState<string | null>(null)
     const [addressNumber, setAddressNumber] = useState('')
     const [addressComplement, setAddressComplement] = useState('')
@@ -279,34 +302,32 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     console.log('[MapPage] 👤 Usuário não está logado (visitante)')
                 }
 
-                // Fallback para geolocalização do dispositivo - roda tanto pra
-                // visitante quanto pra usuário logado sem localização salva, pra
-                // sempre centralizar o mapa perto de onde a pessoa está (sem
-                // mostrar o avatar dela no mapa, já que isso só aparece quando
-                // ela tem uma localização salva no perfil).
-                console.log('[MapPage] 📱 Tentando geolocalização do dispositivo...')
-                getNativeCurrentPosition(
-                    (pos) => {
-                        const location = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-                        console.log('[MapPage] 📱 Localização do dispositivo:', location)
-                        setDeviceLocation(location)
-                        setLoadingLocation(false)
-                    },
-                    (error) => {
-                        // GeolocationPositionError não serializa como objeto normal
-                        // (console.error mostrava "{}"); usa warn (não trava o overlay
-                        // de dev do Next) e lê message/code direto - fallback abaixo já
-                        // cobre o caso, isso é só diagnóstico.
-                        console.warn('[MapPage] ⚠️ Geolocalização indisponível:', error.message || `código ${error.code}`)
-                        setLoadingLocation(false)
-                        setDeviceLocation({ lat: -15.7939, lng: -47.8828 })
-                    },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                )
+                // Sem local salvo no perfil: NÃO pede o GPS sozinho. Visitante com endereço já digitado neste aparelho usa ele; quem já
+                // escolheu nesta visita (GPS ou "agora não") não é perguntado de novo; os demais recebem a pergunta (RadarLocationPrompt).
+                // O mapa começa em Porto Velho enquanto não há local.
+                let decided = false
+                try {
+                    const raw = localStorage.getItem(DEVICE_LOCATION_KEY)
+                    const p = raw ? JSON.parse(raw) : null
+                    if (!contextUserId && p && Number.isFinite(p.lat) && Number.isFinite(p.lng)) {
+                        setDeviceLocation({ lat: p.lat, lng: p.lng })
+                        setUserAddress(p.address || 'Local salvo')
+                        decided = true
+                    }
+                    if (!decided) {
+                        const choice = sessionStorage.getItem(RADAR_LOC_CHOICE_KEY)
+                        if (choice === 'skip') decided = true
+                        else if (choice) {
+                            const g = JSON.parse(choice)
+                            if (Number.isFinite(g?.lat) && Number.isFinite(g?.lng)) { setDeviceLocation({ lat: g.lat, lng: g.lng }); decided = true }
+                        }
+                    }
+                } catch { /* sem storage: pergunta de novo */ }
+                setLocPromptOpen(!decided)
+                setLoadingLocation(false)
             } catch (error) {
                 console.error('[MapPage] ❌ Erro geral:', error)
                 setLoadingLocation(false)
-                setDeviceLocation({ lat: -15.7939, lng: -47.8828 })
             }
         }
 
@@ -374,7 +395,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const driversRef = referenceLocation ? `${referenceLocation.lat.toFixed(3)},${referenceLocation.lng.toFixed(3)}` : ''
     useEffect(() => {
         if (mode !== 'motoristas' || !isLoggedIn) return
-        const center = referenceLocation || { lat: -8.7612, lng: -63.9039 }
+        const center = referenceLocation || PORTO_VELHO
         let cancelled = false
         const loadDrivers = async () => {
             const list = await fetchRadarDrivers(supabase, center.lat, center.lng, 30)
@@ -400,10 +421,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         if (!mapContainerRef.current) return
 
         // Fallback caso não tenha localização / Porto Velho - RO
-        const centerLocation = referenceLocation || {
-            lat: -8.7612,
-            lng: -63.9039
-        }
+        const centerLocation = referenceLocation || PORTO_VELHO
 
         console.log('[MapPage] Inicializando mapa em:', centerLocation)
 
@@ -455,11 +473,11 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // LOAD DATA
     useEffect(() => {
         const load = async () => {
+            void loadStoreLevels()      // a escada dos níveis (moldura dos marcadores de loja) já em cache quando os marcadores forem desenhados
             const { data: storesData } = await supabase.from('stores').select(STORE_PUBLIC_SELECT)
             const { data: productsRaw } = await supabase.from('products').select('*')
-            // Perfis que desligaram "Aparecer no mapa" (ou "Mostrar no meu perfil") não entram com os seus serviços
-            const hiddenOwners = await getProfilesHiddenFromMap((productsRaw || []).filter((p: any) => !p.store_id).map((p: any) => p.owner_id))
-            const productsData = (productsRaw || []).filter((p: any) => p.store_id || !p.owner_id || !hiddenOwners.has(p.owner_id))
+            // "Visível no Radar" é só da PESSOA (filtro Pessoas): serviço e produto seguem a regra de cada um (ativo + local próprio)
+            const productsData = productsRaw || []
             const { data: profilesList } = await supabase.from('profiles').select('id, profileSlug')
 
             const mappedStores = (storesData || []).map(s => ({
@@ -503,6 +521,14 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         load()
     }, [])
 
+    // Pontos do Outdoor do tipo que está na tela (a pontuação mora no banco; aqui só ordena)
+    useEffect(() => {
+        if (mode === 'motoristas') { setOutdoorPts({}); return }
+        let alive = true
+        void loadOutdoor(mode, 200).then((items) => { if (alive) setOutdoorPts(items ? pointsById(items) : {}) })
+        return () => { alive = false }
+    }, [mode])
+
     // FILTER
     useEffect(() => {
         if (overrideList) {
@@ -525,10 +551,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         const q = search.toLowerCase()
         const matched = q ? items.filter(i => i.name?.toLowerCase().includes(q) || i.searchText?.includes(q)) : items
         // Ordena pelo filtro escolhido (padrão: mais vistos → menos vistos). Motoristas ficam do mais perto pro mais longe (ordem do banco), sem ranking.
-        const result = mode === 'motoristas' ? matched : sortByRank(matched, rankKey, mode === 'lojas', metrics)
+        const result = mode === 'motoristas' ? matched : sortByRank(matched, rankKey, mode === 'lojas', metrics, outdoorPts)
         setFiltered(result)
         console.log('[MapPage] 🎯 Filtrados:', { mode, count: result.length, search: q })
-    }, [search, mode, stores, products, people, drivers, overrideList, rankKey, metrics])
+    }, [search, mode, stores, products, people, drivers, overrideList, rankKey, metrics, outdoorPts])
 
     // Buscar detalhes extras da loja selecionada (seguidores, whatsapp, instagram,
     // se já sigo, produtos mais vistos, comentários)
@@ -616,6 +642,32 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         return () => { cancelled = true }
     }, [selectedItem, mode, userId])
 
+    // Pergunta de localização: achar sozinho (GPS, só nesta visita)
+    const handlePromptUseCurrent = () => {
+        setLocPromptBusy(true)
+        setLocPromptError(null)
+        getNativeCurrentPosition(
+            (pos) => {
+                const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+                try { sessionStorage.setItem(RADAR_LOC_CHOICE_KEY, JSON.stringify(loc)) } catch { /* ok */ }
+                setLocPromptBusy(false)
+                setLocPromptOpen(false)
+                setDeviceLocation(loc) // o mapa é refeito e centraliza aqui
+            },
+            (error) => {
+                console.warn('[MapPage] ⚠️ Geolocalização indisponível:', error.message || `código ${error.code}`)
+                setLocPromptBusy(false)
+                setLocPromptError('Não consegui achar o seu local. Libere o acesso à localização do aparelho ou digite o endereço.')
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        )
+    }
+    // Pergunta de localização: "agora não" — o mapa fica em Porto Velho e a pergunta não volta nesta visita
+    const handlePromptSkip = () => {
+        try { sessionStorage.setItem(RADAR_LOC_CHOICE_KEY, 'skip') } catch { /* ok */ }
+        setLocPromptOpen(false)
+    }
+
     // Salvar localização no perfil (mesmo LocationPicker compartilhado do homepage,
     // gravando nos mesmos campos store_lat/store_lng/address*)
     const handleLocationSave = async (location: {
@@ -629,9 +681,15 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         try {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) {
-                toast.error('Você precisa estar logado para salvar uma localização.')
+                // Visitante: guarda só neste aparelho (a mesma chave da home) para calcular o que está perto
+                const guestLoc = { lat: location.lat, lng: location.lng, address: location.address, addressNumber: location.addressNumber || '', addressComplement: location.addressComplement || '' }
+                try { localStorage.setItem(DEVICE_LOCATION_KEY, JSON.stringify(guestLoc)) } catch { /* sem storage: vale só até recarregar */ }
+                setDeviceLocation({ lat: location.lat, lng: location.lng })
+                setUserAddress(location.address || 'Local salvo')
+                setLocPromptOpen(false)
                 setShowLocationDialog(false)
                 setIsSavingLocation(false)
+                toast.success('Local definido neste aparelho.')
                 return
             }
 
@@ -654,6 +712,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             if (error) {
                 toast.error('Erro ao salvar: ' + error.message)
             } else if (data) {
+                setLocPromptOpen(false)
                 setProfileLocation({ lat: data.store_lat, lng: data.store_lng })
                 setUserAddress(data.address || 'Local salvo')
                 setAddressNumber(data.address_number || '')
@@ -808,6 +867,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                 // Pessoas e motoristas: avatar REDONDO, com a borda e o anel do perfil (MapAvatarMarker); lojas, produtos e serviços ficam quadrados
                 const asAvatar = !!(item.isPerson || item.isDriver)
+                // loja com NÍVEL: um anel na cor do nível por fora da borda de aberta/fechada (a borda segue dizendo se está aberta)
+                const lvl = mode === 'lojas' && !asAvatar ? levelOf(cachedStoreLevels(), item.store_level) : null
+                const lvlRing = lvl && lvl.level > 0 && lvl.colors.length > 0 ? `0 0 0 3px ${lvl.colors[0]}, ` : ''
+                const baseShadow = `${lvlRing}${rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'}`
                 inner.style.cssText = asAvatar ? `
                     width: ${boxSize}px;
                     height: ${boxSize}px;
@@ -823,7 +886,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     cursor: pointer;
                     background: white;
                     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                    box-shadow: ${rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'};
+                    box-shadow: ${baseShadow};
                 `
 
                 inner.onmouseenter = () => {
@@ -834,7 +897,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                 inner.onmouseleave = () => {
                     inner.style.transform = asAvatar ? 'scale(1)' : 'scale(1) rotate(0deg)'
-                    if (!asAvatar) inner.style.boxShadow = rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'
+                    if (!asAvatar) inner.style.boxShadow = baseShadow
                     el.style.zIndex = baseZ
                 }
 
@@ -1289,7 +1352,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     }
     // menu do filtro (mais/menos vistos, vendidos...) — o mesmo nas duas versões
     const rankMenuNode = showRankMenu ? (
-<div className="absolute right-0 top-full mt-2 w-64 max-h-[46vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5">
+<div className={`absolute right-0 ${v3 ? 'top-full mt-2' : 'bottom-full mb-2'} w-64 max-h-[46vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5`}>
                                 {RANK_GROUPS.filter(g => !g.storesOnly || mode === 'lojas').map(g => (
                                     <div key={g.id} className="px-3 py-1.5">
                                         <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">{g.title}</p>
@@ -1306,7 +1369,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                         style={active ? { background: 'linear-gradient(135deg, #f97316, #dc2626)' } : undefined}
                                                     >
                                                         {active && <Check className="w-3 h-3" />}
-                                                        {opt.label}
+                                                        {opt.key === 'outdoor_desc' ? outdoorLabel(mode) : opt.label}
                                                     </button>
                                                 )
                                             })}
@@ -1332,9 +1395,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 .radar-v3 .mapboxgl-ctrl-bottom-left {
                     margin-bottom: 136px !important;
                 }
+                /* 2.0: o Outdoor e o filtro ficam no rodapé; os controles do mapa e a logo sobem acima deles */
                 .mapboxgl-ctrl-bottom-right,
                 .mapboxgl-ctrl-bottom-left {
-                    margin-bottom: 85px !important;
+                    margin-bottom: calc(178px + var(--staging-banner-h, 0px)) !important;
                 }
                 .mapboxgl-ctrl-group button {
                     background: white !important;
@@ -1385,23 +1449,6 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 className="absolute inset-0 w-full h-full"
                 style={{ background: '#111', isolation: 'isolate' }}
             />
-
-            {/* BOTÃO HOME - VOLTAR PARA O INÍCIO (CANTO INFERIOR DIREITO). Na 3.0 o menu de cima já leva ao início. */}
-            {!v3 && <div className="absolute bottom-10 right-10 z-50">
-                <button
-                    onClick={() => router.push('/')}
-                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                    style={{
-                        background: 'linear-gradient(135deg, #f97316 0%, #dc2626 100%)',
-                        color: '#ffffff',
-                        border: `2px solid #f97316`,
-                        boxShadow: `0 8px 24px #f9731660`,
-                    }}
-                    aria-label="Voltar ao início"
-                >
-                    <Home size={24} />
-                </button>
-            </div>}
 
             {/* Varredura de satélite (abertura): linha de luz, rastro e ondas do avatar, por cima do mapa */}
             <div ref={scanOverlayRef} className="absolute inset-0 pointer-events-none" style={{ zIndex: 12 }} />
@@ -1472,9 +1519,9 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             ) : (
             <div className="absolute top-0 left-0 right-0 z-20">
                 <Header
-                    title="iUser"
-                    showBack={false}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
+                    title="Radar"
+                    showBack
+                    onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
                     tabs={radarTabs}
@@ -1518,12 +1565,24 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     onClose={() => setShowLocationDialog(false)}
                     onClear={profileLocation ? handleLocationClear : undefined}
                     askRadarVisibility
+                    allowGuest
+                />
+            )}
+
+            {/* Sem local definido: pergunta se acha sozinho ou se a pessoa digita (escondida enquanto o seletor de endereço está aberto) */}
+            {locPromptOpen && !showLocationDialog && !profileLocation && (
+                <RadarLocationPrompt
+                    busy={locPromptBusy}
+                    error={locPromptError}
+                    onUseCurrent={handlePromptUseCurrent}
+                    onType={() => { setLocPromptError(null); setShowLocationDialog(true) }}
+                    onSkip={handlePromptSkip}
                 />
             )}
 
             {/* Cluster Header */}
             {clusterItems && clusterLocation && (
-                <div className={`absolute ${v3 ? 'top-[158px]' : 'top-[210px]'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30`}>
+                <div className={`absolute ${v3 ? 'top-[158px]' : 'top-[170px]'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30`}>
                     <div className="bg-yellow-500 rounded-2xl px-4 py-3 shadow-lg flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Building2 className="w-5 h-5 text-white" />
@@ -1589,7 +1648,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             {/* Horizontal List — do mais visto ao menos visto (esquerda → direita) */}
             {filtered.length > 0 && !clusterItems && !selectedItem && (
-                <div className={`absolute ${v3 ? 'top-1 z-[55]' : 'top-[190px] z-20'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
+                <div className={`absolute ${v3 ? 'top-1 z-[55]' : 'z-20 flex flex-col'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(v3 ? {} : { bottom: 'calc(12px + var(--staging-banner-h, 0px))' }), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
                     <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
                             const rank = idx < 3 && mode !== 'motoristas' ? idx + 1 : 0
@@ -1622,6 +1681,11 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                             <CrownBadge rank={rank} size={30} />
                                         </span>
                                     )}
+                                    {rankKey.startsWith('outdoor') && mode !== 'motoristas' && (
+                                        <span className="absolute z-10 left-1/2 -translate-x-1/2 -bottom-2.5 rounded-full px-1.5 py-px text-[9px] font-black text-white whitespace-nowrap leading-tight" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
+                                            {pointsLabel(outdoorPts[item.id] || 0)}
+                                        </span>
+                                    )}
                                     {v3 && (() => {
                                         const c = resolveItemCoords(item, mode, stores)
                                         const km = c && referenceLocation ? haversineKm([referenceLocation.lng, referenceLocation.lat], c) : null
@@ -1647,7 +1711,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     </div>
 
                     {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos. Motoristas ficam do mais perto pro mais longe, sem filtro. */}
-                    {mode !== 'motoristas' && <div className="flex justify-end relative -mt-1">
+                    {mode !== 'motoristas' && <div className={`flex justify-end relative ${v3 ? '-mt-1' : 'order-first mb-1.5'}`}>
                         <button
                             onClick={() => setShowRankMenu(v => !v)}
                             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow-lg"
@@ -1655,7 +1719,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                             aria-expanded={showRankMenu}
                         >
                             <Flame className="w-3.5 h-3.5" />
-                            Filtro: {rankLabel(rankKey)}
+                            Filtro: {rankLabel(rankKey, mode)}
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
                         </button>
                         {rankMenuNode}
@@ -2023,7 +2087,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 (grupo branco arredondado com sombra), posicionado logo acima
                 deles pra parecer um botão a mais do mesmo conjunto. */}
             {mapReady && (
-                <div className="absolute z-30" style={{ bottom: '267px', right: '10px' }}>
+                <div className="absolute z-30" style={{ bottom: v3 ? '267px' : 'calc(360px + var(--staging-banner-h, 0px))', right: '10px' }}>
                     <div className="bg-white rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.2)] overflow-hidden">
                         <button
                             onClick={toggleMapStyle}

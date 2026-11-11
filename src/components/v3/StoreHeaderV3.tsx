@@ -5,9 +5,11 @@
 // quando a tela está dentro da casca da 3.0 (`useInsideShell`).
 'use client'
 
+import type { StoreModel } from '@/lib/storeModel'
 import { useState, type ReactNode } from 'react'
 import LinkLinesV3, { type LinkLine } from './LinkLinesV3'
 import type { StoreLink } from '@/lib/storeLinks'
+import StoreFrame from '@/components/store/StoreFrame'
 import {
     ArrowLeft, ShoppingBag, Calendar, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users,
 } from 'lucide-react'
@@ -18,6 +20,8 @@ export interface StoreHeaderV3Props {
     colors: any
     name: string
     imageUrl: string | null
+    /** nível da loja (`stores.store_level`): a moldura do nível vai por fora do anel de aberta/fechada */
+    level?: number
     description?: string | null
     isOpen: boolean
     statusText: string
@@ -35,12 +39,14 @@ export interface StoreHeaderV3Props {
     isFollowing: boolean
     onFollowToggle: () => void
     onOpenCatalog: () => void
+    /** a nota (do lado das visitas) abre o diálogo de avaliações */
+    onOpenReviews: () => void
     whatsappLink?: string | null
         /** links que a loja cadastrou (texto + endereço), mostrados sob a descrição */
     links: StoreLink[]
     allowScheduling: boolean
     /** modelo da loja: quais botões centrais aparecem (Comprar, Agendar, os dois) — ver lib/storeModel */
-    model?: 'products' | 'services' | 'mixed'
+    model?: StoreModel
     showBuy?: boolean
     showSchedule?: boolean
     /** loja de atendimento com produtos: "Produtos" vira um botão discreto */
@@ -84,9 +90,11 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                             <ArrowLeft size={20} />
                         </button>
                     )}
+                    <StoreFrame level={p.level} size={46} innerRadius={16} ring={3} bg={colors.background} className="flex-shrink-0">
                     <div className="flex-shrink-0 w-[46px] h-[46px] rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: colors.surface, outline: `2px solid ${statusColor}`, outlineOffset: 1 }}>
                         {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-xl font-black" style={{ color: ORANGE }}>{initial}</span>}
                     </div>
+                    </StoreFrame>
                     <div className="min-w-0 flex-1">
                         <h2 className="text-[17px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{p.name}</h2>
                         <button
@@ -103,10 +111,10 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                 {/* atalhos em cápsulas, numa fileira só (rola para o lado se não couber) */}
                 <div className="mt-3 flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: 'none' }}>
                     {p.ratingsCount > 0 && (
-                        <span className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textPrimary }}>
+                        <button onClick={p.onOpenReviews} aria-label="Ver as avaliações da loja" className={`${capsule} flex-shrink-0 active:scale-95 transition`} style={{ background: soft, color: colors.textPrimary }}>
                             <Star size={13} className="flex-shrink-0" style={{ color: ORANGE, fill: ORANGE }} />
                             {p.rating.toFixed(1).replace('.', ',')} ({p.ratingsCount})
-                        </span>
+                        </button>
                     )}
                     <span className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textSecondary }}>
                         <Eye size={13} className="flex-shrink-0" />
@@ -149,11 +157,10 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     colors={colors}
                 />
 
-                {/* botão(ões) central(is) conforme o modelo da loja: produtos = Comprar; atendimento = Agendar; mista = Comprar e Agendar lado a lado */}
+                {/* Comprar (quando a loja vende), Seguir e Conversar (quando o chat está ativo) numa linha só. O AGENDAR não é mais um botão aqui: mora na seção "Horários livres" logo abaixo (escolher um horário ou "Agendar um serviço") */}
                 {(() => {
                     const buy = p.showBuy ?? true
-                    const sched = !!p.showSchedule
-                    const big = 'h-12 rounded-full text-[14px] font-black flex items-center justify-center gap-2 transition active:scale-95'
+                    const big = 'h-11 rounded-full text-[14px] font-black flex items-center justify-center gap-1.5 transition active:scale-95'
                     const follow = p.canFollow ? (
                         <button
                             onClick={p.onFollowToggle}
@@ -164,36 +171,22 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                             {p.isFollowing ? 'Seguindo' : 'Seguir'}
                         </button>
                     ) : null
-                    const contact = p.contactSlot
-                    // loja de atendimento com produtos: os produtos ficam na aba "Produtos" (sem botão extra apertando a linha)
-                    const productsBtn = null
+                    // Comprar, Seguir e Conversar ficam NUMA linha só
                     return (
-                        <>
-                            <div className="mt-3 flex items-center gap-2">
-                                {buy && (
-                                    <button onClick={p.onOpenCatalog} className={`flex-1 ${big}`} style={{ background: ORANGE, color: '#fff' }}>
-                                        <ShoppingBag size={17} /> Comprar
-                                    </button>
-                                )}
-                                {sched && (
-                                    <button onClick={p.onOpenSchedule} className={`flex-1 ${big}`} style={buy ? { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` } : { background: ORANGE, color: '#fff' }}>
-                                        <Calendar size={17} /> {buy ? 'Agendar' : 'Agendar atendimento'}
-                                    </button>
-                                )}
-                            </div>
-                            {(follow || contact || productsBtn) && (
-                                <div className="mt-2 flex items-center gap-2">
-                                    {follow}
-                                    {contact}
-                                    {productsBtn}
-                                </div>
+                        <div className="mt-3 flex items-center gap-2">
+                            {buy && (
+                                <button onClick={p.onOpenCatalog} className={`flex-1 ${big}`} style={{ background: ORANGE, color: '#fff' }}>
+                                    <ShoppingBag size={16} /> Comprar
+                                </button>
                             )}
-                        </>
+                            {follow}
+                            {p.contactSlot}
+                        </div>
                     )
                 })()}
 
                 {/* loja de produtos com agenda ligada: a agenda fica como atalho discreto */}
-                {p.allowScheduling && !p.showSchedule && (
+                {p.allowScheduling && !p.agendaSlot && (
                     <button onClick={p.onOpenSchedule} className="mt-2 w-full h-11 rounded-2xl px-3 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: soft }}>
                         <Calendar size={17} style={{ color: ORANGE }} className="flex-shrink-0" />
                         <span className="text-[13px] font-black flex-1" style={{ color: colors.textPrimary }}>Agendar atendimento</span>
@@ -208,10 +201,12 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                             <MessageCircle size={13} />
                             {p.chatEnabled ? 'Chat ativo' : 'Ativar chat'}
                         </button>
+                        {!p.allowScheduling && (   /* agenda já ativa: não precisa dizer — os horários livres aparecem logo abaixo */
                         <button onClick={p.onOpenAgendaDialog} className={capsule} style={p.allowScheduling ? { background: soft, color: colors.textPrimary } : { background: `${ORANGE}1a`, color: ORANGE, border: `1px dashed ${ORANGE}` }}>
                             <Calendar size={13} />
                             {p.allowScheduling ? 'Agenda ativa' : 'Ativar agenda'}
                         </button>
+                        )}
                     </div>
                 )}
 

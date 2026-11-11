@@ -4,8 +4,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { toast } from 'sonner'
-import { Truck, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { Truck, ChevronDown, ChevronUp, Check, AlertTriangle, Bike, Store, MessageCircle } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { hexToRgb } from '@/lib/color'
 import { useInsideShell } from '@/components/InsideShell'
@@ -105,12 +105,11 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
     }, [loadConfig])
 
     useEffect(() => {
-        if (!v3) return
         loadPlatformTariffs(supabase, true).then(() => {
             const m = PLATFORM_DEFAULT_PRICING_BY_VEHICLE.moto
             setIuserTariff({ dist: m.baseDistanceKm, base: m.baseFee + m.extraFees.objeto, perKm: m.pricePerKmAfterBase })
         })
-    }, [v3])
+    }, [])
 
     const saveConfig = async () => {
         if (!storeId) return
@@ -160,6 +159,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
 
         toast.success('Configurações de entrega salvas!')
         setSaving(false)
+        window.dispatchEvent(new Event('store-delivery-saved'))   // o cartão "Entregadores favoritos" aparece/some conforme o Entregador do iUser
         if (onRefresh) onRefresh()
     }
 
@@ -217,295 +217,178 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
         )
     }
 
+    // ===== peças da tela =====
+    const cardStyle = { background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }
+    const inputStyle = { background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, borderColor: colors.border, color: colors.textPrimary }
+    const Switch = ({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) => (
+        <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onClick} className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on ? 'bg-orange-500' : 'bg-gray-400'}`}>
+            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${on ? 'right-1' : 'left-1'}`} />
+        </button>
+    )
+    /** uma linha de "como funciona", com o visto na cor da opção */
+    const Passo = ({ cor, children }: { cor: string; children: React.ReactNode }) => (
+        <li className="flex items-start gap-2 text-[12px] leading-snug" style={{ color: colors.textPrimary }}>
+            <Check size={14} className="flex-shrink-0 mt-0.5" style={{ color: cor }} strokeWidth={3} />
+            <span>{children}</span>
+        </li>
+    )
+    const Aviso = ({ children }: { children: React.ReactNode }) => (
+        <p className="flex items-start gap-2 text-[11px] font-bold leading-snug rounded-xl px-3 py-2" style={{ background: '#f59e0b1f', color: '#b45309' }}>
+            <AlertTriangle size={14} className="flex-shrink-0 mt-px" />
+            <span>{children}</span>
+        </p>
+    )
+    const modes = [
+        { id: 'free' as const, label: 'Grátis' },
+        { id: 'fixed' as const, label: 'Valor fixo' },
+        { id: 'distance' as const, label: 'Por distância' },
+    ]
+    const opcoes = [
+        { id: 'iuser' as const, title: 'Entregador do iUser', text: 'Um entregador do iUser leva o pedido até o cliente.', color: '#f97316', Icon: Truck },
+        { id: 'own' as const, title: 'Eu entrego', text: 'Você mesmo (ou sua equipe) leva e cobra o valor que quiser.', color: '#16a34a', Icon: Bike },
+        { id: 'none' as const, title: 'Não faço entrega', text: 'O cliente só pode retirar na loja.', color: '#6b7280', Icon: Store },
+    ]
+    const semNada = deliveryWho === 'none' && !acceptsPickup
+
     const body = (
-                <>
-                    <div className="space-y-4">
-                        {v3 ? (
-                            <div className="flex flex-col gap-2">
-                                {([
-                                    { id: 'own', title: 'Eu entrego', text: 'Você leva e cobra o valor que quiser.', color: '#16a34a' },
-                                    { id: 'iuser', title: 'Entregador do iUser', text: 'Um motorista do iUser leva. O valor é o da tarifa do iUser.', color: '#f97316' },
-                                    { id: 'none', title: 'Não faço entrega', text: 'O cliente só pode retirar no local.', color: '#6b7280' },
-                                ] as const).map((o) => {
-                                    const on = deliveryWho === o.id
-                                    return (
-                                        <button
-                                            key={o.id}
-                                            type="button"
-                                            onClick={() => chooseWho(o.id)}
-                                            className="text-left rounded-2xl px-3 py-2.5 flex items-center gap-3 transition active:scale-[0.99]"
-                                            style={{ background: on ? `${o.color}12` : 'transparent', border: `${on ? 1.5 : 1}px solid ${on ? o.color : colors.border}` }}
-                                        >
-                                            <span className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center" style={{ border: `2px solid ${on ? o.color : colors.border}` }}>
-                                                {on && <span className="w-2 h-2 rounded-full" style={{ background: o.color }} />}
-                                            </span>
-                                            <span className="min-w-0">
-                                                <span className="block text-sm font-black" style={{ color: on ? o.color : colors.textPrimary }}>{o.title}</span>
-                                                <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{o.text}</span>
-                                            </span>
-                                        </button>
-                                    )
-                                })}
-                                {deliveryWho === 'iuser' && (
-                                    <div className="rounded-2xl p-3 flex flex-col gap-1" style={{ background: '#f9731612', border: '1px solid #f9731640' }}>
-                                        <p className="text-xs font-black" style={{ color: '#c2410c' }}>
-                                            {iuserTariff
-                                                ? `R$ ${iuserTariff.base.toFixed(2)} até ${iuserTariff.dist} km, depois + R$ ${iuserTariff.perKm.toFixed(2)} por km`
-                                                : 'Tarifa do iUser'}
-                                        </p>
-                                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                                            O cliente paga esse valor na compra e ele vai inteiro para o motorista. Em cada pedido você toca em chamar motorista.
-                                        </p>
-                                        {!hasStoreLocation && (
-                                            <p className="text-[11px] font-bold" style={{ color: '#c2410c' }}>
-                                                Falta o endereço da loja em &quot;Informações da loja&quot;: é de lá que o motorista busca o pedido.
+        <>
+            <div className="flex flex-col gap-4">
+                {/* ===== 1. ENTREGA: quem leva o pedido ===== */}
+                <section className="flex flex-col gap-2">
+                    <div className="px-1">
+                        <h4 className="text-sm font-black" style={{ color: colors.textPrimary }}>Como o cliente recebe em casa?</h4>
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>Escolha quem leva o pedido até a casa do cliente.</p>
+                    </div>
+                    {opcoes.map((o) => {
+                        const on = deliveryWho === o.id
+                        return (
+                            <div key={o.id} className="rounded-2xl overflow-hidden transition" style={{ background: on ? `${o.color}10` : cardStyle.background, border: `${on ? 1.5 : 1}px solid ${on ? o.color : colors.border}` }}>
+                                <button type="button" onClick={() => chooseWho(o.id)} aria-pressed={on} className="w-full text-left px-3.5 py-3 flex items-center gap-3 active:scale-[0.995] transition">
+                                    <span className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: on ? o.color : `${colors.border}60`, color: on ? '#fff' : colors.textSecondary }}>
+                                        <o.Icon size={17} />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-black" style={{ color: on ? o.color : colors.textPrimary }}>{o.title}</span>
+                                        <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{o.text}</span>
+                                    </span>
+                                    <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ border: `2px solid ${on ? o.color : colors.border}` }}>
+                                        {on && <span className="w-2.5 h-2.5 rounded-full" style={{ background: o.color }} />}
+                                    </span>
+                                </button>
+
+                                {/* o que é só desta opção fica DENTRO dela, logo abaixo */}
+                                {on && o.id === 'iuser' && (
+                                    <div className="px-3.5 pb-3.5 pt-3 flex flex-col gap-3" style={{ borderTop: `1px solid ${o.color}30` }}>
+                                        <div className="flex flex-col gap-1.5">
+                                            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: o.color }}>Como funciona</p>
+                                            <ul className="flex flex-col gap-1.5">
+                                                <Passo cor={o.color}>Quando o cliente escolhe receber em casa, o iUser <b>já começa a procurar um entregador</b>. Você não precisa chamar ninguém.</Passo>
+                                                <Passo cor={o.color}>O pedido <b>só chega para você depois que um entregador aceitar</b>: você nunca fica com pedido pronto e ninguém para levar.</Passo>
+                                                <Passo cor={o.color}>Se ninguém aceitar, o cliente pode trocar para retirar na loja ou cancelar.</Passo>
+                                            </ul>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: o.color }}>Quanto o cliente paga</p>
+                                            <p className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                                {iuserTariff ? `R$ ${iuserTariff.base.toFixed(2).replace('.', ',')} até ${iuserTariff.dist} km, depois + R$ ${iuserTariff.perKm.toFixed(2).replace('.', ',')} por km` : 'A tarifa do iUser'}
                                             </p>
+                                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>O valor é o da tarifa do iUser e vai inteiro para o entregador.</p>
+                                        </div>
+                                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                            Quer escolher seus próprios entregadores? Use o cartão <b>Entregadores favoritos</b>: eles veem suas entregas primeiro.
+                                        </p>
+                                        {!hasStoreLocation && <Aviso>Falta o endereço da loja em &quot;Informações da loja&quot;: é de lá que o entregador busca o pedido.</Aviso>}
+                                    </div>
+                                )}
+
+                                {on && o.id === 'own' && (
+                                    <div className="px-3.5 pb-3.5 pt-3 flex flex-col gap-3" style={{ borderTop: `1px solid ${o.color}30` }}>
+                                        <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: o.color }}>Quanto você cobra pela entrega</p>
+                                        <div className="flex gap-2 flex-wrap">
+                                            {modes.map((m) => {
+                                                const sel = deliveryMode === m.id
+                                                return (
+                                                    <button key={m.id} type="button" onClick={() => setDeliveryMode(m.id)} className="px-4 py-2 rounded-full text-xs font-bold transition-all border"
+                                                        style={sel ? { background: GRADIENT, color: '#fff', borderColor: 'transparent' } : { ...inputStyle, color: colors.textSecondary }}>
+                                                        {m.label}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                        {deliveryMode === 'free' && <p className="text-[11px]" style={{ color: colors.textSecondary }}>O cliente não paga nada pela entrega: o custo é seu.</p>}
+                                        {deliveryMode === 'fixed' && (
+                                            <label className="flex flex-col gap-1">
+                                                <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>Valor da entrega (R$)</span>
+                                                <input type="number" inputMode="decimal" value={fixedDeliveryFee} onChange={(e) => setFixedDeliveryFee(e.target.value)} placeholder="Ex.: 6" className="w-full p-3 rounded-full border text-sm" style={inputStyle} />
+                                                <span className="text-[11px]" style={{ color: colors.textSecondary }}>O mesmo valor para qualquer endereço.</span>
+                                            </label>
+                                        )}
+                                        {deliveryMode === 'distance' && (
+                                            <div className="flex flex-col gap-2">
+                                                <div className="grid grid-cols-3 gap-2 items-end">
+                                                    {[
+                                                        { l: 'Até quantos km', v: deliveryBaseDistance, set: setDeliveryBaseDistance, ph: '5' },
+                                                        { l: 'Valor até lá (R$)', v: deliveryBaseFee, set: setDeliveryBaseFee, ph: '7' },
+                                                        { l: 'Cada km a mais (R$)', v: deliveryExtraPerKm, set: setDeliveryExtraPerKm, ph: '2' },
+                                                    ].map((f) => (
+                                                        <label key={f.l} className="flex flex-col gap-1 justify-end">
+                                                            <span className="text-[10px] font-bold leading-tight min-h-[24px] flex items-end" style={{ color: colors.textSecondary }}>{f.l}</span>
+                                                            <input type="number" inputMode="decimal" value={f.v} onChange={(e) => f.set(e.target.value)} placeholder={f.ph} className="w-full p-2.5 rounded-full border text-sm" style={inputStyle} />
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                                    Exemplo: até {deliveryBaseDistance || '5'} km o cliente paga R$ {deliveryBaseFee || '7'}; depois disso, mais R$ {deliveryExtraPerKm || '2'} a cada km.
+                                                </p>
+                                            </div>
                                         )}
                                     </div>
                                 )}
-                            </div>
-                        ) : (
-                        <>
-                        {/* Toggle Faz entrega */}
-                        <div
-                            className="flex items-center justify-between p-3 rounded-full"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-2">
-                                {!v3 && <Truck size={16} style={{ color: colors.textSecondary }} />}
-                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Faz entrega</span>
-                            </div>
-                            <button
-                                onClick={() => setAcceptsDelivery(!acceptsDelivery)}
-                                className={`relative w-11 h-6 rounded-full transition-colors ${acceptsDelivery ? 'bg-orange-500' : 'bg-gray-400'}`}
-                            >
-                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsDelivery ? 'right-1' : 'left-1'}`} />
-                            </button>
-                        </div>
-                        </>
-                        )}
 
-                        {(v3 ? deliveryWho === 'own' : acceptsDelivery) && (
-                            <div className={v3 ? 'space-y-3' : 'ml-3 space-y-3'}>
-                                <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>{v3 ? 'Quanto você cobra pela entrega' : 'Tipo de entrega'}</p>
-                                <div className="flex gap-2 flex-wrap">
-                                    <button
-                                        onClick={() => setDeliveryMode('free')}
-                                        className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${deliveryMode === 'free'
-                                            ? 'text-white'
-                                            : 'border'
-                                            }`}
-                                        style={
-                                            deliveryMode === 'free'
-                                                ? { background: GRADIENT, color: '#ffffff' }
-                                                : {
-                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
-                                                    borderColor: colors.border,
-                                                    color: colors.textSecondary
-                                                }
-                                        }
-                                    >
-                                        Grátis
-                                    </button>
-                                    <button
-                                        onClick={() => setDeliveryMode('fixed')}
-                                        className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${deliveryMode === 'fixed'
-                                            ? 'text-white'
-                                            : 'border'
-                                            }`}
-                                        style={
-                                            deliveryMode === 'fixed'
-                                                ? { background: GRADIENT, color: '#ffffff' }
-                                                : {
-                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
-                                                    borderColor: colors.border,
-                                                    color: colors.textSecondary
-                                                }
-                                        }
-                                    >
-                                        Valor Fixo
-                                    </button>
-                                    <button
-                                        onClick={() => setDeliveryMode('distance')}
-                                        className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${deliveryMode === 'distance'
-                                            ? 'text-white'
-                                            : 'border'
-                                            }`}
-                                        style={
-                                            deliveryMode === 'distance'
-                                                ? { background: GRADIENT, color: '#ffffff' }
-                                                : {
-                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
-                                                    borderColor: colors.border,
-                                                    color: colors.textSecondary
-                                                }
-                                        }
-                                    >
-                                        Por Distância
-                                    </button>
-                                </div>
-
-                                {deliveryMode === 'fixed' && (
-                                    <input
-                                        type="number"
-                                        value={fixedDeliveryFee}
-                                        onChange={(e) => setFixedDeliveryFee(e.target.value)}
-                                        placeholder="Valor da entrega (R$)"
-                                        className="w-full p-3 rounded-full border text-sm"
-                                        style={{
-                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
-                                            borderColor: colors.border,
-                                            color: colors.textPrimary,
-                                        }}
-                                    />
-                                )}
-
-                                {deliveryMode === 'distance' && (
-                                    <div
-                                        className="p-4 rounded-2xl border"
-                                        style={{
-                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
-                                            borderColor: colors.border,
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-2 mb-3">
-                                            {!v3 && <TrendingUp size={16} style={{ color: '#f97316' }} />}
-                                            <p className="text-[10px] font-black" style={{ color: '#f97316' }}>
-                                                Tarifa com valor base
-                                            </p>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <div>
-                                                <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>
-                                                    Distância base (km)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    value={deliveryBaseDistance}
-                                                    onChange={(e) => setDeliveryBaseDistance(e.target.value)}
-                                                    placeholder="5"
-                                                    className="w-full p-2 rounded-full border text-sm"
-                                                    style={{
-                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
-                                                        borderColor: colors.border,
-                                                        color: colors.textPrimary,
-                                                    }}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>
-                                                    Valor base (R$)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    value={deliveryBaseFee}
-                                                    onChange={(e) => setDeliveryBaseFee(e.target.value)}
-                                                    placeholder="7"
-                                                    className="w-full p-2 rounded-full border text-sm"
-                                                    style={{
-                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
-                                                        borderColor: colors.border,
-                                                        color: colors.textPrimary,
-                                                    }}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>
-                                                    Extra por km (R$)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    value={deliveryExtraPerKm}
-                                                    onChange={(e) => setDeliveryExtraPerKm(e.target.value)}
-                                                    placeholder="2"
-                                                    className="w-full p-2 rounded-full border text-sm"
-                                                    style={{
-                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
-                                                        borderColor: colors.border,
-                                                        color: colors.textPrimary,
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                        <p className="text-[9px] mt-2" style={{ color: colors.textSecondary }}>
-                                            Ex: até {deliveryBaseDistance || '5'} km = R$ {deliveryBaseFee || '7'}, acima + R$ {deliveryExtraPerKm || '2'}/km
-                                        </p>
+                                {on && o.id === 'none' && (
+                                    <div className="px-3.5 pb-3.5 pt-3" style={{ borderTop: `1px solid ${o.color}30` }}>
+                                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>Quem comprar vai buscar o pedido na loja. Você pode voltar a fazer entrega quando quiser.</p>
                                     </div>
                                 )}
                             </div>
-                        )}
+                        )
+                    })}
+                </section>
 
-                        {/* Entrega iUser: chamar motorista da plataforma (na 3.0 é a escolha lá em cima) */}
-                        {!v3 && acceptsDelivery && (
-                            <div
-                                className="p-3 rounded-2xl flex flex-col gap-2"
-                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}
-                            >
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="flex items-center gap-2 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                        {!v3 && <Truck size={14} style={{ color: '#f97316' }} />}
-                                        Entrega iUser
-                                    </span>
-                                    <button
-                                        onClick={() => setIuserDelivery(!iuserDelivery)}
-                                        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${iuserDelivery ? 'bg-orange-500' : 'bg-gray-400'}`}
-                                    >
-                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${iuserDelivery ? 'right-1' : 'left-1'}`} />
-                                    </button>
-                                </div>
-                                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                                    {iuserDelivery
-                                        ? 'Em cada pedido com entrega aparece o botão do caminhão pra chamar um motorista da plataforma. O pedido vai pra lista de corridas dos motoristas, com o valor do frete e a descrição do que será entregue.'
-                                        : 'Ligue pra poder chamar motoristas do iUser pra levar seus pedidos, sem precisar de entregador próprio.'}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Pedidos por WhatsApp (opcional) */}
-                        <div
-                            className="p-3 rounded-2xl flex flex-col gap-2"
-                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}
-                        >
-                            <div className="flex items-center justify-between gap-3">
-                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                    {v3 ? 'Também pelo WhatsApp' : 'Receber pedidos também no WhatsApp'}
-                                </span>
-                                <button
-                                    onClick={() => setWhatsappOrders(!whatsappOrders)}
-                                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${whatsappOrders ? 'bg-orange-500' : 'bg-gray-400'}`}
-                                >
-                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${whatsappOrders ? 'right-1' : 'left-1'}`} />
-                                </button>
-                            </div>
-                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                                {v3
-                                    ? (whatsappOrders ? 'O cliente também é levado ao WhatsApp da loja ao finalizar. O pedido aparece aqui no iUser de qualquer jeito.' : 'Os pedidos chegam só pelo iUser.')
-                                    : whatsappOrders
-                                    ? 'Ao finalizar, o cliente é direcionado direto ao WhatsApp da loja para enviar o pedido. Quando a mensagem chegar no WhatsApp, o pedido já terá aparecido no iUser: verifique os pedidos na aba onde fica a sua loja.'
-                                    : 'Os pedidos chegam só pelo iUser, na aba onde fica a sua loja. O cliente não é levado ao WhatsApp.'}
-                            </p>
-                        </div>
-
-                        {/* Toggle Retirada no local */}
-                        <div
-                            className="flex items-center justify-between p-3 rounded-full"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Retirada no local</span>
-                            <button
-                                onClick={() => setAcceptsPickup(!acceptsPickup)}
-                                className={`relative w-11 h-6 rounded-full transition-colors ${acceptsPickup ? 'bg-orange-500' : 'bg-gray-400'}`}
-                            >
-                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsPickup ? 'right-1' : 'left-1'}`} />
-                            </button>
-                        </div>
+                {/* ===== 2. RETIRADA ===== */}
+                <section className="rounded-2xl p-3.5 flex flex-col gap-2" style={cardStyle}>
+                    <div className="flex items-center gap-3">
+                        <span className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: acceptsPickup ? '#f97316' : `${colors.border}60`, color: acceptsPickup ? '#fff' : colors.textSecondary }}><Store size={17} /></span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Retirada na loja</span>
+                            <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>
+                                {acceptsPickup ? 'O cliente busca o pedido na loja. Você recebe na hora, sem esperar entregador.' : 'Ninguém consegue retirar na loja.'}
+                            </span>
+                        </span>
+                        <Switch on={acceptsPickup} onClick={() => setAcceptsPickup(!acceptsPickup)} label="Retirada na loja" />
                     </div>
+                    {semNada && <Aviso>Sem entrega e sem retirada, ninguém consegue comprar de você. Ligue pelo menos uma das duas.</Aviso>}
+                </section>
+
+                {/* ===== 3. WHATSAPP ===== */}
+                <section className="rounded-2xl p-3.5 flex flex-col gap-2" style={cardStyle}>
+                    <div className="flex items-center gap-3">
+                        <span className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: whatsappOrders ? '#22c55e' : `${colors.border}60`, color: whatsappOrders ? '#fff' : colors.textSecondary }}><MessageCircle size={17} /></span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Aviso pelo WhatsApp</span>
+                            <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>
+                                {whatsappOrders
+                                    ? 'Depois de pedir, o cliente também é levado ao WhatsApp da loja. O pedido aparece aqui no iUser de qualquer jeito.'
+                                    : 'Os pedidos chegam só pelo iUser. O cliente não é levado ao WhatsApp.'}
+                            </span>
+                        </span>
+                        <Switch on={whatsappOrders} onClick={() => setWhatsappOrders(!whatsappOrders)} label="Aviso pelo WhatsApp" />
+                    </div>
+                    {whatsappOrders && deliveryWho === 'iuser' && (
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>Nos pedidos com entregador do iUser o WhatsApp não abre: a loja só recebe o pedido depois que um entregador aceitar.</p>
+                    )}
+                </section>
+            </div>
 
                     {/* Botões de ação - PILL */}
                     <div className="flex gap-3 mt-2">

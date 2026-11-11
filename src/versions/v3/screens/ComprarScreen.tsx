@@ -9,7 +9,7 @@
 import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { ArrowLeft, CalendarCheck, Car, ChevronRight, Home as HomeIcon, Clock, Flame, LayoutGrid, Package, Plus, Radar, RotateCcw, Search, ShoppingCart, Sparkles, Store as StoreIcon, Truck, Users, Wrench, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme, type ThemeColors } from '@/app/contexts/theme'
@@ -18,6 +18,10 @@ import { categorias } from '@/lib/categorias'
 import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 import StoreImageCard from '@/components/StoreImageCard'
 import { Spinner } from '@/components/Spinner'
+import { notifyChatMessage } from '@/lib/notifyRideStatus'
+import { usePagedRotation } from '@/hooks/usePagedRotation'
+import Outdoor from '@/components/outdoor/Outdoor'
+import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
 import {
     isQuickAddable, matchesQuery, sortTrending, limitPerStore, loadShop, servicePriceLabel, serviceCta, sortServices,
     type ShopData, type ShopProduct, type ShopService,
@@ -29,7 +33,7 @@ const PAGE = 24
 const catList = categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social')
 const brl = (n: number | null) => (n == null ? '' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))
 
-function Section({ colors, icon: Icon, title, subtitle, onAll, children }: { colors: ThemeColors; icon: any; title: string; subtitle?: string; onAll?: () => void; children: React.ReactNode }) {
+function Section({ colors, icon: Icon, title, subtitle, onAll, allLabel = 'Ver todas', children }: { colors: ThemeColors; icon: any; title: string; subtitle?: string; onAll?: () => void; allLabel?: string; children: React.ReactNode }) {
     return (
         <section className="mt-6">
             <div className="flex items-end justify-between gap-3 mb-2.5">
@@ -37,7 +41,7 @@ function Section({ colors, icon: Icon, title, subtitle, onAll, children }: { col
                     <h2 className="flex items-center gap-1.5 text-base font-black" style={{ color: colors.textPrimary }}><Icon size={16} style={{ color: '#f97316' }} /> {title}</h2>
                     {subtitle && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{subtitle}</p>}
                 </div>
-                {onAll && <button onClick={onAll} className="text-xs font-black flex items-center gap-0.5 flex-shrink-0" style={{ color: colors.accent }}>Ver todas <ChevronRight size={13} /></button>}
+                {onAll && <button onClick={onAll} className="text-xs font-black flex items-center gap-0.5 flex-shrink-0" style={{ color: colors.accent }}>{allLabel} <ChevronRight size={13} /></button>}
             </div>
             {children}
         </section>
@@ -118,6 +122,18 @@ export default function ComprarScreen() {
     }
     const openProduct = (p: ShopProduct) => router.push(`/${p.storeSlug}/${p.slug}`)
     const openService = (v: ShopService) => router.push(`/${v.ownerSlug}/${v.slug}`)
+    // "Combinar" (serviço de pessoa, valor a combinar): abre direto a conversa com o profissional, já com o serviço no chat.
+    // Se ele não recebe conversas pelo iUser, cai na página do serviço (que mostra o contato que ele liberou).
+    const [combining, setCombining] = useState<string | null>(null)
+    const combine = async (v: ShopService) => {
+        if (!userId) { router.push('/login?redirect=/comprar'); return }
+        setCombining(v.id)
+        const { data, error } = await supabase.rpc('start_conversation_about_product', { p_product: v.id })
+        setCombining(null)
+        if (error || !data) { toast.message('Esse profissional não recebe conversas pelo iUser. Veja o contato na página do serviço.'); openService(v); return }
+        notifyChatMessage(data as string)
+        router.push(`/conversas?c=${data}`)
+    }
 
     // ----- filtros -----
     const passes = useCallback((p: ShopProduct) => {
@@ -156,6 +172,8 @@ export default function ComprarScreen() {
 
     const back = () => (window.history.length > 1 ? router.back() : router.push('/'))
     const searching = query.trim().length > 0
+    // "Todos os produtos": poucos por vez (4), que passam sozinhos, deslizando ou pelos pontinhos — como "Produtos em destaque"; o resto fica no "Ver todos"
+    const allProducts = usePagedRotation(view?.products.length ?? 0, 4)
 
     // categorias que têm loja primeiro
     const orderedCats = useMemo(() => {
@@ -233,7 +251,7 @@ export default function ComprarScreen() {
     )
 
     const renderService = (v: ShopService) => (
-        <div key={v.id} className="rounded-3xl overflow-hidden flex flex-col text-left" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+        <div key={v.id} className="rounded-3xl overflow-hidden flex flex-col text-left w-full h-full" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
             <button onClick={() => openService(v)} className="relative block w-full aspect-square overflow-hidden" style={{ background: GRADIENT }}>
                 {v.imageUrl
                     ? <img src={v.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -242,7 +260,7 @@ export default function ComprarScreen() {
             </button>
             <div className="p-2.5 flex flex-col gap-1 flex-1">
                 <button onClick={() => openService(v)} className="text-left">
-                    <span className="block text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{v.name}</span>
+                    <span className="block text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.75em' }}>{v.name}</span>
                 </button>
                 <button onClick={() => router.push(`/${v.ownerSlug}`)} className="flex items-center gap-1.5 text-left min-w-0">
                     <span className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: GRADIENT }}>
@@ -252,8 +270,8 @@ export default function ComprarScreen() {
                 </button>
                 <div className="mt-auto pt-1 flex flex-col gap-1.5">
                     <span className="text-sm font-black leading-tight" style={{ color: v.price ? colors.textPrimary : colors.textSecondary }}>{servicePriceLabel(v.price)}</span>
-                    <button onClick={() => openService(v)} className="h-9 w-full rounded-full flex items-center justify-center gap-1.5 text-white text-xs font-black transition active:scale-95" style={{ background: GRADIENT }}>
-                        {v.kind === 'store' ? <CalendarCheck size={13} /> : <Users size={13} />}{serviceCta(v.kind)}
+                    <button onClick={() => (v.kind === 'store' ? openService(v) : combine(v))} disabled={combining === v.id} className="h-9 w-full rounded-full flex items-center justify-center gap-1.5 text-white text-xs font-black transition active:scale-95 disabled:opacity-70" style={{ background: GRADIENT }}>
+                        {combining === v.id ? <Spinner size={13} color="#fff" /> : v.kind === 'store' ? <CalendarCheck size={13} /> : <Users size={13} />}{serviceCta(v.kind)}
                     </button>
                 </div>
             </div>
@@ -261,7 +279,7 @@ export default function ComprarScreen() {
     )
     const serviceRow = (items: ShopService[]) => (
         <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x scroll-pl-4 scroll-pr-4 -mx-4 px-4 pb-1">
-            {items.slice(0, 12).map((v) => <div key={v.id} className="flex-shrink-0 w-40 snap-start">{renderService(v)}</div>)}
+            {items.slice(0, 12).map((v) => <div key={v.id} className="flex-shrink-0 w-40 snap-start flex">{renderService(v)}</div>)}
         </div>
     )
     const serviceGrid = (items: ShopService[]) => (
@@ -312,6 +330,9 @@ export default function ComprarScreen() {
                     {query && <button onClick={() => setQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={16} /></button>}
                 </div>
             </div>
+
+            {/* Outdoor de lojas: as de mais pontos, logo abaixo da busca */}
+            <Outdoor kind="lojas" className="mt-3" />
 
             {/* Filtros e categorias numa linha só (rola pro lado): "Aberto agora" e "Entrega grátis" primeiro, pra ficarem à mão */}
             <div className="mt-3 flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ overflowAnchor: 'none' }}>
@@ -378,44 +399,32 @@ export default function ComprarScreen() {
                         </Section>
                     )}
                     {view.trending.length > 0 && (
-                        <Section colors={colors} icon={Flame} title="Em alta" subtitle="O que mais sai agora">{productRow(view.trending)}</Section>
+                        <Section colors={colors} icon={Flame} title="Em alta" subtitle="O que mais sai agora" onAll={() => router.push('/produtos?ordem=alta')}>{productRow(view.trending)}</Section>
                     )}
                     {view.fresh.length > 0 && (
-                        <Section colors={colors} icon={Sparkles} title="Novidades" subtitle="Chegou há pouco">{productRow(view.fresh)}</Section>
+                        <Section colors={colors} icon={Sparkles} title="Novidades" subtitle="Chegou há pouco" onAll={() => router.push('/produtos?ordem=novidades')}>{productRow(view.fresh)}</Section>
                     )}
                     {view.storeServices.length > 0 && (
-                        <Section colors={colors} icon={CalendarCheck} title="Serviços para agendar" subtitle="Marque um horário em lojas e estúdios" onAll={() => router.push('/servicos-disponiveis')}>{serviceRow(view.storeServices)}</Section>
+                        <Section colors={colors} icon={CalendarCheck} title="Serviços para agendar" subtitle="Marque um horário em lojas e estúdios" onAll={() => router.push('/servicos-disponiveis?tipo=agendar')}>{serviceRow(view.storeServices)}</Section>
                     )}
                     {view.peopleServices.length > 0 && (
-                        <Section colors={colors} icon={Users} title="Profissionais" subtitle="Serviços de pessoas, com valor combinado" onAll={() => router.push('/servicos-disponiveis')}>{serviceRow(view.peopleServices)}</Section>
+                        <Section colors={colors} icon={Users} title="Atendimento profissional" subtitle="Serviços de pessoas, com valor combinado" onAll={() => router.push('/servicos-disponiveis?tipo=profissionais')}>{serviceRow(view.peopleServices)}</Section>
                     )}
                     {view.products.length > 0 && (
-                        <Section colors={colors} icon={Package} title="Todos os produtos" subtitle={`${view.products.length} ${view.products.length === 1 ? 'produto' : 'produtos'}`}>
-                            {grid(view.products.slice(0, limit))}
-                            {view.products.length > limit && (
-                                <button onClick={() => setLimit((l) => l + PAGE)} className="mt-3 w-full h-11 rounded-full text-sm font-black" style={{ background: soft, color: colors.textPrimary }}>Ver mais</button>
-                            )}
+                        <Section colors={colors} icon={Package} title="Todos os produtos" subtitle={`${view.products.length} ${view.products.length === 1 ? 'produto' : 'produtos'}`} allLabel="Ver todos" onAll={() => router.push('/produtos')}>
+                            <div {...allProducts.handlers}>
+                                <div key={allProducts.page} className={allProducts.dir > 0 ? 'page-in-next' : 'page-in-prev'} style={{ touchAction: 'pan-y' }}>
+                                    {grid(view.products.slice(allProducts.visibleRange[0], allProducts.visibleRange[1]))}
+                                </div>
+                            </div>
+                            <PageDots pages={allProducts.pages} page={allProducts.page} onGo={allProducts.goTo} label="Ver produtos, página" />
+                            <style>{PAGE_SLIDE_CSS}</style>
                         </Section>
                     )}
                 </>
             )}
 
-            {/* Carrinho: aparece quando tem item */}
-            {cartCount > 0 && (
-                <div className="fixed inset-x-0 bottom-0 z-30 px-4 pb-4 pt-6 pointer-events-none" style={{ background: `linear-gradient(to top, ${colors.background} 55%, transparent)` }}>
-                    <div className="max-w-lg mx-auto pointer-events-auto">
-                        <button
-                            onClick={() => router.push('/carrinho')}
-                            className="w-full h-14 rounded-full px-5 flex items-center gap-3 text-white font-black text-sm transition active:scale-[0.98]"
-                            style={{ background: GRADIENT, boxShadow: '0 8px 24px #f9731655' }}
-                        >
-                            <span className="relative"><ShoppingCart size={20} /></span>
-                            <span className="flex-1 text-left">Ver carrinho · {cartCount} {cartCount === 1 ? 'item' : 'itens'}</span>
-                            <span>{brl(cartTotal)}</span>
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* O carrinho ("Ver carrinho · N itens · R$") agora faz parte da barra de baixo da casca (ModeShell): fundido a ela, sem fundo próprio */}
         </div>
     )
 }

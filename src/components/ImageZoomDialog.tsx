@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Minus, Plus, X } from 'lucide-react'
+import { lockBodyScroll } from '@/lib/bodyScrollLock'
 
 const MIN = 1
 const MAX = 6
@@ -22,9 +23,8 @@ export default function ImageZoomDialog({ src, alt = '', onClose }: { src: strin
         setMounted(true)
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
         window.addEventListener('keydown', onKey)
-        const prev = document.body.style.overflow
-        document.body.style.overflow = 'hidden'
-        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
+        const unlock = lockBodyScroll()
+        return () => { window.removeEventListener('keydown', onKey); unlock() }
     }, [onClose])
 
     const applyScale = useCallback((next: number) => {

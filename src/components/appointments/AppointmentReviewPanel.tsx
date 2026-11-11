@@ -7,7 +7,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { CheckCircle2, Send } from 'lucide-react'
 import { completeAppointment, getReviewState, submitReview, type ReviewState } from '@/lib/appointmentReviews'
 import Stars from './Stars'

@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import {
     X,
     Pencil,

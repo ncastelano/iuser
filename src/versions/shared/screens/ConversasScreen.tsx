@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, MessageCircle, Plus, Send, Store as StoreIcon, User, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import PageTabs from '@/components/PageTabs'
@@ -347,7 +347,38 @@ function Avatar({ url, name, isStore, userId, size, round = false }: { url: stri
 }
 
 // ====================== PÁGINA ======================
-function ConversasInner({ ui }: { ui: UiVersion }) {
+/** As CAIXAS de conversa (a da pessoa e a de cada loja): um seletor próprio, menor e escuro, de propósito diferente das pílulas laranja das subabas */
+function RoomSwitch({ tabs, colors }: { tabs: any[]; colors: any }) {
+    return (
+        <div className="mt-3">
+            <p className="px-1 mb-1.5 text-[10.5px] font-black uppercase tracking-widest" style={{ color: colors.textSecondary }}>Caixa de entrada</p>
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+                {tabs.map((t) => {
+                    const Icon = t.icon
+                    return (
+                        <button
+                            key={t.id}
+                            onClick={t.onClick}
+                            aria-pressed={t.isActive}
+                            className="relative flex items-center gap-2 h-10 pl-1.5 pr-3.5 rounded-2xl text-[12.5px] font-black whitespace-nowrap flex-shrink-0 transition active:scale-95"
+                            style={t.isActive
+                                ? { background: colors.textPrimary, color: colors.background }
+                                : { background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                        >
+                            {t.imageUrl
+                                ? <img src={t.imageUrl} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                                : <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: t.isActive ? `${colors.background}33` : `${colors.border}66` }}><Icon size={14} /></span>}
+                            <span className="max-w-[150px] truncate">{t.label}</span>
+                            {t.badge && t.badge.count > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: '#16a34a' }}>{t.badge.count > 99 ? '99+' : t.badge.count}</span>}
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
+
+function ConversasInner({ ui, embedded = false, basePath = '/conversas', defaultRoom = null }: { ui: UiVersion; embedded?: boolean; basePath?: string; defaultRoom?: string | null }) {
     const v3 = ui === 'v3'
     const router = useRouter()
     const search = useSearchParams()
@@ -364,7 +395,8 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
     const [showInfo, setShowInfo] = useState(false)
     const [infoVersion, setInfoVersion] = useState(0)
 
-    const room = search.get('sala') || 'perfil'          // 'perfil' ou o slug da loja
+    // a caixa aberta: a que a URL pede; senão a do MODO (a loja, no modo loja); senão a da pessoa. 'perfil' ou o slug da loja
+    const room = search.get('sala') || defaultRoom || 'perfil'
     const activeId = search.get('c')
     const activeStore = room !== 'perfil' ? stores.find((s) => s.storeSlug === room) || null : null
 
@@ -375,10 +407,11 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
     const setParams = useCallback((next: { sala?: string; c?: string | null }) => {
         cameFromOutside.current = false
         const p = new URLSearchParams(search.toString())
-        if (next.sala !== undefined) { if (next.sala === 'perfil') p.delete('sala'); else p.set('sala', next.sala) }
+        // com uma caixa padrão (modo loja), escolher a da pessoa precisa ficar escrito na URL; sem ela, 'perfil' é o padrão e some
+        if (next.sala !== undefined) { if (next.sala === 'perfil' && !defaultRoom) p.delete('sala'); else p.set('sala', next.sala) }
         if (next.c !== undefined) { if (next.c) p.set('c', next.c); else p.delete('c') }
-        router.replace(`/conversas${p.toString() ? `?${p}` : ''}`)
-    }, [router, search])
+        router.replace(`${basePath}${p.toString() ? `?${p}` : ''}`)
+    }, [router, search, basePath, defaultRoom])
 
     // Lojas da pessoa (cada uma vira uma aba)
     useEffect(() => {
@@ -466,7 +499,8 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
 
             <main className={v3 ? 'relative pb-8' : 'relative z-10 min-h-dvh pb-8'}>
                 {v3 ? (
-                    <PageTabs tabs={tabs} />
+                    // as CAIXAS (a da pessoa e a de cada loja) seguem o modo; só aparecem quando há mais de uma e num desenho próprio, para não parecerem as subabas de cima
+                    tabs.length > 1 ? <RoomSwitch tabs={tabs} colors={colors} /> : (!embedded ? <PageTabs tabs={tabs} /> : null)
                 ) : (
                     <Header
                         title="Conversas"
@@ -496,8 +530,9 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                             <div className={`${active ? 'hidden md:flex' : 'flex'} flex-col min-h-0 min-w-0`}>
                                 <div className="pb-3 flex-shrink-0">
                                     <div className="flex items-center justify-between gap-3">
-                                    <p className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                    <p className="text-[17px] font-black min-w-0 truncate" style={{ color: colors.textPrimary }}>
                                         {activeStore ? `Conversas de ${activeStore.name}` : 'Minhas conversas'}
+                                        {v3 && rows && rows.length > 0 && <span className="ml-2 text-xs font-bold" style={{ color: colors.textSecondary }}>{rows.length}</span>}
                                     </p>
                                     {v3 && !activeStore && (
                                         <button
@@ -515,7 +550,7 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                                         </p>
                                     )}
                                 </div>
-                                <div className={`flex-1 min-h-0 overflow-y-auto flex flex-col ${v3 ? 'gap-0.5' : 'gap-3'}`}>
+                                <div className={`flex-1 min-h-0 overflow-y-auto flex flex-col ${v3 ? 'gap-2' : 'gap-3'}`}>
                                     {v3 && !activeStore && invites.length > 0 && (
                                         <div className="mb-2 flex flex-col gap-2">
                                             <p className="px-1 text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Convites ({invites.length})</p>
@@ -578,12 +613,12 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                                                 <button
                                                     key={r.id}
                                                     onClick={() => setParams({ c: r.id })}
-                                                    className="w-full flex items-center gap-3 text-left rounded-2xl px-2.5 py-2.5 transition active:scale-[0.99]"
-                                                    style={{ background: selected ? `${colors.border}40` : unread ? '#16a34a14' : 'transparent' }}
+                                                    className="w-full flex items-center gap-3 text-left rounded-2xl p-3 transition active:scale-[0.99]"
+                                                    style={{ background: selected ? `${colors.border}40` : colors.background, border: `1px solid ${unread ? '#16a34a66' : selected ? '#f97316' : colors.border}`, boxShadow: unread ? '0 4px 14px #16a34a24' : '0 2px 8px rgba(0,0,0,0.05)' }}
                                                 >
                                                     {r.is_group
-                                                        ? <GroupAvatar size={52} />
-                                                        : <Avatar url={img} name={r.other_name || r.other_slug} isStore={r.other_is_store} userId={r.other_is_store ? undefined : r.other_id} size={52} round />}
+                                                        ? <GroupAvatar size={48} />
+                                                        : <Avatar url={img} name={r.other_name || r.other_slug} isStore={r.other_is_store} userId={r.other_is_store ? undefined : r.other_id} size={48} round />}
                                                     <span className="min-w-0 flex-1">
                                                         <span className="flex items-baseline justify-between gap-2">
                                                             <span className="text-[15px] truncate" style={{ color: colors.textPrimary, fontWeight: unread ? 900 : 700 }}>{otherLabel(r)}</span>
@@ -695,10 +730,10 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
 }
 
 /** Sala de conversas. Uma implementação só para as duas versões (muda só a moldura, ver CarrinhoScreen). */
-export default function ConversasScreen({ ui = 'v3' }: { ui?: UiVersion }) {
+export default function ConversasScreen({ ui = 'v3', embedded = false, basePath = '/conversas', defaultRoom = null }: { ui?: UiVersion; embedded?: boolean; basePath?: string; defaultRoom?: string | null }) {
     return (
         <Suspense fallback={null}>
-            <ConversasInner ui={ui} />
+            <ConversasInner ui={ui} embedded={embedded} basePath={basePath} defaultRoom={defaultRoom} />
         </Suspense>
     )
 }

@@ -12,9 +12,10 @@ import { createStoreOrder, CreateStoreOrderError } from '@/lib/createStoreOrder'
 import { useCheckoutFlow } from '@/lib/useCheckoutFlow'
 import { isEstimateRejection } from '@/modules/delivery-estimate'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { isDigitalCart } from '@/modules/digital'
 import { useCartStore, type CartItem, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 export type CheckoutStep = 'auth' | 'delivery' | 'payment' | null
@@ -82,9 +83,11 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
         return { day: next.dayLabel, open: next.time }
     }, [storeConfig?.business_hours])
 
-    const canChooseReceivingMethod = !!(storeConfig?.accepts_delivery && storeConfig?.accepts_pickup)
-    const onlyPickupAvailable = !!(storeConfig?.accepts_pickup && !storeConfig?.accepts_delivery)
-    const onlyDeliveryAvailable = !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
+    // Carrinho só de produto DIGITAL: não há entrega nem retirada de verdade — o pedido segue como "retirada" e o acesso abre quando a loja confirma o pagamento
+    const digitalOnly = isDigitalCart(cartItems)
+    const canChooseReceivingMethod = !digitalOnly && !!(storeConfig?.accepts_delivery && storeConfig?.accepts_pickup)
+    const onlyPickupAvailable = digitalOnly || !!(storeConfig?.accepts_pickup && !storeConfig?.accepts_delivery)
+    const onlyDeliveryAvailable = !digitalOnly && !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
 
     // ===== FINALIZAÇÃO =====
     const [checkoutLoading, setCheckoutLoading] = useState(false)
@@ -105,10 +108,11 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
 
     // Se a loja só tem uma forma de recebimento, já seleciona sozinha.
     useEffect(() => {
+        if (digitalOnly && deliveryOption !== 'retirada') { setDeliveryOption('retirada'); return }
         if (!storeConfig || deliveryOption) return
         if (storeConfig.accepts_pickup && !storeConfig.accepts_delivery) setDeliveryOption('retirada')
         else if (storeConfig.accepts_delivery && !storeConfig.accepts_pickup) setDeliveryOption('entrega')
-    }, [storeConfig, deliveryOption])
+    }, [storeConfig, deliveryOption, digitalOnly])
 
     // ===== DADOS DO COMPRADOR LOGADO =====
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -461,7 +465,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                 const { data: waRows } = await supabase.rpc('get_store_order_whatsapp', { p_store: storeConfig.id })
                 const waRow = Array.isArray(waRows) ? waRows[0] : waRows
                 const whatsapp: string | null | undefined = waRow?.whatsapp
-                if (whatsapp && waRow?.orders_enabled !== false) {
+                if (whatsapp && waRow?.orders_enabled !== false && !created.awaitingDriver) {
                     const paymentLabel = isV2Delivery ? 'A combinar após a loja aceitar' : paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
                     const deliveryLabel = deliveryOption === 'entrega'
                         ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`
@@ -482,7 +486,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                 // melhor esforço - não bloqueia o pedido já criado
             }
 
-            toast.success(isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
+            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
             setCheckoutStep(null)
             setDeliveryOption(null)
             setPaymentMethod(null)
@@ -502,7 +506,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
 
     return {
         storeConfig, isStoreOpen, nextAvailable,
-        canChooseReceivingMethod, onlyPickupAvailable, onlyDeliveryAvailable,
+        canChooseReceivingMethod, onlyPickupAvailable, onlyDeliveryAvailable, digitalOnly,
         checkoutStep, setCheckoutStep, checkoutLoading, startCheckout,
         deliveryOption, setDeliveryOption, paymentMethod, setPaymentMethod,
         cashChangeFor, setCashChangeFor, cardIsContactless, setCardIsContactless,

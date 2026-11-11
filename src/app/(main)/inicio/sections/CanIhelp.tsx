@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Car, Wrench, Megaphone, ShoppingBag, Radar, CircleDollarSign, UserPlus, Home, Briefcase, type LucideIcon } from 'lucide-react'
+import { Car, Wrench, Megaphone, ShoppingBag, Radar, CircleDollarSign, UserPlus, Home, Briefcase, Users, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
@@ -82,7 +82,8 @@ interface FeaturedAction {
 }
 
 // As comunidades têm a própria seção na home (abaixo das publicações): saem do grid de categorias
-const GRID_CATEGORIAS = categorias.filter((c) => c.slug !== 'comunidades')
+// Social e Comunidades não são categorias de loja: Social tem o atalho "Social" de "Preciso de" (o mesmo da 3.0); o ícone repetido da categoria foi tirado
+const GRID_CATEGORIAS = categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social')
 
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()
@@ -99,6 +100,8 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
         { label: 'Contratar serviço', desc: 'Descreva o que você precisa', color: '#7c3aed', icon: Wrench, onClick: () => go('/solicitar-servico') },
         { label: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', color: '#ea580c', icon: Car, onClick: () => go('/pedir-motorista') },
         { label: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', color: '#0891b2', icon: Radar, onClick: () => go('/radar') },
+        // A página Social (3.0): abre na casca da 3.0 mesmo para quem está na 2.0
+        { label: 'Social', desc: 'Flash, publicações, melhores perfis e gente perto de você', color: '#f97316', icon: Users, onClick: () => go('/social') },
         // As páginas de imóveis abrem na casca da 3.0 mesmo para quem está na 2.0 (não têm versão própria); os imóveis em si aparecem na seção "Imóveis para alugar"
         { label: 'Buscar imóvel', desc: 'Casa, apartamento, salas comerciais, kitnets, etc.', color: '#16a34a', icon: Home, onClick: () => go('/imoveis') },
     ]

@@ -49,10 +49,13 @@ interface CatalogItem {
 interface StoreCatalogProps {
     storeId: string
     storeSlug: string
-    kind: 'product' | 'service'
+    /** product = tudo que não é serviço (2.0 e o painel antigo); physical / digital separam os dois no catálogo em abas da 3.0 */
+    kind: 'product' | 'service' | 'physical' | 'digital'
+    /** mostra TODOS (catálogo em abas da 3.0); sem isso, os 12 mais novos */
+    all?: boolean
 }
 
-export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogProps) {
+export default function StoreCatalog({ storeId, storeSlug, kind, all = false }: StoreCatalogProps) {
     const { colors } = useTheme()
     const v3 = useInsideShell()
     const router = useRouter()
@@ -73,8 +76,9 @@ export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogP
             .eq('store_id', storeId)
             .eq('listing_type', 'sale')
             .order('created_at', { ascending: false })
-            .limit(12)
-        query = kind === 'service' ? query.eq('type', 'service') : query.neq('type', 'service')
+            // a 2.0 mostra os 12 mais novos; o catálogo em abas da 3.0 (Editar loja → Catálogo) mostra todos
+            .limit(all ? 300 : 12)
+        query = kind === 'service' ? query.eq('type', 'service') : kind === 'digital' ? query.eq('type', 'digital') : kind === 'physical' ? query.not('type', 'in', '(service,digital)') : query.neq('type', 'service')
 
         const { data: rows } = await query
 
@@ -87,10 +91,12 @@ export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogP
         const ids = rows.map((p) => p.id)
         const todayStartISO = startOfDay(new Date()).toISOString()
 
-        const [{ data: viewsToday }, { data: viewsTotal }, { data: orderIdsData }] = await Promise.all([
+        // vendas pelo vínculo com o pedido (uma consulta): antes ia a lista de TODOS os pedidos pagos no endereço e, numa loja com muitos
+        // pedidos, o endereço passava do limite e a lista ficava carregando para sempre
+        const [{ data: viewsToday }, { data: viewsTotal }, { data: orderItemsSales }] = await Promise.all([
             supabase.from('product_views').select('product_id').in('product_id', ids).gte('created_at', todayStartISO),
             supabase.from('product_views').select('product_id').in('product_id', ids),
-            supabase.from('orders').select('id').eq('store_id', storeId).eq('status', 'paid'),
+            supabase.from('order_items').select('product_id, quantity, orders!inner(store_id, status)').eq('orders.store_id', storeId).eq('orders.status', 'paid').in('product_id', ids),
         ])
 
         const viewsTodayMap = new Map<string, number>()
@@ -98,18 +104,10 @@ export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogP
         const viewsTotalMap = new Map<string, number>()
         viewsTotal?.forEach((v) => viewsTotalMap.set(v.product_id, (viewsTotalMap.get(v.product_id) || 0) + 1))
 
-        const orderIds = orderIdsData?.map((o) => o.id) || []
         const salesCountMap = new Map<string, number>()
-        if (orderIds.length > 0) {
-            const { data: orderItemsSales } = await supabase
-                .from('order_items')
-                .select('product_id, quantity')
-                .in('order_id', orderIds)
-                .in('product_id', ids)
-            orderItemsSales?.forEach((s) => {
-                salesCountMap.set(s.product_id, (salesCountMap.get(s.product_id) || 0) + (s.quantity || 1))
-            })
-        }
+        orderItemsSales?.forEach((s: any) => {
+            salesCountMap.set(s.product_id, (salesCountMap.get(s.product_id) || 0) + (s.quantity || 1))
+        })
 
         setItems(rows.map((p) => ({
             ...p,
@@ -119,7 +117,7 @@ export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogP
             salesCount: salesCountMap.get(p.id) || 0,
         })))
         setLoading(false)
-    }, [storeId, kind])
+    }, [storeId, kind, all])
 
     useEffect(() => { load() }, [load])
 
@@ -135,9 +133,10 @@ export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogP
 
     const isService = kind === 'service'
     const Icon = isService ? Wrench : Package
-    const title = isService ? 'Serviços da Loja' : 'Produtos da Loja'
-    const emptyLabel = isService ? 'Nenhum serviço cadastrado.' : 'Nenhum produto cadastrado.'
-    const createLabel = isService ? 'Criar primeiro serviço' : 'Criar primeiro produto'
+    const digital = kind === 'digital'
+    const title = isService ? 'Serviços da Loja' : digital ? 'Conteúdos digitais' : 'Produtos da Loja'
+    const emptyLabel = isService ? 'Nenhum serviço cadastrado.' : digital ? 'Nenhum conteúdo digital ainda.' : 'Nenhum produto cadastrado.'
+    const createLabel = isService ? 'Criar primeiro serviço' : digital ? 'Publicar o primeiro conteúdo' : 'Criar primeiro produto'
     const createHref = `/${storeSlug}/criar-produto${isService ? '?type=service' : ''}`
 
     const body = (

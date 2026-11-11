@@ -36,3 +36,18 @@ export function hourlyLine(tariff: FareTariff, exampleKm = EXAMPLE_KM): string |
     const earning = rides * calculateFare(exampleKm, tariff)
     return `Em 1 hora: cerca de ${money(Math.round(earning))} com ${num(rides, 0)} ${rides === 1 ? 'corrida' : 'corridas'} de ${num(exampleKm)} km`
 }
+
+/**
+ * Como o valor da corrida (só partida → chegada, sem o deslocamento do motorista) sai da tarifa:
+ * dentro dos km incluídos paga só a base; depois dela soma o valor por km.
+ * "Corrida de 3,6 km (partida → chegada): R$ 7,00 até 3 km + 0,6 km × R$ 2,00 = R$ 8,20."
+ */
+export function tripFareText(distanceKm: number, tariff: FareTariff): string {
+    const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+    const km = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
+    const baseKm = `${num(tariff.baseDistanceKm)} km`
+    const extraKm = Math.max(0, distanceKm - tariff.baseDistanceKm)
+    if (extraKm <= 0) return `Corrida de ${km(distanceKm)} (partida → chegada): dentro dos ${baseKm} da base, ${brl(tariff.baseFee)}.`
+    const total = tariff.baseFee + extraKm * tariff.pricePerKm
+    return `Corrida de ${km(distanceKm)} (partida → chegada): ${brl(tariff.baseFee)} até ${baseKm} + ${km(extraKm)} × ${brl(tariff.pricePerKm)} = ${brl(total)}.`
+}

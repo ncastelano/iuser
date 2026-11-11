@@ -5,11 +5,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Spinner } from '@/components/Spinner'
 import { AlertTriangle, X, Copy, CreditCard } from 'lucide-react'
+import { limitText, usePostpaidLimit } from '@/lib/postpaid'
 
-const DEBT_LIMIT = 50
 
 interface PixData {
     pixQrCodeImage: string
@@ -18,11 +18,12 @@ interface PixData {
 }
 
 // Mostra o saldo devedor do pós-pago (um valor por serviço, ajustável pelo
-// admin em service_pricing) e, ao atingir R$50, vira um aviso bloqueante com
+// admin em service_pricing) e, ao atingir o limite (hoje R$ 100), vira um aviso bloqueante com
 // botão de pagar via Pix.
 // Montado em painel-motorista e aceitar-corridas — só faz sentido pra quem
 // já tem o modo motorista disponível.
 export default function DriverDebtBanner({ userId }: { userId: string | null }) {
+    const DEBT_LIMIT = usePostpaidLimit()
     const { colors } = useTheme()
     const [debt, setDebt] = useState(0)
     const [isPostpaid, setIsPostpaid] = useState(false)
@@ -123,12 +124,12 @@ export default function DriverDebtBanner({ userId }: { userId: string | null }) 
                 <AlertTriangle size={18} style={{ color: isBlocking ? '#ef4444' : colors.textSecondary }} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                     <p className="text-xs font-black" style={{ color: isBlocking ? '#ef4444' : colors.textPrimary }}>
-                        {isBlocking ? 'Pós-pago atingiu R$ 50,00' : `Pós-pago: R$ ${debt.toFixed(2)} acumulados`}
+                        {isBlocking ? `Pós-pago atingiu o limite de ${limitText(DEBT_LIMIT)}` : `Pós-pago: R$ ${debt.toFixed(2)} acumulados`}
                     </p>
                     <p className="text-[11px]" style={{ color: colors.textSecondary }}>
                         {isBlocking
                             ? 'Quite pra continuar aceitando novas corridas'
-                            : 'Cada serviço oferecido (corrida, serviço ou pedido de loja) usa um crédito — pague via Pix ao chegar em R$ 50'}
+                            : 'Cada serviço oferecido (corrida, serviço ou pedido de loja) usa um crédito — pague via Pix ao chegar em ' + limitText(DEBT_LIMIT)}
                     </p>
                     <Link href="/planos/pos-pago" className="inline-block mt-1 text-[11px] font-black underline" style={{ color: '#f97316' }}>
                         Saber mais

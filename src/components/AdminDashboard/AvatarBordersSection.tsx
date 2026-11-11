@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, Save, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
 import ProfilePicker from './ProfilePicker'

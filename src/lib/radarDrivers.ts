@@ -121,3 +121,19 @@ export function createDriverMarkerElement(d: Pick<RadarDriverItem, 'id' | 'photo
     el.onclick = (e) => { e.stopPropagation(); onClick() }
     return { el, unmount }
 }
+
+/** Marcador SÓ COM O TIPO DE VEÍCULO (carro/moto/bicicleta), sem foto nem inicial da pessoa: é o do mapa do /pedir-motorista (11/11/2026,
+ *  decisão do dono — no pedido o passageiro quer ver que tipo de motorista há por perto, não quem é; o card ao tocar segue o mesmo). */
+export function createVehicleIconMarkerElement(d: Pick<RadarDriverItem, 'kind'>, onClick: () => void): { el: HTMLElement; unmount: () => void } {
+    const el = document.createElement('div')
+    el.setAttribute('aria-label', d.kind === 'moto' ? 'Moto disponível' : d.kind === 'bicicleta' ? 'Bicicleta disponível' : 'Carro disponível')
+    el.style.cssText = 'cursor:pointer;'
+    const dot = document.createElement('div')
+    dot.style.cssText = 'width:30px;height:30px;border-radius:9999px;background:#fff;border:2.5px solid #16a34a;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);transition:transform .2s;'
+    dot.innerHTML = vehicleGlyphSvg(d.kind, '#16a34a', 16)
+    dot.onmouseenter = () => { dot.style.transform = 'scale(1.15)' }
+    dot.onmouseleave = () => { dot.style.transform = 'scale(1)' }
+    el.appendChild(dot)
+    el.onclick = (e) => { e.stopPropagation(); onClick() }
+    return { el, unmount: () => {} }
+}

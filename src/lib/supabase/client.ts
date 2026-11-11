@@ -3,7 +3,11 @@ import { createBrowserClient } from '@supabase/ssr'
 import { processLock } from '@supabase/supabase-js'
 import { trackEgressBytes, trackRealtimeMessage } from '@/lib/usageTelemetry'
 import { optimizeImageForUpload } from '@/lib/optimizeImage'
+import { checkPhotoUpload } from '@/lib/uploadLimits'
+import { registerMediaAsset } from '@/lib/mediaAssets'
+import { authorizeUpload, uploadBodyInfo, uploadDeniedStatus } from '@/lib/uploadAuthorization'
 import { proxyImageUrl } from '@/lib/imageProxy'
+import { isLocalDevOnly } from '@/lib/devOnly'
 import { clearMaintenance, getMaintenance, reportMaintenance } from '@/lib/maintenance'
 
 // Fetch customizado só pra medir o tamanho de cada resposta que volta do
@@ -105,10 +109,23 @@ supabase.storage.from = ((bucket: string) => {
         nextBody = optimized
         nextOptions = { ...(options || {}), contentType: optimized.type }
       }
+      // Aviso claro ANTES de enviar (o Storage recusa o mesmo no servidor: migration 20261130000018). Arquivo sem tipo recebe o da extensão.
+      const check = checkPhotoUpload(bucket, { size: nextBody.size, type: nextBody.type, name: (body as File).name }, path)
+      if (!check.ok) return { data: null, error: Object.assign(new Error(check.message), { statusCode: check.reason === 'size' ? '413' : '415' }) } as any
+      if (!nextBody.type && !nextOptions?.contentType) nextOptions = { ...(nextOptions || {}), contentType: check.contentType }
+    }
+    // Autorização no BANCO (migration 20261130000020): login, bloqueios, tipo, tamanho, plano, ritmo e cotas por pessoa. Se o banco não responde, o envio segue direto e a política do Storage decide.
+    const info = uploadBodyInfo(nextBody, nextOptions)
+    if (info) {
+      const auth = await authorizeUpload(supabase, { bucket, path, bytes: info.bytes, mime: info.mime, upsert: !!nextOptions?.upsert })
+      if (auth.status === 'denied') return { data: null, error: Object.assign(new Error(auth.message), { statusCode: uploadDeniedStatus(auth.code), code: auth.code }) } as any
     }
     // cache de 1 ano só quando não é troca no mesmo caminho (upsert); senão fica o padrão
     if (!nextOptions?.cacheControl && !nextOptions?.upsert) nextOptions = { ...(nextOptions || {}), cacheControl: '31536000' }
-    return originalUpload(path, nextBody, nextOptions)
+    const result = await originalUpload(path, nextBody, nextOptions)
+    // Contabilidade (media_assets): anota o arquivo enviado SEM esperar e sem nunca atrapalhar o envio (falha é engolida; ver lib/mediaAssets.ts)
+    if (!result.error) void registerMediaAsset(supabase, bucket, result.data?.path || path)
+    return result
   }) as typeof api.upload
   // Links públicos saem pelo endereço de imagens do próprio site (cache da Vercel; ver imageProxy.ts). Cobre os ~175 pontos
   // que chamam getPublicUrl sem tocar em nenhum, inclusive o link que o app grava no banco ao enviar uma foto nova.
@@ -119,3 +136,6 @@ supabase.storage.from = ((bucket: string) => {
   }) as typeof api.getPublicUrl
   return api
 }) as typeof supabase.storage.from
+
+// Gancho de verificação: só em desenvolvimento com o Supabase LOCAL (lib/devOnly.ts; em produção, staging e preview não existe). No console: `__supabase.storage.from('avatars').upload(...)`.
+if (typeof window !== 'undefined' && isLocalDevOnly()) (window as unknown as { __supabase?: typeof supabase }).__supabase = supabase

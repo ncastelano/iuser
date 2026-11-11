@@ -2,7 +2,7 @@
 //
 // Painel do perfil (modo "Meu perfil"): tudo o que o ProfileDashboard mostra — informações, notificações, comentários,
 // agenda, publicações, indicações, visitantes, configurações —, agora dentro da casca de modos (topo + menu lateral) e
-// com um cabeçalho no desenho do /modeloinicial. "Ver perfil" leva ao perfil público (/<profileSlug>).
+// com um cabeçalho no desenho da home da 3.0. "Ver perfil" leva ao perfil público (/<profileSlug>).
 // O administrador geral ganha uma segunda aba, "Administrador": tudo o que a aba Administrador do Header tinha
 // (atividade, pagamentos, financeiro, planos, tarifas, graduação, "Interface 3.0" — onde libera a 3.0 por perfil...).
 'use client'

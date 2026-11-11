@@ -18,12 +18,13 @@
 // e tampar o mapa.
 'use client'
 
+import { RideWaitBox } from '@/components/ride/RideWaitBox'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { ArrowLeft, MessageCircle, LocateFixed, Navigation, MapPin, Flag, Ban, Route } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition } from '@/lib/nativeGeolocation'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -38,7 +39,7 @@ import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { kindForRideType, type VehicleType, type VehicleKind } from '@/lib/rideVehicle'
-import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, computePickupFee } from '@/lib/driverPricing'
+import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, computePickupFee, type DriverPricing } from '@/lib/driverPricing'
 import { computeRideTariffs } from '@/lib/rideTariffs'
 import { submitRideApplication } from '@/lib/rideApplication'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -46,6 +47,8 @@ import { getProfileRideRatingsBatch } from '@/lib/rideReviews'
 import { MAP_TRANSITION_KEY } from '../RideMiniMap'
 import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
+import { devDriveAvailable, devDriveEnabled, devDriveSpeed, useDevDrive } from '@/lib/devDrive'
+import DevDriveChip from '@/components/dev/DevDriveChip'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -114,6 +117,24 @@ function smoothBearing(prev: number | null, raw: number, alpha: number): number 
     return toDeg(Math.atan2(y, x))
 }
 
+// "Frente da rua": para onde a câmera olha quando está seguindo o carro — o rumo do trecho da ROTA logo à frente (uns 110 m), não o do GPS
+// (que treme e, parado, aponta para qualquer lado). Sem rota ainda, quem chama usa o rumo do movimento.
+const AHEAD_METERS = 110
+function aheadBearing(pos: [number, number], coords: [number, number][]): number | null {
+    if (coords.length < 2) return null
+    let nearest = 0
+    let best = Infinity
+    for (let i = 0; i < coords.length; i++) {
+        const d = haversineKm(pos, coords[i])
+        if (d < best) { best = d; nearest = i }
+    }
+    let acc = 0
+    let j = nearest
+    while (j < coords.length - 1 && acc < AHEAD_METERS) { acc += haversineKm(coords[j], coords[j + 1]) * 1000; j++ }
+    if (haversineKm(pos, coords[j]) * 1000 < 15) return null
+    return computeBearing(pos, coords[j])
+}
+
 // Mesmo cuidado de ../RideMapDialog.tsx: sem transition CSS fixa (o
 // mapbox-gl já reprojeta o marcador sozinho ao arrastar o mapa) — o
 // deslize suave só entra quando ESTE código chama setLngLat, numa
@@ -134,6 +155,8 @@ function animateMarkerTo(m: mapboxgl.Marker, to: [number, number], duration = 70
 
 interface AcceptedRideMapDetail {
     id: string
+    /** o valor combinado (congelado quando o passageiro escolheu o motorista) */
+    agreed_price?: number | null
     vehicle_type: VehicleType
     origin_address: string
     destination_address: string
@@ -158,7 +181,7 @@ interface AcceptedRideMapDetail {
 
 // Só as colunas que a oferta pública tem (sem etapas do motorista, que só existem depois do aceite)
 const PREVIEW_RIDE_SELECT = 'id, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop2_address, stop2_lat, stop2_lng, distance_km, duration_min'
-const ACCEPTED_RIDE_SELECT = 'id, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_lat, stop2_lng, stop2_reached_at, driver_en_route, driver_arrived_at, ride_started_at, distance_km, duration_min'
+const ACCEPTED_RIDE_SELECT = 'id, agreed_price, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_lat, stop2_lng, stop2_reached_at, driver_en_route, driver_arrived_at, ride_started_at, distance_km, duration_min'
 
 // Mesmas colunas do card de /aceitar-corridas (quem pediu, o que leva, pagamento...).
 const OFFER_SELECT = 'id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, stop1_address, stop2_address, offered_price, order_id, store_id'
@@ -169,6 +192,10 @@ interface OfferData {
     storeName: string | null
     platformPrice: number
     customPrice: number | null
+    customShape: DriverPricing | null
+    useCustom: boolean
+    timeRate: number | null
+    timeExtras: number
 }
 
 const SHEET_MIN_VH = 22
@@ -204,6 +231,7 @@ function AceitarCorridasMapaContent() {
     const fitRef = useRef<{ bounds: mapboxgl.LngLatBounds; padding: { top: number; bottom: number; left: number; right: number } } | null>(null)
     const fitStageRef = useRef<0 | 1 | 2>(0)
     const fixedMarkersRef = useRef<mapboxgl.Marker[]>([])
+    const routeCoordsRef = useRef<[number, number][]>([])
 
     const [loading, setLoading] = useState(true)
     const [showChat, setShowChat] = useState(false)
@@ -211,6 +239,8 @@ function AceitarCorridasMapaContent() {
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideMapDetail | null>(null)
     const [myVehicleKinds, setMyVehicleKinds] = useState<VehicleKind[]>(['carro'])
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
+    // o valor INICIAL da corrida (combinado): o preço congelado ao escolher o motorista ou, na falta dele, a proposta aceita
+    const [proposedFallback, setProposedFallback] = useState<number | null>(null)
     const [following, setFollowing] = useState(!isPreview)
     const [offer, setOffer] = useState<OfferData | null>(null)
     // Vindo de "Ver no mapa" na lista: a imagem do mini mapa (que acabou de crescer
@@ -325,14 +355,14 @@ function AceitarCorridasMapaContent() {
                 r.requester_id ? getProfileRideRatingsBatch(supabase, [r.requester_id]) : Promise.resolve(new Map()),
                 supabase
                     .from('driver_pricing')
-                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado')
+                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado')
                     .eq('driver_id', userId)
                     .maybeSingle(),
                 r.store_id ? supabase.from('stores').select('name').eq('id', r.store_id).maybeSingle() : Promise.resolve({ data: null }),
             ])
             if (cancelled) return
             await loadPlatformTariffs(supabase)
-            const { platformPrice, customPrice } = computeRideTariffs(
+            const { platformPrice, customPrice, customShape, useCustom, timeRate, timeExtras } = computeRideTariffs(
                 r as Parameters<typeof computeRideTariffs>[0],
                 (pricing ? pricing : { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }) as Parameters<typeof computeRideTariffs>[1]
             )
@@ -348,6 +378,10 @@ function AceitarCorridasMapaContent() {
                 storeName: (storeRes.data as { name: string } | null)?.name || null,
                 platformPrice,
                 customPrice,
+                customShape,
+                useCustom,
+                timeRate,
+                timeExtras,
             })
         })()
         return () => { cancelled = true }
@@ -387,15 +421,52 @@ function AceitarCorridasMapaContent() {
         }
     }
 
+    useEffect(() => {
+        if (!acceptedRide || isPreview || acceptedRide.agreed_price != null || !userId) { setProposedFallback(null); return }
+        let alive = true
+        void supabase.from('ride_applications').select('proposed_price').eq('ride_request_id', acceptedRide.id).eq('applicant_id', userId).eq('status', 'accepted').maybeSingle()
+            .then(({ data }) => { if (alive) setProposedFallback(data?.proposed_price != null ? Number(data.proposed_price) : null) })
+        return () => { alive = false }
+    }, [acceptedRide?.id, acceptedRide?.agreed_price, isPreview, userId])   // eslint-disable-line react-hooks/exhaustive-deps
+
+    // MOTORISTA DE TESTE (só LOCAL): o carro anda sozinho pelas ruas, no lugar do GPS do aparelho (ver lib/devDrive)
+    const [simOn, setSimOn] = useState(false)
+    const [simSpeed, setSimSpeed] = useState(1)
+    const [simAvailable, setSimAvailable] = useState(false)
+    useEffect(() => { setSimAvailable(devDriveAvailable()); setSimOn(devDriveEnabled()); setSimSpeed(devDriveSpeed()) }, [])
+
+    // ===== PARADO OU DIRIGINDO? =====
+    // O chat só existe com o carro PARADO (quem dirige não escreve): considera "dirigindo" se andou 10 m ou mais nos últimos 6 s.
+    // Andar menos que isso (GPS tremendo no sinal, na porta) conta como parado.
+    const moveAnchorRef = useRef<[number, number] | null>(null)
+    const lastMoveAtRef = useRef(0)
+    const [moving, setMoving] = useState(false)
+    useEffect(() => {
+        if (!driverCoords) return
+        const anchor = moveAnchorRef.current
+        if (!anchor) { moveAnchorRef.current = driverCoords; return }
+        if (haversineKm(anchor, driverCoords) * 1000 >= 10) { moveAnchorRef.current = driverCoords; lastMoveAtRef.current = Date.now() }
+    }, [driverCoords])
+    useEffect(() => {
+        const t = setInterval(() => {
+            const m = Date.now() - lastMoveAtRef.current < 6000
+            setMoving((prev) => (prev === m ? prev : m))
+        }, 1000)
+        return () => clearInterval(t)
+    }, [])
+    useEffect(() => { if (moving) setShowChat(false) }, [moving])
+
     // ===== POSIÇÃO AO VIVO DO MOTORISTA =====
     useEffect(() => {
+        if (simOn && !isPreview) return
         const watch = watchNativePosition(
             (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
             () => toast.error('Não conseguimos acessar sua localização. Ative o GPS pra navegar.'),
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
         )
         return () => watch.clear()
-    }, [])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [simOn])
 
     // ===== ORIENTAÇÃO POR VOZ (mesma lógica de ../page.tsx) =====
     const voiceNavPhase: 'pickup' | 'trip' | null = !acceptedRide || isPreview
@@ -453,6 +524,32 @@ function AceitarCorridasMapaContent() {
         return null
     })()
 
+    // O carro de teste anda até a partida (depois de "Ir até o ponto de partida") e, depois de "Iniciar corrida", até cada parada e o destino
+    const simTarget = (() => {
+        if (!acceptedRide || isPreview) return null
+        if (voiceNavPhase === 'pickup' && acceptedRide.origin_lat != null && acceptedRide.origin_lng != null) return { lng: acceptedRide.origin_lng, lat: acceptedRide.origin_lat, key: `${acceptedRide.id}:pickup` }
+        if (currentTripLeg) return { lng: currentTripLeg.lng, lat: currentTripLeg.lat, key: `${acceptedRide.id}:${currentTripLeg.kind}` }
+        return null
+    })()
+    // acabou de tocar em "Iniciar corrida" sem o carro ter chegado na partida: ele aparece na partida e segue dali
+    const simSnap = (() => {
+        if (!acceptedRide || isPreview || !acceptedRide.ride_started_at || acceptedRide.origin_lat == null || acceptedRide.origin_lng == null) return null
+        if (Date.now() - new Date(acceptedRide.ride_started_at).getTime() > 8000) return null
+        if (driverCoords && haversineKm(driverCoords, [acceptedRide.origin_lng, acceptedRide.origin_lat]) * 1000 <= 150) return null
+        return { lng: acceptedRide.origin_lng, lat: acceptedRide.origin_lat, key: `${acceptedRide.id}:snap-start` }
+    })()
+    useDevDrive({
+        on: simOn && simAvailable && !isPreview,
+        speed: simSpeed,
+        userId: userId ?? null,
+        ready: !!acceptedRide,
+        pos: driverCoords,
+        setPos: setDriverCoords,
+        target: simTarget,
+        origin: acceptedRide && acceptedRide.origin_lat != null && acceptedRide.origin_lng != null ? [acceptedRide.origin_lng, acceptedRide.origin_lat] : null,
+        snap: simSnap,
+    })
+
     // ===== MAPA: cria uma vez, com o alvo inicial =====
     useEffect(() => {
         if (!containerRef.current || !navTarget || mapRef.current) return
@@ -463,9 +560,7 @@ function AceitarCorridasMapaContent() {
             zoom: 15,
             attributionControl: false,
         })
-        // Bússola visível agora que o mapa gira com a direção do
-        // movimento — dá pra tocar nela pra voltar ao norte pra cima.
-        map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right')
+        // Sem botões por cima do mapa (zoom/bússola): o mapa fica limpo, o zoom é com os dedos e o "seguindo" fica no card de baixo.
 
         // Gesto do usuário (arrastar/zoom/rotacionar) desliga o modo
         // centralizar — igual comportamento de qualquer app de navegação.
@@ -597,15 +692,14 @@ function AceitarCorridasMapaContent() {
             prevBearingCoordsRef.current = driverCoords
         }
 
-        if (followingRef.current) {
-            map.easeTo({ center: driverCoords, bearing: bearingRef.current ?? map.getBearing(), duration: 600 })
-        }
+        if (followingRef.current) followCamera(map, driverCoords)
 
         const reqId = ++routeReqIdRef.current
         fetchRoute(driverCoords, [navTarget.lng, navTarget.lat])
             .then((leg) => {
                 if (routeReqIdRef.current !== reqId) return
                 const src = map.getSource('nav-route') as mapboxgl.GeoJSONSource | undefined
+                routeCoordsRef.current = leg.coords
                 src?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: leg.coords } })
                 setRouteKm(leg.distanceKm)
                 setRouteMin(leg.durationMin)
@@ -614,11 +708,28 @@ function AceitarCorridasMapaContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapReady, driverCoords, navTarget?.lat, navTarget?.lng])
 
-    const recenter = () => {
+    // Câmera de SEGUIR: fica no carro (mais embaixo na tela, para sobrar rua à frente), olhando para onde a rota segue e um pouco inclinada
+    const followCamera = (map: mapboxgl.Map, coords: [number, number]) => {
+        const ahead = aheadBearing(coords, routeCoordsRef.current)
+        if (ahead != null) bearingRef.current = smoothBearing(bearingRef.current, ahead, 0.5)
+        const h = map.getContainer().clientHeight
+        map.easeTo({
+            center: coords,
+            bearing: bearingRef.current ?? map.getBearing(),
+            pitch: 55,
+            zoom: map.getZoom() < 16 ? 17 : map.getZoom(),
+            padding: { top: Math.round(h * 0.38), bottom: 0, left: 0, right: 0 },
+            duration: 800,
+            essential: true,
+        })
+    }
+
+    // Botão de "estou seguindo o carro?": ligado a câmera acompanha; desligado (ou ao arrastar o mapa) a pessoa explora livre
+    const toggleFollow = () => {
+        if (following) { setFollowing(false); return }
         setFollowing(true)
-        if (mapRef.current && driverCoords) {
-            mapRef.current.easeTo({ center: driverCoords, bearing: bearingRef.current ?? mapRef.current.getBearing(), duration: 600 })
-        }
+        followingRef.current = true
+        if (mapRef.current && driverCoords) followCamera(mapRef.current, driverCoords)
     }
 
     // ===== AÇÕES DA CORRIDA (mesma lógica de ../page.tsx) =====
@@ -806,15 +917,18 @@ function AceitarCorridasMapaContent() {
     const primaryStyle = { background: GRADIENT, color: '#fff' }
     const secondaryBtn = 'flex-1 py-3 rounded-xl font-black uppercase text-xs tracking-wider transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-1.5'
     const secondaryStyle = { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+    // "Indo para: Partida · 0.9 km · 2 min" no próprio card (no lugar do antigo "Indo até o ponto de partida" e da ilha que ficava no topo do mapa)
+    const navStats = routeKm != null ? ` · ${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min` : ''}` : ''
     const phaseTitle = isPreview
         ? 'Corrida disponível'
         : !acceptedRide.driver_en_route
             ? 'Corrida aceita'
             : !acceptedRide.driver_arrived_at
-                ? 'Indo até o ponto de partida'
+                ? `Indo para: Partida${navStats}`
                 : !acceptedRide.ride_started_at
                     ? 'Você chegou na partida'
-                    : 'Corrida em andamento'
+                    : `Indo para: ${navTarget?.label ?? 'Chegada'}${navStats}`
+    const ridePrice: number | null = acceptedRide.agreed_price != null ? Number(acceptedRide.agreed_price) : proposedFallback
     const shownTripKm = acceptedRide.distance_km ?? tripKm
     const shownTripMin = acceptedRide.duration_min ?? tripMin
 
@@ -829,30 +943,6 @@ function AceitarCorridasMapaContent() {
                     style={{ background: '#111', transform: sheetShown ? 'scale(1)' : 'scale(1.12)', transition: 'transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1)' }}
                 />
 
-                <div className="absolute top-6 left-4 right-4 z-10 flex items-center gap-3">
-                    <button
-                        onClick={() => router.push(backUrl)}
-                        className="w-11 h-11 rounded-full flex items-center justify-center shadow-xl flex-shrink-0"
-                        style={{ background: colors.surface, color: colors.textPrimary }}
-                    >
-                        <ArrowLeft size={20} />
-                    </button>
-                    <div className="flex-1 px-4 py-2.5 rounded-full shadow-xl text-center" style={{ background: colors.surface }}>
-                        <span className="text-xs font-black" style={{ color: colors.textPrimary }}>
-                            {navTarget ? `Indo para: ${navTarget.label}` : 'Navegação'}
-                            {routeKm != null && ` · ${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min` : ''}`}
-                        </span>
-                    </div>
-                </div>
-
-                <button
-                    onClick={recenter}
-                    className="absolute z-10 w-11 h-11 rounded-full flex items-center justify-center shadow-xl"
-                    style={{ right: 10, bottom: 120, background: following ? GRADIENT : colors.surface, color: following ? '#fff' : colors.textPrimary }}
-                    title={following ? 'Centralizando automaticamente' : 'Centralizar no meu local'}
-                >
-                    <LocateFixed size={20} />
-                </button>
             </div>
 
             {/* CARD — mesmo visual do /pedir-motorista */}
@@ -877,6 +967,10 @@ function AceitarCorridasMapaContent() {
                                 platformPrice={offer.platformPrice + (pickupFee.state === 'ready' ? pickupFee.amount : 0)}
                                 pickup={pickupFee}
                                 customPrice={offer.customPrice}
+                                valueFromOwn={offer.useCustom}
+                                timeRate={offer.timeRate}
+                                timeExtras={offer.timeExtras}
+                                customPickup={offer.ride.offered_price == null && offer.customShape && pickupFee.state === 'ready' ? computePickupFee(offer.customShape, pickupFee.km) : 0}
                                 toPickup={{ km: routeKm, min: routeMin, hasGps: !!driverCoords }}
                                 trip={{ km: shownTripKm, min: shownTripMin }}
                                 applying={applying}
@@ -888,11 +982,46 @@ function AceitarCorridasMapaContent() {
                         )
                     ) : (
                     <>
-                    <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>{phaseTitle}</h2>
+                    {/* TUDO embaixo, no card: voltar, "Indo para: ..." e o botão de seguir o carro (nada flutua por cima do mapa) */}
+                    <div className="flex items-center gap-2.5 mb-2">
+                        <button
+                            onClick={() => router.push(backUrl)}
+                            aria-label="Voltar"
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:scale-95 transition"
+                            style={{ background: `${colors.border}45`, color: colors.textPrimary }}
+                        >
+                            <ArrowLeft size={18} />
+                        </button>
+                        <h2 className="flex-1 min-w-0 text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{phaseTitle}</h2>
+                        <button
+                            onClick={toggleFollow}
+                            aria-pressed={following}
+                            className="flex-shrink-0 h-10 px-3 rounded-full flex items-center gap-1.5 text-[12px] font-black active:scale-95 transition"
+                            style={following
+                                ? { background: '#22c55e22', color: '#16a34a', border: '1.5px solid #22c55e' }
+                                : { background: GRADIENT, color: '#fff', border: '1.5px solid transparent' }}
+                            title={following ? 'A câmera está centralizada no carro (toque para soltar)' : 'Voltar a seguir o carro'}
+                        >
+                            {following ? <Navigation size={14} fill="currentColor" /> : <LocateFixed size={14} />}
+                            {following ? 'Centralizado' : 'Recentralizar'}
+                        </button>
+                    </div>
+                    {simAvailable && (
+                        <div className="mb-2">
+                            <DevDriveChip on={simOn} speed={simSpeed} onChange={(o, v) => { setSimOn(o); setSimSpeed(v) }} />
+                        </div>
+                    )}
                     <div className="flex items-start gap-2 text-xs mb-2" style={{ color: colors.textSecondary }}>
                         <MapPin size={12} className="flex-shrink-0 mt-0.5" />
                         <span>{routeLine}</span>
                     </div>
+                    {/* O VALOR INICIAL da corrida (combinado), sempre à vista; a espera, quando existe, soma-se a ele logo abaixo */}
+                    {ridePrice != null && (
+                        <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2" style={{ background: '#16a34a14', border: '1px solid #16a34a55' }}>
+                            <span className="text-[12px] font-bold" style={{ color: colors.textSecondary }}>Valor da corrida (combinado)</span>
+                            <strong className="text-[15px] tabular-nums" style={{ color: '#16a34a' }}>R$ {ridePrice.toFixed(2).replace('.', ',')}</strong>
+                        </div>
+                    )}
 
                     <div className="flex flex-col gap-2 mt-3">
                         {(
@@ -928,16 +1057,21 @@ function AceitarCorridasMapaContent() {
                                     </button>
                                 )}
 
+                                <RideWaitBox rideId={acceptedRide.id} role="driver" rideStarted={!!acceptedRide.ride_started_at} rideActive basePrice={ridePrice} />
+
                                 <div className="flex items-center gap-2">
-                                    <button onClick={toggleChat} className={secondaryBtn} style={secondaryStyle}>
-                                        <MessageCircle size={14} /> {showChat ? 'Fechar chat' : 'Abrir chat'}
-                                    </button>
+                                    {/* Chat só com o carro parado: quem dirige não conversa */}
+                                    {!moving && (
+                                        <button onClick={toggleChat} className={secondaryBtn} style={secondaryStyle}>
+                                            <MessageCircle size={14} /> {showChat ? 'Fechar chat' : 'Abrir chat'}
+                                        </button>
+                                    )}
                                     <button onClick={cancelRide} disabled={cancelling} className={secondaryBtn} style={{ ...secondaryStyle, color: '#ef4444' }}>
                                         {cancelling ? <Spinner size={14} /> : <><Ban size={14} /> Cancelar</>}
                                     </button>
                                 </div>
 
-                                {showChat && (
+                                {showChat && !moving && (
                                     <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
                                 )}
                             </>
