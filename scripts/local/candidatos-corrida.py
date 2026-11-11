@@ -7,7 +7,7 @@ se candidatarem, um de cada vez, com 1, 2 ou 3 valores — para ver o cartão do
 valores) como o passageiro vê. NUNCA escolhe o motorista pela pessoa: quem escolhe é você, na tela.
 
 Uso:
-  python3 -u scripts/local/candidatos-corrida.py [--para admin-teste] [--max 5] [--gap 4 10]
+  python3 -u scripts/local/candidatos-corrida.py [--para admin-teste] [--max 5] [--gap 30 30]
 
 Os motoristas precisam estar ativos com posição fresca: deixe `python3 scripts/local/seed-drivers.py --loop` rodando.
 """
@@ -99,7 +99,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--para', default='admin-teste', help='profileSlug de quem pede a corrida')
     ap.add_argument('--max', type=int, default=5, help='candidatos por corrida (a corrida lota com 5)')
-    ap.add_argument('--gap', type=float, nargs=2, default=[4, 10], help='segundos entre um candidato e o próximo')
+    ap.add_argument('--gap', type=float, nargs=2, default=[30, 30], help='segundos entre um candidato e o próximo')
     a = ap.parse_args()
 
     who = q_local(f"select id, name from profiles where \"profileSlug\" = {esc(a.para)}")
