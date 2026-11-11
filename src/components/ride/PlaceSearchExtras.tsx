@@ -30,7 +30,7 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents,
     query: string
     /** onde a pessoa está (o centro do mapa): de onde se mede "perto" */
     refPoint: [number, number] | null
-    /** página de CHEGADA: mostra o valor estimado da corrida a partir daqui (a partida; null = ainda sem partida, "a partir de").
+    /** página de CHEGADA: mostra o valor estimado da corrida a partir daqui (a partida; null = ainda sem partida: vale o mínimo, também com "±").
      *  undefined = página de PARTIDA: sem valores */
     priceFrom?: [number, number] | null
     recents: PlacePick[]
@@ -91,7 +91,7 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents,
                 </span>
                 {showPrice && place.coords && (
                     <span className="text-right flex-shrink-0">
-                        <span className="block text-[13px] font-black tabular-nums" style={{ color: '#16a34a' }}>{est.approx ? 'a partir de ' : '≈ '}{brl(est.value)}</span>
+                        <span className="block text-[13px] font-black tabular-nums" style={{ color: '#16a34a' }}>± {brl(est.value)}</span>
                     </span>
                 )}
             </button>
@@ -125,7 +125,7 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, recents,
                                         <span className="text-[12.5px] font-bold truncate" style={{ color: colors.textPrimary }}>{title}</span>
                                     </span>
                                     <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{rest.slice(0, 2).join(', ') || ' '}</span>
-                                    {showPrice && r.coords && <span className="block text-[12px] font-black tabular-nums mt-0.5" style={{ color: '#16a34a' }}>{est.approx ? 'a partir de ' : '≈ '}{brl(est.value)}</span>}
+                                    {showPrice && r.coords && <span className="block text-[12px] font-black tabular-nums mt-0.5" style={{ color: '#16a34a' }}>± {brl(est.value)}</span>}
                                 </button>
                             )
                         })}
