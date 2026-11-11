@@ -520,7 +520,8 @@ def request_rides(target):
 
 def drive_rides():
     # 1) motoristas livres se candidatam às corridas pendentes
-    pend = q_local("select id, distance_km, origin_lat, origin_lng from ride_requests where status = 'pending' and order_id is null order by created_at")
+    pend = q_local("""select r.id, r.distance_km, r.origin_lat, r.origin_lng, public._ride_trip_floor(r.id) as floor from ride_requests r join auth.users u on u.id = r.requester_id
+        where r.status = 'pending' and r.order_id is null and u.email like 'cliente-%@staging.iuser.test' order by r.created_at""")   # corrida de quem testa à mão: candidatos-corrida.py
     if pend:
         free = q_local(("""select dp.driver_id as id, p.name from driver_pricing dp join profiles p on p.id = dp.driver_id where dp.driver_mode_active and dp.driver_id not in (__R__)
             and dp.driver_id not in """ + PIZZA_DRIVERS_SQL + """
@@ -529,7 +530,7 @@ def drive_rides():
             and (select count(*) from ride_applications a where a.applicant_id = dp.driver_id and a.status = 'pending') < 2 order by random() limit 6""").replace('__R__', RESERVED_SQL))
         for d in free:
             r = R.choice(pend)
-            price = round(7 + float(r['distance_km'] or 3) * 2.1 + R.random() * 2, 2)
+            price = max(float(r['floor'] or 0), round(7 + float(r['distance_km'] or 3) * 2.1 + R.random() * 2, 2))
             try:
                 as_user(d['id'], f"insert into ride_applications (ride_request_id, applicant_id, proposed_price) values ({esc(r['id'])}::uuid, {esc(d['id'])}::uuid, {price});")
                 log(f"  🙋 {d['name']} se candidatou a uma corrida (R$ {price:.2f})".replace('.', ',', 1) if False else f"  🙋 {d['name']} se candidatou a uma corrida (R$ {price})")
@@ -539,7 +540,7 @@ def drive_rides():
                     log(f"  ✗ {d['name']} não pôde se candidatar: {msg}")
     # 2) passageiros escolhem um dos candidatos
     for r in q_local("""select r.id, r.requester_id, (select a.id from ride_applications a where a.ride_request_id = r.id and a.status = 'pending' order by random() limit 1) as app
-        from ride_requests r where r.status = 'pending' and exists (select 1 from ride_applications a where a.ride_request_id = r.id and a.status = 'pending')
+        from ride_requests r join auth.users u on u.id = r.requester_id where r.status = 'pending' and u.email like 'cliente-%@staging.iuser.test' and exists (select 1 from ride_applications a where a.ride_request_id = r.id and a.status = 'pending')
         and r.created_at < now() - interval '8 seconds' order by random() limit 6"""):
         try:
             as_user(r['requester_id'], f"select select_ride_driver({esc(r['id'])}::uuid, {esc(r['app'])}::uuid);")
