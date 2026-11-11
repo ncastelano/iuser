@@ -1,4 +1,5 @@
-// src/components/IslandToastFallback.tsx — onde NÃO existe a ilha (2.0 e páginas fora da casca) os avisos de `lib/toast` aparecem como uma pílula no topo, do mesmo jeito (cor + ícone do tipo).
+// src/components/IslandToastFallback.tsx — onde NÃO existe a ilha (2.0 e páginas fora da casca) os avisos de `lib/toast` aparecem como uma pílula EMBAIXO, do mesmo jeito (cor + ícone do tipo).
+// Embaixo (desde 11/11/2026) e não no topo: no topo ela cobria o botão VOLTAR e o título das páginas. Sobe do fundo da tela, acima da faixa "AMBIENTE DE TESTE".
 // Os avisos com CARTÃO (`toast.custom`, ex.: "Nova corrida disponível!" com as tarifas e os botões) NÃO ficam em cima: abrem como uma FOLHA EMBAIXO, colada ao fundo da tela (acima da faixa
 // "AMBIENTE DE TESTE" quando existe), que se expande de baixo para cima; o app ganha espaço embaixo enquanto ela está aberta (`body` com padding e a variável `--toast-sheet-h`).
 'use client'
@@ -65,9 +66,20 @@ export function IslandToastFallback() {
     }, [hasIsland, msg?.id])   // eslint-disable-line react-hooks/exhaustive-deps
     if (hasIsland || !msg) return null
     if (msg.custom) return <BottomSheet key={String(msg.id)}>{msg.custom(msg.id)}</BottomSheet>
+    return <BottomPill key={String(msg.id)} msg={msg} />
+}
+
+function BottomPill({ msg }: { msg: NonNullable<ReturnType<typeof useIslandMessage>['msg']> }) {
     const st = toastStyle(msg.kind)
+    // monta escondida e sobe no quadro seguinte (de baixo para cima)
+    const [shown, setShown] = useState(false)
+    useEffect(() => {
+        const r = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)))
+        return () => cancelAnimationFrame(r)
+    }, [])
     return (
-        <div className="fixed left-0 right-0 z-[200] flex flex-col items-center gap-2 px-3 pointer-events-none" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 10px)' }}>
+        <div className="fixed left-0 right-0 z-[200] flex flex-col items-center gap-2 px-3 pointer-events-none"
+            style={{ bottom: 'calc(var(--staging-banner-h, 0px) + env(safe-area-inset-bottom, 0px) + 12px)', transform: shown ? 'translateY(0)' : 'translateY(140%)', opacity: shown ? 1 : 0, transition: 'transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms' }}>
             <div className="pointer-events-auto max-w-md w-full flex items-center gap-2.5 rounded-full pl-2 pr-2.5 py-2 text-left shadow-xl" style={{ background: '#fff', color: '#0f172a', border: `1.5px solid ${st.color}` }}>
                 <button onClick={() => toast.dismiss(msg.id)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left" aria-label="Dispensar aviso">
                     <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-black flex-shrink-0" style={{ background: st.color }}>{msg.icon || st.glyph}</span>
