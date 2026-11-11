@@ -60,6 +60,7 @@ import {
     QrCode,
     Accessibility,
     ChevronDown,
+    ChevronUp,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import RideTrackingPanel from './RideTrackingPanel'
@@ -492,11 +493,10 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     // Mapa e card agora dividem a tela (mapa em cima, card embaixo, sem se
     // sobrepor — antes o card flutuava por cima do mapa e podia tampar o
     // marcador do endereço digitado). O card acompanha a altura real do
-    // conteúdo (via ResizeObserver), limitado a 60vh — garante que o mapa
+    // conteúdo (via ResizeObserver), limitado a FINAL_MAX_VH (86vh) — garante que o mapa
     // sempre sobra com pelo menos 40% da tela visível, e só aparece scroll
     // dentro do card quando o conteúdo realmente não cabe nesse teto.
     const SHEET_MIN_VH = 22
-    const SHEET_MAX_VH = 60
     // a tela final (veículo, junto, pagamento, pedir) cabe inteira, sem rolar: ela pode subir mais sobre o mapa
     const FINAL_MAX_VH = 86
     const SHEET_PADDING_PX = 48 // pt-4 (16px) + pb-8 (32px) do container, não incluído na medição do conteúdo
@@ -513,7 +513,11 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         ro.observe(node)
         sheetResizeObserverRef.current = ro
     }, [])
-    const sheetMaxVh = step === 'final' ? FINAL_MAX_VH : SHEET_MAX_VH
+    // o cartão acompanha o tamanho do conteúdo em todas as etapas e pode subir até FINAL_MAX_VH: tudo à vista, sem rolar; o mapa fica com o resto
+    const sheetMaxVh = FINAL_MAX_VH
+    // minimizar o cartão: vira uma barrinha com o resumo e o mapa ganha a tela (tocar abre de novo)
+    const [sheetMin, setSheetMin] = useState(false)
+    useEffect(() => { setSheetMin(false) }, [step])
     const sheetHeightVh = contentHeightPx > 0
         ? Math.min(sheetMaxVh, Math.max(SHEET_MIN_VH, ((contentHeightPx + SHEET_PADDING_PX) / window.innerHeight) * 100))
         : sheetMaxVh
@@ -1925,9 +1929,23 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
             {/* Card por etapas — divide a tela com o mapa (embaixo), em vez
                 de flutuar por cima e correr o risco de tampar o endereço
                 que acabou de ser digitado. */}
-            {!activeField && !activeRideId && !checkingActiveRide && (
+            {!activeField && !activeRideId && !checkingActiveRide && sheetMin && (
+                <button type="button" onClick={() => setSheetMin(false)} aria-label="Abrir o pedido"
+                    className="flex-shrink-0 rounded-t-3xl px-4 pt-2.5 pb-[calc(12px+env(safe-area-inset-bottom)+var(--staging-banner-h,0px))] text-left"
+                    style={{ background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}>
+                    <span className="block mx-auto mb-2 w-10 h-1.5 rounded-full" style={{ background: colors.border }} />
+                    <span className="flex items-center gap-2.5">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                        <span className="min-w-0 flex-1 text-[13px] font-bold truncate" style={{ color: colors.textPrimary }}>
+                            {origin.address || destination.address ? `${shortAddress(origin.address) || 'Partida'} → ${shortAddress(destination.address) || 'Chegada'}` : 'Pedir motorista'}
+                        </span>
+                        <span className="flex items-center gap-1 text-[12px] font-black flex-shrink-0" style={{ color: '#ea580c' }}>Abrir <ChevronUp size={15} /></span>
+                    </span>
+                </button>
+            )}
+            {!activeField && !activeRideId && !checkingActiveRide && !sheetMin && (
                 <div
-                    className={`flex-shrink-0 rounded-t-3xl overflow-y-auto ${v3 ? 'px-4 pt-3 pb-5' : 'px-5 pt-4 pb-8'}`}
+                    className={`flex-shrink-0 rounded-t-3xl overflow-y-auto ${v3 ? 'px-4 pt-2 pb-3' : 'px-5 pt-3 pb-8'}`}
                     style={{
                         background: colors.surface,
                         boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
@@ -1936,8 +1954,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     }}
                 >
                     <div ref={setSheetContentRef}>
-                    {/* Indicador de progresso das etapas */}
-                    <div className={`flex items-center gap-1.5 justify-center ${v3 ? 'mb-3' : 'mb-4'}`}>
+                    {/* Indicador de progresso das etapas + MINIMIZAR (o cartão vira uma barrinha e o mapa ganha a tela) */}
+                    <div className={`relative flex items-center gap-1.5 justify-center h-7 ${v3 ? 'mb-1.5' : 'mb-2'}`}>
                         {orderedSteps.map((s, i) => (
                             <div
                                 key={s}
@@ -1948,18 +1966,24 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 }}
                             />
                         ))}
+                        <button type="button" onClick={() => setSheetMin(true)} aria-label="Minimizar e ver o mapa"
+                            className="absolute right-0 top-1/2 -translate-y-1/2 h-7 pl-2 pr-1.5 rounded-full flex items-center gap-0.5 text-[11px] font-black"
+                            style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                            Mapa <ChevronDown size={14} />
+                        </button>
                     </div>
 
-                    {/* ===== ETAPA 1: ONDE (com o tipo do pedido em cima, sem tela própria) ===== */}
+                    {/* ===== ETAPA 1: ONDE — COMPACTA, sem rolar (11/11/2026): o tipo em cima, partida e chegada num cartão só (com as paradas entre
+                        elas), complemento/parada numa linha de atalhos, os lugares recentes numa fileira e as corridas frequentes em linhas de um toque ===== */}
                     {step === 'where' && (
                         <>
                             {calledDriver && (
-                                <div className="mb-3 rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-sm font-bold" style={{ background: '#ea580c1a', color: '#ea580c' }}>
+                                <div className="mb-2 rounded-full px-3 h-9 flex items-center gap-2 text-[12.5px] font-bold" style={{ background: '#ea580c1a', color: '#ea580c' }}>
                                     <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                                     <span className="min-w-0 truncate">Chamando {calledDriver.slug ? `@${calledDriver.slug}` : calledDriver.name || 'o motorista'} — ele será avisado na hora</span>
                                 </div>
                             )}
-                            <div role="tablist" aria-label="Motorista para" className="grid grid-cols-3 gap-1 p-1 rounded-2xl mb-3" style={{ background: `${colors.border}30` }}>
+                            <div role="tablist" aria-label="Motorista para" className="grid grid-cols-3 gap-1 p-1 rounded-2xl mb-2" style={{ background: `${colors.border}30` }}>
                                 {([
                                     { type: 'pessoa' as RequestFor, Icon: Users, label: 'Pessoa' },
                                     { type: 'animal' as RequestFor, Icon: PawPrint, label: 'Animal' },
@@ -1968,269 +1992,113 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                     const on = requestFor === type
                                     return (
                                         <button key={type} role="tab" aria-selected={on} onClick={() => handleSelectType(type)}
-                                            className="h-10 rounded-xl flex items-center justify-center gap-1.5 text-[13px] font-black transition active:scale-95"
+                                            className="h-9 rounded-xl flex items-center justify-center gap-1.5 text-[13px] font-black transition active:scale-95"
                                             style={on ? { background: colors.surface, color: '#ea580c', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' } : { color: colors.textSecondary }}>
                                             <Icon size={15} />{label}
                                         </button>
                                     )
                                 })}
                             </div>
-                        </>
-                    )}
 
-                    {/* ===== ETAPA 2: ENDEREÇOS ===== */}
-                    {step === 'where' && (
-                        <>
-                            {/* Local de início */}
-                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>{requestFor === 'objeto' ? 'Onde buscar?' : requestFor === 'animal' ? 'Onde buscar o animal?' : 'De onde você sai?'}</h2>
-                            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
-                                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
-                                <input
-                                    readOnly
-                                    onClick={() => openField('origin')}
-                                    value={locatingOrigin ? 'Localizando...' : origin.address}
-                                    placeholder="Local de início"
-                                    className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                    style={inputStyle}
-                                />
-                                <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" title="Usar minha localização atual" style={{ color: colors.accent }}>
-                                    {locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}
-                                </button>
-                                <button onClick={() => startPickingOnMap('origin')} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
-                                    <MapPin size={16} />
-                                </button>
-                            </div>
-                            {showOriginComplement ? (
-                                <input
-                                    type="text"
-                                    value={originComplement}
-                                    onChange={(e) => setOriginComplement(e.target.value)}
-                                    autoFocus
-                                    placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
-                                    className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
-                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                />
-                            ) : (
-                                <button
-                                    onClick={() => setShowOriginComplement(true)}
-                                    className="text-xs font-bold mt-2"
-                                    style={{ color: colors.accent }}
-                                >
-                                    + Adicionar complemento
-                                </button>
-                            )}
-
-                            {/* Locais de partida já usados */}
-                            {recentOrigins.length > 0 && (
-                                <div className="flex gap-2 overflow-x-auto pt-2 pb-1">
-                                    {recentOrigins.map((place) => (
-                                        <button
-                                            key={place.address}
-                                            onClick={() => selectRecentOrigin(place)}
-                                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
-                                            style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            <History size={12} style={{ color: '#22c55e' }} />
-                                            {shortAddress(place.address)}
-                                        </button>
-                                    ))}
+                            {/* partida → (paradas) → chegada, num cartão só */}
+                            <div className="rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center gap-2.5 px-3 h-11">
+                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                                    <input readOnly onClick={() => openField('origin')} value={locatingOrigin ? 'Localizando...' : origin.address}
+                                        placeholder={requestFor === 'objeto' ? 'Onde buscar?' : requestFor === 'animal' ? 'Onde buscar o animal?' : 'De onde você sai?'}
+                                        aria-label="Partida" className="flex-1 min-w-0 bg-transparent text-[13.5px] font-semibold focus:outline-none cursor-pointer" style={inputStyle} />
+                                    <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0 p-1" title="Usar minha localização atual" style={{ color: colors.accent }}>{locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}</button>
+                                    <button onClick={() => startPickingOnMap('origin')} className="flex-shrink-0 p-1" title="Escolher local no mapa" style={{ color: colors.accent }}><MapPin size={16} /></button>
                                 </div>
-                            )}
-
-                            {/* Local de chegada */}
-                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3 mt-4`} style={{ color: colors.textPrimary }}>{requestFor === 'pessoa' ? 'Para onde vai?' : 'Para onde levar?'}</h2>
-                            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
-                                <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
-                                <input
-                                    readOnly
-                                    onClick={() => openField('destination')}
-                                    value={locatingDestination ? 'Localizando...' : destination.address}
-                                    placeholder="Local de chegada"
-                                    className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                    style={inputStyle}
-                                />
-                                <button onClick={() => useMyLocationAsDestination()} className="flex-shrink-0" title="Usar minha localização atual" style={{ color: colors.accent }}>
-                                    {locatingDestination ? <Spinner size={16} /> : <MapPinPlus size={16} />}
-                                </button>
-                                <button onClick={() => startPickingOnMap('destination')} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
-                                    <MapPin size={16} />
-                                </button>
+                                {showOriginComplement && (
+                                    <input type="text" value={originComplement} onChange={(e) => setOriginComplement(e.target.value)} autoFocus placeholder="Complemento da partida (casa amarela, portão...)"
+                                        className="w-[calc(100%-1.5rem)] mx-3 mb-2 px-3 py-1.5 rounded-lg text-xs focus:outline-none" style={{ background: `${colors.border}25`, color: colors.textPrimary }} />
+                                )}
+                                {stops.map((st, idx) => {
+                                    const fieldId = idx === 0 ? 'stop0' : 'stop1'
+                                    return (
+                                        <div key={idx} style={{ borderTop: `1px solid ${colors.border}` }}>
+                                            <div className="flex items-center gap-2.5 px-3 h-11">
+                                                <Flag size={13} className="flex-shrink-0" style={{ color: '#eab308' }} />
+                                                <input readOnly onClick={() => openField(fieldId)} value={st.address} placeholder={`${idx + 1}ª parada`} aria-label={`Parada ${idx + 1}`}
+                                                    className="flex-1 min-w-0 bg-transparent text-[13.5px] font-semibold focus:outline-none cursor-pointer" style={inputStyle} />
+                                                <button onClick={() => startPickingOnMap(fieldId)} className="flex-shrink-0 p-1" title="Escolher local no mapa" style={{ color: colors.accent }}><MapPin size={16} /></button>
+                                                <button onClick={() => removeStop(idx)} className="flex-shrink-0 p-1" title="Tirar a parada" style={{ color: colors.textSecondary }}><Trash2 size={15} /></button>
+                                            </div>
+                                            {st.complementOpen && (
+                                                <input type="text" value={st.complement} onChange={(e) => updateStopComplement(idx, e.target.value)} autoFocus placeholder="Complemento da parada"
+                                                    className="w-[calc(100%-1.5rem)] mx-3 mb-2 px-3 py-1.5 rounded-lg text-xs focus:outline-none" style={{ background: `${colors.border}25`, color: colors.textPrimary }} />
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                                <div style={{ borderTop: `1px solid ${colors.border}` }}>
+                                    <div className="flex items-center gap-2.5 px-3 h-11">
+                                        <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
+                                        <input readOnly onClick={() => openField('destination')} value={locatingDestination ? 'Localizando...' : destination.address}
+                                            placeholder={requestFor === 'pessoa' ? 'Para onde vai?' : 'Para onde levar?'}
+                                            aria-label="Chegada" className="flex-1 min-w-0 bg-transparent text-[13.5px] font-semibold focus:outline-none cursor-pointer" style={inputStyle} />
+                                        <button onClick={() => useMyLocationAsDestination()} className="flex-shrink-0 p-1" title="Usar minha localização atual" style={{ color: colors.accent }}>{locatingDestination ? <Spinner size={16} /> : <MapPinPlus size={16} />}</button>
+                                        <button onClick={() => startPickingOnMap('destination')} className="flex-shrink-0 p-1" title="Escolher local no mapa" style={{ color: colors.accent }}><MapPin size={16} /></button>
+                                    </div>
+                                    {showDestinationComplement && (
+                                        <input type="text" value={destinationComplement} onChange={(e) => setDestinationComplement(e.target.value)} autoFocus placeholder="Complemento da chegada (apto, bloco...)"
+                                            className="w-[calc(100%-1.5rem)] mx-3 mb-2 px-3 py-1.5 rounded-lg text-xs focus:outline-none" style={{ background: `${colors.border}25`, color: colors.textPrimary }} />
+                                    )}
+                                </div>
                             </div>
-                            {showDestinationComplement ? (
-                                <input
-                                    type="text"
-                                    value={destinationComplement}
-                                    onChange={(e) => setDestinationComplement(e.target.value)}
-                                    autoFocus
-                                    placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
-                                    className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
-                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                />
-                            ) : (
-                                <button
-                                    onClick={() => setShowDestinationComplement(true)}
-                                    className="text-xs font-bold mt-2"
-                                    style={{ color: colors.accent }}
-                                >
-                                    + Adicionar complemento
-                                </button>
-                            )}
 
-                            {/* Locais de chegada já usados */}
-                            {recentDestinations.length > 0 && (
-                                <div className="flex gap-2 overflow-x-auto pt-2 pb-1">
+                            {/* atalhos numa linha só */}
+                            <div className="flex items-center gap-3 mt-1.5 text-[12px] font-bold" style={{ color: colors.accent }}>
+                                {(!showOriginComplement || !showDestinationComplement) && (
+                                    <button onClick={() => { setShowOriginComplement(true); setShowDestinationComplement(true); stops.forEach((_, i) => openStopComplement(i)) }}>+ Complemento</button>
+                                )}
+                                {stops.length < 2 && <button onClick={addStop} className="flex items-center gap-1"><Plus size={13} />{stops.length === 0 ? 'Parada' : 'Outra parada'}</button>}
+                                {loadingRoutes && <span className="ml-auto flex items-center gap-1.5 font-semibold" style={{ color: colors.textSecondary }}><Spinner size={12} />Calculando rota…</span>}
+                            </div>
+
+                            {/* lugares recentes (partida = verde, chegada = vermelho), uma fileira só */}
+                            {(recentOrigins.length > 0 || recentDestinations.length > 0) && (
+                                <div className="flex gap-1.5 overflow-x-auto mt-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
                                     {recentDestinations.map((place) => (
-                                        <button
-                                            key={place.address}
-                                            onClick={() => selectRecentDestination(place)}
-                                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
-                                            style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            <History size={12} style={{ color: '#ef4444' }} />
-                                            {shortAddress(place.address)}
+                                        <button key={`d-${place.address}`} onClick={() => selectRecentDestination(place)} title="Usar como chegada"
+                                            className="flex-shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[11.5px] font-bold" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                            <History size={11} style={{ color: '#ef4444' }} />{shortAddress(place.address)}
+                                        </button>
+                                    ))}
+                                    {recentOrigins.map((place) => (
+                                        <button key={`o-${place.address}`} onClick={() => selectRecentOrigin(place)} title="Usar como partida"
+                                            className="flex-shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[11.5px] font-bold" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                            <History size={11} style={{ color: '#22c55e' }} />{shortAddress(place.address)}
                                         </button>
                                     ))}
                                 </div>
                             )}
 
-                            {/* Paradas (opcional, até 2) — pontos entre a partida e a chegada */}
-                            {stops.map((s, idx) => {
-                                const fieldId = idx === 0 ? 'stop0' : 'stop1'
-                                return (
-                                    <div key={idx} className="mt-3">
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
-                                                Parada {idx + 1}
-                                            </h3>
-                                            <button
-                                                onClick={() => removeStop(idx)}
-                                                className="flex items-center gap-1 text-xs font-bold"
-                                                style={{ color: colors.textSecondary }}
-                                            >
-                                                <Trash2 size={12} />
-                                                Remover
-                                            </button>
-                                        </div>
-                                        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
-                                            <Flag size={14} className="flex-shrink-0" style={{ color: '#eab308' }} />
-                                            <input
-                                                readOnly
-                                                onClick={() => openField(fieldId)}
-                                                value={s.address}
-                                                placeholder={`Onde vai ser a ${idx + 1}ª parada?`}
-                                                className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                                style={inputStyle}
-                                            />
-                                            <button onClick={() => startPickingOnMap(fieldId)} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
-                                                <MapPin size={16} />
-                                            </button>
-                                        </div>
-                                        {s.complementOpen ? (
-                                            <input
-                                                type="text"
-                                                value={s.complement}
-                                                onChange={(e) => updateStopComplement(idx, e.target.value)}
-                                                autoFocus
-                                                placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
-                                                className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                            />
-                                        ) : (
-                                            <button
-                                                onClick={() => openStopComplement(idx)}
-                                                className="text-xs font-bold mt-2"
-                                                style={{ color: colors.accent }}
-                                            >
-                                                + Adicionar complemento
-                                            </button>
-                                        )}
-                                    </div>
-                                )
-                            })}
-
-                            {stops.length < 2 && (
-                                <button
-                                    onClick={addStop}
-                                    className="flex items-center gap-1.5 text-xs font-bold mt-3"
-                                    style={{ color: colors.accent }}
-                                >
-                                    <Plus size={14} />
-                                    {stops.length === 0 ? 'Adicionar parada' : 'Adicionar outra parada'}
-                                </button>
-                            )}
-
-                            {/* Rota (uma só, sem alternativas) — a distância/tempo aparece no mapa, no marcador de chegada */}
-                            {loadingRoutes && (
-                                <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
-                                    <Spinner size={14} />
-                                    Calculando rota...
-                                </div>
-                            )}
-
-                            <div className="flex items-center gap-2 mt-4">
-                                <button
-                                    onClick={goNext}
-                                    disabled={!origin.address.trim() || !destination.address.trim() || stops.some((s) => !s.address.trim())}
-                                    className={`flex-1 ${v3 ? 'h-12 rounded-full text-[14px]' : 'py-3.5 rounded-xl uppercase text-sm tracking-wider'} font-black transition-all active:scale-95 disabled:opacity-50`}
-                                    style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff' }}
-                                >
-                                    Continuar
-                                </button>
-                            </div>
-                            {/* Corridas que a pessoa já pediu 2+ vezes (mesmo tipo + destino):
-                                atalho pra ver os detalhes e pedir de novo sem digitar tudo. */}
+                            {/* corridas que a pessoa já pediu 2+ vezes: uma linha, um toque preenche tudo (no máximo 2) */}
                             {frequentRides.length > 0 && (
-                                <div className="mt-5">
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <History size={13} style={{ color: colors.textSecondary }} />
-                                        <span className="text-xs font-black" style={{ color: colors.textSecondary }}>Corridas frequentes</span>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        {frequentRides.map((fr) => {
-                                            const isOpen = expandedFrequentRide === fr.key
-                                            const Icon = fr.requestFor === 'pessoa' ? Users : fr.requestFor === 'animal' ? PawPrint : Package
-                                            const label = fr.requestFor === 'pessoa' ? 'Pessoa' : fr.requestFor === 'animal' ? 'Animal' : 'Objeto'
-                                            return (
-                                                <div
-                                                    key={fr.key}
-                                                    className="rounded-2xl overflow-hidden"
-                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
-                                                >
-                                                    <button
-                                                        onClick={() => setExpandedFrequentRide(isOpen ? null : fr.key)}
-                                                        className="w-full flex items-center gap-2.5 py-3 px-3 text-left"
-                                                    >
-                                                        <div className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                                            <Icon size={16} />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{label} · {fr.destinationAddress}</p>
-                                                            <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>De: {fr.originAddress}</p>
-                                                        </div>
-                                                        <span
-                                                            className="flex-shrink-0 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-                                                            style={{ background: `${colors.border}60`, color: colors.textPrimary }}
-                                                        >
-                                                            {fr.count}x
-                                                        </span>
-                                                    </button>
-                                                    {isOpen && (
-                                                        <div className="px-3 pb-3">
-                                                            <button
-                                                                onClick={() => requestFrequentRideAgain(fr)}
-                                                                className="w-full py-2.5 rounded-full font-bold text-xs text-white"
-                                                                style={{ background: GRADIENT }}
-                                                            >
-                                                                Pedir de novo
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
+                                <div className="flex flex-col gap-1 mt-2">
+                                    {frequentRides.slice(0, 2).map((fr) => {
+                                        const Icon = fr.requestFor === 'pessoa' ? Users : fr.requestFor === 'animal' ? PawPrint : Package
+                                        return (
+                                            <button key={fr.key} onClick={() => requestFrequentRideAgain(fr)} className="flex items-center gap-2 px-2.5 h-9 rounded-full text-left active:scale-[0.99] transition" style={{ background: `${colors.border}30` }}>
+                                                <Icon size={13} style={{ color: '#ea580c' }} />
+                                                <span className="min-w-0 flex-1 text-[12px] font-bold truncate" style={{ color: colors.textPrimary }}>{shortAddress(fr.originAddress)} → {shortAddress(fr.destinationAddress)}</span>
+                                                <span className="text-[11px] font-black flex-shrink-0" style={{ color: '#ea580c' }}>Pedir de novo · {fr.count}x</span>
+                                            </button>
+                                        )
+                                    })}
                                 </div>
                             )}
+
+                            <button
+                                onClick={goNext}
+                                disabled={!origin.address.trim() || !destination.address.trim() || stops.some((st) => !st.address.trim())}
+                                className={`w-full mt-3 ${v3 ? 'h-12 rounded-full text-[14px]' : 'py-3.5 rounded-xl uppercase text-sm tracking-wider'} font-black transition-all active:scale-95 disabled:opacity-50`}
+                                style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff' }}
+                            >
+                                Continuar
+                            </button>
                         </>
                     )}
 
@@ -3032,7 +2900,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
                             </>}
 
-                            <div className={v3 ? 'sticky bottom-0 -mx-4 px-4 pt-3 pb-1 mt-4 flex items-center gap-2' : 'flex items-center gap-2 mt-4'} style={v3 ? { background: colors.surface } : undefined}>
+                            <div className={v3 ? 'sticky bottom-0 -mx-4 px-4 pt-2 pb-1 mt-3 flex items-center gap-2' : 'flex items-center gap-2 mt-4'} style={v3 ? { background: colors.surface } : undefined}>
                                 <button
                                     onClick={goPrev}
                                     aria-label="Voltar"
