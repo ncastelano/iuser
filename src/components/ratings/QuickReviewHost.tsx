@@ -2,8 +2,8 @@
 
 // AVALIAÇÃO RÁPIDA da 3.0 (decisão do dono, 10/11/2026): no lugar do cartão grande "Corrida finalizada! · Avaliar agora" + um segundo
 // diálogo, UMA folha que sobe de baixo e já resolve tudo: as ESTRELAS para tocar, o comentário e — na COMPRA e no SERVIÇO — uma foto
-// opcional (corrida de motorista não tem foto). Junta as três pendências numa fila só (corrida → compra → serviço, uma por vez,
-// "1 de 3"); "Depois" esconde aquela (mesma memória do aparelho que os avisos antigos usavam).
+// opcional (corrida de motorista não tem foto). SEM ACÚMULO (11/11/2026): pergunta só sobre a ÚLTIMA coisa finalizada dos últimos 2 dias
+// (corrida, compra ou serviço) e, avaliando OU fechando, tudo o que é mais antigo nunca mais é perguntado (`lib/reviewPrompt`).
 // Onde grava: corrida → ride_reviews; compra → product_reviews (uma linha por produto do pedido, até 5); serviço → submit_appointment_review.
 // A foto vai para o bucket público `posts`, na pasta da própria pessoa (`<id>/avaliacao-<hora>.<ext>`); o banco confere (migration 20261130000063).
 // A 2.0 continua com os avisos de sempre (FinishedRideTrigger / FinishedOrderTrigger).
@@ -17,9 +17,10 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useIsV3 } from '@/components/MaintenanceNotice'
 import { submitReview } from '@/lib/appointmentReviews'
+import { closeAllReviews, latestToReview, reviewsSeenUntil, REVIEW_WINDOW_MS } from '@/lib/reviewPrompt'
 
 type Kind = 'ride' | 'order' | 'service'
-interface Pending { key: string; kind: Kind; title: string; sub: string; dismissKey: string; dismissId: string; photo: boolean; submit: (r: { rating: number; comment: string; photo: string | null }) => Promise<void> }
+interface Pending { key: string; kind: Kind; at: string | null; title: string; sub: string; dismissKey: string; dismissId: string; photo: boolean; submit: (r: { rating: number; comment: string; photo: string | null }) => Promise<void> }
 
 const ORANGE = '#f97316'
 const NOTA = ['', 'Ruim', 'Pode melhorar', 'Ok', 'Boa', 'Excelente!']
@@ -29,10 +30,10 @@ const addDismissed = (k: string, id: string) => { try { const s = readDismissed(
 
 async function loadPending(userId: string): Promise<Pending[]> {
     const out: Pending[] = []
-    // só o que é recente (14 dias): pedir para avaliar algo de meses atrás é ruído
-    const desde = new Date(Date.now() - 14 * 86400000).toISOString()
+    // só o que é recente (a janela de lib/reviewPrompt): pedir para avaliar algo antigo é ruído
+    const desde = new Date(Date.now() - REVIEW_WINDOW_MS).toISOString()
     // ---- corridas concluídas que eu ainda não avaliei (entrega de loja: quem avalia é o cliente, não o entregador) ----
-    const { data: rides } = await supabase.from('ride_requests').select('id, requester_id, driver_id, order_id, created_at')
+    const { data: rides } = await supabase.from('ride_requests').select('id, requester_id, driver_id, order_id, created_at, ride_started_at')
         .or(`requester_id.eq.${userId},driver_id.eq.${userId}`).eq('status', 'completed').gte('created_at', desde).order('created_at', { ascending: false }).limit(60)
     const rideList = (rides || []).filter((r: any) => r.driver_id && !(r.order_id && r.driver_id === userId))
     if (rideList.length) {
@@ -47,7 +48,7 @@ async function loadPending(userId: string): Promise<Pending[]> {
             const souPassageiro = r.requester_id === userId
             const nome = nameOf.get(other) || (souPassageiro ? 'o motorista' : 'o passageiro')
             out.push({
-                key: `ride:${r.id}`, kind: 'ride', dismissKey: 'dismissed_ride_reviews', dismissId: r.id, photo: false,
+                key: `ride:${r.id}`, kind: 'ride', at: r.ride_started_at || r.created_at, dismissKey: 'dismissed_ride_reviews', dismissId: r.id, photo: false,
                 title: r.order_id ? `Como foi a entrega com ${nome}?` : `Como foi a corrida com ${nome}?`, sub: r.order_id ? 'Entrega concluída' : 'Corrida finalizada',
                 submit: async ({ rating, comment }) => {
                     const { error } = await supabase.from('ride_reviews').insert({ ride_request_id: r.id, reviewer_id: userId, reviewee_id: other, rating, comment: comment || null })
@@ -69,7 +70,7 @@ async function loadPending(userId: string): Promise<Pending[]> {
             const itens = [...new Map((o.order_items || []).filter((i: any) => i.product_id).map((i: any) => [i.product_id, i])).values()] as any[]
             if (!itens.length) continue
             out.push({
-                key: `order:${o.checkout_id}`, kind: 'order', dismissKey: 'dismissed_reviews', dismissId: o.checkout_id, photo: true,
+                key: `order:${o.checkout_id}`, kind: 'order', at: o.created_at, dismissKey: 'dismissed_reviews', dismissId: o.checkout_id, photo: true,
                 title: `O que achou da compra na ${o.stores?.name || 'loja'}?`, sub: itens.length > 1 ? `${itens[0].product_name} +${itens.length - 1}` : itens[0].product_name,
                 submit: async ({ rating, comment, photo }) => {
                     const rows = itens.slice(0, 5).map((i) => ({ store_id: o.store_id, product_id: i.product_id, profile_id: userId, order_id: o.checkout_id, rating, comment: comment || null, is_anonymous: false, photo_path: photo }))
@@ -88,7 +89,7 @@ async function loadPending(userId: string): Promise<Pending[]> {
         for (const a of apts as any[]) {
             if (reviewed.has(a.id) || dism.has(a.id)) continue
             out.push({
-                key: `service:${a.id}`, kind: 'service', dismissKey: 'dismissed_service_reviews', dismissId: a.id, photo: true,
+                key: `service:${a.id}`, kind: 'service', at: a.completed_at, dismissKey: 'dismissed_service_reviews', dismissId: a.id, photo: true,
                 title: `Como foi o serviço${a.store_name ? ` na ${a.store_name}` : a.owner_slug ? ` com @${a.owner_slug}` : ''}?`, sub: a.service_name || 'Serviço finalizado',
                 submit: async ({ rating, comment, photo }) => { await submitReview(a.id, rating, comment, photo) },
             })
@@ -151,7 +152,8 @@ export function QuickReviewHost() {
     const load = useCallback(async () => {
         if (!userId || busy.current) return
         busy.current = true
-        try { setFila(await loadPending(userId)) } catch { /* fica como estava */ } finally { busy.current = false }
+        // só UMA: a última coisa finalizada depois da marca (avaliar ou fechar sobe a marca e apaga as antigas)
+        try { const one = latestToReview(await loadPending(userId), reviewsSeenUntil(userId)); setFila(one ? [one] : []) } catch { /* fica como estava */ } finally { busy.current = false }
     }, [userId])
     useEffect(() => {
         if (!isV3 || loading || !userId) return
@@ -165,9 +167,9 @@ export function QuickReviewHost() {
     const blocked = useOtherOverlay(isV3 && !quiet && fila.length > 0)
     if (!isV3 || quiet || !userId || fila.length === 0 || blocked) return null
     const atual = fila[0]
-    return <QuickReviewCard key={atual.key} item={atual} userId={userId} posicao={fila.length > 1 ? `mais ${fila.length - 1} para avaliar` : null}
-        onDone={() => setFila((f) => f.slice(1))}
-        onLater={() => { addDismissed(atual.dismissKey, atual.dismissId); setFila((f) => f.slice(1)) }} />
+    return <QuickReviewCard key={atual.key} item={atual} userId={userId} posicao={null}
+        onDone={() => { closeAllReviews(userId); setFila([]) }}
+        onLater={() => { addDismissed(atual.dismissKey, atual.dismissId); closeAllReviews(userId); setFila([]) }} />
 }
 
 function QuickReviewCard({ item, userId, posicao, onDone, onLater }: { item: Pending; userId: string; posicao: string | null; onDone: () => void; onLater: () => void }) {

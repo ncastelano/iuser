@@ -84,7 +84,8 @@
     "test:order-strip": "node --test scripts/test-order-strip.mjs",
     "test:earnings": "node --test scripts/test-earnings.mjs",
     "test:player": "node --test scripts/test-player.mjs",
-    "test:alert-suppression": "node --test scripts/test-alert-suppression.mjs"
+    "test:alert-suppression": "node --test scripts/test-alert-suppression.mjs",
+    "test:review-prompt": "node --test scripts/test-review-prompt.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

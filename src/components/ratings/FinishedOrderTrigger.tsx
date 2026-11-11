@@ -2,6 +2,7 @@
 
 import { useIsV3 } from '@/components/MaintenanceNotice'
 import { useEffect, useState, useRef } from 'react'
+import { closeAllReviews, latestToReview, reviewsSeenUntil, REVIEW_WINDOW_MS } from '@/lib/reviewPrompt'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { Star, X, ShoppingCart, ArrowRight, Sparkles, MessageSquareHeart } from 'lucide-react'
@@ -47,7 +48,10 @@ export function FinishedOrderTrigger() {
             `)
             .eq('buyer_id', userId)
             .eq('status', 'paid')
+            // sem acúmulo (lib/reviewPrompt): só os dos últimos 2 dias, e só o MAIS RECENTE vira pergunta
+            .gte('created_at', new Date(Date.now() - REVIEW_WINDOW_MS).toISOString())
             .order('created_at', { ascending: false })
+            .limit(30)
 
         if (ordersError) {
             console.error('Error fetching orders:', ordersError)
@@ -76,7 +80,8 @@ export function FinishedOrderTrigger() {
             const reviewedOrderIds = new Set(reviews?.map(r => r.order_id) || [])
             const dismissedOrderIds = new Set(JSON.parse(localStorage.getItem('dismissed_reviews') || '[]'))
 
-            const pending = orders.filter((o: any) => !reviewedOrderIds.has(o.id) && !dismissedOrderIds.has(o.id))
+            const latest = latestToReview(orders.filter((o: any) => !reviewedOrderIds.has(o.id) && !dismissedOrderIds.has(o.id)).map((o: any) => ({ ...o, at: o.created_at })), reviewsSeenUntil(userId))
+            const pending = latest ? [latest] : []
 
             setUnreviewedOrders(pending)
             setPendingReviewsCount(pending.length)
@@ -176,12 +181,21 @@ export function FinishedOrderTrigger() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profileLoading, userId])
 
+    // outra pergunta foi fechada/respondida (corrida, ou a 3.0): a marca subiu, então esta também some
+    useEffect(() => {
+        const again = () => { void checkOrders() }
+        window.addEventListener('iuser-reviews-closed', again)
+        return () => window.removeEventListener('iuser-reviews-closed', again)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId])
+
     const handleClose = () => {
         const currentOrder = unreviewedOrders[0]
         if (currentOrder) {
             const dismissedOrderIds = JSON.parse(localStorage.getItem('dismissed_reviews') || '[]')
             dismissedOrderIds.push(currentOrder.id)
             localStorage.setItem('dismissed_reviews', JSON.stringify(dismissedOrderIds))
+            if (userId) closeAllReviews(userId)   // fechou: nada mais antigo volta a ser perguntado
             checkOrders()
         }
     }
@@ -290,6 +304,7 @@ export function FinishedOrderTrigger() {
                     storeId={reviewOrder.storeId}
                     onSuccess={() => {
                         setReviewOrder(null)
+                        if (userId) closeAllReviews(userId)
                         checkOrders()
                     }}
                 />
