@@ -931,16 +931,12 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         // sugestão em "Locais de partida já usados") em vez de localizar por
         // GPS toda vez — evita repetir a mesma pergunta de local se a pessoa
         // sempre parte do mesmo lugar.
+        // 11/11/2026: a página abre com os campos VAZIOS ("Local de partida" / "Local de chegada"); nada é preenchido sozinho. O mapa só vai
+        // para perto do último local de partida usado (as sugestões ficam logo abaixo de cada campo; o GPS está no botão do campo).
         const lastOrigin = getRecentRideOrigins()[0]
-        if (lastOrigin) {
-            setOrigin({ address: lastOrigin.address, coords: lastOrigin.coords })
-            if (lastOrigin.coords && mapRef.current) {
-                mapRef.current.flyTo({ center: lastOrigin.coords, zoom: 15, duration: 800 })
-            }
-            return
+        if (lastOrigin?.coords && mapRef.current) {
+            mapRef.current.flyTo({ center: lastOrigin.coords, zoom: 14, duration: 800 })
         }
-
-        useMyLocationAsOrigin()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapReady, useMyLocationAsOrigin])
 
@@ -2007,11 +2003,21 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 <div className="flex items-center gap-2.5 px-3 h-11">
                                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
                                     <input readOnly onClick={() => openField('origin')} value={locatingOrigin ? 'Localizando...' : origin.address}
-                                        placeholder={requestFor === 'objeto' ? 'Onde buscar?' : requestFor === 'animal' ? 'Onde buscar o animal?' : 'De onde você sai?'}
+                                        placeholder={requestFor === 'objeto' ? 'Local de retirada' : 'Local de partida'}
                                         aria-label="Partida" className="flex-1 min-w-0 bg-transparent text-[13.5px] font-semibold focus:outline-none cursor-pointer" style={inputStyle} />
                                     <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0 p-1" title="Usar minha localização atual" style={{ color: colors.accent }}>{locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}</button>
                                     <button onClick={() => startPickingOnMap('origin')} className="flex-shrink-0 p-1" title="Escolher local no mapa" style={{ color: colors.accent }}><MapPin size={16} /></button>
                                 </div>
+                                {!origin.address && recentOrigins.length > 0 && (
+                                    <div className="flex gap-1.5 overflow-x-auto px-3 pb-2 -mt-0.5" style={{ scrollbarWidth: 'none' }} aria-label="Partidas recentes">
+                                        {recentOrigins.map((place) => (
+                                            <button key={`o-${place.address}`} onClick={() => selectRecentOrigin(place)}
+                                                className="flex-shrink-0 flex items-center gap-1 px-2.5 h-7 rounded-full text-[11.5px] font-bold" style={{ background: '#22c55e14', color: colors.textPrimary }}>
+                                                <History size={11} style={{ color: '#22c55e' }} />{shortAddress(place.address)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                                 {showOriginComplement && (
                                     <input type="text" value={originComplement} onChange={(e) => setOriginComplement(e.target.value)} autoFocus placeholder="Complemento da partida (casa amarela, portão...)"
                                         className="w-[calc(100%-1.5rem)] mx-3 mb-2 px-3 py-1.5 rounded-lg text-xs focus:outline-none" style={{ background: `${colors.border}25`, color: colors.textPrimary }} />
@@ -2038,11 +2044,21 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                     <div className="flex items-center gap-2.5 px-3 h-11">
                                         <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
                                         <input readOnly onClick={() => openField('destination')} value={locatingDestination ? 'Localizando...' : destination.address}
-                                            placeholder={requestFor === 'pessoa' ? 'Para onde vai?' : 'Para onde levar?'}
+                                            placeholder={requestFor === 'pessoa' ? 'Local de chegada' : 'Local de entrega'}
                                             aria-label="Chegada" className="flex-1 min-w-0 bg-transparent text-[13.5px] font-semibold focus:outline-none cursor-pointer" style={inputStyle} />
                                         <button onClick={() => useMyLocationAsDestination()} className="flex-shrink-0 p-1" title="Usar minha localização atual" style={{ color: colors.accent }}>{locatingDestination ? <Spinner size={16} /> : <MapPinPlus size={16} />}</button>
                                         <button onClick={() => startPickingOnMap('destination')} className="flex-shrink-0 p-1" title="Escolher local no mapa" style={{ color: colors.accent }}><MapPin size={16} /></button>
                                     </div>
+                                    {!destination.address && recentDestinations.length > 0 && (
+                                        <div className="flex gap-1.5 overflow-x-auto px-3 pb-2 -mt-0.5" style={{ scrollbarWidth: 'none' }} aria-label="Chegadas recentes">
+                                            {recentDestinations.map((place) => (
+                                                <button key={`d-${place.address}`} onClick={() => selectRecentDestination(place)}
+                                                    className="flex-shrink-0 flex items-center gap-1 px-2.5 h-7 rounded-full text-[11.5px] font-bold" style={{ background: '#ef444414', color: colors.textPrimary }}>
+                                                    <History size={11} style={{ color: '#ef4444' }} />{shortAddress(place.address)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                     {showDestinationComplement && (
                                         <input type="text" value={destinationComplement} onChange={(e) => setDestinationComplement(e.target.value)} autoFocus placeholder="Complemento da chegada (apto, bloco...)"
                                             className="w-[calc(100%-1.5rem)] mx-3 mb-2 px-3 py-1.5 rounded-lg text-xs focus:outline-none" style={{ background: `${colors.border}25`, color: colors.textPrimary }} />
@@ -2058,24 +2074,6 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 {stops.length < 2 && <button onClick={addStop} className="flex items-center gap-1"><Plus size={13} />{stops.length === 0 ? 'Parada' : 'Outra parada'}</button>}
                                 {loadingRoutes && <span className="ml-auto flex items-center gap-1.5 font-semibold" style={{ color: colors.textSecondary }}><Spinner size={12} />Calculando rota…</span>}
                             </div>
-
-                            {/* lugares recentes (partida = verde, chegada = vermelho), uma fileira só */}
-                            {(recentOrigins.length > 0 || recentDestinations.length > 0) && (
-                                <div className="flex gap-1.5 overflow-x-auto mt-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
-                                    {recentDestinations.map((place) => (
-                                        <button key={`d-${place.address}`} onClick={() => selectRecentDestination(place)} title="Usar como chegada"
-                                            className="flex-shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[11.5px] font-bold" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
-                                            <History size={11} style={{ color: '#ef4444' }} />{shortAddress(place.address)}
-                                        </button>
-                                    ))}
-                                    {recentOrigins.map((place) => (
-                                        <button key={`o-${place.address}`} onClick={() => selectRecentOrigin(place)} title="Usar como partida"
-                                            className="flex-shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[11.5px] font-bold" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
-                                            <History size={11} style={{ color: '#22c55e' }} />{shortAddress(place.address)}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
 
                             {/* corridas que a pessoa já pediu 2+ vezes: uma linha, um toque preenche tudo (no máximo 2) */}
                             {frequentRides.length > 0 && (
