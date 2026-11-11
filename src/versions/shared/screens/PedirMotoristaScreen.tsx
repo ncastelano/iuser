@@ -70,6 +70,7 @@ import RadarDriverCard from '@/components/radar/RadarDriverCard'
 import type { RadarDriverItem } from '@/lib/radarDrivers'
 import { haversineKm } from '@/lib/mapboxRoute'
 import CarAmenities from '@/components/ride/CarAmenities'
+import PlaceSearchExtras, { type PlacePick } from '@/components/ride/PlaceSearchExtras'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -1188,8 +1189,26 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         }, 400)
     }
 
+    // ponto de referência da busca (o centro do mapa na hora de abrir): de onde se mede "perto" e a estimativa
+    const [searchRef, setSearchRef] = useState<[number, number] | null>(null)
     const openField = (field: ActiveField) => {
         setActiveField(field)
+        setSuggestions([])
+        const c = mapRef.current?.getCenter()
+        setSearchRef(c ? [c.lng, c.lat] : null)
+        // sem partida escolhida ainda a cidade não é conhecida e a busca vinha do Brasil inteiro: descobre pela região do mapa
+        if (!cityContext && c) {
+            void resolveCity(c.lng, c.lat).then((city) => { if (city) { cityResolvedRef.current = true; setCityContext(city) } })
+        }
+    }
+    // escolheu um lugar recente ou uma empresa na página de busca da PARTIDA
+    const pickOriginPlace = (p: PlacePick) => {
+        if (p.coords) { selectSuggestion('origin', { place_name: p.address, center: p.coords }); return }
+        setOrigin(p)
+        addRecentRideOrigin(p)
+        setRecentOrigins(getRecentRideOrigins())
+        persistPlace('origin', p)
+        setActiveField(null)
         setSuggestions([])
     }
 
@@ -1791,8 +1810,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
             {/* Overlay de busca em tela cheia quando um campo está ativo */}
             {activeField && (
-                <div className="absolute inset-0 z-40" style={{ background: colors.background }}>
-                    <div className="p-4 flex items-center gap-3" style={{ borderBottom: `1px solid ${colors.border}` }}>
+                <div className="absolute inset-0 z-40 flex flex-col" style={{ background: colors.background }}>
+                    <div className="p-4 flex items-center gap-3 flex-shrink-0" style={{ borderBottom: `1px solid ${colors.border}` }}>
                         <button
                             onClick={() => { setActiveField(null); setSuggestions([]) }}
                             className="p-2 rounded-full"
@@ -1808,7 +1827,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 value={addressForField(activeField)}
                                 onChange={(e) => handleAddressChange(activeField as 'origin' | 'destination' | 'stop0' | 'stop1', e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
-                                placeholder={activeField === 'origin' ? 'De onde você vai sair?' : activeField === 'destination' ? 'Local de chegada' : activeField === 'stop0' ? 'Onde vai ser a 1ª parada?' : 'Onde vai ser a 2ª parada?'}
+                                placeholder={activeField === 'origin' ? (requestFor === 'objeto' ? 'Local de retirada' : 'Local de partida') : activeField === 'destination' ? 'Local de chegada' : activeField === 'stop0' ? 'Onde vai ser a 1ª parada?' : 'Onde vai ser a 2ª parada?'}
                                 className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm focus:outline-none"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                             />
@@ -1830,7 +1849,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                         </div>
                     )}
 
-                    <div className="overflow-y-auto">
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                        {/* ao digitar, os resultados da busca ficam EM CIMA; as listas da partida (recentes e empresas) continuam embaixo */}
                         {suggestions.map((s, idx) => {
                             const isHighlighted = idx === highlightedIndex
                             return (
@@ -1856,6 +1876,18 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 </button>
                             )
                         })}
+                        {activeField === 'origin' && (
+                            <PlaceSearchExtras
+                                query={origin.address}
+                                refPoint={searchRef}
+                                estimateTo={destination.coords}
+                                recents={[...recentOrigins, ...recentDestinations].filter((p, i, all) => all.findIndex((x) => x.address === p.address) === i)}
+                                locating={locatingOrigin}
+                                onUseMyLocation={() => { useMyLocationAsOrigin(true); setActiveField(null); setSuggestions([]) }}
+                                onPickOnMap={() => startPickingOnMap('origin')}
+                                onPick={pickOriginPlace}
+                            />
+                        )}
                     </div>
                 </div>
             )}

@@ -85,7 +85,8 @@
     "test:earnings": "node --test scripts/test-earnings.mjs",
     "test:player": "node --test scripts/test-player.mjs",
     "test:alert-suppression": "node --test scripts/test-alert-suppression.mjs",
-    "test:review-prompt": "node --test scripts/test-review-prompt.mjs"
+    "test:review-prompt": "node --test scripts/test-review-prompt.mjs",
+    "test:ride-places": "node --test scripts/test-ride-places.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
