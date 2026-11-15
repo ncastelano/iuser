@@ -67,7 +67,7 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
         } else {
             afterLoginRef.current = true
             if (onRequireLogin) onRequireLogin()
-            else router.push('/?view=login')
+            else router.push('/login')
         }
     }
 

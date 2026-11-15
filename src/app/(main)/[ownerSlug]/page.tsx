@@ -18,7 +18,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function Page() {
     // A pessoa usa a 3.0 (cookie) mas a casca ainda não chegou? O esqueleto leva uma barra de topo para a navbar não "sumir"
     const jar = await cookies()
-    const shellPending = jar.get(VERSION_COOKIE)?.value === 'v3'
+    void jar.get(VERSION_COOKIE)
+    const shellPending = true   // a 3.0 é a única versão: a casca sempre vem
     return (
         <Suspense fallback={<OwnerSkeleton shellPending={shellPending} />}>
             <OwnerClientPage />

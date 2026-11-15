@@ -20,8 +20,6 @@ import { DriverRideAlertListener } from '@/components/DriverRideAlertListener'
 import { IslandToastFallback } from '@/components/IslandToastFallback'
 import { SystemEventsListener } from '@/components/SystemEventsListener'
 import { ProfileProvider } from './contexts/ProfileContext'
-import { VersionSync } from '@/versions/client'
-import AdminV3Button from '@/components/AdminV3Button'
 import { MaintenanceBanner } from '@/components/MaintenanceNotice'
 import ShareDialogHost from '@/components/ShareDialogHost'
 import ScreenDirector from '@/components/dev/ScreenDirector'
@@ -54,8 +52,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ProfileProvider>
         <MaintenanceBanner />
-        <VersionSync />
-        <AdminV3Button />
         <PageViewTracker />
         <ScreenDirector />
         <ThemeColorSync />

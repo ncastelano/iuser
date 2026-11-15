@@ -32,6 +32,12 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
     const [tick, setTick] = useState(0)
 
     // Onde a pessoa está: o endereço salvo no perfil; visitante, o local definido neste aparelho
+    const [locVersion, setLocVersion] = useState(0)
+    useEffect(() => {
+        const bump = () => setLocVersion((v) => v + 1)
+        window.addEventListener('iuser-location-changed', bump)   // o chip "Perto de" da home trocou o local
+        return () => window.removeEventListener('iuser-location-changed', bump)
+    }, [])
     useEffect(() => {
         let cancelled = false
         const done = (o: { lat: number; lng: number } | null) => { if (!cancelled) setOrigin(o) }
@@ -47,7 +53,7 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
             })
         }
         return () => { cancelled = true }
-    }, [userId])
+    }, [userId, locVersion])
 
     useEffect(() => {
         if (origin === undefined) return

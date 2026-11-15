@@ -21,8 +21,8 @@ export const UI_VERSIONS: Record<UiVersion, UiVersionInfo> = {
     v3: { id: 'v3', label: 'iUser 3.0', home: '/' },
 }
 
-/** Versão de quem nunca escolheu: a atual (estável). A 3.0 é uma escolha explícita. */
-export const DEFAULT_VERSION: UiVersion = 'v2'
+/** A ÚNICA versão servida desde 14/11/2026 (a 2.0 foi aposentada: ninguém mais a escolhe). */
+export const DEFAULT_VERSION: UiVersion = 'v3'
 
 /** Cookie que guarda a escolha (funciona para visitantes e para o proxy, que roda antes da página) */
 export const VERSION_COOKIE = 'iuser_ui'

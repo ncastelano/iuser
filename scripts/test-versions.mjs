@@ -4,23 +4,16 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveVersion, internalPathFor, canonicalFromInternal, equivalentPath, parseVersion, versionOfInternalPath, usesShell, isV3OnlyPath } from '../src/versions/resolve.ts'
 
-test('quem nunca escolheu fica na v2', () => {
-    assert.equal(resolveVersion({ hasAccess: true }), 'v2')
+// DESDE 14/11/2026 A 3.0 É A ÚNICA VERSÃO: cookie, preferência do perfil e liberação do admin não mudam mais nada
+test('todo mundo vê a 3.0, seja qual for a escolha antiga', () => {
+    for (const input of [{ hasAccess: true }, { hasAccess: false }, { cookie: 'v2', hasAccess: true }, { cookie: 'v2', profilePref: 'v2', hasAccess: false },
+                         { cookie: 'v3', hasAccess: false }, { profilePref: 'v2', hasAccess: true }, { cookie: 'v9', profilePref: 'xx', hasAccess: true }]) {
+        assert.equal(resolveVersion(input), 'v3', JSON.stringify(input))
+    }
 })
-test('cookie vale mais que a preferência do perfil', () => {
-    assert.equal(resolveVersion({ cookie: 'v3', profilePref: 'v2', hasAccess: true }), 'v3')
-    assert.equal(resolveVersion({ cookie: 'v2', profilePref: 'v3', hasAccess: true }), 'v2')
-})
-test('sem cookie, vale a preferência do perfil', () => {
-    assert.equal(resolveVersion({ profilePref: 'v3', hasAccess: true }), 'v3')
-})
-test('valor inválido é ignorado', () => {
-    assert.equal(resolveVersion({ cookie: 'v9', profilePref: 'xx', hasAccess: true }), 'v2')
+test('valores de versão continuam sendo lidos (para links antigos)', () => {
     assert.equal(parseVersion('v3'), 'v3')
-    assert.equal(parseVersion(undefined), null)
-})
-test('sem permissão para a 3.0: v2, mesmo com cookie v3', () => {
-    assert.equal(resolveVersion({ cookie: 'v3', profilePref: 'v3', hasAccess: false }), 'v2')
+    assert.equal(parseVersion('v9'), null)
 })
 test('rewrite só nas rotas compartilhadas', () => {
     assert.equal(internalPathFor('v3', '/'), '/v3')

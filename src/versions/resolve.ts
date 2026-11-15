@@ -16,9 +16,9 @@ export function parseVersion(raw: unknown): UiVersion | null {
  * Sem permissão (a 3.0 é liberada pelo admin), a pessoa cai na versão padrão: nenhuma outra é servida.
  */
 export function resolveVersion(input: { cookie?: unknown; profilePref?: unknown; hasAccess: boolean }): UiVersion {
-    const chosen = parseVersion(input.cookie) ?? parseVersion(input.profilePref) ?? DEFAULT_VERSION
-    if (!input.hasAccess && chosen !== DEFAULT_VERSION) return DEFAULT_VERSION
-    return chosen
+    // desde 14/11/2026 a 3.0 é a única versão: a escolha antiga (cookie/perfil) não vale mais
+    void input
+    return DEFAULT_VERSION
 }
 
 /** Caminho interno que implementa `pathname` na versão `version`, ou null se a versão usa o próprio caminho */

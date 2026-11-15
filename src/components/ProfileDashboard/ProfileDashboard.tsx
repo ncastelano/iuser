@@ -54,7 +54,6 @@ import MyComments from './MyComments'
 import ProfileLocationSettings from './ProfileLocationSettings'
 import ProfileRadarVisibility from './ProfileRadarVisibility'
 import ProfileLinkButtons from './ProfileLinkButtons'
-import UiVersionCard from './UiVersionCard'
 import MyTasks from './MyTasks'
 import StaffPickupCodes from './StaffPickupCodes'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
@@ -1415,7 +1414,6 @@ export default function ProfileDashboard({
             {/* ===== Convite pra interface 3.0 — só na 2.0 (na 3.0 a troca fica no menu lateral) ===== */}
             {!hideVersionSwitch && (
                 <div className="mb-6">
-                    <UiVersionCard />
                 </div>
             )}
 
