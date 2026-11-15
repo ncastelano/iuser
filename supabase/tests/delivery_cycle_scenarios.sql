@@ -1,11 +1,12 @@
--- Cenários do ciclo das entregas (20261130000068). Transação desfeita; só LOCAL/staging (usa a pizzaria e os entregadores da massa local).
+-- Cenários do ciclo das entregas (20261130000068). Transação desfeita; só LOCAL/staging. Usa a pizzaria da massa local se existir (senão, qualquer loja ativa);
+-- os grupos 5–8 precisam de uma entrega em andamento e são PULADOS (com aviso) quando o banco não tem uma.
 begin;
 create function pg_temp.as_(uid uuid) returns void language sql as $$ select set_config('request.jwt.claim.sub', uid::text, true), set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true) $$;
 create temp table t as
 select s.id as store, s.owner_id as owner,
        (select p.id from profiles p join auth.users u on u.id = p.id where u.email like 'cliente-%' order by p.id limit 1) as buyer,
        (select p.id from profiles p join auth.users u on u.id = p.id where u.email like 'cliente-%' order by p.id offset 1 limit 1) as stranger
-  from stores s where s."storeSlug" = 'pizzaria-forno-de-ouro';
+  from stores s where s.is_active and s.owner_id is not null order by (s."storeSlug" = 'pizzaria-forno-de-ouro') desc, s.created_at limit 1;
 grant select on t to authenticated;
 -- a pizzaria aberta 24 h durante o teste (o horário dela não pode interferir nos outros cenários)
 update stores set business_hours = '{"weekly":{"0":{"isOpen":true,"start":"00:00","end":"00:00"},"1":{"isOpen":true,"start":"00:00","end":"00:00"},"2":{"isOpen":true,"start":"00:00","end":"00:00"},"3":{"isOpen":true,"start":"00:00","end":"00:00"},"4":{"isOpen":true,"start":"00:00","end":"00:00"},"5":{"isOpen":true,"start":"00:00","end":"00:00"},"6":{"isOpen":true,"start":"00:00","end":"00:00"}}}'::jsonb where id = (select store from t);
@@ -84,38 +85,37 @@ create temp table idle as
 select x.id as ride, x.driver_id as drv, x.order_id as ord from ride_requests x join order_delivery_dispatches d on d.ride_request_id = x.id and d.flow_version = 1
   join orders o on o.id = x.order_id and o.status in ('pending','preparing','ready')
  where x.status = 'accepted' and x.driver_departed_at is null and x.driver_arrived_at is null and x.ride_started_at is null limit 1;
-do $$ begin assert (select count(*) from idle) = 1, '5: precisa de uma entrega aceita parada (massa local)'; end $$;
-update orders set created_at = now() - interval '1 hour' where id = (select ord from idle);
-update ride_applications set created_at = now() - interval '20 minutes' where ride_request_id = (select ride from idle) and applicant_id = (select drv from idle) and status = 'accepted';
-select public.process_delivery_cycle();
+grant select on idle to authenticated;
 do $$ begin
+  if not exists (select 1 from idle) then raise notice 'grupos 5 e 6 PULADOS: sem entrega aceita parada neste banco'; return; end if;
+  update orders set created_at = now() - interval '1 hour' where id = (select ord from idle);
+  update ride_applications set created_at = now() - interval '20 minutes' where ride_request_id = (select ride from idle) and applicant_id = (select drv from idle) and status = 'accepted';
+  perform public.process_delivery_cycle();
   assert (select status from ride_requests where id = (select ride from idle)) = 'pending', '5a: entrega voltou a procurar';
   assert exists (select 1 from delivery_cycle_events where kind = 'driver_idle_released' and ride_id = (select ride from idle)), '5b: contado como demora';
   assert not exists (select 1 from delivery_cycle_events where kind = 'driver_quit' and ride_id = (select ride from idle)), '5c: não conta duas vezes';
   assert exists (select 1 from profile_notifications where kind = 'delivery_driver_idle' and profile_id = (select drv from idle)), '5d: entregador avisado';
-end $$;
-insert into delivery_cycle_events (kind, driver_id, dedupe) select 'driver_quit', drv, 'teste:' || g from idle, generate_series(1, 2) g;
-select public._cycle_driver_strike((select drv from idle), 'driver_quit', gen_random_uuid(), null);
-do $$ begin
+  insert into delivery_cycle_events (kind, driver_id, dedupe) select 'driver_quit', drv, 'teste:' || g from idle, generate_series(1, 2) g;
+  perform public._cycle_driver_strike((select drv from idle), 'driver_quit', gen_random_uuid(), null);
   assert exists (select 1 from driver_cycle_blocks where driver_id = (select drv from idle) and until > now()), '6a: pausado';
   assert exists (select 1 from profile_notifications where kind = 'delivery_quit_blocked' and profile_id = (select drv from idle)), '6b: avisado';
-end $$;
-select pg_temp.as_((select drv from idle)); set local role authenticated;
-do $$ begin
+  perform pg_temp.as_((select drv from idle));
+  execute 'set local role authenticated';
   begin
     insert into ride_applications (ride_request_id, applicant_id, proposed_price) values ((select ride from idle), (select drv from idle), 5);
     raise exception 'pausado aceitou';
   exception when others then if sqlerrm = 'pausado aceitou' then raise; end if; end;
+  execute 'reset role';
 end $$;
-reset role;
 
 -- 7) a loja recusa pedido que já tinha entregador: conta; no limite, aviso
 create temp table rej as
 select o.id as ord, o.store_id as store from orders o join ride_requests x on x.order_id = o.id and x.driver_id is not null
- where o.status in ('pending','preparing') and o.id <> (select ord from idle) limit 1;
-insert into delivery_cycle_events (kind, store_id, dedupe) select 'store_rejected_after_driver', store, 'teste-rej:' || g from rej, generate_series(1, 2) g;
-update orders set status = 'rejected' where id = (select ord from rej);
+ where o.status in ('pending','preparing') and o.id not in (select ord from idle) limit 1;
 do $$ begin
+  if not exists (select 1 from rej) then raise notice 'grupo 7 PULADO: sem pedido com entregador neste banco'; return; end if;
+  insert into delivery_cycle_events (kind, store_id, dedupe) select 'store_rejected_after_driver', store, 'teste-rej:' || g from rej, generate_series(1, 2) g;
+  update orders set status = 'rejected' where id = (select ord from rej);
   assert exists (select 1 from delivery_cycle_events where kind = 'store_rejected_after_driver' and order_id = (select ord from rej)), '7a: contado';
   assert exists (select 1 from profile_notifications where kind = 'store_reject_warning' and ref_id = (select ord from rej)), '7b: loja avisada no limite';
 end $$;
@@ -124,13 +124,13 @@ end $$;
 create temp table late as
 select x.id as ride, x.order_id as ord from ride_requests x join orders o on o.id = x.order_id and o.status in ('preparing','ready')
  where x.status = 'accepted' and x.ride_started_at is not null limit 1;
-do $$ begin assert (select count(*) from late) = 1, '8: precisa de uma entrega a caminho (massa local)'; end $$;
-update orders set created_at = now() - interval '2 hours' where id = (select ord from late);
-update ride_requests set ride_started_at = now() - interval '90 minutes' where id = (select ride from late);
-select public.process_delivery_cycle();
 do $$ begin
+  if not exists (select 1 from late) then raise notice 'grupo 8 PULADO: sem entrega a caminho neste banco'; return; end if;
+  update orders set created_at = now() - interval '2 hours' where id = (select ord from late);
+  update ride_requests set ride_started_at = now() - interval '90 minutes' where id = (select ride from late);
+  perform public.process_delivery_cycle();
   assert exists (select 1 from delivery_cycle_events where kind = 'transit_late' and ride_id = (select ride from late)), '8a: registrado';
   assert (select count(*) from profile_notifications where kind = 'delivery_late' and ref_id = (select ord from late)) = 2, '8b: cliente e loja avisados';
 end $$;
-select 'delivery_cycle: 8 grupos OK';
+select 'delivery_cycle: OK (os grupos pulados aparecem como aviso)';
 rollback;

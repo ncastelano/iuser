@@ -30,7 +30,6 @@ import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarExtra
 import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import { miniHidden, subtitleOf } from '@/modules/player'
-import { switchVersion, versionLabel } from '@/versions/client'
 import { NOTIFICATIONS_PATH, isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
 import { BarKindProvider } from '@/versions/v3/bar/kind'
 import { activeBarKey, barKindOf, isOwnVehiclePage, barPathOf, barTabsFor, type BarKey } from '@/versions/v3/bar/domain'
@@ -191,8 +190,7 @@ function HubHeader({ title, sub, onClose }: { title: string; sub?: string; onClo
     )
 }
 
-function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts, onSelect, onGo, onSwitchVersion }: {
-    onSwitchVersion: () => Promise<void>
+function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts, onSelect, onGo }: {
     /** Pedidos de cada loja (novos, em preparo, prontos) */
     storeOrders: Record<string, { pending: number; preparing: number; ready: number; services: number }>
     data: DrawerData
@@ -254,41 +252,17 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
             {data.vehicles.length > 0 ? data.vehicles.map((v) => (
                 <ModeCard key={v.slug} selected={active === `motorista:${v.slug}`} kind="car" image={v.photo} title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`} desc={`Modo motorista · ${data.driverActive ? 'ativado' : 'desligado'}`} dot={data.driverActive ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`motorista:${v.slug}`)} actions={vehicleActions(v)} />
             )) : <ModeCta kind="car" title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />}
-            <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
     )
 }
 
-// Trocar para a interface 2.0: o único seletor de versão da 3.0 (a troca em si é o mesmo mecanismo central)
-function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
-    const [busy, setBusy] = useState(false)
-    return (
-        <button
-            type="button"
-            disabled={busy}
-            onClick={async () => { setBusy(true); try { await onSwitch() } finally { /* a página recarrega */ } }}
-            className="mt-2 w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl text-left transition active:scale-[0.98] disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-            style={{ background: 'transparent', border: '1px dashed var(--hub-line)' }}
-        >
-            <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
-                <RotateCcw size={16} />
-            </span>
-            <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-black leading-tight">{busy ? 'Trocando…' : `Voltar para a versão ${versionLabel('v2').replace('iUser ', '')}`}</span>
-                <span className="block text-[11px] opacity-80 truncate">Só muda a interface: conta e dados iguais</span>
-            </span>
-        </button>
-    )
-}
-
 // Menu de quem não tem conta: o "modo" é o de visitante (já escolhido), mais entrar e criar conta — no mesmo desenho dos modos
-function VisitorDrawerContent({ onGo, onClose, onSwitchVersion }: { onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
+function VisitorDrawerContent({ onGo, onClose }: { onGo: (path: string) => void; onClose: () => void }) {
     return (
         <div className="w-full flex flex-col gap-2 px-3.5 pb-3.5">
             <ModeCard selected kind="user" title="Visitante" desc="Navegando sem conta" dot="#fde68a" onClick={onClose} />
             <ModeCta kind="user" title="Entrar" desc="Já tenho conta no iUser" onClick={() => onGo('/login')} />
             <ModeCta kind="user" title="Criar conta" desc="Grátis, leva um minuto" onClick={() => onGo('/cadastrar')} />
-            <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
     )
 }
@@ -585,13 +559,6 @@ export default function ModeShell({ children }: {
         setDrawerOpen(false)
         router.push(path)
     }
-    // Seletor de versão (o único da 3.0): mesmo mecanismo central da 2.0
-    // Só a home, o carrinho e as conversas existem nas duas; qualquer outra página do shell é só da 3.0 → home da 2.0
-    const onSwitchVersion = () => switchVersion('v2', {
-        pathname: pathname || '/',
-        loggedIn: !!userId,
-        destination: ['/', '/carrinho', '/conversas'].includes(shellPath) ? shellPath : '/',
-    })
 
     // Sem ilha em cima: a página começa logo abaixo da área segura. Os avisos (toast) aparecem na FAIXA da barra de baixo; onde a barra não existe
     // (páginas de produto/loja/mapas, conversa aberta) ou o Percurso cobre a tela, a pílula do topo (IslandToastFallback) cuida deles.
@@ -643,7 +610,7 @@ export default function ModeShell({ children }: {
         />
         <div className="overflow-y-auto overscroll-contain flex-1 min-h-0">
             {!userId && (
-                <VisitorDrawerContent onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
+                <VisitorDrawerContent onGo={goAndClose} onClose={() => setDrawerOpen(false)} />
             )}
             {userId && (
                 <MenuDrawerContent
@@ -655,7 +622,6 @@ export default function ModeShell({ children }: {
                     counts={{ rooms: hubCounts.rooms, cart: topCart, orders: orderCounts, notifs: hubCounts.notifs }}
                     onSelect={selectMode}
                     onGo={goAndClose}
-                    onSwitchVersion={onSwitchVersion}
                 />
             )}
         </div>

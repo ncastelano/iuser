@@ -33,6 +33,7 @@ import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communit
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ListingRowCard from '@/components/ListingRowCard'
 import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
+import HomeLocationChip from '@/components/location/HomeLocationChip'
 import Outdoor from '@/components/outdoor/Outdoor'
 import SocialAroundCard from '@/components/v3/SocialAroundCard'
 import DriverChannelCard from '@/components/v3/DriverChannelCard'
@@ -713,6 +714,8 @@ export default function ModeloInicialPage() {
                     </div>
                 ) : (
                     <>
+                        {/* de onde medimos "perto" (o local da pessoa) e o botão para definir/trocar — o "Definir local" da home 2.0 */}
+                        <HomeLocationChip userId={userId} />
                         {/* ===== 1. O QUE VOCÊ QUER FAZER? — dois blocos: quem precisa / quem quer ganhar ===== */}
                         <section className="mt-2">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 grid-flow-dense">

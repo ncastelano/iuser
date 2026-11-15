@@ -21,7 +21,7 @@ import { useRecentProfiles } from '@/hooks/useRecentProfiles'
 import { flashGradient, mediaSrc, shortCount, timeAgo, authorAvatarUrl, type FlashItem } from '@/modules/flash'
 import {
     avatarOf, canSearch, formatKm, joinedLabel, loadCommunities, loadFlashes, loadNearbyPeople, loadNewPeople, loadPeopleInPlace, loadPlaces, loadPublications,
-    loadServiceProviders, loadTopPeople, peopleLabel, searchPeople, type CommunityCard, type Person, type Place,
+    loadServiceProviders, loadTopPeople, peopleLabel, searchPeople, type CommunityCard, type Person, type Place, loadStorePublications,
 } from '@/modules/people'
 
 const ORANGE = '#f97316'
@@ -117,6 +117,44 @@ function FlashSection({ colors, onOpen, onNew, onAll, following = false }: { col
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-[11px] font-black truncate">{f.authorName}</span>
                                         <span className="flex items-center gap-1 text-[9px] opacity-90"><Heart size={9} fill="#fff" /> {shortCount(f.likeCount)} · {timeAgo(f.createdAt)}</span>
+                                    </span>
+                                </span>
+                            </button>
+                        )
+                    })}
+                </Row>
+            )}
+        </Section>
+    )
+}
+
+// Publicações das LOJAS (novidades, promoções, avisos): o mesmo cartão das publicações das pessoas; tocar abre a página da publicação.
+// A home 2.0 tinha "Publicações em destaque" com lojas e pessoas: as das pessoas já moravam aqui, as das lojas faltavam na 3.0.
+function StorePublicationsSection({ colors }: { colors: any }) {
+    const router = useRouter()
+    const pubs = useSection(() => loadStorePublications(10), [])
+    if (pubs && pubs.length === 0) return null
+    return (
+        <Section colors={colors} icon={Sparkles} title="Publicações das lojas" subtitle="Novidades e avisos das lojas do iUser" onAll={() => router.push('/publicacoes')} allLabel="Ver todas">
+            {pubs === null ? <SkelRow colors={colors} w={128} h={210} n={3} /> : (
+                <Row>
+                    {pubs.map((p) => {
+                        const [c1, c2] = flashGradient(p.id)
+                        return (
+                            <button key={p.id} onClick={() => router.push(`/publicacoes/${p.slug || p.id}`)} className="snap-start flex-shrink-0 w-[128px] h-[210px] rounded-3xl overflow-hidden relative text-left transition active:scale-95" style={{ background: `linear-gradient(160deg, ${c1}, ${c2})` }}>
+                                {p.image && <img src={p.image} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
+                                {!p.image && <span className="absolute inset-0 flex items-center justify-center px-3 pb-12 text-white text-[14px] font-black leading-tight text-center line-clamp-6" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.25)' }}>{p.title}</span>}
+                                <span className="absolute inset-x-0 bottom-0 h-28" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }} />
+                                <span className="absolute left-2 right-2 bottom-2 flex flex-col gap-1.5 text-white">
+                                    {p.image && <span className="text-[11px] font-black leading-snug line-clamp-2" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>{p.title}</span>}
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center text-[11px] font-black flex-shrink-0" style={{ background: 'rgba(255,255,255,0.3)', boxShadow: '0 0 0 1.5px #fff' }}>
+                                            {p.storeLogo ? <img src={p.storeLogo} alt="" className="w-full h-full object-cover" /> : p.storeName.charAt(0).toUpperCase()}
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-[11px] font-black truncate">{p.storeName}</span>
+                                            <span className="block text-[9px] opacity-90">{timeAgo(p.createdAt)}</span>
+                                        </span>
                                     </span>
                                 </span>
                             </button>
@@ -313,6 +351,7 @@ export default function SocialScreen() {
                     )}
 
                     <PublicationsSection colors={colors} onOpen={openPost} />
+                    <StorePublicationsSection colors={colors} />
 
                     {/* Pessoas perto de você */}
                     {!(nearby && nearby.length === 0) && (

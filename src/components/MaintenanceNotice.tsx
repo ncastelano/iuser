@@ -24,11 +24,7 @@ const HIGHLIGHTS = [
 
 /** A interface 3.0 ainda não foi lançada: os avisos de manutenção/novidades valem só para a 2.0. Lê a escolha de versão (cookie). */
 export function useIsV3(): boolean {
-    const [v3, setV3] = useState(false)
-    useEffect(() => {
-        try { setV3(document.cookie.split('; ').some((c) => c === `${VERSION_COOKIE}=v3`)) } catch { /* sem cookie: v2 */ }
-    }, [])
-    return v3
+    return true   // desde 14/11/2026 a 3.0 é a única versão
 }
 
 export function useMaintenance(): boolean {

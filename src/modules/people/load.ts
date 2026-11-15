@@ -79,3 +79,18 @@ export async function loadCommunities(limit = 8): Promise<CommunityCard[]> {
 /** `mode='following'`: só de quem a pessoa segue (sem login volta vazio) */
 export const loadFlashes = (limit = 12, mode: 'all' | 'following' = 'all') => fetchFeed(mode, null, 'flash').then((r) => r.slice(0, limit))
 export const loadPublications = (limit = 10, mode: 'all' | 'following' = 'all') => fetchFeed(mode, null, 'publication').then((r) => r.slice(0, limit))
+
+/** Publicações das LOJAS (as das pessoas vêm do feed do Flash): as mais novas, com o nome e o logo da loja. Só campos públicos. */
+export interface StorePublication { id: string; slug: string | null; title: string; image: string | null; storeName: string; storeLogo: string | null; createdAt: string }
+export async function loadStorePublications(limit = 10): Promise<StorePublication[]> {
+    const { data, error } = await supabase.from('products')
+        .select('id, slug, name, description, image_url, created_at, stores!inner(name, logo_url, is_active)')
+        .eq('listing_type', 'publication').eq('is_active', true).not('store_id', 'is', null).eq('stores.is_active', true)
+        .order('created_at', { ascending: false }).limit(limit)
+    if (error) throw error
+    const pub = (bucket: string, p: string | null) => !p ? null : /^https?:\/\//.test(p) ? p : supabase.storage.from(bucket).getPublicUrl(p).data.publicUrl
+    return (data || []).map((r: any) => ({
+        id: r.id, slug: r.slug || null, title: r.name || r.description || '', image: pub('product-images', r.image_url),
+        storeName: r.stores?.name || 'Loja', storeLogo: pub('store-logos', r.stores?.logo_url || null), createdAt: r.created_at,
+    }))
+}

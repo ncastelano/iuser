@@ -140,7 +140,7 @@ const PUBLIC_ROUTE_PREFIXES = [
     '/comunidade/',  // Todas as rotas que começam com /comunidade/
 ]
 
-// ===== VERSÃO DA INTERFACE (2.0 / 3.0) =====
+// ===== VERSÃO DA INTERFACE (desde 14/11/2026 só a 3.0: a escolha antiga não vale; os endereços /carrinho, /conversas... são servidos pela 3.0) =====
 /**
  * Resolve a versão e, quando preciso, reescreve (ou devolve ao endereço canônico). Retorna null quando não há nada a
  * fazer. Centralizado aqui: nenhuma página decide versão por conta própria.
@@ -150,7 +150,7 @@ async function resolveUiVersion(request: NextRequest, pathname: string): Promise
     const isShared = internalPathFor('v3', pathname) !== null
     if (!internalVersion && !isShared) return null
 
-    // A 3.0 só é servida a quem o admin liberou (ou ao admin): sem permissão, a versão é sempre a 2.0
+    // desde 14/11/2026 sempre a 3.0 (resolveRequestVersion não consulta mais nada)
     const version = await resolveRequestVersion(request.cookies.getAll(), request.cookies.get(VERSION_COOKIE)?.value)
 
     // Endereço interno digitado direto (/v3/carrinho): só abre se for mesmo a versão da pessoa; senão, volta ao canônico
@@ -172,6 +172,19 @@ async function resolveUiVersion(request: NextRequest, pathname: string): Promise
 // (ex.: ilike com várias linhas) NÃO é queda e continua valendo como "não achou".
 function dbUnavailable(...results: Array<{ error: unknown; status: number }>): boolean {
     return results.some((r) => !!r.error && (r.status === 402 || r.status === 429 || r.status >= 500 || r.status === 0))
+}
+
+/** `/?view=perfil&secao=rede` → `/painel-perfil?secao=rede` etc. (links da home 2.0 guardados em avisos, e-mails e favoritos) */
+function legacyViewTarget(view: string, params: URLSearchParams): string | null {
+    const secao = params.get('secao')
+    switch (view) {
+        case 'login': return '/login'
+        case 'cadastro': case 'cadastrar': return '/cadastrar'
+        case 'perfil': return '/painel-perfil' + (secao ? `?secao=${encodeURIComponent(secao)}` : '')
+        case 'loja': { const st = params.get('store'); return st ? `/painel-loja/${encodeURIComponent(st)}` : '/' }
+        case 'criar-loja': return '/criar-loja'
+        default: return '/'
+    }
 }
 
 // ===== CACHE EM MEMÓRIA =====
@@ -198,6 +211,13 @@ export async function proxy(request: NextRequest) {
     if (pathname.startsWith('/img/')) return NextResponse.next()
 
     console.log(`[Proxy] Processando: ${pathname}`)
+
+    // --- 0a. Links antigos da home 2.0 (/?view=...): a 2.0 foi aposentada em 14/11/2026; levam à página da 3.0 que faz o mesmo ---
+    const legacyView = pathname === '/' ? url.searchParams.get('view') : null
+    if (legacyView) {
+        const to = legacyViewTarget(legacyView, url.searchParams)
+        if (to) return NextResponse.redirect(new URL(to, request.url))
+    }
 
     // --- 0. Versão da interface (2.0 / 3.0): mesma URL, implementação escolhida pela pessoa ---
     const versioned = await resolveUiVersion(request, pathname)
