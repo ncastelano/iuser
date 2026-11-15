@@ -1,6 +1,7 @@
 // app/providers.tsx
 'use client'
 
+import { QuickReviewHost } from '@/components/ratings/QuickReviewHost'
 import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FontLoader } from '@/components/FontLoader'
@@ -16,12 +17,14 @@ import { FinishedOrderTrigger } from '@/components/ratings/FinishedOrderTrigger'
 import { RideAcceptedDialog } from '@/components/RideAcceptedDialog'
 import { DriverLiveLocationBroadcaster } from '@/components/DriverLiveLocationBroadcaster'
 import { DriverRideAlertListener } from '@/components/DriverRideAlertListener'
-import { Toaster } from 'sonner'
+import { IslandToastFallback } from '@/components/IslandToastFallback'
+import { SystemEventsListener } from '@/components/SystemEventsListener'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { VersionSync } from '@/versions/client'
 import AdminV3Button from '@/components/AdminV3Button'
 import { MaintenanceBanner } from '@/components/MaintenanceNotice'
 import ShareDialogHost from '@/components/ShareDialogHost'
+import ScreenDirector from '@/components/dev/ScreenDirector'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -54,12 +57,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <VersionSync />
         <AdminV3Button />
         <PageViewTracker />
+        <ScreenDirector />
         <ThemeColorSync />
         <NavigationProgressBar />
         <FontLoader />
         <OrderNotification />
         <FinishedRideTrigger />
         <FinishedOrderTrigger />
+        {/* 3.0: avaliação rápida (estrelas, comentário e foto num cartão só); a 2.0 segue com os dois avisos acima */}
+        <QuickReviewHost />
         <RideAcceptedDialog />
         <DriverLiveLocationBroadcaster />
         <DriverRideAlertListener />
@@ -67,15 +73,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <PwaInstallPrompt />
         <ShareDialogHost />
         <PushNotificationSetup />
-        {/* Avisos EMBAIXO: em cima eles tapavam a barra de navegação (carrinho, conversas...); o recuo deixa a faixa de teste e as barras de baixo livres */}
-        <Toaster
-          position="bottom-center"
-          offset={{ bottom: 84 }}
-          mobileOffset={{ bottom: 84 }}
-          toastOptions={{
-            className: 'rounded-none border-border bg-background text-foreground font-sans shadow-2xl',
-          }}
-        />
+        {/* Avisos: a ilha da 3.0 os mostra (lib/toast); sem ilha (2.0) uma pílula no topo */}
+        <IslandToastFallback />
+        <SystemEventsListener />
         {children}
       </ProfileProvider>
     </QueryClientProvider>

@@ -6,7 +6,7 @@ import type { ThemeColors } from '@/app/contexts/theme'
 import { supabase } from '@/lib/supabase/client'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { getAvatarUrl } from '@/lib/avatar'
 import { SCOPE_LABEL, type PermissionScope } from '@/lib/benefits/types'
 

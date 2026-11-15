@@ -240,10 +240,10 @@ export default function PedidosPage() {
                                     </div>
                                     <div className={`self-start sm:self-center px-3 py-1 text-[8px] font-black uppercase tracking-wider border ${order.delivery_status === 'in_transit' ? 'border-orange-500/30 bg-orange-500/10 text-orange-500' :
                                             order.delivery_status === 'delivered' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
-                                                order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-500' :
+                                                order.status === 'pending' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
                                                     order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-500' :
                                                         order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-500' :
-                                                            order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
+                                                            order.status === 'paid' ? 'border-blue-500/30 bg-blue-500/10 text-blue-500' :
                                                                 'border-destructive/30 bg-destructive/10 text-destructive'
                                         }`}>
                                         {order.delivery_status === 'in_transit' ? 'A caminho' :

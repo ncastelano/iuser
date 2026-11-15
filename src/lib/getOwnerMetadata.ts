@@ -307,7 +307,8 @@ export async function generateProductOrPublicationMetadata(
             }
 
             const isSale = product.listing_type === 'sale'
-            const formattedPrice = isSale && product.price != null ? ` - R$ ${Number(product.price).toFixed(2).replace('.', ',')}` : ''
+            // produto digital de preço 0 é GRÁTIS (a pessoa pega direto, sem pedido)
+            const formattedPrice = isSale && product.price != null ? (product.type === 'digital' && Number(product.price) <= 0 ? ' - Grátis' : ` - R$ ${Number(product.price).toFixed(2).replace('.', ',')}`) : ''
             const title = `${product.name}${formattedPrice} | ${ownerName}`
             const description = product.description || `Confira ${product.name} no iUser!`
 
@@ -472,7 +473,7 @@ export async function generateInviteMetadata(ref: string | undefined): Promise<M
 
         const displayName = inviter.name || `@${inviter.profileSlug}`
         const title = `${displayName} te chamou pro iUser`
-        const description = `Entre pelo convite de @${inviter.profileSlug}: compre, venda, dirija ou preste serviço no iUser. Taxa 0% no plano ou só R$ 0,50 por transação.`
+        const description = `Entre pelo convite de @${inviter.profileSlug}: compre, venda, dirija ou preste serviço no iUser. Taxa do iUser 0% no plano ou só R$ 0,50 por transação (cartão e Pix têm a taxa do próprio meio de pagamento).`
         const rawAvatarUrl = getPublicStorageUrl('avatars', inviter.avatar_url)
         const avatarUrl = rawAvatarUrl ? toThumbUrl(rawAvatarUrl) : defaultLogoUrl
 

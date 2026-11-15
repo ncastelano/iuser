@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useId, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { ORDERS_CHANGED_EVENT } from '@/lib/createStoreOrder'
 
 export interface OrderStatusCounts { pending: number; preparing: number; ready: number }
 const EMPTY: OrderStatusCounts = { pending: 0, preparing: 0, ready: 0 }
@@ -37,13 +38,16 @@ export function useOrderStatusCounts(userId: string | null | undefined): OrderSt
         const channel = supabase
             .channel(`order-status-${userId}-${instance}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `buyer_id=eq.${userId}` }, () => refresh())
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profile_notifications', filter: `profile_id=eq.${userId}` }, () => refresh())   // `orders` não vai pelo tempo real: cada mudança do pedido gera um aviso
             .subscribe()
         const onFocus = () => refresh()
         window.addEventListener('focus', onFocus)
+        window.addEventListener(ORDERS_CHANGED_EVENT, onFocus)
         // rede de segurança: se o Realtime cair, o selo ainda se corrige
         const timer = setInterval(refresh, 60000)
         return () => {
             window.removeEventListener('focus', onFocus)
+            window.removeEventListener(ORDERS_CHANGED_EVENT, onFocus)
             clearInterval(timer)
             supabase.removeChannel(channel)
         }

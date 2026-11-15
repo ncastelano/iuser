@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const user = await getAuthedUser(req)
     if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-    const { orderId } = await req.json().catch(() => ({}))
+    const { orderId, mode } = await req.json().catch(() => ({})) as { orderId?: string; mode?: string }
     if (!orderId) return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 })
 
     const { data: order } = await supabaseAdmin.from('orders').select('id, store_id, status').eq('id', orderId).maybeSingle()
@@ -48,6 +48,14 @@ export async function POST(req: Request) {
     // V2: os avisos aos motoristas saem da fila do banco (round_started), uma vez por rodada; aqui nada é enviado
     if (dispatch.flow_version === 2) return NextResponse.json({ success: true, dispatchId: dispatch.id, notified: 0, queued: true })
 
+    // Escolha por pedido (chamada manual): 'favorites' = os favoritos da loja primeiro; 'all' = todos de uma vez. Sem escolha vale o padrão da loja.
+    let favoritesFirst: { until: string | null; available: boolean } | null = null
+    if ((mode === 'favorites' || mode === 'all') && dispatch.status === 'searching') {
+        const { data: ex } = await supabaseAdmin.rpc('set_delivery_exclusivity', { p_order: order.id, p_mode: mode })
+        const r = ex as { ok?: boolean; exclusive_until?: string | null; favorites_available?: boolean } | null
+        if (r?.ok) favoritesFirst = { until: r.exclusive_until || null, available: !!r.favorites_available }
+    }
+
     if (dispatch.status === 'searching') {
         const { data: ride } = await supabaseAdmin
             .from('ride_requests')
@@ -65,5 +73,5 @@ export async function POST(req: Request) {
             await supabaseAdmin.rpc('record_delivery_round_notified', { p_dispatch: dispatch.id, p_count: notified || 0 })
         }
     }
-    return NextResponse.json({ success: true, dispatchId: dispatch.id, rideId: dispatch.ride_request_id })
+    return NextResponse.json({ success: true, dispatchId: dispatch.id, rideId: dispatch.ride_request_id, favoritesFirst })
 }

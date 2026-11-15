@@ -30,7 +30,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { captureReferral } from '@/lib/referralCapture'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { getWhatsAppLink } from '@/lib/whatsapp'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 

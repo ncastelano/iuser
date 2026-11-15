@@ -1,6 +1,6 @@
 // src/components/v3/StoreModelPicker.tsx
 //
-// Escolha do MODELO da loja (produtos, atendimento ou mista): três cartões com uma miniatura de como a página fica e de qual é o botão
+// Escolha do MODELO da loja (produtos, atendimento, mista, Studio, Conteúdo ou Editora): um cartão por modelo com uma miniatura de como a página fica e de qual é o botão
 // central. Só apresentação: quem usa guarda o valor (na criação da loja) ou salva (painel da loja).
 'use client'
 
@@ -33,6 +33,17 @@ function Mini({ model, colors }: { model: StoreModel; colors: any }) {
                     <span className="h-3.5 flex-1 rounded-full" style={{ border: `1.5px solid ${ORANGE}` }} />
                 </div>
             </>)}
+            {model === 'studio' && (<>
+                <div className="rounded-md flex-1 flex items-center justify-center" style={{ background: `${ORANGE}33` }}><span className="w-0 h-0" style={{ borderLeft: `7px solid ${ORANGE}`, borderTop: '5px solid transparent', borderBottom: '5px solid transparent' }} /></div>
+                <div className="flex gap-1">{[0, 1, 2].map((i) => <span key={i} className="h-3.5 flex-1 rounded-md" style={{ background: bar }} />)}</div>
+            </>)}
+            {model === 'content' && (<>
+                <div className="rounded-md h-7 flex items-center gap-1 px-1" style={{ background: `${ORANGE}33` }}>{[3, 6, 4, 7, 5].map((h, i) => <span key={i} className="w-[3px] rounded-full" style={{ height: h * 2, background: ORANGE }} />)}</div>
+                <div className="flex flex-col gap-1 flex-1">{[0, 1, 2].map((i) => <span key={i} className="flex-1 rounded-md" style={{ background: bar }} />)}</div>
+            </>)}
+            {model === 'publisher' && (
+                <div className="grid grid-cols-3 gap-1 flex-1">{[0, 1, 2, 3, 4, 5].map((i) => <span key={i} className="rounded-sm" style={{ background: i === 0 ? ORANGE : bar }} />)}</div>
+            )}
         </div>
     )
 }

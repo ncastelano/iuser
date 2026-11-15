@@ -1,14 +1,16 @@
 // src/versions/v3/shell/ModeShell.tsx
 //
-// Casca das páginas "de modo" (/modeloinicial, /modoprestador...): o topo com selo (logo/foto), cumprimento do modo,
-// atalhos de conversas e carrinho, e o menu lateral (drawer) em que a pessoa escolhe o modo — Meu perfil/prestador,
-// loja ou motorista. O menu empurra a página pra direita. O conteúdo de cada página entra como `children`.
+// Casca das páginas da 3.0 (/v3, /modoprestador...): uma ILHA no topo (foto do modo + cumprimento, ou o que está vivo agora:
+// corrida, pedido pronto, mensagens), uma BARRA flutuante embaixo (carrinho, conversas, iUser no centro, radar e a foto) e o HUB,
+// painel em que a ilha cresce para a pessoa escolher o modo — perfil/prestador, loja ou motorista — e ir a qualquer lugar do iUser.
+// A barra de baixo só aparece nas páginas "raiz" (as de tela cheia, mapas e conversa aberta ficam livres). O conteúdo entra como `children`.
 'use client'
 
-import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
-    Store as StoreIcon, Car, Wrench, MessageCircle, ShoppingCart, User, LogIn, LogOut, ChevronRight, X, Check, Search, RotateCcw,
+    Store as StoreIcon, Car, User, ChevronRight, ChevronDown, X, RotateCcw, ShoppingBag, LayoutDashboard, Check, Plus, Pencil, Bike,
+    Search, MapPin, Users, MessagesSquare, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -17,10 +19,23 @@ import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import { useChatUnread } from '@/hooks/useChatUnread'
 import { useOrderStatusCounts, type OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
-import { useCartStore } from '@/store/useCartStore'
-import { hexToRgb } from '@/lib/color'
-import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
+import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
+import { useShellLive } from '@/hooks/useShellLive'
+import { useMyActiveOrders } from '@/hooks/useMyActiveOrders'
+import { orderStripItems } from '@/modules/orders'
+import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
+import { useShellCompact } from '@/lib/shellCompact'
+import { toastStyle } from '@/lib/toastStyle'
+import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarExtra, type BarPlayer, type BarTab } from '@/components/BottomNavBar'
+import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
+import { usePlayerStore } from '@/store/usePlayerStore'
+import { miniHidden, subtitleOf } from '@/modules/player'
 import { switchVersion, versionLabel } from '@/versions/client'
+import { NOTIFICATIONS_PATH, isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
+import { BarKindProvider } from '@/versions/v3/bar/kind'
+import { activeBarKey, barKindOf, isOwnVehiclePage, barPathOf, barTabsFor, type BarKey } from '@/versions/v3/bar/domain'
+import { LAST_ABA_KEY } from '@/versions/v3/screens/AtividadeTabs'
+import { lockBodyScroll } from '@/lib/bodyScrollLock'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -29,10 +44,10 @@ const toPublicImage = (bucket: string, path: string | null | undefined) => {
     return path.startsWith('http') ? path : supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
 }
 
-// ===================== MENU LATERAL (DRAWER) =====================
-// Abre ao tocar no selo/nome do topo. A página inteira desliza pra direita (encolhendo um pouco, com cantos arredondados
-// e sombra), revelando o menu sobre o degradê do iUser. Cada modo tem a sua página: Meu perfil (/painel-perfil), Modo
-// prestador (/modoprestador), cada loja (/painel-loja/<slug>) e cada veículo (/<vehicle_slug>).
+// ===================== HUB (o antigo menu lateral) =====================
+// Abre ao tocar na ilha do topo ou na foto da barra de baixo: a ilha CRESCE para baixo e vira um painel sobre o degradê do iUser,
+// com os modos (perfil, prestador, lojas, veículos), a busca/explorar e atalhos. Cada modo tem a sua página: Meu perfil
+// (/painel-perfil), Modo prestador (/modoprestador), cada loja (/painel-loja/<slug>) e cada veículo (/<vehicle_slug>).
 interface DrawerData {
     stores: { id: string; name: string; slug: string; logo: string | null; open: boolean }[]
     vehicles: { kind: string; slug: string; model: string | null; plate: string | null; photo: string | null }[]
@@ -61,203 +76,186 @@ function modePath(mode: string, data: DrawerData): string {
     return '/'
 }
 
-// Linha de um modo no menu: mostra a imagem do modo (foto do perfil, logo da loja, foto do carro) ou, sem imagem, o ícone.
-// Nada some nem aparece aqui — a animação de troca acontece só no topo da página (seção "Bem-vindo").
-function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, actions }: {
-    mode: string; active: string; icon: ReactNode; image?: string | null; title: string; desc?: string; dot?: string
-    onSelect: (mode: string) => void
-    /** Botões extras embaixo da linha (ex.: "Ver loja" e "Painel") */
-    actions?: ReactNode
-}) {
-    const selected = active === mode
+// ===== MENU DE MODOS (o hub; desenho aprovado em /paginateste): uma lista de cartões IGUAIS, um por modo. CADA CARTÃO É COMPLETO: o cabeçalho (foto, nome, subtítulo, ✓),
+// as fichinhas de NOTIFICAÇÃO do que é daquele modo (conversas, carrinho, pedidos...) e, no modo escolhido, os botões dele (Ver perfil/Painel, Ver loja/Editar/Painel...).
+// Escolher um cartão (tocar no cabeçalho) seleciona o modo e abre a página dele, como sempre.
+const MODE_COLOR = { user: '#3b82f6', store: '#f97316', car: '#16a34a' } as const
+
+/** Uma fichinha de notificação do cartão: ícone, número e nome, na cor do assunto; leva ao lugar dele */
+interface ModeChip { key: string; icon: ReactNode; count: number; label: string; color: string; onClick: () => void }
+interface ModeAction { label: string; icon: ReactNode; onClick: () => void; solid?: boolean }
+
+function ModeChips({ items }: { items: ModeChip[] }) {
+    const shown = items.filter((c) => c.count > 0)
+    if (shown.length === 0) return null
     return (
-        <div
-            className="rounded-2xl"
-            style={selected ? { background: 'rgba(255,255,255,0.22)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
-        >
+        <div className="flex flex-wrap gap-1.5">
+            {shown.map((c) => (
+                <button
+                    key={c.key}
+                    onClick={c.onClick}
+                    className="h-7 pl-1.5 pr-2.5 rounded-full flex items-center gap-1.5 text-[11px] font-black transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                    style={{ background: `${c.color}1f`, color: c.color }}
+                >
+                    <span className="min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-white text-[10px] leading-none" style={{ background: c.color }}>{c.count > 99 ? '99+' : c.count}</span>
+                    {c.icon}<span>{c.label}</span>
+                </button>
+            ))}
+        </div>
+    )
+}
+
+/** Um modo: foto (ou ícone colorido), nome, subtítulo e, à direita, o ✓ do modo escolhido; embaixo, no mesmo cartão, as fichinhas de notificação e os botões do modo escolhido */
+function ModeCard({ selected, kind, image, title, desc, dot, onClick, chips, actions }: {
+    selected: boolean; kind: keyof typeof MODE_COLOR; image?: string | null; title: string; desc?: string; dot?: string; onClick: () => void
+    chips?: ModeChip[]; actions?: ModeAction[] | null
+}) {
+    const Icon = kind === 'store' ? StoreIcon : kind === 'car' ? Car : User
+    const hasChips = (chips || []).some((c) => c.count > 0)
+    const hasActions = selected && !!actions && actions.length > 0
+    return (
+        <div className="w-full rounded-2xl overflow-hidden transition" style={{ border: `1.5px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, background: selected ? '#f9731612' : 'transparent' }}>
             <button
-                onClick={() => onSelect(mode)}
+                onClick={onClick}
                 aria-pressed={selected}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="w-full flex items-center gap-3 p-2.5 text-left transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f97316]"
             >
-                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
-                    {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : icon}
+                <span className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden" style={{ background: image ? 'var(--hub-soft)' : MODE_COLOR[kind] }}>
+                    {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : <Icon size={18} />}
                 </span>
                 <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black leading-tight truncate">{title}</span>
+                    <span className="block text-[13px] font-black leading-tight truncate">{title}</span>
                     {desc && (
-                        <span className="flex items-center gap-1.5 text-xs opacity-90 truncate">
-                            {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}
+                        <span className="flex items-center gap-1.5 text-[11px] opacity-80 truncate mt-0.5">
+                            {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}<span className="truncate">{desc}</span>
                         </span>
                     )}
                 </span>
-                {selected
-                    ? <span className="flex-shrink-0 w-6 h-6 rounded-full bg-white flex items-center justify-center" title="Modo selecionado"><Check size={14} color="#dc2626" strokeWidth={3} /></span>
-                    : <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
+                {selected ? <Check size={17} className="flex-shrink-0" style={{ color: '#f97316' }} /> : <ChevronRight size={16} className="flex-shrink-0 opacity-60" />}
             </button>
-            {actions && <div className="flex gap-2 px-3 pb-2.5 pt-0.5">{actions}</div>}
+            {(hasChips || hasActions) && (
+                <div className="px-2.5 pb-2.5 flex flex-col gap-2">
+                    {hasChips && <ModeChips items={chips!} />}
+                    {hasActions && <ModeActions items={actions!} />}
+                </div>
+            )}
         </div>
     )
 }
 
-/** Botão pequeno de ação dentro de uma linha do menu */
-function DrawerPill({ onClick, children, solid = false }: { onClick: () => void; children: ReactNode; solid?: boolean }) {
+/** Cartão de chamada (cadastrar loja / virar motorista): do mesmo tamanho dos modos, só que tracejado */
+function ModeCta({ kind, title, desc, onClick }: { kind: keyof typeof MODE_COLOR; title: string; desc: string; onClick: () => void }) {
+    const Icon = kind === 'store' ? StoreIcon : kind === 'car' ? Car : User
     return (
-        <button
-            onClick={onClick}
-            className="flex-1 py-2 rounded-full text-xs font-black transition hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            style={solid ? { background: '#fff', color: '#dc2626' } : { background: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.45)' }}
-        >
-            {children}
-        </button>
-    )
-}
-
-/** Linha de chamada (cadastrar loja / virar motorista): não é um modo, só leva ao cadastro */
-function DrawerCta({ icon, title, desc, onClick }: { icon: ReactNode; title: string; desc: string; onClick: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            style={{ border: '1.5px dashed rgba(255,255,255,0.6)' }}
-        >
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>{icon}</span>
+        <button onClick={onClick} className="w-full flex items-center gap-3 p-2.5 rounded-2xl text-left transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]" style={{ border: '1.5px dashed var(--hub-line)' }}>
+            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)', color: MODE_COLOR[kind] }}><Icon size={18} /></span>
             <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black leading-tight truncate">{title}</span>
-                <span className="block text-xs opacity-90 truncate">{desc}</span>
+                <span className="block text-[13px] font-black leading-tight truncate">{title}</span>
+                <span className="block text-[11px] opacity-80 truncate mt-0.5">{desc}</span>
             </span>
-            <ChevronRight size={16} className="flex-shrink-0 opacity-70" />
+            <Plus size={16} className="flex-shrink-0 opacity-60" />
         </button>
     )
 }
 
-function DrawerLabel({ children }: { children: ReactNode }) {
-    return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest text-white/80">{children}</p>
+/** A linha de botões iguais do modo escolhido (2 ou 3, mesma largura e altura) */
+function ModeActions({ items }: { items: ModeAction[] }) {
+    return (
+        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+            {items.map((it) => (
+                <button
+                    key={it.label}
+                    onClick={it.onClick}
+                    className="h-10 px-2 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-black transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                    style={it.solid ? { background: '#f97316', color: '#fff' } : { border: '1px solid var(--hub-line)', color: 'var(--hub-fg)' }}
+                >
+                    {it.icon}<span className="truncate">{it.label}</span>
+                </button>
+            ))}
+        </div>
+    )
 }
 
-function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, onGo, onClose, onSwitchVersion }: {
+/** O cabeçalho do menu: a pergunta, quem está usando e o fechar */
+function HubHeader({ title, sub, onClose }: { title: string; sub?: string; onClose: () => void }) {
+    return (
+        <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5 flex-shrink-0">
+            <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-black leading-tight">{title}</span>
+                {sub && <span className="block text-[11px] opacity-80 truncate mt-0.5">{sub}</span>}
+            </span>
+            <button onClick={onClose} aria-label="Fechar menu" className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ border: '1px solid var(--hub-line)' }}>
+                <X size={15} />
+            </button>
+        </div>
+    )
+}
+
+function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts, onSelect, onGo, onSwitchVersion }: {
     onSwitchVersion: () => Promise<void>
-    slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
+    /** Pedidos de cada loja (novos, em preparo, prontos) */
+    storeOrders: Record<string, { pending: number; preparing: number; ready: number; services: number }>
+    data: DrawerData
     /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
-    /** As últimas coisas que a pessoa abriu pela busca (avatares do Explorar) */
-    recent: RecentClickItem[]
-    onSelect: (mode: string) => void; onGo: (path: string) => void; onClose: () => void
+    slug: string | null
+    avatarUrl: string | null | undefined
+    /** O que pede atenção, por modo: conversas não lidas da caixa de cada um ('perfil' e o id de cada loja), carrinho, pedidos da pessoa e notificações do perfil */
+    counts: { rooms: Record<string, number>; cart: number; orders: { pending: number; preparing: number; ready: number }; notifs: number }
+    onSelect: (mode: string) => void; onGo: (path: string) => void
 }) {
-    // Cada grupo é um painel separado, com o seu título
-    const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
-        <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
-            <DrawerLabel>{title}</DrawerLabel>
-            <div className="flex flex-col gap-1.5">{children}</div>
-        </section>
-    )
+    const ic = (I: typeof User) => <I size={12} className="flex-shrink-0" />
+    const act = (I: typeof User) => <I size={14} className="flex-shrink-0" />
 
+    // PESSOA: o que é da conta pessoal
+    const myOrders = counts.orders.pending + counts.orders.preparing + counts.orders.ready
+    const personChips: ModeChip[] = [
+        { key: 'chat', icon: ic(MessageCircle), count: counts.rooms.perfil || 0, label: (counts.rooms.perfil || 0) === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo('/atividade?aba=conversas') },
+        { key: 'cart', icon: ic(ShoppingCart), count: counts.cart, label: 'no carrinho', color: '#f97316', onClick: () => onGo('/atividade?aba=carrinho') },
+        { key: 'orders', icon: ic(Package), count: myOrders, label: myOrders === 1 ? 'pedido' : 'pedidos', color: counts.orders.ready > 0 ? '#a855f7' : '#16a34a', onClick: () => onGo('/atividade?aba=pedidos') },
+        { key: 'notifs', icon: ic(Bell), count: counts.notifs, label: counts.notifs === 1 ? 'notificação' : 'notificações', color: '#ef4444', onClick: () => onGo(NOTIFICATIONS_PATH) },
+    ]
+    const personActions: ModeAction[] = [
+        ...(slug ? [{ label: 'Ver perfil', icon: act(User), onClick: () => onGo(`/${slug}`) }] : []),
+        { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onSelect('perfil'), solid: true },
+    ]
+    // LOJA: pedidos, serviços e a caixa de conversas dela
+    const storeChips = (st: DrawerData['stores'][number]): ModeChip[] => {
+        const o = storeOrders[st.id] || { pending: 0, preparing: 0, ready: 0, services: 0 }
+        const going = o.preparing + o.ready
+        const orders = `/painel-loja/${encodeURIComponent(st.slug)}/pedidos`
+        const unread = counts.rooms[st.id] || 0
+        return [
+            { key: 'new', icon: ic(ShoppingBag), count: o.pending, label: o.pending === 1 ? 'pedido novo' : 'pedidos novos', color: '#22c55e', onClick: () => onGo(orders) },
+            { key: 'svc', icon: ic(Bell), count: o.services, label: o.services === 1 ? 'serviço' : 'serviços', color: '#14b8a6', onClick: () => onGo(orders) },
+            { key: 'going', icon: ic(Package), count: going, label: 'em andamento', color: o.ready > 0 ? '#a855f7' : '#eab308', onClick: () => onGo(orders) },
+            { key: 'chat', icon: ic(MessageCircle), count: unread, label: unread === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo(`/atividade?aba=conversas&sala=${encodeURIComponent(st.slug)}`) },
+        ]
+    }
+    const storeActions = (st: DrawerData['stores'][number]): ModeAction[] => [
+        { label: 'Ver loja', icon: act(StoreIcon), onClick: () => onGo(`/${st.slug}`) },
+        { label: 'Editar', icon: act(Pencil), onClick: () => onGo(`/editar-loja/${encodeURIComponent(st.slug)}`) },
+        { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onSelect(`loja:${st.slug}`), solid: true },
+    ]
+    const vehicleActions = (v: DrawerData['vehicles'][number]): ModeAction[] => [
+        { label: 'Veículo', icon: act(Car), onClick: () => onGo(`/${v.slug}`) },
+        { label: 'Entregas', icon: act(Bike), onClick: () => onGo('/entregas') },
+        { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onGo('/painel-motorista'), solid: true },
+    ]
     return (
-        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
-            {/* Só o fechar: a foto e o @ aparecem uma vez só, no cartão "Meu perfil" logo abaixo */}
-            <div className="flex justify-end">
-                <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
-                    <X size={20} />
-                </button>
-            </div>
-
-            <Panel title="Modo motorista">
-                {data.vehicles.length > 0 ? data.vehicles.map((v) => (
-                    <DrawerRow
-                        key={v.slug}
-                        mode={`motorista:${v.slug}`}
-                        active={active}
-                        onSelect={onSelect}
-                        icon={<Car size={20} color="#fff" />}
-                        image={v.photo}
-                        title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
-                        desc={data.driverActive ? 'Motorista ativado' : 'Motorista desligado'}
-                        dot={data.driverActive ? '#4ade80' : '#fca5a5'}
-                    />
-                )) : (
-                    <DrawerCta icon={<Car size={20} color="#fff" />} title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />
-                )}
-            </Panel>
-
-            <Panel title="Modo loja">
-                {data.stores.length > 0 ? data.stores.map((st) => (
-                    <DrawerRow
-                        key={st.id}
-                        mode={`loja:${st.slug}`}
-                        active={active}
-                        onSelect={onSelect}
-                        icon={<StoreIcon size={20} color="#fff" />}
-                        image={st.logo}
-                        title={st.name}
-                        desc={st.open ? 'Aberta agora' : 'Fechada agora'}
-                        dot={st.open ? '#4ade80' : '#fca5a5'}
-                        actions={(
-                            <>
-                                <DrawerPill onClick={() => onGo(`/${st.slug}`)}>Ver loja</DrawerPill>
-                                <DrawerPill solid onClick={() => onGo(`/painel-loja/${encodeURIComponent(st.slug)}`)}>Editar</DrawerPill>
-                            </>
-                        )}
-                    />
-                )) : (
-                    <DrawerCta icon={<StoreIcon size={20} color="#fff" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} />
-                )}
-            </Panel>
-
-
-            {/* Meu perfil: tudo num cartão só — foto, @, modo prestador (a bolinha verde) e os dois botões */}
-            <Panel title="Meu perfil">
-                <DrawerRow
-                    mode="perfil"
-                    active={active}
-                    onSelect={onSelect}
-                    icon={<User size={20} color="#fff" />}
-                    image={avatarUrl}
-                    title={slug ? `@${slug}` : 'Meu perfil'}
-                    desc={data.providerOn ? 'Modo prestador ligado' : undefined}
-                    dot={data.providerOn ? '#4ade80' : undefined}
-                    actions={(
-                        <>
-                            {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
-                            <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Editar</DrawerPill>
-                        </>
-                    )}
-                />
-            </Panel>
-
-            <DrawerExplorar recent={recent} onGo={onGo} />
+        <div className="w-full flex flex-col gap-2 px-3.5 pb-3.5">
+            {/* Pessoa */}
+            <ModeCard selected={active === 'perfil'} kind="user" image={avatarUrl} title="Pessoa" desc={`${slug ? `@${slug} · ` : ''}comprar, contratar, publicar`} onClick={() => onSelect('perfil')} chips={personChips} actions={personActions} />
+            {/* Lojas */}
+            {data.stores.length > 0 ? data.stores.map((st) => {
+                return <ModeCard key={st.id} selected={active === `loja:${st.slug}`} kind="store" image={st.logo} title={st.name} desc={`Modo loja · ${st.open ? 'Aberta agora' : 'Fechada agora'}`} dot={st.open ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`loja:${st.slug}`)} chips={storeChips(st)} actions={storeActions(st)} />
+            }) : <ModeCta kind="store" title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} />}
+            {/* Motorista: um card por veículo */}
+            {data.vehicles.length > 0 ? data.vehicles.map((v) => (
+                <ModeCard key={v.slug} selected={active === `motorista:${v.slug}`} kind="car" image={v.photo} title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`} desc={`Modo motorista · ${data.driverActive ? 'ativado' : 'desligado'}`} dot={data.driverActive ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`motorista:${v.slug}`)} actions={vehicleActions(v)} />
+            )) : <ModeCta kind="car" title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />}
             <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
-    )
-}
-
-// Explorar: a lupa + as 5 últimas coisas buscadas; leva ao /modeloinicial
-function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (path: string) => void }) {
-    return (
-        <>
-            <button
-                type="button"
-                onClick={() => onGo('/modeloinicial')}
-                className="mt-4 w-full rounded-full px-4 py-3 flex items-center gap-3 text-white font-black text-sm transition active:scale-[0.98]"
-                style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)' }}
-            >
-                <Search size={20} className="flex-shrink-0" />
-                <span className="flex-1 text-left">Explorar</span>
-                {recent.length > 0 && (
-                    <span className="flex flex-shrink-0">
-                        {recent.map((r, i) => (
-                            <span
-                                key={`${r.type}-${r.id}`}
-                                className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-black flex-shrink-0"
-                                style={{ marginLeft: i === 0 ? 0 : -10, background: 'rgba(255,255,255,0.35)', boxShadow: '0 0 0 2px #ea580c' }}
-                                title={r.name}
-                            >
-                                {r.imageUrl ? <img src={r.imageUrl} alt="" className="w-full h-full object-cover" /> : (r.name || '?').charAt(0).toUpperCase()}
-                            </span>
-                        ))}
-                    </span>
-                )}
-            </button>
-        </>
     )
 }
 
@@ -269,283 +267,113 @@ function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
             type="button"
             disabled={busy}
             onClick={async () => { setBusy(true); try { await onSwitch() } finally { /* a página recarrega */ } }}
-            className="mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left text-white transition active:scale-[0.98] disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            style={{ background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.28)' }}
+            className="mt-2 w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl text-left transition active:scale-[0.98] disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+            style={{ background: 'transparent', border: '1px dashed var(--hub-line)' }}
         >
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
-                <RotateCcw size={18} />
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--hub-soft)' }}>
+                <RotateCcw size={16} />
             </span>
             <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black leading-tight">{busy ? 'Trocando…' : `Voltar para a versão ${versionLabel('v2').replace('iUser ', '')}`}</span>
-                <span className="block text-xs opacity-90">Só muda a interface: conta, dados e plano continuam iguais</span>
+                <span className="block text-[13px] font-black leading-tight">{busy ? 'Trocando…' : `Voltar para a versão ${versionLabel('v2').replace('iUser ', '')}`}</span>
+                <span className="block text-[11px] opacity-80 truncate">Só muda a interface: conta e dados iguais</span>
             </span>
         </button>
     )
 }
 
-// Menu de quem não tem conta: o "modo" é o de visitante (já selecionado), mais entrar/criar conta e o Explorar
-function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
+// Menu de quem não tem conta: o "modo" é o de visitante (já escolhido), mais entrar e criar conta — no mesmo desenho dos modos
+function VisitorDrawerContent({ onGo, onClose, onSwitchVersion }: { onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
     return (
-        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
-            <div className="flex justify-end">
-                <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
-                    <X size={20} />
-                </button>
-            </div>
-
-            <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
-                <DrawerLabel>Modo visitante</DrawerLabel>
-                <div className="flex flex-col gap-1.5">
-                    <DrawerRow
-                        mode="visitante"
-                        active="visitante"
-                        onSelect={() => onClose()}
-                        icon={<User size={20} color="#fff" />}
-                        title="Visitante"
-                        desc="Navegando sem conta"
-                        dot="#fde68a"
-                    />
-                </div>
-            </section>
-
-            <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
-                <DrawerLabel>Minha conta</DrawerLabel>
-                <div className="flex flex-col gap-1.5">
-                    <DrawerCta icon={<LogIn size={20} color="#fff" />} title="Entrar" desc="Já tenho conta no iUser" onClick={() => onGo('/login')} />
-                    <DrawerCta icon={<User size={20} color="#fff" />} title="Criar conta" desc="Grátis, leva um minuto" onClick={() => onGo('/cadastrar')} />
-                </div>
-            </section>
-
-            <DrawerExplorar recent={recent} onGo={onGo} />
-            <DrawerVersionSwitch onSwitch={onSwitchVersion} />
+        <div className="w-full flex flex-col gap-2 px-3.5 pb-3.5">
+            <ModeCard selected kind="user" title="Visitante" desc="Navegando sem conta" dot="#fde68a" onClick={onClose} />
+            <ModeCta kind="user" title="Entrar" desc="Já tenho conta no iUser" onClick={() => onGo('/login')} />
+            <ModeCta kind="user" title="Criar conta" desc="Grátis, leva um minuto" onClick={() => onGo('/cadastrar')} />
             <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
     )
 }
 
-// Selo redondo do topo, do tamanho de um avatar. Visitante: só a logo do iUser. Logado: a cada 5 s a "página vira"
-// (giro em 3D, a logo numa face e a foto do perfil na outra). Tocar leva ao perfil (foto) ou à home (logo).
-// A borda do plano é desenhada POR FORA da foto (3 px de cada lado) — por isso a foto fica menor quando tem borda,
-// pro conjunto ter exatamente o mesmo tamanho da logo.
-const BADGE = 48
-// Degradê do menu: o fundo atrás do cartão do app e a cor da navbar do topo
-// Borda branca em volta da logo do selo: ela aparece bem em cima do degradê laranja da barra
-// A logo (logo.png) tem uma margem transparente em volta do círculo; com fundo branco ela virava uma borda grossa.
-// Sem fundo e com a imagem ampliada até o círculo encher o ícone, sobra só o anel de 2px (a mesma grossura do avatar).
+// A ilha flutua no topo; o conteúdo da página começa abaixo dela (NAV_H, a mesma altura de antes: telas cheias usam --shell-top)
+const ISLAND_H = 56
+const BAR_BOTTOM_VAR = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'   // o menu sobe a partir de onde fica a barra
+const NAV_H = 'calc(74px + env(safe-area-inset-top))'
+// (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
+// Espaço que a barra de baixo ocupa (var --shell-bottom): quem tem algo fixo embaixo se afasta dele
+const SHELL_BOTTOM = BAR_SPACE
 const LOGO_RING = { border: '2px solid #fff', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
 const LOGO_IMG_SCALE = 1.15
-// Distância do ícone da direita até a borda da tela (px-4 da barra + a sobra quando a página é mais larga que 5xl)
-const EDGE_GAP = 'calc(16px + max(0px, (100vw - 1024px) / 2))'
-// Altura da aba (ícone selecionado): do alto da barra até o pé dela, onde encontra o cartão do app
-const TAB_H = 66
-const FILLET = 12
-// Ícone da barra do topo. A aba clara (selecionado) é UM indicador só, que desliza entre os três (`indicator`, dentro da barra)
-function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, btnRef, orders, children }: {
-    /** Cor do ícone quando selecionado (fica sobre a aba clara: precisa ser escura) */
-    selectedColor: string
-    /** Espera (ms) antes de trocar a cor: o ícone só escurece quando a aba clara já chegou nele */
-    colorDelay?: number
-    btnRef?: React.Ref<HTMLButtonElement>
-    /** Aba do canto direito: estica até a borda da tela pra aba clara se fundir ao canto do cartão */
-    toEdge?: boolean
-    /** Pedidos em andamento por etapa: bolinhas coloridas embaixo do ícone (só as que têm algum) */
-    orders?: OrderStatusCounts
-    selected: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; children: ReactNode
-}) {
-    return (
-        <button
-            ref={btnRef}
-            onClick={onClick}
-            aria-label={label}
-            aria-current={selected ? 'page' : undefined}
-            className="relative flex items-center justify-center flex-shrink-0 transition active:scale-95"
-            style={{
-                width: toEdge ? `calc(${TAB_W}px + ${EDGE_GAP})` : TAB_W,
-                paddingRight: toEdge ? EDGE_GAP : undefined,
-                marginRight: toEdge ? `calc(-1 * ${EDGE_GAP})` : undefined,
-                height: '100%', paddingBottom: 8,
-                // A cor só troca quando a aba clara já está em volta do ícone (e volta a branco depois que ela saiu)
-                color: selected ? selectedColor : '#fff',
-                transitionProperty: 'color',
-                transitionDuration: '0ms',
-                transitionTimingFunction: 'linear',
-                // chegando: espera a aba envolver o ícone; saindo: volta a branco assim que a aba se afasta
-                transitionDelay: `${selected ? colorDelay : Math.min(colorDelay, TAB_LEAVE_DELAY)}ms`,
-            }}
-        >
-            {children}
-            {orders && (orders.pending > 0 || orders.preparing > 0 || orders.ready > 0) && (
-                <span className="absolute left-1/2 -translate-x-1/2 flex items-center gap-[3px] pointer-events-none" style={{ bottom: 6 }} aria-label="Pedidos em andamento">
-                    {([['pending', '#3b82f6'], ['preparing', '#eab308'], ['ready', '#a855f7']] as const).map(([k, color]) => (
-                        orders[k] > 0 ? (
-                            <span key={k} className="min-w-[15px] h-[15px] px-[3px] rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: color, boxShadow: '0 0 0 1.5px #fff' }}>
-                                {orders[k] > 9 ? '9+' : orders[k]}
-                            </span>
-                        ) : null
-                    ))}
-                </span>
-            )}
-            {/* Não lida: o selo ganha um anel que pulsa (o ícone em si não apaga, fica igual ao dos outros) */}
-            {badge > 0 && pulse && !selected && (
-                <span aria-hidden className="absolute top-1.5 right-1 min-w-[18px] h-[18px] rounded-full animate-ping pointer-events-none" style={{ background: badgeColor, opacity: 0.55 }} />
-            )}
-            {badge > 0 && (
-                <span className="absolute top-1.5 right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: '0 0 0 2px #fff' }}>
-                    {badge > 99 ? '99+' : badge}
-                </span>
-            )}
-        </button>
-    )
-}
+// Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
+// Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
+const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos']
+const BAR_PATHS = ['/', '/social', '/flash', '/entregas', '/comprar', '/lojas', '/produtos', '/digitais', '/servicos-disponiveis', '/atividade', '/carrinho', '/conversas', '/aceitar-corridas', '/ganhos', '/canal-do-motorista', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
 
-// Largura de cada ícone da barra (px)
-const TAB_W = 48
-// Tempo (ms) até a aba clara estar em volta do ícone: só então o ícone/texto troca de cor
-const TAB_COLOR_DELAY = 200
-const TAB_LEAVE_DELAY = 50
-// Raio dos cantos côncavos da barra do topo (px)
-const CORNER = 24
-const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
-function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', modeIcon, popToken = 0 }: {
-    userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
-    /** Imagem que não é do perfil (logo da loja, foto do carro): sem a borda do plano */
-    noRing?: boolean
-    label?: string
-    /** Ícone do modo atual: aparece primeiro e, 300 ms depois de trocar de modo, vira a imagem */
-    modeIcon?: ReactNode
-    /** Sobe a cada troca de modo: a nova imagem entra com um "estouro" (0 = sem animação, carga inicial) */
-    popToken?: number
+// Foto do modo (perfil, logo da loja, foto do carro) — ou o ícone do modo quando não há imagem. Troca de modo = pequeno "estouro".
+function ModeAvatar({ userId, image, noRing, modeIcon, popToken, colors, size = 40 }: {
+    userId: string | null; image: string | null | undefined; noRing: boolean; modeIcon: ReactNode; popToken: number; colors: any; size?: number
 }) {
-    const [showAvatar, setShowAvatar] = useState(true)
-    // Troca de modo (popToken muda): mostra o ícone, e só 300 ms depois vira a imagem — nunca fica um instante sem nada
-    // (derivado do token: na mesma renderização da troca já começa pelo ícone, sem piscar a imagem nova antes)
-    const [shownToken, setShownToken] = useState(popToken)
-    const imageShown = shownToken === popToken
-    useEffect(() => {
-        if (shownToken === popToken) return
-        const t = setTimeout(() => setShownToken(popToken), 300)
-        return () => clearTimeout(t)
-    }, [popToken, shownToken])
     const planRing = usePlanRing(userId)
-    const hasRing = planRing && !noRing
-    useEffect(() => {
-        if (!userId) return
-        const t = setInterval(() => setShowAvatar((v) => !v), 5000)
-        return () => clearInterval(t)
-    }, [userId])
-
-    const avatarOn = !!userId && showAvatar
-    const avatarSize = hasRing ? BADGE - 6 : BADGE
-    const face = { position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' } as const
+    const inner = planRing && !noRing ? size - 6 : size
     return (
-        <div className="flex-shrink-0" style={{ width: BADGE, height: BADGE, perspective: 600 }}>
-            <div
-                className="relative w-full h-full"
-                style={{
-                    transformStyle: 'preserve-3d',
-                    transition: 'transform 900ms cubic-bezier(0.45, 0, 0.2, 1)',
-                    transform: avatarOn || !userId ? 'rotateY(0deg)' : 'rotateY(180deg)',
-                }}
+        <PlanAvatarRing userId={noRing ? null : userId} width={2} linkToProfile={false}>
+            <span
+                key={popToken}
+                className="rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
+                style={{ width: inner, height: inner, background: image ? `${colors.border}60` : GRADIENT, color: '#fff', animation: popToken ? 'shellPop 420ms cubic-bezier(0.34, 1.56, 0.64, 1)' : undefined }}
             >
-                {/* Frente: a foto do perfil (ou, sem conta, a logo) */}
-                {userId ? (
-                    <button onClick={onProfile} aria-label={label} className="flex items-center justify-center rounded-full" style={face}>
-                        <PlanAvatarRing userId={noRing ? null : userId} width={2} linkToProfile={false}>
-                            <span className="block rounded-full overflow-hidden" style={{ width: avatarSize, height: avatarSize, perspective: 300 }}>
-                                <span key={popToken} className="relative block w-full h-full" style={{ transformStyle: 'preserve-3d' }}>
-                                    {/* Ícone do modo: aparece primeiro; só some quando a imagem já está pronta pra entrar */}
-                                    <span
-                                        className="absolute inset-0 rounded-full flex items-center justify-center text-white"
-                                        style={{
-                                            background: GRADIENT, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
-                                            transition: 'transform 600ms cubic-bezier(0.45, 0, 0.2, 1)',
-                                            transform: imageShown ? 'rotateY(180deg)' : 'rotateY(0deg)',
-                                        }}
-                                    >
-                                        {modeIcon || <User size={20} />}
-                                    </span>
-                                    <span
-                                        className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center"
-                                        style={{
-                                            background: `${colors.border}60`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
-                                            transition: 'transform 600ms cubic-bezier(0.45, 0, 0.2, 1)',
-                                            transform: imageShown ? 'rotateY(0deg)' : 'rotateY(-180deg)',
-                                        }}
-                                    >
-                                        {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : (modeIcon || <User size={20} style={{ color: colors.textSecondary }} />)}
-                                    </span>
-                                </span>
-                            </span>
-                        </PlanAvatarRing>
-                    </button>
-                ) : (
-                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, ...LOGO_RING }}>
-                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
-                    </button>
-                )}
-                {/* Verso: a logo (só existe pra quem está logado) */}
-                {userId && (
-                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, ...LOGO_RING, transform: 'rotateY(180deg)' }}>
-                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
-                    </button>
-                )}
-            </div>
-        </div>
+                {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : modeIcon}
+            </span>
+        </PlanAvatarRing>
     )
 }
 
+// Avisa a casca quando há uma conversa aberta (?c=): a barra de baixo sai da frente do campo de digitar. Fica à parte porque
+// useSearchParams precisa de um Suspense em volta.
+function ChatThreadWatcher({ onChange }: { onChange: (open: boolean, aba: string | null) => void }) {
+    const sp = useSearchParams()
+    const open = !!sp.get('c')
+    const aba = sp.get('aba')
+    useEffect(() => { onChange(open, aba) }, [open, aba, onChange])
+    return null
+}
 
-export default function ModeShell({ children, search }: {
+export default function ModeShell({ children }: {
     children: ReactNode
-    /** Busca da página: vira uma lupa na navegação de baixo e abre o campo ao tocar */
+    /** (herdado) busca da página: a barra nova não tem lupa; quem usa a busca da home a encontra no topo da própria página */
     search?: { value: string; onChange: (v: string) => void; placeholder?: string; inline?: boolean; focus?: () => void }
 }) {
     const router = useRouter()
     const pathname = usePathname()
     const { colors } = useTheme()
-    const surfaceRgb = hexToRgb(colors.surface)
     const { userId, profileSlug, avatarUrl, loading: profileLoading } = useProfile()
     const go = (path: string) => router.push(path)
 
     // Selos do topo: não lidas do chat e itens do carrinho
     const topUnread = useChatUnread(userId)
     const orderCounts = useOrderStatusCounts(userId)
+    const myOrders = useMyActiveOrders(userId)
     const ordersActive = orderCounts.pending + orderCounts.preparing + orderCounts.ready
     const cartMap = useCartStore((st) => st.itemsByStore)
     const [cartReady, setCartReady] = useState(false)
     useEffect(() => setCartReady(true), [])
     const topCart = cartReady ? Object.values(cartMap).reduce((a, items) => a + items.reduce((n, i) => n + i.quantity, 0), 0) : 0
+    const cartTotal = cartReady ? Object.values(cartMap).reduce((a, items) => a + items.reduce((n, i) => n + cartItemLineTotal(i), 0), 0) : 0
 
-    // Menu lateral: abre pelo avatar. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
+    // Hub: abre pela ilha do topo ou pela foto da barra de baixo. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
-    // O cartão do app só solta o recorte (altura + overflow) DEPOIS da animação de fechar: se soltasse na hora, o
-    // conteúdo de baixo pularia pra dentro do cartão ainda encolhido e ele ficava "bugado"
-    const [cardClipped, setCardClipped] = useState(false)
-    useEffect(() => {
-        if (drawerOpen) { setCardClipped(true); return }
-        const t = setTimeout(() => setCardClipped(false), 480)
-        return () => clearTimeout(t)
-    }, [drawerOpen])
-    const [searchOpen, setSearchOpen] = useState(false)
-    // As 5 últimas coisas que a pessoa abriu pela busca (perfil, loja, produto) — vão no Explorar do menu
-    const [recent, setRecent] = useState<RecentClickItem[]>([])
-    useEffect(() => {
-        const read = () => setRecent(getRecentClicks().filter((i) => i.type !== 'ride').slice(0, 5))
-        read()
-        window.addEventListener('focus', read)
-        window.addEventListener('storage', read)
-        return () => { window.removeEventListener('focus', read); window.removeEventListener('storage', read) }
-    }, [])
-    const searchInputRef = useRef<HTMLInputElement>(null)
-    // Saiu de uma página com busca: o campo fecha (o layout é o mesmo entre as páginas)
-    useEffect(() => { if (!search) setSearchOpen(false) }, [search])
-    useEffect(() => { if (searchOpen) searchInputRef.current?.focus() }, [searchOpen])
+    // o player completo (cresce da barra) está aberto?
+    const [playerFull, setPlayerFull] = useState(false)
+    // Conversa aberta (?c=): a barra de baixo sai da frente
+    const [threadOpen, setThreadOpen] = useState(false)
+    // o ?aba= da página Atividade (a barra da loja marca Conversas quando a Atividade está nas conversas)
+    const [abaParam, setAbaParam] = useState<string | null>(null)
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
     const [dataLoaded, setDataLoaded] = useState(false)
+    // Pedidos de cada loja da pessoa (novos, em preparo, prontos): aparecem no cartão da loja do menu
+    const [storeOrders, setStoreOrders] = useState<Record<string, { pending: number; preparing: number; ready: number; services: number }>>({})
     // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>'
     const [activeMode, setActiveMode] = useState('perfil')
     // Com uma loja escolhida no menu, as conversas já abrem na sala dessa loja (?sala=<slug>)
-    const chatPath = activeMode.startsWith('loja:') ? `/conversas?sala=${encodeURIComponent(activeMode.slice(5))}` : '/conversas'
+    const chatPath = activeMode.startsWith('loja:') ? `/atividade?aba=conversas&sala=${encodeURIComponent(activeMode.slice(5))}` : '/atividade?aba=conversas'
     const [modeTick, setModeTick] = useState(0)
     // Resumo do topo da última visita: desenha o cabeçalho na hora (sem esperar o banco) e depois confere
     const [snap, setSnap] = useState<HeaderSnap | null>(null)
@@ -598,91 +426,63 @@ export default function ModeShell({ children, search }: {
         return () => { cancelled = true }
     }, [userId, profileLoading])
 
+    const storeIdsKey = drawerData.stores.map((st) => st.id).join(',')
+    useEffect(() => {
+        if (!storeIdsKey) return
+        let cancelled = false
+        const load = async () => {
+            if (document.hidden && !drawerOpen) return
+            const ids = storeIdsKey.split(',')
+            const [{ data }, { data: svc }] = await Promise.all([
+                supabase.from('orders').select('store_id, status').in('store_id', ids).in('status', ['pending', 'preparing', 'ready']),
+                // pedidos de SERVIÇO (agendamentos que a loja ainda precisa aceitar)
+                supabase.from('appointments').select('store_id').in('store_id', ids).eq('status', 'pending'),
+            ])
+            if (cancelled || !data) return
+            const next: Record<string, { pending: number; preparing: number; ready: number; services: number }> = {}
+            const slot = (id: string) => next[id] || (next[id] = { pending: 0, preparing: 0, ready: 0, services: 0 })
+            for (const r of data as { store_id: string; status: 'pending' | 'preparing' | 'ready' }[]) slot(r.store_id)[r.status] += 1
+            for (const r of (svc || []) as { store_id: string }[]) slot(r.store_id).services += 1
+            setStoreOrders(next)
+        }
+        load()
+        const t = setInterval(load, 15_000)
+        return () => { cancelled = true; clearInterval(t) }
+    }, [drawerOpen, storeIdsKey])
+
+    // O que pede atenção em cada modo (as fichinhas dos cartões do menu): conversas não lidas da caixa de cada um e as notificações do perfil. Só carrega com o menu aberto.
+    const [hubCounts, setHubCounts] = useState<{ rooms: Record<string, number>; notifs: number }>({ rooms: {}, notifs: 0 })
+    useEffect(() => {
+        if (!userId || !drawerOpen) return
+        let cancelled = false
+        const withUnread = (rows: unknown) => ((rows as { unread: number }[] | null) || []).reduce((a, r) => a + (r.unread > 0 ? 1 : 0), 0)
+        const load = async () => {
+            const rooms: Record<string, number> = {}
+            const ids = storeIdsKey ? storeIdsKey.split(',') : []
+            const [{ data: mine }, { data: notifs }] = await Promise.all([
+                supabase.rpc('get_my_conversations', { p_scope: 'profile' }),
+                supabase.rpc('get_my_notifications', { p_limit: 100 }),
+            ])
+            rooms.perfil = withUnread(mine)
+            await Promise.all(ids.map(async (id) => {
+                const { data } = await supabase.rpc('get_my_conversations', { p_scope: 'store', p_store: id })
+                rooms[id] = withUnread(data)
+            }))
+            if (!cancelled) setHubCounts({ rooms, notifs: ((notifs as { read_at: string | null }[] | null) || []).filter((n) => !n.read_at).length })
+        }
+        void load()
+        const t = setInterval(() => { if (!document.hidden) void load() }, 20_000)
+        return () => { cancelled = true; clearInterval(t) }
+    }, [userId, drawerOpen, storeIdsKey])
+
     // Fecha com ESC e trava a rolagem da página enquanto o menu está aberto
     useEffect(() => {
         if (!drawerOpen) return
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false) }
         window.addEventListener('keydown', onKey)
-        const prev = document.body.style.overflow
-        document.body.style.overflow = 'hidden'
-        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
+        const unlock = lockBodyScroll()
+        return () => { window.removeEventListener('keydown', onKey); unlock() }
     }, [drawerOpen])
-    const DRAWER_W = 'min(78vw, 300px)'
-    // Altura da barra do topo: o cartão do app (tudo que está abaixo dela) começa nela, e a barra fica de fora do cartão.
-    // Fica em CIMA (e não embaixo) pra o teclado não cobrir a barra quando a busca está aberta.
-    const NAV_H = 'calc(74px + env(safe-area-inset-top))'
-    // Qual ícone da barra é o da página atual (o "selecionado")
-    // (a 3.0 serve /carrinho por /v3/carrinho e a home por /modeloinicial; o endereço visível é o canônico)
-    const shellPath = (pathname || '').replace(/^\/v3(?=\/|$)/, '') || '/'
-    const activeTab: 'cart' | 'chat' | 'search' | null =
-        shellPath.startsWith('/carrinho') ? 'cart' : shellPath.startsWith('/conversas') ? 'chat' : (shellPath === '/modeloinicial' || shellPath === '/') ? 'search' : null
-    // Na página do modo escolhido (painel do perfil, loja, veículo...), o botão do menu (selo + nome) também é uma aba
-    const modeSelected = !!userId && dataLoaded && !!pathname && modePath(activeMode, drawerData) === pathname
-    // Qual aba está selecionada: ao tocar num ícone ela já sai andando (antes da página nova abrir). O layout é o mesmo
-    // entre as páginas, então o estado se mantém e a aba desliza de verdade de um lugar pro outro.
-    type TabKey = 'mode' | 'cart' | 'chat' | 'search'
-    const [pendingTab, setPendingTab] = useState<TabKey | null>(null)
-    useEffect(() => { setPendingTab(null) }, [pathname])
-    const target: TabKey | null = pendingTab ?? (modeSelected ? 'mode' : activeTab)
-    // (com o menu aberto a aba clara continua: a barra vai junto com o cartão, e a última aba escolhida fica fundida a ele)
-    const indicatorOn = target !== null && !searchOpen
-    const leftTabOn = indicatorOn && target === 'mode'
-    const pickTab = (tab: 'cart' | 'chat' | 'search', then: () => void) => {
-        setPendingTab(tab)
-        then()
-    }
-    // Posição da aba clara: medida nos próprios botões (o grupo do menu esquerdo, o carrinho, as conversas e a lupa)
-    const navRef = useRef<HTMLElement>(null)
-    const modeRef = useRef<HTMLDivElement>(null)
-    const cartRef = useRef<HTMLButtonElement>(null)
-    const chatRef = useRef<HTMLButtonElement>(null)
-    const lupaRef = useRef<HTMLButtonElement>(null)
-    const [ind, setInd] = useState<{ left: number; width: number } | null>(null)
-    const lastTarget = useRef<TabKey | null>(null)
-    if (target) lastTarget.current = target
-    const measureKey = lastTarget.current
-    // A medida mais recente (usada também quando a barra muda de tamanho SEM re-renderizar: transições do CSS)
-    const measureRef = useRef<() => void>(() => {})
-    useLayoutEffect(() => {
-        const measure = () => {
-            const key = lastTarget.current
-            if (!key) return
-            const el = key === 'mode' ? modeRef.current : key === 'cart' ? cartRef.current : key === 'chat' ? chatRef.current : lupaRef.current
-            if (!el) return
-            const r = el.getBoundingClientRect()
-            if (r.width === 0) return
-            // a barra pode estar deslocada/encolhida (menu aberto): mede nas coordenadas DELA, desfazendo a escala
-            const navEl = navRef.current
-            const nr = navEl?.getBoundingClientRect()
-            const scale = navEl && nr && navEl.offsetWidth ? nr.width / navEl.offsetWidth : 1
-            const W = navEl?.offsetWidth || window.innerWidth
-            const rl = (r.left - (nr?.left || 0)) / scale
-            const rw = r.width / scale
-            // o menu esquerdo e a lupa esticam até a borda da tela; o carrinho e as conversas ficam do tamanho do ícone
-            const left = key === 'mode' ? 0 : rl
-            const width = key === 'mode' ? rl + rw : key === 'search' ? W - rl : rw
-            setInd((p) => (p && Math.abs(p.left - left) < 0.5 && Math.abs(p.width - width) < 0.5 ? p : { left, width }))
-        }
-        measureRef.current = measure
-        measure()
-        window.addEventListener('resize', measure)
-        return () => window.removeEventListener('resize', measure)
-    })
-
-    // Quando a busca abre/fecha, o menu da esquerda e os ícones encolhem/crescem numa transição de CSS (sem render).
-    // Medir só no render deixava a aba clara com a medida do MEIO da animação (ela ficava esticada na barra toda);
-    // então remedimos enquanto a barra muda de tamanho e quando a animação termina.
-    useEffect(() => {
-        const remeasure = () => measureRef.current()
-        const nav = navRef.current
-        const els = [modeRef.current, cartRef.current, chatRef.current, lupaRef.current, cartRef.current?.parentElement, lupaRef.current?.parentElement]
-        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(remeasure) : null
-        els.forEach((el) => el && ro?.observe(el))
-        nav?.addEventListener('transitionend', remeasure)
-        const t = setTimeout(remeasure, 450)
-        return () => { ro?.disconnect(); nav?.removeEventListener('transitionend', remeasure); clearTimeout(t) }
-    }, [searchOpen, drawerOpen, userId])
-
     // O topo responde ao modo escolhido no menu: loja (logo + nome), motorista (foto do carro + modelo e placa),
     // prestador (foto do perfil + "Modo prestador") ou o perfil de sempre.
     const activeStore = activeMode.startsWith('loja:') ? drawerData.stores.find((st) => `loja:${st.slug}` === activeMode) : undefined
@@ -731,6 +531,44 @@ export default function ModeShell({ children, search }: {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dataLoaded, userId, pathname])
 
+    // Página atual (a 3.0 serve /carrinho por /v3/carrinho e a home por /v3; o endereço visível é o canônico)
+    const shellPath = (pathname || '').replace(/^\/v3(?=\/|$)/, '') || '/'
+    // Ao ir para o carrinho, a página SOBE a partir da barra (cresce de baixo para cima) em vez de só aparecer
+    const prevShellPath = useRef<string | null>(null)
+    const [rising, setRising] = useState(false)
+    useLayoutEffect(() => { // antes da pintura: a página nova nunca aparece inteira por um instante
+        const prev = prevShellPath.current
+        prevShellPath.current = shellPath
+        // sobe da barra só ao ENTRAR na Atividade vindo de fora (trocar de subaba — conversas, pedidos, carrinho — não repete a animação)
+        if (prev === null || isActivityPath(prev) || !isActivityPath(shellPath)) return
+        setRising(true)
+        const t = setTimeout(() => setRising(false), 750)
+        return () => clearTimeout(t)
+    }, [shellPath])
+    // A barra acompanha o MODO: pessoa (Perto · Social · Atividade), loja (Painel · Pedidos · Conversas) ou motorista (Corridas · Entregas · Ganhos)
+    const { kind: barKind, storeSlug: barStore } = barKindOf(activeMode, drawerData.stores.map((st) => st.slug))
+    const barActive = activeBarKey(barKind, shellPath, barStore, abaParam)
+    const onCartPage = shellPath.startsWith('/carrinho') || (shellPath === '/atividade' && abaParam === 'carrinho')   // a faixa não repete o carrinho na própria aba do carrinho
+    // A barra de baixo só nas páginas "raiz"
+    const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/') || isOwnVehiclePage(shellPath, drawerData.vehicles.map((v) => v.slug))) && !((shellPath === '/conversas' || (shellPath === '/atividade' && abaParam === 'conversas')) && threadOpen)
+    const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
+    // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha
+    const storeNew = (() => {
+        const modeSlug = activeMode.startsWith('loja:') ? activeMode.slice(5) : null
+        const st = (modeSlug && drawerData.stores.find((x) => x.slug === modeSlug)) || drawerData.stores.find((x) => (storeOrders[x.id]?.pending || 0) + (storeOrders[x.id]?.services || 0) > 0)
+        if (!st) return null
+        return { products: storeOrders[st.id]?.pending || 0, services: storeOrders[st.id]?.services || 0, name: st.name, path: `/painel-loja/${encodeURIComponent(st.slug)}`, prefer: !!modeSlug && st.slug === modeSlug }
+    })()
+    // AVISOS (lib/toast): enquanto há uma mensagem a ilha vira o MENSAGEIRO dela (cor e símbolo do tipo, some sozinha; tocar dispensa) e depois volta ao que era
+    const { msg: islandMsg, waiting: msgWaiting } = useIslandMessage()
+    useEffect(() => {
+        if (!islandMsg) return
+        const t = setTimeout(() => toast.dismiss(islandMsg.id), msgWaiting > 0 ? Math.min(islandMsg.duration, 2400) : islandMsg.duration)
+        return () => clearTimeout(t)
+    }, [islandMsg?.id, msgWaiting > 0])   // eslint-disable-line react-hooks/exhaustive-deps
+    const msgStyle = islandMsg ? toastStyle(islandMsg.kind) : null
+    const live = useShellLive(userId, orderCounts, topUnread, chatPath, storeNew, { count: topCart, total: cartTotal })
+    const openHub = () => { window.scrollTo({ top: 0 }); setPlayerFull(false); setDrawerOpen(true) }
     // Escolher um modo: marca como selecionado e abre a página dele (cada modo tem a sua)
     const selectMode = (mode: string) => {
         if (mode !== activeMode) {
@@ -739,16 +577,11 @@ export default function ModeShell({ children, search }: {
             try { localStorage.setItem(`iuser_mode_${userId}`, mode) } catch { /* sem armazenamento */ }
         }
         const target = modePath(mode, drawerData)
-        // a aba clara vai para o botão do modo junto com o menu fechando
-        if (pathname !== target) setPendingTab('mode')
         setDrawerOpen(false)
         if (pathname !== target) router.push(target)
     }
-    // Pelo menu: a aba clara já começa a ir para o destino JUNTO com o menu fechando (antes ela só saía quando a página nova abria,
-    // então o cartão assentava primeiro e a aba escorregava depois, deixando uma fresta entre a barra e o cartão).
+    // Pelo hub: fecha e vai
     const goAndClose = (path: string) => {
-        const tab: TabKey | null = path === '/modeloinicial' ? 'search' : path === '/carrinho' ? 'cart' : path === '/conversas' ? 'chat' : null
-        if (tab && pathname !== path) setPendingTab(tab)
         setDrawerOpen(false)
         router.push(path)
     }
@@ -760,279 +593,175 @@ export default function ModeShell({ children, search }: {
         destination: ['/', '/carrinho', '/conversas'].includes(shellPath) ? shellPath : '/',
     })
 
-    return (
+    // Sem ilha em cima: a página começa logo abaixo da área segura. Os avisos (toast) aparecem na FAIXA da barra de baixo; onde a barra não existe
+    // (páginas de produto/loja/mapas, conversa aberta) ou o Percurso cobre a tela, a pílula do topo (IslandToastFallback) cuida deles.
+    const compactLabel = useShellCompact()
+    const compact = !!compactLabel
+    const navH = 'calc(10px + env(safe-area-inset-top))'
+    useEffect(() => (barShown && !compact ? registerIslandConsumer() : undefined), [barShown, compact])
+    // A faixa da barra: o que está vivo além do carrinho e dos status (a corrida e os pedidos novos da loja)
+    // + os PEDIDOS que EU fiz, em andamento (enviado → preparando → pronto/a caminho): ficam na faixa, na cor da etapa, até o pedido ser finalizado
+    const orderExtras: BarExtra[] = orderStripItems(myOrders).map((o) => ({ key: o.key, label: o.label, text: o.text, color: o.color, path: o.path, icon: o.icon, step: o.step, steps: 4 }))
+    const barExtras: BarExtra[] = [...orderExtras, ...(live?.parts || []).filter((x) => x.key === 'ride' || x.key === 'store-p' || x.key === 'store-s').map((x) => ({ key: x.key as string, text: x.text, color: x.color, path: x.path || live!.path }))]
+    // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
+    const stripShown = barShown && stripVisible({ onCartPage, cartExpanded: cartStrip, cartCount: topCart, extras: barExtras.length })
+
+    // MINI-PLAYER: a última coisa vista/ouvida (música toca aqui de verdade; aula e flash levam de volta à página, que retoma de onde parou)
+    const pItem = usePlayerStore((st) => st.item)
+    const pPlaying = usePlayerStore((st) => st.playing)
+    const pPos = usePlayerStore((st) => st.pos)
+    const pDur = usePlayerStore((st) => st.dur)
+    const pIndex = usePlayerStore((st) => st.qIndex)
+    const pQueue = usePlayerStore((st) => st.queue)
+    useEffect(() => { if (!pItem) setPlayerFull(false) }, [pItem])
+    const barPlayer: BarPlayer | null = pItem && barShown && !miniHidden(pItem, shellPath) ? {
+        kind: pItem.kind, title: pItem.title, sub: subtitleOf(pItem, pPlaying), cover: pItem.cover,
+        playing: pPlaying, pos: pPos, dur: pDur,
+        seekable: pItem.kind === 'musica', hasNext: pIndex + 1 < pQueue.length, hasPrev: pIndex > 0,
+        openLabel: pItem.kind === 'musica' ? (pQueue.length > 1 ? 'Abrir o álbum' : 'Abrir a página da música') : pItem.kind === 'aula' ? 'Abrir a sala de aula' : 'Abrir o feed do Flash',
+        onToggle: () => {
+            if (pItem.kind === 'musica') usePlayerStore.getState().toggle()
+            else { setPlayerFull(false); go(pItem.href) }   // aula e flash: a página retoma de onde parou
+        },
+        onNext: () => usePlayerStore.getState().next(),
+        onPrev: () => usePlayerStore.getState().prev(),
+        onSeek: (sec) => usePlayerStore.getState().seek(sec),
+        onOpenPage: () => { setPlayerFull(false); go(pItem.href) },
+        onClose: () => { usePlayerStore.getState().close(); setPlayerFull(false) },
+        full: playerFull, onFull: setPlayerFull,
+    } : null
+    const playerShown = !!barPlayer
+
+    const idle = headerView
+    // O conteúdo do menu de modos (vive dentro da barra: BottomNavBar o faz crescer para cima)
+    const hubInner = (
         <>
-        {/* Fundo do menu: degradê do iUser, atrás de tudo (só aparece quando a página desliza) */}
-        <div
-            aria-hidden={!drawerOpen}
-            className="fixed inset-0"
-            style={{ background: MENU_GRADIENT, zIndex: 0 }}
+        <HubHeader
+            title={userId ? 'Com qual modo você quer usar o iUser?' : 'Você está como visitante'}
+            sub={userId && profileSlug ? `@${profileSlug}` : undefined}
+            onClose={() => setDrawerOpen(false)}
         />
-        {/* O menu fica no lado ESQUERDO e a página desliza pra direita */}
-        <div
-            className="fixed left-0 top-0 h-dvh"
-            style={{
-                width: DRAWER_W, zIndex: 1,
-                opacity: drawerOpen ? 1 : 0, pointerEvents: drawerOpen ? 'auto' : 'none',
-                transform: drawerOpen ? 'translateX(0)' : 'translateX(-24px)',
-                transition: 'opacity 350ms ease, transform 450ms cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
-        >
+        <div className="overflow-y-auto overscroll-contain flex-1 min-h-0">
             {!userId && (
-                <VisitorDrawerContent recent={recent} onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
+                <VisitorDrawerContent onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
             )}
             {userId && (
                 <MenuDrawerContent
-                    slug={profileSlug}
-                    avatarUrl={avatarUrl}
                     data={drawerData}
                     active={activeMode}
-                    recent={recent}
+                    storeOrders={storeOrders}
+                    slug={profileSlug}
+                    avatarUrl={avatarUrl}
+                    counts={{ rooms: hubCounts.rooms, cart: topCart, orders: orderCounts, notifs: hubCounts.notifs }}
                     onSelect={selectMode}
                     onGo={goAndClose}
-                    onClose={() => setDrawerOpen(false)}
                     onSwitchVersion={onSwitchVersion}
                 />
             )}
         </div>
+        </>
+    )
+    const hubVars = {
+        ['--hub-bg' as string]: colors.background,
+        ['--hub-fg' as string]: colors.textPrimary,
+        ['--hub-soft' as string]: `${colors.border}40`,
+        ['--hub-panel' as string]: colors.surface,
+        ['--hub-line' as string]: colors.border,
+    } as React.CSSProperties
 
-        {/* A página: desliza pra direita e encolhe um pouco, com cantos arredondados e sombra */}
+
+    // As abas da barra (Explorar + três do modo): para onde cada uma leva e o selo
+    const ICON: Record<BarKey, ReactNode> = {
+        home: <Search size={22} />, radar: <MapPin size={22} />, people: <Users size={22} />, activity: <Bell size={22} />,
+        panel: <LayoutDashboard size={22} />, orders: <ClipboardList size={22} />, chat: <MessageCircle size={22} />,
+        rides: <Car size={22} />, deliveries: <Bike size={22} />, earnings: <Wallet size={22} />,
+    }
+    const barStoreId = barStore ? drawerData.stores.find((st) => st.slug === barStore)?.id : null
+    const barStoreNew = barStoreId ? (storeOrders[barStoreId]?.pending || 0) + (storeOrders[barStoreId]?.services || 0) : 0
+    const openTab = (key: BarKey) => {
+        if (key === barActive) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }   // tocar na aba da página em que já está volta ao topo
+        if (key === 'activity') {
+            // a aba Atividade leva ao que pede atenção (pedido pronto, mensagem, pedido em andamento, carrinho); senão, à última subaba usada
+            let last: AtividadeAba | null = null
+            try { last = localStorage.getItem(LAST_ABA_KEY) as AtividadeAba | null } catch { /* sem armazenamento */ }
+            if (!userId) { go(topCart > 0 ? '/carrinho' : '/login'); return }   // visitante: só o carrinho existe sem conta
+            go(pathOfAba(smartAba({ unread: topUnread, orders: orderCounts, cart: topCart, last })))
+            return
+        }
+        const path = barPathOf(key, barStore)
+        if (path) go(path)
+    }
+    // O botão ATIVIDADE é o SININHO (mesmo tamanho e estilo dos outros ícones) com os selos EM CIMA, cada um na sua cor: mensagens não lidas (verde), pedidos em andamento
+    // (verde; roxo se há um pronto) e itens no carrinho (laranja). Tocar leva ao que pede atenção (smartAba).
+    const activityBadges = [
+        { count: topUnread, color: '#16a34a' },
+        { count: orderCounts.pending + orderCounts.preparing + orderCounts.ready, color: orderCounts.ready > 0 ? '#a855f7' : '#16a34a' },
+        { count: topCart, color: '#f97316' },
+    ]
+    const barTabs: BarTab[] = barTabsFor(barKind).map((def) => {
+        const badge = def.key === 'orders' ? { count: barStoreNew, color: '#22c55e' }
+            : def.key === 'chat' ? { count: topUnread, color: '#16a34a' }
+            : null
+        return { key: def.key, label: def.label, icon: ICON[def.key], active: barActive === def.key, onClick: () => openTab(def.key), badge: badge?.count || 0, badgeColor: badge?.color, badges: def.key === 'activity' && userId ? activityBadges : undefined }
+    })
+
+    return (
+        <>
+        <style>{`
+            @keyframes shellPop { 0% { transform: scale(0.55); opacity: 0.4 } 100% { transform: scale(1); opacity: 1 } }
+            @keyframes shellRise { 0% { clip-path: inset(100% 0 0 0 round 36px); transform: translateY(46px); } 100% { clip-path: inset(0% 0 0 0 round 0px); transform: translateY(0); } }
+            @media (prefers-reduced-motion: reduce) { .shell-rise-off { animation: none } }
+        `}</style>
+        <Suspense fallback={null}><ChatThreadWatcher onChange={(open, aba) => { setThreadOpen(open); setAbaParam(aba) }} /></Suspense>
+
+        {/* A página: começa logo abaixo da área segura (a ilha do topo foi mesclada à barra de baixo); sem cartão deslizando (o menu virou o hub).
+            SEM z-index: ele criava uma camada (z 2) que prendia TODA janela aberta de dentro de uma página (pedido, extrato, equipe...) ABAIXO da barra
+            (z 40), que ficava por cima dos botões delas. Sem a camada, o z-50/z-[110] das janelas vale de verdade. */}
         <div
-            className="relative pb-10"
+            className="relative"
             style={{
-                background: colors.background, zIndex: 2,
-                marginTop: NAV_H,
-                minHeight: `calc(100dvh - ${NAV_H})`,
-                // a barra do topo é parte do app: com o menu aberto, barra + cartão deslizam e encolhem JUNTOS, a partir do
-                // canto de cima da tela (a origem do cartão fica na altura da barra, acima dele), e continuam colados
-                transformOrigin: `0 calc(-1 * ${NAV_H})`,
-                // vira um cartão: desliza pra direita e encolhe um pouco, mostrando o menu atrás
-                transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
-                // aberto: cartão com os 4 cantos; fechado: só os de cima, que se encaixam nos cantos côncavos da barra
-                borderRadius: drawerOpen ? '0px 0px 32px 32px' : `${target === 'mode' ? 0 : CORNER}px ${target === 'search' ? 0 : CORNER}px 0px 0px`,
-                boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
-                height: cardClipped ? `calc(100dvh - ${NAV_H})` : undefined,
-                overflow: cardClipped ? 'hidden' : undefined,
-                transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 420ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 450ms ease',
+                background: colors.background,
+                marginTop: navH,
+                minHeight: `calc(100dvh - ${navH})`,
+                ['--shell-top' as string]: navH,
+                paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : 40,
+                ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : '0px',
+                animation: rising ? 'shellRise 700ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
             }}
         >
-            {/* Toque na página (com o menu aberto) fecha o menu */}
-            {drawerOpen && <div className="absolute inset-0 z-[60] cursor-pointer" onClick={() => setDrawerOpen(false)} aria-label="Fechar menu" />}
-
-            <div className="max-w-5xl mx-auto px-4 pt-4">
+            <BarKindProvider kind={barKind} storeSlug={barStore}>
+            <div className="max-w-5xl mx-auto px-4 pt-2">
                 {children}
             </div>
-
+            </BarKindProvider>
         </div>
 
-        {/* Navegação no TOPO, FORA do cartão do app (fica fixa na tela; o cartão desliza por cima do menu e termina nela): o botão do menu (selo + nome), o carrinho, as mensagens e a lupa. Na página com busca,
-            a lupa se EXPANDE no lugar e vira o campo; nas outras, leva ao /modeloinicial. */}
-        <nav
-            ref={navRef}
-            className="fixed top-0 left-0 right-0 z-40"
-            style={{
-                // Sempre da cor do menu (o mesmo degradê do fundo, preso à tela): parece que a barra vem de fora do app
-                backgroundImage: MENU_GRADIENT,
-                backgroundSize: '100vw 100dvh',
-                backgroundPosition: 'left top',
-                backgroundRepeat: 'no-repeat',
-                backgroundColor: '#dc2626',
-                paddingTop: 'env(safe-area-inset-top)',
-                boxSizing: 'border-box',
-                height: NAV_H,
-                // com o menu aberto a barra acompanha o cartão (o menu não mostra carrinho/conversas/busca)
-                transformOrigin: 'left top',
-                transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
-                borderRadius: drawerOpen ? '32px 32px 0 0' : 0,
-                // sombra deslocada pra cima: não vaza pra dentro do cartão (a aba clara é fundida a ele)
-                boxShadow: drawerOpen ? '-12px -12px 24px rgba(0,0,0,0.3)' : 'none',
-                transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 420ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 450ms ease',
-            }}
-        >
-            <div className="relative z-[1] max-w-5xl mx-auto px-4 h-full flex items-center">
-                {/* Grupo da esquerda: some (encolhe) quando a lupa vira o campo de busca */}
-                <div
-                    ref={modeRef}
-                    className="relative self-stretch flex items-center gap-2.5 min-w-0"
-                    style={{
-                        flex: searchOpen ? '0 0 0px' : '1 1 0%',
-                        maxWidth: searchOpen ? 0 : '100%',
-                        opacity: searchOpen ? 0 : 1,
-                        overflow: searchOpen ? 'hidden' : 'visible',
-                        marginRight: searchOpen ? 0 : 10,
-                        transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, margin 320ms ease',
-                    }}
-                >
-                    <HeaderBadge
-                        userId={userId}
-                        avatarUrl={headerView.image}
-                        colors={colors}
-                        noRing={headerView.noRing}
-                        label={headerView.label}
-                        modeIcon={headerView.modeIcon}
-                        popToken={modeTick}
-                        onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
-                        // A logo (outra face do selo) também abre o menu
-                        onHome={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
-                    />
+        {/* BARRA de baixo: faixa de cima (carrinho nas páginas de compra + status dos pedidos) e seis botões iguais: carrinho, conversas, MODO ativo (abre o hub), radar, Social e lupa */}
+        {barShown && (
+            <BottomNavBar
+                colors={colors}
+                tabs={barTabs}
+                cartCount={topCart}
+                cartTotal={cartTotal}
+                cartExpanded={cartStrip}
+                onCartPage={onCartPage}
+                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: drawerOpen ? () => setDrawerOpen(false) : openHub }}
+                hub={{ open: drawerOpen, label: 'Menu do iUser', vars: hubVars, children: hubInner }}
+                player={barPlayer}
+                onCart={() => go('/carrinho')}
+                message={islandMsg && msgStyle ? { id: islandMsg.id, text: islandMsg.text, description: islandMsg.description, icon: islandMsg.icon, glyph: msgStyle.glyph, color: msgStyle.color, action: islandMsg.action ? { label: islandMsg.action.label, onClick: islandMsg.action.onClick } : undefined } : null}
+                extras={barExtras}
+                customCard={islandMsg?.custom ? islandMsg.custom(islandMsg.id) : null}
+                onDismiss={() => { if (islandMsg) toast.dismiss(islandMsg.id) }}
+                onGo={(path) => go(path)}
+            />
+        )}
 
-                    {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                // Numa das abas (carrinho, conversas, busca): tocar aqui volta pra página do modo escolhido
-                                // no menu — a aba clara desliza de volta pra cá. Na página do modo, abre/fecha o menu.
-                                if (userId && dataLoaded && activeTab !== null && !drawerOpen) {
-                                    const back = modePath(activeMode, drawerData)
-                                    if (back && back !== '/') { setPendingTab('mode'); go(back); return }
-                                }
-                                window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v)
-                            }}
-                            aria-label={drawerOpen ? 'Fechar menu' : activeTab !== null ? 'Voltar ao modo escolhido' : 'Abrir menu'}
-                            aria-expanded={drawerOpen}
-                            className="relative min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                        >
-                            <span className="block text-xs truncate" style={{ color: leftTabOn ? colors.textSecondary : 'rgba(255,255,255,0.85)', transition: `color 0ms linear ${indicatorOn ? (leftTabOn ? TAB_COLOR_DELAY : TAB_LEAVE_DELAY) : 0}ms` }}>{headerView.line1}</span>
-                            <span className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-base font-black truncate" style={{ color: leftTabOn ? colors.textPrimary : '#fff', transition: `color 0ms linear ${indicatorOn ? (leftTabOn ? TAB_COLOR_DELAY : TAB_LEAVE_DELAY) : 0}ms` }}>{headerView.line2}</span>
-                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: leftTabOn ? `${colors.border}66` : 'rgba(255,255,255,0.22)', transition: 'background 300ms ease' }}>
-                                    <svg
-                                        width="10" height="9" viewBox="0 0 10 9" aria-hidden
-                                        style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(-90deg)' : 'rotate(0deg)' }}
-                                    >
-                                        <polygon points="5,0 10,9 0,9" fill={leftTabOn ? colors.textPrimary : '#fff'} style={{ transition: `fill 0ms linear ${indicatorOn ? (leftTabOn ? TAB_COLOR_DELAY : TAB_LEAVE_DELAY) : 0}ms` }} />
-                                    </svg>
-                                </span>
-                            </span>
-                        </button>
-                                </div>
+        {/* o ÚNICO <audio> do app: a música continua tocando quando a pessoa troca de página */}
+        <GlobalPlayerHost />
 
-                {/* Carrinho, conversas e lupa, juntos. O da página atual fica "selecionado": vira uma aba com a cor do cartão
-                    do app e se funde a ele (com curvas de encaixe nos pés). Com busca na página, a lupa expande no lugar e
-                    vira o campo (o carrinho e as conversas encolhem); nas outras páginas, leva ao /modeloinicial. */}
-                <div
-                    className={`relative flex ${searchOpen ? 'items-center self-center rounded-full' : 'items-stretch self-end'}`}
-                    style={{
-                        flex: searchOpen ? '1 1 0%' : '0 0 auto',
-                        height: searchOpen ? 48 : TAB_H,
-                        padding: searchOpen ? 2 : 0,
-                        background: searchOpen ? colors.surface : 'transparent',
-                        border: searchOpen ? `1.5px solid ${colors.border}` : '0px solid transparent',
-                        color: searchOpen ? colors.textPrimary : '#fff',
-                        transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), background 350ms ease, border-color 250ms ease',
-                    }}
-                >
-                    <div
-                        className="flex items-stretch"
-                        style={{
-                            maxWidth: searchOpen ? 0 : 160,
-                            opacity: searchOpen ? 0 : 1,
-                            overflow: searchOpen ? 'hidden' : 'visible',
-                            transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
-                        }}
-                    >
-                        {/* Na página do carrinho os selos saem da barra: as abas Carrinho/Pedidos da página já os mostram (seria repetido) */}
-                        <NavTab btnRef={cartRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go(topCart === 0 && ordersActive > 0 ? '/carrinho?aba=pedidos' : '/carrinho'))} badge={indicatorOn && target === 'cart' ? 0 : topCart} orders={indicatorOn && target === 'cart' ? undefined : orderCounts}>
-                            <ShoppingCart size={20} />
-                        </NavTab>
-                        <NavTab btnRef={chatRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? chatPath : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
-                            <MessageCircle size={20} />
-                        </NavTab>
-                    </div>
-
-                    {search && searchOpen ? (
-                        <>
-                            <Search size={18} className="ml-3 flex-shrink-0" style={{ color: colors.textSecondary }} />
-                            <input
-                                ref={searchInputRef}
-                                type="search"
-                                value={search.value}
-                                onChange={(e) => search.onChange(e.target.value)}
-                                placeholder={search.placeholder || 'Buscar...'}
-                                className="flex-1 min-w-0 bg-transparent px-2.5 text-sm focus:outline-none"
-                                style={{ color: colors.textPrimary }}
-                            />
-                            <button
-                                onClick={() => { search.onChange(''); setSearchOpen(false) }}
-                                aria-label="Fechar busca"
-                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{ color: colors.textPrimary }}
-                            >
-                                <X size={18} />
-                            </button>
-                        </>
-                    ) : (
-                        <NavTab btnRef={lupaRef} toEdge selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'search'} label="Buscar" onClick={() => pickTab('search', () => {
-                            if (!search) return go('/modeloinicial')
-                            // a página já mostra o campo de busca: a lupa só leva o foco pra ele
-                            if (search.inline) { window.scrollTo({ top: 0, behavior: 'smooth' }); search.focus?.(); return }
-                            setSearchOpen(true)
-                        })}>
-                            <Search size={20} />
-                        </NavTab>
-                    )}
-                </div>
-            </div>
-            {/* A aba clara: UMA peça só que desliza (left/width) entre o menu da esquerda e os três ícones, fundida ao
-                cartão do app (desce 1px nele pra não deixar fresta) e com curvas côncavas nos pés */}
-            {ind && (
-                <span
-                    aria-hidden
-                    className="absolute pointer-events-none"
-                    style={{
-                        top: 'calc(8px + env(safe-area-inset-top))', bottom: -1,
-                        left: ind.left, width: ind.width,
-                        background: colors.background, borderRadius: '18px 18px 0 0',
-                        // some rápido (e de vez, com `visibility`): o menu abrindo não deixa a aba clara boiando nem uma linha
-                        opacity: indicatorOn ? 1 : 0,
-                        visibility: indicatorOn ? 'visible' : 'hidden',
-                        transition: indicatorOn
-                            ? 'left 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease'
-                            : 'left 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 90ms ease, visibility 0s linear 90ms',
-                    }}
-                >
-                    {(['left', 'right'] as const).map((side) => {
-                        const hidden = (side === 'left' && measureKey === 'mode') || (side === 'right' && measureKey === 'search')
-                        return (
-                            <span
-                                key={side}
-                                className="absolute"
-                                style={{
-                                    bottom: 0, [side === 'left' ? 'right' : 'left']: '100%', width: FILLET, height: FILLET + 1,
-                                    background: colors.background,
-                                    WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
-                                    maskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
-                                    opacity: hidden ? 0 : 1,
-                                    transition: 'opacity 420ms ease',
-                                }}
-                            />
-                        )
-                    })}
-                </span>
-            )}
-            {/* Cantos CÔNCAVOS: a borda de baixo da barra "entra" na página — o cartão do app tem os cantos de cima
-                arredondados, preenchidos com o degradê da barra, e parece que a parte de baixo está subindo */}
-            {(['left', 'right'] as const).map((side) => (
-                <span
-                    key={side}
-                    aria-hidden
-                    className="absolute pointer-events-none"
-                    style={{
-                        top: '100%', [side]: 0, width: CORNER, height: CORNER,
-                        backgroundImage: MENU_GRADIENT,
-                        backgroundSize: '100vw 100dvh',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundColor: '#dc2626',
-                        backgroundPosition: side === 'left' ? `0 calc(-1 * ${NAV_H})` : `calc(${CORNER}px - 100vw) calc(-1 * ${NAV_H})`,
-                        WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
-                        maskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
-                        // com a lupa selecionada, a aba dela chega na borda da tela e ocupa esse canto
-                        opacity: drawerOpen || (side === 'right' && target === 'search') || (side === 'left' && target === 'mode') ? 0 : 1,
-                        transition: 'opacity 420ms ease',
-                    }}
-                />
-            ))}
-        </nav>
+        {/* HUB: o menu de modos é a PRÓPRIA barra crescendo para cima (o conteúdo vive dentro dela, em BottomNavBar); aqui só fica o fundo escurecido, que fecha ao tocar */}
+        <button aria-label="Fechar menu" aria-hidden={!drawerOpen} tabIndex={drawerOpen ? 0 : -1} onClick={() => { setDrawerOpen(false); setPlayerFull(false) }} className="fixed inset-0 z-[70] w-full h-full cursor-default" style={{ background: 'rgba(0,0,0,0.5)', opacity: drawerOpen || (playerFull && playerShown) ? 1 : 0, pointerEvents: drawerOpen || (playerFull && playerShown) ? 'auto' : 'none', visibility: drawerOpen || (playerFull && playerShown) ? 'visible' : 'hidden', transition: `opacity 350ms ease, visibility 0s linear ${drawerOpen || (playerFull && playerShown) ? 0 : 350}ms` }} />
         </>
     )
 }

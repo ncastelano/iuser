@@ -19,12 +19,14 @@ const longDay = (d: Date) => {
     return t.charAt(0).toUpperCase() + t.slice(1)
 }
 
-export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: {
+export default function StoreAgendaV3({ storeId, colors, durationMin, onPick, onSchedule }: {
     storeId: string
     colors: any
     /** duração usada para ver o que cabe: a do serviço mais curto da loja */
     durationMin: number
     onPick: (date: Date, time: string) => void
+    /** "Agendar um serviço": abre o agendador sem horário escolhido (o antigo botão Agendar do cabeçalho mora aqui) */
+    onSchedule?: () => void
 }) {
     const soft = `${colors.border}30`
     const [cfg, setCfg] = useState<OpeningConfig | null | undefined>(undefined)
@@ -177,6 +179,11 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: 
                         </>
                     )}
                 </>
+            )}
+            {onSchedule && (
+                <button onClick={onSchedule} className="mt-3 w-full h-11 rounded-full text-[14px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: ORANGE, color: '#fff' }}>
+                    <Calendar size={16} /> Agendar um serviço
+                </button>
             )}
         </section>
     )

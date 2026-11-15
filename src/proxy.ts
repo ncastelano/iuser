@@ -46,16 +46,27 @@ const IGNORED_ROUTES = [
     '/planos/pos-pago',
     '/planos/pre-pago',
     '/meus-servicos',
+    '/minhas-compras-digitais',
+    '/digitais',
     '/administrador',
     '/aceitar-corridas/mapa',
     '/pedir-motorista/escolher-local',
-    '/modeloinicial',
+    '/modeloinicial', // endereço antigo da home da 3.0: só redireciona para `/`
     '/modoprestador',
     '/painel-perfil',
     '/comprar',
     '/imoveis', // aluguel de imóveis (3.0): busca
     '/anunciar-imovel',
     '/meus-imoveis',
+    '/flash', // feed de pessoas em tela cheia (3.0)
+    '/entregas', // central de entregas do motorista (3.0)
+    '/ganhos', // Ganhos do motorista (aba da barra do modo motorista, 3.0)
+    '/canal-do-motorista', // Canal do Motorista: corridas abertas, quanto pagam e os atalhos de quem dirige (página só da 3.0)
+    '/atividade', // Atividade (aba da barra da 3.0): avisos; conversas, pedidos, carrinho e biblioteca ficam em /conversas e /carrinho
+    '/tres-telas', // ferramenta de desenvolvimento (só local): observação em 3 telas
+    '/paginateste', // laboratório da navbar (página de teste, sem link no app)
+    '/painel-teste', // laboratório do novo painel da loja (3.0; página de teste, sem link no app)
+    '/dev-login', // ferramenta de desenvolvimento (só local): entra com a conta de teste
 ]
 
 // ===== PREFIXOS IGNORADOS =====
@@ -67,6 +78,7 @@ const IGNORED_PREFIXES = [
     '/acompanhar-corrida/', // link de acompanhar corrida (iuser.com.br/acompanhar-corrida/<id>) — não é slug de perfil/loja
     '/compromissos/', // agenda de um perfil/loja (iuser.com.br/compromissos/<slug>) — o 1º segmento não é slug de perfil/loja
     '/compromisso/', // link de um agendamento compartilhado (iuser.com.br/compromisso/<id>)
+    '/editar-loja/', // editar uma loja (iuser.com.br/editar-loja/<storeSlug>) — 1º segmento não é slug de perfil/loja
     '/painel-loja/', // painel de uma loja (iuser.com.br/painel-loja/<storeSlug>) — o 1º segmento não é slug de perfil/loja
     '/veiculo/', // página de um veículo (rota interna; o endereço público é iuser.com.br/<vehicleSlug>)
     '/img/', // proxy de imagens (iuser.com.br/img/<bucket>/<arquivo>) -> Storage do Supabase com cache da Vercel (next.config.js rewrites)

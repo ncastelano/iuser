@@ -2,6 +2,7 @@
 //   npm run dev:local        (precisa de: python3 scripts/local/setup.py)
 import { spawnSync, spawn } from 'node:child_process'
 import path from 'node:path'
+import fs from 'node:fs'
 const root = path.resolve(import.meta.dirname, '..', '..')
 const env = { ...process.env }
 env.PATH = `${process.env.HOME}/.orbstack/bin:${env.PATH}`
@@ -18,5 +19,8 @@ const appEnv = {
     NEXT_PUBLIC_APP_URL: 'http://localhost:3100',
     NEXT_PUBLIC_IMAGE_BASE: '',
 }
+// Variáveis extras só deste computador (ex.: o "R2 de mentira" de scripts/local/test-r2-flow.mjs). O arquivo fica em .local-supabase/ (fora do git); se não existir, nada muda.
+const extra = path.join(root, '.local-supabase', 'dev.env')
+if (fs.existsSync(extra)) for (const l of fs.readFileSync(extra, 'utf8').split('\n')) { const m = l.match(/^([A-Z][A-Z0-9_]*)=(.*)$/); if (m) appEnv[m[1]] = m[2] }
 console.log(`App em http://localhost:3100  ·  banco LOCAL ${kv.API_URL}  ·  Studio ${kv.STUDIO_URL}`)
 spawn('npx', ['next', 'dev', '-p', '3100'], { stdio: 'inherit', env: appEnv, cwd: root }).on('exit', (c) => process.exit(c ?? 0))

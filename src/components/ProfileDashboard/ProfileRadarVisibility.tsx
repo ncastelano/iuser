@@ -1,13 +1,13 @@
 // "Visível no Radar" em Informações do Perfil: mostra se a pessoa aparece (ou não) no mapa do Radar e deixa ligar/desligar.
 // É OPCIONAL e começa DESLIGADO (profiles.show_on_map nasce false): só aparece no Radar quem define a localização e escolhe aparecer —
-// na 1ª etapa de "Definir localização" ou aqui. Visível = a pessoa (filtro Pessoas) e os serviços do perfil entram no mapa; a posição
-// pública é sempre aproximada. Desligado, a localização fica guardada só como endereço para os pedidos nas lojas.
+// na 1ª etapa de "Definir localização" ou aqui. Visível = SÓ a pessoa (filtro Pessoas) entra no mapa; os serviços e produtos têm a regra de cada um (serviço ativo + local próprio "Onde você atende"). A posição
+// pública da pessoa é sempre aproximada. Desligado, a localização fica guardada só como endereço para os pedidos nas lojas.
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import { Eye, EyeOff, MapPin, Radar } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import LocationPicker from '@/components/LocationPicker'
@@ -97,7 +97,7 @@ export default function ProfileRadarVisibility({ profileId }: { profileId: strin
                     <p className="text-sm font-black" style={{ color: statusColor }}>{visible ? 'Você está visível no Radar' : 'Você não aparece no Radar'}</p>
                     <p className="text-[11px] leading-snug" style={{ color: colors.textSecondary }}>
                         {visible
-                            ? 'Você (na aba Pessoas) e os seus serviços aparecem no mapa. A posição mostrada é aproximada.'
+                            ? 'Você (na aba Pessoas) aparece no mapa. A posição mostrada é aproximada. Os seus serviços e produtos seguem a regra de cada um.'
                             : reason || 'Sua localização fica guardada só como endereço para os pedidos nas lojas.'}
                     </p>
                 </div>

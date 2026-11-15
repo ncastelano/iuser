@@ -11,7 +11,7 @@ import { useTheme } from '@/app/contexts/theme'
 export function Shimmer({ className = '', style, color }: { className?: string; style?: CSSProperties; color?: string }) {
     const { colors } = useTheme()
     // o cinza da borda do tema (visível no claro e no escuro); o brilho é o mesmo cinza mais cheio.
-    // Com `color` (hex) o bloco ganha a cor da coisa que vai chegar (ex.: o azul dos pedidos novos).
+    // Com `color` (hex) o bloco ganha a cor da coisa que vai chegar (ex.: o verde dos pedidos novos).
     const base = color ? `${color}2e` : `${colors.border}b3`
     const glow = color ? `${color}55` : colors.border
     return (

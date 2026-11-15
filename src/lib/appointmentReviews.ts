@@ -37,8 +37,9 @@ export async function completeAppointment(appointmentId: string): Promise<void> 
     if (error) throw new Error(error.message)
 }
 
-export async function submitReview(appointmentId: string, rating: number, comment: string): Promise<void> {
-    const { error } = await supabase.rpc('submit_appointment_review', { p_appointment: appointmentId, p_rating: rating, p_comment: comment })
+/** `photo` = caminho no bucket `posts`, na pasta da pessoa (opcional; o banco confere — migration 20261130000063) */
+export async function submitReview(appointmentId: string, rating: number, comment: string, photo?: string | null): Promise<void> {
+    const { error } = await supabase.rpc('submit_appointment_review', { p_appointment: appointmentId, p_rating: rating, p_comment: comment, ...(photo ? { p_photo: photo } : {}) })
     if (error) throw new Error(error.message)
 }
 

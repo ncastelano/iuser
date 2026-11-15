@@ -1,0 +1,235 @@
+// app/api/admin/uploads/route.ts
+//
+// Painel Admin → Uploads (Camada 5 do controle de uploads, docs/CONTROLE-DE-UPLOADS.md). Só o administrador geral. UMA rota com `action`:
+//   load (visão geral + maiores consumidores + recusas + bloqueios + histórico + alertas da cota do Supabase), top (maiores consumidores de um tipo),
+//   set_enforced (liga/desliga o "envio só com autorização"), block / unblock, update_kind (limites de um tipo),
+//   r2_check (testa a conexão com o R2: grava, lê e apaga um arquivo de teste), cleanup_run (rodar a limpeza de arquivos órfãos agora: simulação ou de verdade), cleanup_keep (manter / deixar de manter um arquivo), cleanup_settings (configuração da limpeza),
+//   valve (estado da VÁLVULA de segurança), valve_tick (medir/avaliar agora), valve_update (limiares, cotas, ligar/desligar), valve_override (liberar por X horas), valve_kind (estágio de um tipo).
+// Toda leitura agregada e toda escrita são funções do banco só do serviço (admin_upload_*), que gravam admin_config_audit; aqui só se valida a entrada (a MESMA validação da tela,
+// no módulo uploads) e se identifica o admin: o id do admin NUNCA vem do corpo da requisição.
+import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { requireSuperAdmin } from '@/lib/adminAuth'
+import { validatePatch, validateBlock, validateCleanupPatch, validateValvePatch, type KindLimits } from '@/modules/uploads'
+import { runUploadCleanup, type CleanupClient } from '@/lib/uploadCleanup'
+import { readR2Config, r2ConfigProblems, r2Head, r2Put, r2Delete, r2PresignGet } from '@/lib/r2'
+import { r2CleanupOps } from '@/lib/r2Cleanup'
+import { randomUUID } from 'node:crypto'
+
+// a limpeza e o teste do R2 fazem várias chamadas em sequência; o padrão da Vercel (10 s no Hobby) é curto demais. 60 s é o teto de qualquer plano.
+export const maxDuration = 60
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const KIND = /^[a-z][a-z0-9_]{1,40}$/
+const GB = 1024 * 1024 * 1024
+const NO_STORE = { 'Cache-Control': 'no-store' }
+
+type Err = { code?: string; message: string }
+// erro do banco que é "entrada inválida" (22023, 23514) vira 400; o resto é 500
+const dbError = (e: Err) => NextResponse.json({ error: e.code === '22023' || e.code === '23514' ? e.message : 'Não foi possível concluir. Tente de novo.', detail: e.message }, { status: e.code === '22023' || e.code === '23514' ? 400 : 500 })
+
+async function names(ids: (string | null | undefined)[]): Promise<Map<string, string>> {
+    const list = Array.from(new Set(ids.filter(Boolean))) as string[]
+    if (!list.length) return new Map()
+    const { data } = await supabaseAdmin.from('profiles').select('id, name, profileSlug').in('id', list)
+    return new Map((data || []).map((p) => [p.id, p.profileSlug ? `@${p.profileSlug}` : p.name || 'Pessoa']))
+}
+
+export async function POST(req: Request) {
+    const admin = await requireSuperAdmin(req)
+    if (!admin) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
+    const action = String(body.action || 'load')
+
+    if (action === 'load') {
+        const since = new Date(); since.setDate(since.getDate() - 30)
+        const [overview, top, denials, blocksRes, auditRes, stats, metrics, telemetry, cleanup] = await Promise.all([
+            supabaseAdmin.rpc('admin_upload_overview'),
+            supabaseAdmin.rpc('admin_upload_top_owners', { p_kind: null, p_limit: 15 }),
+            supabaseAdmin.rpc('admin_upload_denials', { p_hours: 24, p_limit: 20 }),
+            supabaseAdmin.from('upload_blocks').select('id, profile_id, kind, reason, blocked_until, created_at, created_by').is('lifted_at', null).order('created_at', { ascending: false }).limit(100),
+            supabaseAdmin.from('admin_config_audit').select('id, scope, setting, old_value, new_value, changed_by, changed_at').in('scope', ['upload_settings', 'upload_kinds', 'upload_blocks', 'upload_cleanup']).order('changed_at', { ascending: false }).limit(30),
+            supabaseAdmin.rpc('get_database_stats'),
+            supabaseAdmin.from('supabase_usage_metrics').select('metric_name, included_value'),
+            supabaseAdmin.from('usage_telemetry_daily').select('egress_bytes').gte('day', since.toISOString().slice(0, 10)),
+            supabaseAdmin.rpc('admin_upload_cleanup_overview'),
+        ])
+        if (overview.error) return dbError(overview.error)
+
+        const now = Date.now()
+        const blocks = (blocksRes.data || []).filter((b) => !b.blocked_until || new Date(b.blocked_until).getTime() > now)
+        // histórico de bloqueios: o "setting" guarda "tipo:pessoa" (criado) ou o id do bloqueio (levantado); aqui vira o @ da pessoa e o tipo
+        const audit = auditRes.data || []
+        const liftedIds = audit.filter((a) => a.scope === 'upload_blocks' && !a.setting.includes(':') && UUID.test(a.setting)).map((a) => a.setting)
+        const { data: liftedBlocks } = liftedIds.length ? await supabaseAdmin.from('upload_blocks').select('id, profile_id, kind').in('id', liftedIds) : { data: [] as { id: string; profile_id: string | null; kind: string | null }[] }
+        const liftedById = new Map((liftedBlocks || []).map((b) => [b.id, b]))
+        const target = (a: (typeof audit)[number]): { profile: string | null; kind: string | null } => {
+            if (a.scope !== 'upload_blocks') return { profile: null, kind: null }
+            if (a.setting.includes(':')) { const [k, p] = a.setting.split(':'); return { profile: UUID.test(p) ? p : null, kind: k && k !== '*' ? k : null } }
+            const b = liftedById.get(a.setting); return { profile: b?.profile_id || null, kind: b?.kind || null }
+        }
+        const who = await names([...blocks.map((b) => b.profile_id), ...blocks.map((b) => b.created_by), ...audit.map((a) => a.changed_by), ...audit.map((a) => target(a).profile)])
+
+        // alertas da cota do Supabase (a mesma fonte do Financeiro): armazenamento e banda do mês, contra o que o plano inclui
+        const included = new Map((metrics.data || []).map((m) => [m.metric_name, Number(m.included_value) || 0]))
+        const storageGb = Number((stats.data as { storage_size_bytes?: number } | null)?.storage_size_bytes || 0) / GB
+        const egressGb = (telemetry.data || []).reduce((s, r) => s + Number(r.egress_bytes || 0), 0) / GB
+        const meters = [
+            { label: 'Armazenamento do Supabase', used: storageGb, included: included.get('Armazenamento (Storage)') || 0, unit: 'GB' },
+            { label: 'Banda do Supabase (30 dias)', used: egressGb, included: included.get('Largura de banda (Egress)') || 0, unit: 'GB' },
+        ].filter((m) => m.included > 0)
+
+        return NextResponse.json({
+            overview: overview.data,
+            top: top.data || [],
+            denials: denials.data || [],
+            blocks: blocks.map((b) => ({ ...b, profile_label: b.profile_id ? who.get(b.profile_id) || 'Pessoa' : null, created_by_label: b.created_by ? who.get(b.created_by) || 'Administrador' : 'Sistema' })),
+            audit: audit.map((a) => { const t = target(a); return { ...a, changed_by_label: a.changed_by ? who.get(a.changed_by) || 'Administrador' : 'Sistema', target_profile: t.profile ? who.get(t.profile) || 'Pessoa' : null, target_kind: t.kind } }),
+            meters,
+            cleanup: cleanup.error ? null : cleanup.data,
+            r2: (() => { const c = readR2Config(); return { configured: !!c, bucket: c?.bucket ?? null, publicBase: c?.publicBase ?? null, problems: c ? [] : r2ConfigProblems() } })(),
+            r2Digital: (() => { const c = readR2Config(process.env, 'digital'); return { configured: !!c, bucket: c?.bucket ?? null, publicBase: null, problems: c ? [] : r2ConfigProblems(process.env, 'digital') } })(),
+        }, { headers: NO_STORE })
+    }
+
+    // VÁLVULA DE SEGURANÇA (migration 20261130000032): mede o armazenamento e a banda do plano e desliga sozinha os tipos pesados perto da cota. Toda ação devolve o estado novo.
+    if (action === 'valve' || action === 'valve_tick' || action === 'valve_update' || action === 'valve_override' || action === 'valve_kind') {
+        if (action === 'valve_tick') { const { error } = await supabaseAdmin.rpc('upload_valve_tick'); if (error) return dbError(error) }
+        if (action === 'valve_update') {
+            const v = validateValvePatch(body.patch)
+            if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
+            const { error } = await supabaseAdmin.rpc('admin_upload_valve_update', { p_patch: v.patch, p_admin: admin.id })
+            if (error) return dbError(error)
+            // ligou ou mudou limiar: já avalia (senão só mudaria na próxima rodada de 10 min)
+            const { error: e2 } = await supabaseAdmin.rpc('upload_valve_tick'); if (e2) return dbError(e2)
+        }
+        if (action === 'valve_override') {
+            const hours = Number(body.hours)
+            if (!Number.isInteger(hours) || hours < 1 || hours > 168) return NextResponse.json({ error: 'Escolha de 1 a 168 horas' }, { status: 400 })
+            const { error } = await supabaseAdmin.rpc('admin_upload_valve_override', { p_hours: hours, p_admin: admin.id })
+            if (error) return dbError(error)
+        }
+        if (action === 'valve_kind') {
+            const kind = String(body.kind || ''), stage = body.stage == null || body.stage === '' ? null : Number(body.stage)
+            if (!KIND.test(kind) || (stage !== null && stage !== 1 && stage !== 2)) return NextResponse.json({ error: 'Tipo ou estágio inválido' }, { status: 400 })
+            const { error } = await supabaseAdmin.rpc('admin_upload_valve_kind', { p_kind: kind, p_stage: stage, p_admin: admin.id })
+            if (error) return dbError(error)
+        }
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_valve_status')
+        if (error) return dbError(error)
+        return NextResponse.json({ valve: data }, { headers: NO_STORE })
+    }
+
+    // Estimativa de banda dos downloads de PROGRAMAS (tamanho × downloads contados; música tocada e aula assistida não entram)
+    if (action === 'bandwidth') {
+        const days = Math.min(90, Math.max(1, Number(body.days) || 30))
+        const { data, error } = await supabaseAdmin.rpc('admin_download_bandwidth', { p_days: days })
+        if (error) return dbError(error)
+        return NextResponse.json({ bandwidth: data }, { headers: NO_STORE })
+    }
+
+    if (action === 'top') {
+        const kind = body.kind == null || body.kind === '' ? null : String(body.kind)
+        if (kind && !KIND.test(kind)) return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_top_owners', { p_kind: kind, p_limit: 15 })
+        if (error) return dbError(error)
+        return NextResponse.json({ top: data || [] }, { headers: NO_STORE })
+    }
+
+    if (action === 'set_enforced') {
+        if (typeof body.on !== 'boolean') return NextResponse.json({ error: 'Informe ligado ou desligado' }, { status: 400 })
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_set_enforced', { p_on: body.on, p_admin: admin.id })
+        if (error) return dbError(error)
+        return NextResponse.json({ success: true, enforced: data === true })
+    }
+
+    if (action === 'block') {
+        const v = validateBlock({ profile_id: body.profile_id as string | null, kind: body.kind as string | null, hours: body.hours as number | null, reason: body.reason as string | null })
+        if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
+        if (v.value.profile_id === admin.id) return NextResponse.json({ error: 'Você não pode bloquear a sua própria conta.' }, { status: 400 })
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_block', { p_profile: v.value.profile_id, p_kind: v.value.kind, p_reason: v.value.reason, p_hours: v.value.hours, p_admin: admin.id })
+        if (error) return dbError(error)
+        return NextResponse.json({ success: true, id: data })
+    }
+
+    if (action === 'unblock') {
+        const id = String(body.id || '')
+        if (!UUID.test(id)) return NextResponse.json({ error: 'Bloqueio inválido' }, { status: 400 })
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_unblock', { p_block: id, p_admin: admin.id })
+        if (error) return dbError(error)
+        return NextResponse.json({ success: true, lifted: data === true })
+    }
+
+    if (action === 'update_kind') {
+        const kind = String(body.kind || '')
+        if (!KIND.test(kind)) return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
+        const { data: cur, error: curErr } = await supabaseAdmin.from('upload_kinds').select('enabled, requires_plan, max_bytes, per_hour_files, per_day_bytes, per_user_bytes, grant_minutes').eq('kind', kind).maybeSingle()
+        if (curErr) return dbError(curErr)
+        if (!cur) return NextResponse.json({ error: 'Tipo de upload não encontrado' }, { status: 404 })
+        const v = validatePatch(body.patch, { ...cur, max_bytes: Number(cur.max_bytes), per_day_bytes: cur.per_day_bytes == null ? null : Number(cur.per_day_bytes), per_user_bytes: cur.per_user_bytes == null ? null : Number(cur.per_user_bytes) } as KindLimits)
+        if (!v.ok) return NextResponse.json({ error: 'Limites inválidos', fields: v.errors }, { status: 400 })
+        if (Object.keys(v.patch).length === 0) return NextResponse.json({ success: true, changed: false })
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_update_kind', { p_kind: kind, p_patch: v.patch, p_admin: admin.id })
+        if (error) return dbError(error)
+        return NextResponse.json({ success: true, changed: true, kind: data })
+    }
+
+    if (action === 'r2_check') {
+        // Teste de conexão com o R2 USANDO AS CHAVES DO SERVIDOR (elas nunca saem daqui): grava um arquivo de teste, confere o tamanho, lê por link assinado, apaga e confere que sumiu.
+        const scope = body.scope === 'digital' ? 'digital' : 'media'   // 'digital' = o bucket PRIVADO do conteúdo vendido (R2_DIGITAL_BUCKET)
+        const cfg = readR2Config(process.env, scope)
+        if (!cfg) return NextResponse.json({ ok: false, steps: [], problems: r2ConfigProblems(process.env, scope) }, { headers: NO_STORE })
+        const key = `_healthcheck/${randomUUID()}.txt`
+        const payload = Buffer.from(`iuser r2 check ${new Date().toISOString()}`)
+        const steps: { step: string; ok: boolean; detail: string; ms: number }[] = []
+        const run = async (step: string, fn: () => Promise<string>) => {
+            const t0 = Date.now()
+            try { const detail = await fn(); steps.push({ step, ok: true, detail, ms: Date.now() - t0 }); return true }
+            catch (e) { steps.push({ step, ok: false, detail: (e as Error).message || 'falhou', ms: Date.now() - t0 }); return false }
+        }
+        let wrote = false
+        try {
+            wrote = await run('Gravar um arquivo de teste', async () => { await r2Put(cfg, key, payload, 'text/plain'); return `${payload.length} bytes enviados` })
+            if (wrote) {
+                await run('Conferir o tamanho guardado', async () => { const h = await r2Head(cfg, key); if (!h.exists) throw new Error('o arquivo não apareceu'); if (h.size !== payload.length) throw new Error(`tamanho ${h.size} em vez de ${payload.length}`); return `${h.size} bytes` })
+                await run('Ler por link assinado', async () => { const r = await fetch(r2PresignGet(cfg, key, { expiresSec: 60 })); if (!r.ok) throw new Error(`R2 GET ${r.status}`); const t = Buffer.from(await r.arrayBuffer()); if (!t.equals(payload)) throw new Error('o conteúdo lido é diferente'); return 'conteúdo igual ao enviado' })
+            }
+        } finally {
+            if (wrote) {
+                await run('Apagar o arquivo de teste', async () => { await r2Delete(cfg, key); const h = await r2Head(cfg, key); if (h.exists) throw new Error('o arquivo continua lá'); return 'apagado' })
+            }
+        }
+        return NextResponse.json({ ok: steps.length > 0 && steps.every((s) => s.ok), steps, bucket: cfg.bucket, publicBase: cfg.publicBase }, { headers: NO_STORE })
+    }
+
+    if (action === 'cleanup_run') {
+        // simulação (dry = true) só procura e marca; "de verdade" só apaga se a chave "Apagar de verdade" estiver ligada (conferida no banco, não aqui)
+        if (typeof body.dry !== 'boolean') return NextResponse.json({ error: 'Informe se é simulação' }, { status: 400 })
+        try {
+            const r = await runUploadCleanup(supabaseAdmin as unknown as CleanupClient, { source: 'admin', dryRun: body.dry, r2: (() => { const c = readR2Config(); return c ? r2CleanupOps(c) : null })() })
+            return NextResponse.json({ success: true, result: r })
+        } catch (e) {
+            console.error('[admin/uploads] cleanup_run', e)
+            return NextResponse.json({ error: 'Não foi possível rodar a limpeza. Tente de novo.' }, { status: 500 })
+        }
+    }
+
+    if (action === 'cleanup_keep') {
+        const id = String(body.id || '')
+        if (!UUID.test(id) || typeof body.keep !== 'boolean') return NextResponse.json({ error: 'Arquivo inválido' }, { status: 400 })
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_cleanup_keep', { p_asset: id, p_keep: body.keep, p_admin: admin.id })
+        if (error) return dbError(error)
+        return NextResponse.json({ success: true, found: data === true })
+    }
+
+    if (action === 'cleanup_settings') {
+        const v = validateCleanupPatch(body.patch)
+        if (!v.ok) return NextResponse.json({ error: 'Valores inválidos', fields: v.errors }, { status: 400 })
+        if (Object.keys(v.patch).length === 0) return NextResponse.json({ success: true, changed: false })
+        const { data, error } = await supabaseAdmin.rpc('admin_upload_cleanup_settings', { p_patch: v.patch, p_admin: admin.id })
+        if (error) return dbError(error)
+        return NextResponse.json({ success: true, changed: true, settings: data })
+    }
+
+    return NextResponse.json({ error: 'Ação desconhecida' }, { status: 400 })
+}

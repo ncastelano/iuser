@@ -142,3 +142,14 @@ export function offsetPolyline(coords: [number, number][], offsetMeters: number)
         ] as [number, number]
     })
 }
+
+/** Caminho completo por ruas (geometria detalhada) de `from` até `to`, [lng, lat]. Usado para o GPS de teste andar pelas ruas de verdade. */
+export async function fetchRoadPath(from: [number, number], to: [number, number]): Promise<[number, number][] | null> {
+    try {
+        trackMapboxRequest('directions')
+        const res = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${from[0]},${from[1]};${to[0]},${to[1]}?geometries=geojson&overview=full&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`)
+        const data = await res.json()
+        const coords = data.routes?.[0]?.geometry?.coordinates
+        return coords && coords.length > 1 ? (coords as [number, number][]) : null
+    } catch { return null }
+}

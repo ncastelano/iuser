@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BellOff, Bell, LogOut, Pencil, UserMinus, UserPlus, X, Check } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { useTheme } from '@/app/contexts/theme'
 import { getAvatarUrl } from '@/lib/avatar'
 import { supabase } from '@/lib/supabase/client'

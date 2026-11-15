@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Star, X, User, UserCheck } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { supabase } from '@/lib/supabase/client'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 interface ReviewModalProps {
     isOpen: boolean

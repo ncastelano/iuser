@@ -1,13 +1,13 @@
 // Camada "motoristas disponíveis" do mapa do /pedir-motorista (v3): busca perto do ponto de interesse (partida, ou o centro do mapa),
-// atualiza a cada 30 s enquanto a aba está visível e desenha um marcador por motorista no MESMO estilo do /radar (foto do veículo num
-// quadrado de borda verde). Tocar no marcador seleciona o motorista (o card com os detalhes e o "chamar" é da tela). Posição aproximada;
+// atualiza a cada 30 s enquanto a aba está visível e desenha um marcador por motorista SÓ com o ícone do tipo de veículo (carro/moto/
+// bicicleta, borda verde; sem foto nem inicial da pessoa). Tocar no marcador seleciona o motorista (o card com os detalhes e o "chamar" é da tela). Posição aproximada;
 // fonte e regras de privacidade em lib/radarDrivers.ts.
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { supabase } from '@/lib/supabase/client'
-import { countDriversByKind, createDriverMarkerElement, fetchRadarDrivers, type RadarDriverItem } from '@/lib/radarDrivers'
+import { countDriversByKind, createVehicleIconMarkerElement, fetchRadarDrivers, type RadarDriverItem } from '@/lib/radarDrivers'
 
 const REFRESH_MS = 30_000
 
@@ -69,7 +69,8 @@ export function useActiveDriversLayer({ map, mapReady, enabled, focus, onSelect 
         clear()
         if (!enabled || !map || !mapReady) return
         markersRef.current = drivers.map((d) => {
-            const { el, unmount } = createDriverMarkerElement(d, () => {
+            // só o ícone do tipo de veículo (sem foto/inicial da pessoa): no pedido importa o TIPO de motorista por perto
+            const { el, unmount } = createVehicleIconMarkerElement(d, () => {
                 map.flyTo({ center: [d.lng, d.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 })
                 onSelectRef.current?.(d)
             })

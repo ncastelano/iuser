@@ -160,7 +160,7 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
             >
                 <div className="flex items-center gap-2 px-4 py-3 max-w-3xl mx-auto">
                     <button
-                        onClick={() => router.push(`/${ownerSlug}`)}
+                        onClick={() => (window.history.length > 1 ? router.back() : router.push(`/${ownerSlug}`))}   // volta à página de onde a pessoa veio; sem histórico (link aberto direto), cai no perfil
                         aria-label="Voltar"
                         className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}

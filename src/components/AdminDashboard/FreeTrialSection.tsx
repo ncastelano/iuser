@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Gift, Save } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'

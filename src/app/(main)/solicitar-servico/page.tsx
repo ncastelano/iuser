@@ -6,10 +6,9 @@ import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase/client'
-import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { addRecentServiceLocation, getRecentServiceLocations, RecentServiceLocation } from '@/lib/recentServiceLocations'
 import { createSquareImage } from '@/lib/image'
 import { SERVICE_TYPES, SERVICE_ICON_OPTIONS, ServiceType, getServiceLabel, getServiceIcon } from '@/lib/serviceTypes'
@@ -329,8 +328,8 @@ export default function PedirServicoPage() {
             if (cancelled) return
 
             // Perfis que não querem aparecer no mapa não entram
-            const hiddenOwners = await getProfilesHiddenFromMap((profileRows || []).map((row) => row.owner_id))
-            const visibleProfileRows = (profileRows || []).filter((row) => !hiddenOwners.has(row.owner_id))
+            // "Visível no Radar" é só da PESSOA: o serviço publicado segue a regra dele (ativo + local próprio)
+            const visibleProfileRows = profileRows || []
             const ownerIds = Array.from(new Set(visibleProfileRows.map((row) => row.owner_id).filter(Boolean)))
             let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null }>()
             if (ownerIds.length > 0) {

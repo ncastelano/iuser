@@ -10,13 +10,19 @@ import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeol
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { formatBrazilianPhoneSpaced } from '@/lib/phone'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { notifyNewRide } from '@/lib/notifyRideStatus'
 import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
 import { fetchSavedRidePlaces, saveRidePlace } from '@/lib/savedRidePlaces'
 import { saveRideDraft, loadRideDraft, clearRideDraft } from '@/lib/rideRequestDraft'
-import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
+import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS, kindForRideType, type VehicleType } from '@/lib/rideVehicle'
+import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
+import PassengerOfferBox from '@/components/negotiation/PassengerOfferBox'
+import { setPassengerOffer } from '@/modules/negotiation'
+import { platformFloor } from '@/modules/negotiation/domain'
+import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { createSquareImage } from '@/lib/image'
 import {
     Car,
@@ -52,6 +58,9 @@ import {
     CreditCard,
     Banknote,
     QrCode,
+    Accessibility,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import RideTrackingPanel from './RideTrackingPanel'
@@ -60,6 +69,8 @@ import { useActiveDriversLayer } from '@/lib/useActiveDriversLayer'
 import RadarDriverCard from '@/components/radar/RadarDriverCard'
 import type { RadarDriverItem } from '@/lib/radarDrivers'
 import { haversineKm } from '@/lib/mapboxRoute'
+import CarAmenities from '@/components/ride/CarAmenities'
+import PlaceSearchExtras, { type PlacePick } from '@/components/ride/PlaceSearchExtras'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -68,7 +79,9 @@ const DEFAULT_CENTER: [number, number] = [-63.9039, -8.7612] // Porto Velho
 const ROUTE_COLOR = '#3b82f6'
 const AVERAGE_SPEED_KMH = 40
 
-type Step = 'type' | 'where' | 'vehicle' | 'extras' | 'payment' | 'access'
+// MENOS ETAPAS (10/11/2026): 'where' já traz o tipo (Pessoa · Animal · Objeto) e os endereços; 'final' junta veículo, quem vai junto,
+// pagamento e acesso numa tela só, com "Pedir motorista" no fim. Objeto/animal ainda têm 'extras' (tamanho, foto, quem entrega/recebe).
+type Step = 'where' | 'extras' | 'final'
 type RequestFor = 'pessoa' | 'objeto' | 'animal'
 // 'stop0'/'stop1' = 1ª/2ª parada (até 2, por posição na lista `stops`).
 type ActiveField = 'origin' | 'destination' | 'stop0' | 'stop1' | null
@@ -105,10 +118,10 @@ interface FrequentRide {
     vehicleTypeChoice: 'carro' | 'moto' | 'bicicleta' | 'qualquer'
 }
 
-const STEPS: Step[] = ['type', 'where', 'vehicle', 'extras', 'payment', 'access']
+const STEPS: Step[] = ['where', 'final']
 // Pra objeto e animal, "Sobre o objeto/animal" (tamanho/peso) vem antes do
 // veículo: é isso que decide se cabe numa moto/bicicleta ou se precisa de carro.
-const OBJECT_STEPS: Step[] = ['type', 'where', 'extras', 'vehicle', 'payment', 'access']
+const OBJECT_STEPS: Step[] = ['where', 'extras', 'final']
 
 async function reverseGeocode(lng: number, lat: number): Promise<string | null> {
     try {
@@ -438,8 +451,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     }, [])
 
     const [mapReady, setMapReady] = useState(false)
-    const [step, setStep] = useState<Step>('type')
-    const [requestFor, setRequestFor] = useState<RequestFor | null>(null)
+    const [step, setStep] = useState<Step>('where')
+    const [requestFor, setRequestFor] = useState<RequestFor | null>('pessoa')
     // Escolha de moto/bicicleta pra corrida de 1 pessoa ou de objeto —
     // fora desses casos (mais gente, animal, mala grande) segue o cálculo
     // automático por capacidade (getVehicleTypeForPassengers).
@@ -481,11 +494,12 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     // Mapa e card agora dividem a tela (mapa em cima, card embaixo, sem se
     // sobrepor — antes o card flutuava por cima do mapa e podia tampar o
     // marcador do endereço digitado). O card acompanha a altura real do
-    // conteúdo (via ResizeObserver), limitado a 60vh — garante que o mapa
+    // conteúdo (via ResizeObserver), limitado a FINAL_MAX_VH (86vh) — garante que o mapa
     // sempre sobra com pelo menos 40% da tela visível, e só aparece scroll
     // dentro do card quando o conteúdo realmente não cabe nesse teto.
     const SHEET_MIN_VH = 22
-    const SHEET_MAX_VH = 60
+    // a tela final (veículo, junto, pagamento, pedir) cabe inteira, sem rolar: ela pode subir mais sobre o mapa
+    const FINAL_MAX_VH = 86
     const SHEET_PADDING_PX = 48 // pt-4 (16px) + pb-8 (32px) do container, não incluído na medição do conteúdo
     const [contentHeightPx, setContentHeightPx] = useState(0)
     const sheetResizeObserverRef = useRef<ResizeObserver | null>(null)
@@ -500,9 +514,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         ro.observe(node)
         sheetResizeObserverRef.current = ro
     }, [])
+    // o cartão acompanha o tamanho do conteúdo em todas as etapas e pode subir até FINAL_MAX_VH: tudo à vista, sem rolar; o mapa fica com o resto
+    const sheetMaxVh = FINAL_MAX_VH
+    // minimizar o cartão: vira uma barrinha com o resumo e o mapa ganha a tela (tocar abre de novo)
+    const [sheetMin, setSheetMin] = useState(false)
+    useEffect(() => { setSheetMin(false) }, [step])
     const sheetHeightVh = contentHeightPx > 0
-        ? Math.min(SHEET_MAX_VH, Math.max(SHEET_MIN_VH, ((contentHeightPx + SHEET_PADDING_PX) / window.innerHeight) * 100))
-        : SHEET_MAX_VH
+        ? Math.min(sheetMaxVh, Math.max(SHEET_MIN_VH, ((contentHeightPx + SHEET_PADDING_PX) / window.innerHeight) * 100))
+        : sheetMaxVh
 
     // ===== ADICIONAIS: PESSOA (além de quem pediu) — cada item é um contador,
     // 0 significa que não tem esse adicional =====
@@ -556,6 +575,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
     // ===== PAGAMENTO =====
     const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | 'cartao' | null>(null)
+    const [paymentMissing, setPaymentMissing] = useState(false)
+    useEffect(() => { if (paymentMethod) setPaymentMissing(false) }, [paymentMethod])
     const [cashChangeFor, setCashChangeFor] = useState('')
     const [cardIsContactless, setCardIsContactless] = useState<boolean | null>(null)
 
@@ -749,7 +770,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         setDestination({ address: fr.destinationAddress, coords: fr.destinationCoords })
         setStops(fr.stops.map((s) => ({ ...s, complement: '', complementOpen: false })))
         setExpandedFrequentRide(null)
-        setStep(fr.requestFor === 'objeto' || fr.requestFor === 'animal' ? 'extras' : 'vehicle')
+        setStep(fr.requestFor === 'objeto' || fr.requestFor === 'animal' ? 'extras' : 'final')
         toast.success('Endereços preenchidos com os dados da corrida anterior — revise antes de pedir')
     }
 
@@ -793,6 +814,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                 .from('ride_requests')
                 .select('id, origin_address, origin_lat, origin_lng, destination_address, destination_lat, destination_lng')
                 .eq('requester_id', contextUserId)
+                .is('order_id', null)   // entrega de pedido de loja é pedida pela LOJA (o dono é o solicitante): não é uma corrida da pessoa
                 .in('status', ['pending', 'accepted'])
                 .order('created_at', { ascending: false })
                 .limit(1)
@@ -910,16 +932,12 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         // sugestão em "Locais de partida já usados") em vez de localizar por
         // GPS toda vez — evita repetir a mesma pergunta de local se a pessoa
         // sempre parte do mesmo lugar.
+        // 11/11/2026: a página abre com os campos VAZIOS ("Local de partida" / "Local de chegada"); nada é preenchido sozinho. O mapa só vai
+        // para perto do último local de partida usado (as sugestões ficam logo abaixo de cada campo; o GPS está no botão do campo).
         const lastOrigin = getRecentRideOrigins()[0]
-        if (lastOrigin) {
-            setOrigin({ address: lastOrigin.address, coords: lastOrigin.coords })
-            if (lastOrigin.coords && mapRef.current) {
-                mapRef.current.flyTo({ center: lastOrigin.coords, zoom: 15, duration: 800 })
-            }
-            return
+        if (lastOrigin?.coords && mapRef.current) {
+            mapRef.current.flyTo({ center: lastOrigin.coords, zoom: 14, duration: 800 })
         }
-
-        useMyLocationAsOrigin()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapReady, useMyLocationAsOrigin])
 
@@ -969,7 +987,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         if (!draft) return
         clearRideDraft()
 
-        if (draft.step) setStep(draft.step)
+        // rascunho de antes das etapas novas: 'type' → onde; veículo/pagamento/acesso → a tela final
+        if (draft.step) setStep(draft.step === 'type' || draft.step === 'where' ? 'where' : draft.step === 'extras' && draft.requestFor && draft.requestFor !== 'pessoa' ? 'extras' : 'final')
         if (draft.requestFor) setRequestFor(draft.requestFor)
         if (draft.origin) setOrigin(draft.origin)
         if (draft.destination) setDestination(draft.destination)
@@ -1170,8 +1189,36 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         }, 400)
     }
 
+    // ponto de referência da busca (o centro do mapa na hora de abrir): de onde se mede "perto" e a estimativa
+    const [searchRef, setSearchRef] = useState<[number, number] | null>(null)
     const openField = (field: ActiveField) => {
         setActiveField(field)
+        setSuggestions([])
+        const c = mapRef.current?.getCenter()
+        setSearchRef(c ? [c.lng, c.lat] : null)
+        // sem partida escolhida ainda a cidade não é conhecida e a busca vinha do Brasil inteiro: descobre pela região do mapa
+        if (!cityContext && c) {
+            void resolveCity(c.lng, c.lat).then((city) => { if (city) { cityResolvedRef.current = true; setCityContext(city) } })
+        }
+    }
+    // escolheu um lugar recente ou uma empresa na página de busca da CHEGADA
+    const pickDestinationPlace = (p: PlacePick) => {
+        if (p.coords) { selectSuggestion('destination', { place_name: p.address, center: p.coords }); return }
+        setDestination(p)
+        addRecentRideDestination(p)
+        setRecentDestinations(getRecentRideDestinations())
+        persistPlace('destination', p)
+        setActiveField(null)
+        setSuggestions([])
+    }
+    // escolheu um lugar recente ou uma empresa na página de busca da PARTIDA
+    const pickOriginPlace = (p: PlacePick) => {
+        if (p.coords) { selectSuggestion('origin', { place_name: p.address, center: p.coords }); return }
+        setOrigin(p)
+        addRecentRideOrigin(p)
+        setRecentOrigins(getRecentRideOrigins())
+        persistPlace('origin', p)
+        setActiveField(null)
         setSuggestions([])
     }
 
@@ -1262,17 +1309,21 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     // ===== NAVEGAÇÃO ENTRE ETAPAS =====
     const handleSelectType = (type: RequestFor) => {
         setRequestFor(type)
-        setStep('where')
     }
 
     const handleBack = () => {
-        if (step === 'type') router.push('/')
+        if (orderedSteps.indexOf(step) <= 0) router.push('/')
         else goPrev()
     }
 
     const handleRequestConfirm = () => {
         if (!origin.address.trim() || !destination.address.trim()) {
             toast.error('Preencha o endereço de origem e destino')
+            return
+        }
+        if (!paymentMethod) {
+            setStep('final'); setPaymentMissing(true)
+            toast.error('Escolha a forma de pagamento')
             return
         }
         // As fotos (File) não sobrevivem ao login/rascunho — se faltar uma, leva
@@ -1283,7 +1334,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
             : requestFor === 'pessoa' && hasExtraObject && !extraObjectPhotoFile ? { msg: 'Adicione uma foto do objeto para continuar', id: 'foto-objeto-extra' }
             : null
         if (requestFor === 'pessoa' && hasShopping && !groceryBagSize) {
-            setStep('extras')
+            setStep('final')
             setOpenExtra('compras')
             toast.error('Escolha o tamanho da compra para continuar')
             setTimeout(() => document.getElementById('tamanho-compra')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150)
@@ -1291,7 +1342,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         }
         if (missingPhoto) {
             toast.error(missingPhoto.msg)
-            setStep('extras')
+            setStep(requestFor === 'pessoa' ? 'final' : 'extras')
             if (missingPhoto.id === 'foto-objeto-extra') setOpenExtra('objeto')
             setTimeout(() => {
                 document.getElementById(missingPhoto.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -1500,6 +1551,39 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         paymentMethod, cashChangeFor, cardIsContactless,
     })
 
+    // ===== VALOR: Tarifa iUser de referência e a oferta (opcional) do passageiro =====
+    const [offerMode, setOfferMode] = useState<'drivers' | 'mine'>('drivers')
+    const [offerValue, setOfferValue] = useState<number | null>(null)
+    const [referencePrice, setReferencePrice] = useState<number | null>(null)
+    const minPerMinute = useRideMinimum()
+    // mínimo da plataforma para este trajeto (R$ por minuto × os minutos da rota): nem a referência nem a oferta ficam abaixo
+    const tripFloor = platformFloor(route?.durationMin ?? null, minPerMinute)
+    useEffect(() => {
+        if (!showPlateReminder || !requestFor) return
+        let alive = true
+        void (async () => {
+            await loadPlatformTariffs(supabase)
+            if (!alive) return
+            if (route?.distanceKm == null) { setReferencePrice(null); return }
+            const flags: RideConditionFlags = {
+                origin_needs_access: originNeedsAccess,
+                destination_needs_access: requestFor === 'objeto' ? deliveryLocation !== 'portaria' : destinationNeedsAccess,
+                is_grocery_shopping: requestFor === 'pessoa' && hasShopping,
+                has_special_needs: hasSpecialNeeds,
+                special_needs_wheelchair: hasSpecialNeeds && specialNeedsWheelchair,
+                special_needs_visual_impairment: hasSpecialNeeds && specialNeedsVisualImpairment,
+                has_guide_dog: hasSpecialNeeds && hasGuideDog,
+                pet_has_carrier: ((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') ? petHasCarrier : null,
+                delivery_location: requestFor === 'objeto' ? deliveryLocation : null,
+                wants_air_conditioning: isTwoWheels || requestFor === 'objeto' ? false : wantsAirConditioning,
+            }
+            const shape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(effectiveVehicleType)]
+            setReferencePrice(Math.max(Math.round(computeSuggestedPrice(route.distanceKm, shape, requestFor, flags) * 100) / 100, platformFloor(route.durationMin ?? null, minPerMinute)))
+        })()
+        return () => { alive = false }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showPlateReminder, requestFor, route, effectiveVehicleType, wantsAirConditioning, minPerMinute])
+
     const handleSubmit = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -1593,6 +1677,11 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
             if (error) throw error
             clearRideDraft()
+            // Oferta do passageiro (opcional): grava antes de avisar os motoristas, para o card deles já mostrar o valor
+            if (offerMode === 'mine' && offerValue != null) {
+                try { await setPassengerOffer(insertedRide.id, offerValue) }
+                catch { toast.info('Seu pedido foi enviado, mas não conseguimos registrar a sua oferta de valor. Os motoristas vão propor o valor.') }
+            }
             notifyNewRide(insertedRide.id)
             setActiveRideId(insertedRide.id)
             // Atalho pro "Últimos acessados" da home — não é conteúdo
@@ -1613,6 +1702,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     .from('ride_requests')
                     .select('id')
                     .eq('requester_id', user.id)
+                    .is('order_id', null)   // entrega de pedido de loja é pedida pela LOJA (o dono é o solicitante): não é uma corrida da pessoa
                     .in('status', ['pending', 'accepted'])
                     .order('created_at', { ascending: false })
                     .limit(1)
@@ -1649,6 +1739,27 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapDrivers])
     const driversTotal = driverCounts.carro + driverCounts.moto + driverCounts.bicicleta
+    const [moreOpts, setMoreOpts] = useState(false)
+    const moreOptsCount = (hasSpecialNeeds ? 1 : 0) + (originNeedsAccess ? 1 : 0) + (destinationNeedsAccess ? 1 : 0)
+    const moreOptsOpen = moreOpts || moreOptsCount > 0
+    // os carros por perto do tipo escolhido ("qualquer" = todos), do mais perto ao mais longe da partida
+    // a estimativa da página de chegada usa o veículo do pedido ("qualquer" = carro) e o motorista ATIVO mais perto da partida desse tipo
+    const estimateKind: 'carro' | 'moto' | 'bicicleta' = vehicleTypeChoice === 'qualquer' ? 'carro' : vehicleTypeChoice
+    const nearestDriverToOrigin: [number, number] | null = (() => {
+        if (!origin.coords) return null
+        let best: [number, number] | null = null, bestKm = Infinity
+        for (const d of mapDrivers) {
+            if (d.kind !== estimateKind) continue
+            const km = haversineKm(origin.coords, [d.lng, d.lat])
+            if (km < bestKm) { bestKm = km; best = [d.lng, d.lat] }
+        }
+        return best
+    })()
+    const nearbyCars = mapDrivers
+        .filter((d) => vehicleTypeChoice === 'qualquer' || d.kind === vehicleTypeChoice)
+        .map((d) => ({ d, km: origin.coords ? haversineKm(origin.coords, [d.lng, d.lat]) : null }))
+        .sort((a, b) => (a.km ?? 99) - (b.km ?? 99))
+        .slice(0, 12)
 
     const inputStyle = { color: colors.textPrimary }
 
@@ -1692,8 +1803,10 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                 )}
 
                 {/* Card do motorista escolhido no mapa */}
+                {/* por cima da TELA toda (não só do mapa, que na etapa final fica baixinho), com o fundo escurecido: tocar fora fecha */}
                 {pickedDriver && driversEnabled && (
-                    <div className="absolute inset-x-3 bottom-3 z-30 max-w-md mx-auto flex flex-col justify-end max-h-[calc(100%-5rem)]">
+                    <div className="fixed inset-0 z-50 flex flex-col justify-end p-3" style={{ background: 'rgba(0,0,0,0.45)', top: 'var(--shell-top, 0px)' }} onClick={(e) => { if (e.target === e.currentTarget) setPickedDriver(null) }}>
+                    <div className="w-full max-w-md mx-auto flex flex-col justify-end max-h-[calc(100dvh-var(--shell-top,0px)-1.5rem)]">
                         <RadarDriverCard
                             driver={pickedDriver}
                             distanceKm={origin.coords ? haversineKm(origin.coords, [pickedDriver.lng, pickedDriver.lat]) : null}
@@ -1707,6 +1820,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             go={(path) => router.push(path)}
                         />
                     </div>
+                    </div>
                 )}
 
                 {checkingActiveRide && (
@@ -1718,8 +1832,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
             {/* Overlay de busca em tela cheia quando um campo está ativo */}
             {activeField && (
-                <div className="absolute inset-0 z-40" style={{ background: colors.background }}>
-                    <div className="p-4 flex items-center gap-3" style={{ borderBottom: `1px solid ${colors.border}` }}>
+                <div className="absolute inset-0 z-40 flex flex-col" style={{ background: colors.background }}>
+                    <div className="p-4 flex items-center gap-3 flex-shrink-0" style={{ borderBottom: `1px solid ${colors.border}` }}>
                         <button
                             onClick={() => { setActiveField(null); setSuggestions([]) }}
                             className="p-2 rounded-full"
@@ -1735,7 +1849,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 value={addressForField(activeField)}
                                 onChange={(e) => handleAddressChange(activeField as 'origin' | 'destination' | 'stop0' | 'stop1', e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
-                                placeholder={activeField === 'origin' ? 'De onde você vai sair?' : activeField === 'destination' ? 'Local de chegada' : activeField === 'stop0' ? 'Onde vai ser a 1ª parada?' : 'Onde vai ser a 2ª parada?'}
+                                placeholder={activeField === 'origin' ? (requestFor === 'objeto' ? 'Local de retirada' : 'Local de partida') : activeField === 'destination' ? (requestFor === 'pessoa' ? 'Local de chegada' : 'Local de entrega') : activeField === 'stop0' ? 'Onde vai ser a 1ª parada?' : 'Onde vai ser a 2ª parada?'}
                                 className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm focus:outline-none"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                             />
@@ -1757,7 +1871,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                         </div>
                     )}
 
-                    <div className="overflow-y-auto">
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                        {/* ao digitar, os resultados da busca ficam EM CIMA; as listas da partida (recentes e empresas) continuam embaixo */}
                         {suggestions.map((s, idx) => {
                             const isHighlighted = idx === highlightedIndex
                             return (
@@ -1783,6 +1898,25 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 </button>
                             )
                         })}
+                        {/* PARTIDA: atalhos, recentes e empresas por perto, SEM valor (a pessoa sai dali). CHEGADA: o mesmo, com o VALOR ESTIMADO da
+                            corrida da partida até cada lugar (+ R$ 6 de deslocamento) — modules/ride-places */}
+                        {(activeField === 'origin' || activeField === 'destination') && (
+                            <PlaceSearchExtras
+                                query={activeField === 'origin' ? origin.address : destination.address}
+                                refPoint={activeField === 'destination' ? (origin.coords ?? searchRef) : searchRef}
+                                priceFrom={activeField === 'destination' ? origin.coords : undefined}
+                                vehicleKind={estimateKind}
+                                onVehicleKind={(k) => chooseVehicle(k)}
+                                pickupFrom={nearestDriverToOrigin}
+                                recents={(activeField === 'origin' ? [...recentOrigins, ...recentDestinations] : [...recentDestinations, ...recentOrigins])
+                                    .filter((p, i, all) => all.findIndex((x) => x.address === p.address) === i)
+                                    .filter((p) => (activeField === 'origin' ? p.address !== destination.address : p.address !== origin.address))}
+                                locating={activeField === 'origin' ? locatingOrigin : locatingDestination}
+                                onUseMyLocation={() => { if (activeField === 'origin') useMyLocationAsOrigin(true); else useMyLocationAsDestination(); setActiveField(null); setSuggestions([]) }}
+                                onPickOnMap={() => startPickingOnMap(activeField)}
+                                onPick={activeField === 'origin' ? pickOriginPlace : pickDestinationPlace}
+                            />
+                        )}
                     </div>
                 </div>
             )}
@@ -1805,6 +1939,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 </p>
                             ))}
                         </div>
+
+                        <PassengerOfferBox reference={referencePrice} min={tripFloor} mode={offerMode} onMode={setOfferMode} value={offerValue} onValue={setOfferValue} />
 
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.
@@ -1852,9 +1988,23 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
             {/* Card por etapas — divide a tela com o mapa (embaixo), em vez
                 de flutuar por cima e correr o risco de tampar o endereço
                 que acabou de ser digitado. */}
-            {!activeField && !activeRideId && !checkingActiveRide && (
+            {!activeField && !activeRideId && !checkingActiveRide && sheetMin && (
+                <button type="button" onClick={() => setSheetMin(false)} aria-label="Abrir o pedido"
+                    className="flex-shrink-0 rounded-t-3xl px-4 pt-2.5 pb-[calc(12px+env(safe-area-inset-bottom)+var(--staging-banner-h,0px))] text-left"
+                    style={{ background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}>
+                    <span className="block mx-auto mb-2 w-10 h-1.5 rounded-full" style={{ background: colors.border }} />
+                    <span className="flex items-center gap-2.5">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                        <span className="min-w-0 flex-1 text-[13px] font-bold truncate" style={{ color: colors.textPrimary }}>
+                            {origin.address || destination.address ? `${shortAddress(origin.address) || 'Partida'} → ${shortAddress(destination.address) || 'Chegada'}` : 'Pedir motorista'}
+                        </span>
+                        <span className="flex items-center gap-1 text-[12px] font-black flex-shrink-0" style={{ color: '#ea580c' }}>Abrir <ChevronUp size={15} /></span>
+                    </span>
+                </button>
+            )}
+            {!activeField && !activeRideId && !checkingActiveRide && !sheetMin && (
                 <div
-                    className={`flex-shrink-0 rounded-t-3xl overflow-y-auto ${v3 ? 'px-4 pt-3 pb-5' : 'px-5 pt-4 pb-8'}`}
+                    className={`flex-shrink-0 rounded-t-3xl overflow-y-auto ${v3 ? 'px-4 pt-2 pb-3' : 'px-5 pt-3 pb-8'}`}
                     style={{
                         background: colors.surface,
                         boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
@@ -1863,8 +2013,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     }}
                 >
                     <div ref={setSheetContentRef}>
-                    {/* Indicador de progresso das etapas */}
-                    <div className={`flex items-center gap-1.5 justify-center ${v3 ? 'mb-3' : 'mb-4'}`}>
+                    {/* Indicador de progresso das etapas + MINIMIZAR (o cartão vira uma barrinha e o mapa ganha a tela) */}
+                    <div className={`relative flex items-center gap-1.5 justify-center h-7 ${v3 ? 'mb-1.5' : 'mb-2'}`}>
                         {orderedSteps.map((s, i) => (
                             <div
                                 key={s}
@@ -1875,369 +2025,156 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 }}
                             />
                         ))}
+                        <button type="button" onClick={() => setSheetMin(true)} aria-label="Minimizar e ver o mapa"
+                            className="absolute right-0 top-1/2 -translate-y-1/2 h-7 pl-2 pr-1.5 rounded-full flex items-center gap-0.5 text-[11px] font-black"
+                            style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                            Mapa <ChevronDown size={14} />
+                        </button>
                     </div>
 
-                    {/* ===== ETAPA 1: PESSOA OU OBJETO ===== */}
-                    {step === 'type' && (
+                    {/* ===== ETAPA 1: ONDE — COMPACTA, sem rolar (11/11/2026): o tipo em cima, partida e chegada num cartão só (com as paradas entre
+                        elas), complemento/parada numa linha de atalhos, os lugares recentes numa fileira e as corridas frequentes em linhas de um toque ===== */}
+                    {step === 'where' && (
                         <>
                             {calledDriver && (
-                                <div className="mb-3 rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-sm font-bold" style={{ background: '#ea580c1a', color: '#ea580c' }}>
+                                <div className="mb-2 rounded-full px-3 h-9 flex items-center gap-2 text-[12.5px] font-bold" style={{ background: '#ea580c1a', color: '#ea580c' }}>
                                     <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                                     <span className="min-w-0 truncate">Chamando {calledDriver.slug ? `@${calledDriver.slug}` : calledDriver.name || 'o motorista'} — ele será avisado na hora</span>
                                 </div>
                             )}
-                            {v3 ? (
-                                <>
-                                    <div className="flex items-baseline justify-between mb-2.5">
-                                        <h2 className="text-[15px] font-black" style={{ color: colors.textPrimary }}>Motorista para</h2>
-                                        <span className="text-[11px]" style={{ color: colors.textSecondary }}>escolha para começar</span>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {([
-                                            { type: 'pessoa' as RequestFor, Icon: Users, label: 'Pessoa', hint: 'Te levar ou buscar' },
-                                            { type: 'animal' as RequestFor, Icon: PawPrint, label: 'Animal', hint: 'Transporte do pet' },
-                                            { type: 'objeto' as RequestFor, Icon: Package, label: 'Objeto', hint: 'Retirar ou entregar' },
-                                        ]).map(({ type, Icon, label, hint }) => (
-                                            <button
-                                                key={type}
-                                                onClick={() => handleSelectType(type)}
-                                                className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-2xl transition active:scale-95"
-                                                style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
-                                            >
-                                                <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                                    <Icon size={18} />
-                                                </div>
-                                                <span className="text-[12px] font-black leading-none mt-0.5" style={{ color: colors.textPrimary }}>{label}</span>
-                                                <span className="text-[10px] leading-tight text-center" style={{ color: colors.textSecondary }}>{hint}</span>
+                            <div role="tablist" aria-label="Motorista para" className="grid grid-cols-3 gap-1 p-1 rounded-2xl mb-2" style={{ background: `${colors.border}30` }}>
+                                {([
+                                    { type: 'pessoa' as RequestFor, Icon: Users, label: 'Pessoa' },
+                                    { type: 'animal' as RequestFor, Icon: PawPrint, label: 'Animal' },
+                                    { type: 'objeto' as RequestFor, Icon: Package, label: 'Objeto' },
+                                ]).map(({ type, Icon, label }) => {
+                                    const on = requestFor === type
+                                    return (
+                                        <button key={type} role="tab" aria-selected={on} onClick={() => handleSelectType(type)}
+                                            className="h-9 rounded-xl flex items-center justify-center gap-1.5 text-[13px] font-black transition active:scale-95"
+                                            style={on ? { background: colors.surface, color: '#ea580c', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' } : { color: colors.textSecondary }}>
+                                            <Icon size={15} />{label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {/* partida → (paradas) → chegada, num cartão só */}
+                            <div className="rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center gap-2.5 px-3 h-11">
+                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                                    <input readOnly onClick={() => openField('origin')} value={locatingOrigin ? 'Localizando...' : origin.address}
+                                        placeholder={requestFor === 'objeto' ? 'Local de retirada' : 'Local de partida'}
+                                        aria-label="Partida" className="flex-1 min-w-0 bg-transparent text-[13.5px] font-semibold focus:outline-none cursor-pointer" style={inputStyle} />
+                                    <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0 p-1" title="Usar minha localização atual" style={{ color: colors.accent }}>{locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}</button>
+                                    <button onClick={() => startPickingOnMap('origin')} className="flex-shrink-0 p-1" title="Escolher local no mapa" style={{ color: colors.accent }}><MapPin size={16} /></button>
+                                </div>
+                                {!origin.address && recentOrigins.length > 0 && (
+                                    <div className="flex gap-1.5 overflow-x-auto px-3 pb-2 -mt-0.5" style={{ scrollbarWidth: 'none' }} aria-label="Partidas recentes">
+                                        {recentOrigins.map((place) => (
+                                            <button key={`o-${place.address}`} onClick={() => selectRecentOrigin(place)}
+                                                className="flex-shrink-0 flex items-center gap-1 px-2.5 h-7 rounded-full text-[11.5px] font-bold" style={{ background: '#22c55e14', color: colors.textPrimary }}>
+                                                <History size={11} style={{ color: '#22c55e' }} />{shortAddress(place.address)}
                                             </button>
                                         ))}
                                     </div>
-                                </>
-                            ) : (
-                                <>
-                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-1`} style={{ color: colors.textPrimary }}>Motorista para:</h2>
-                            <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
-
-                            <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    onClick={() => handleSelectType('pessoa')}
-                                    className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
-                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
-                                >
-                                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                        <Users size={22} />
+                                )}
+                                {showOriginComplement && (
+                                    <input type="text" value={originComplement} onChange={(e) => setOriginComplement(e.target.value)} autoFocus placeholder="Complemento da partida (casa amarela, portão...)"
+                                        className="w-[calc(100%-1.5rem)] mx-3 mb-2 px-3 py-1.5 rounded-lg text-xs focus:outline-none" style={{ background: `${colors.border}25`, color: colors.textPrimary }} />
+                                )}
+                                {stops.map((st, idx) => {
+                                    const fieldId = idx === 0 ? 'stop0' : 'stop1'
+                                    return (
+                                        <div key={idx} style={{ borderTop: `1px solid ${colors.border}` }}>
+                                            <div className="flex items-center gap-2.5 px-3 h-11">
+                                                <Flag size={13} className="flex-shrink-0" style={{ color: '#eab308' }} />
+                                                <input readOnly onClick={() => openField(fieldId)} value={st.address} placeholder={`${idx + 1}ª parada`} aria-label={`Parada ${idx + 1}`}
+                                                    className="flex-1 min-w-0 bg-transparent text-[13.5px] font-semibold focus:outline-none cursor-pointer" style={inputStyle} />
+                                                <button onClick={() => startPickingOnMap(fieldId)} className="flex-shrink-0 p-1" title="Escolher local no mapa" style={{ color: colors.accent }}><MapPin size={16} /></button>
+                                                <button onClick={() => removeStop(idx)} className="flex-shrink-0 p-1" title="Tirar a parada" style={{ color: colors.textSecondary }}><Trash2 size={15} /></button>
+                                            </div>
+                                            {st.complementOpen && (
+                                                <input type="text" value={st.complement} onChange={(e) => updateStopComplement(idx, e.target.value)} autoFocus placeholder="Complemento da parada"
+                                                    className="w-[calc(100%-1.5rem)] mx-3 mb-2 px-3 py-1.5 rounded-lg text-xs focus:outline-none" style={{ background: `${colors.border}25`, color: colors.textPrimary }} />
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                                <div style={{ borderTop: `1px solid ${colors.border}` }}>
+                                    <div className="flex items-center gap-2.5 px-3 h-11">
+                                        <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
+                                        <input readOnly onClick={() => openField('destination')} value={locatingDestination ? 'Localizando...' : destination.address}
+                                            placeholder={requestFor === 'pessoa' ? 'Local de chegada' : 'Local de entrega'}
+                                            aria-label="Chegada" className="flex-1 min-w-0 bg-transparent text-[13.5px] font-semibold focus:outline-none cursor-pointer" style={inputStyle} />
+                                        <button onClick={() => useMyLocationAsDestination()} className="flex-shrink-0 p-1" title="Usar minha localização atual" style={{ color: colors.accent }}>{locatingDestination ? <Spinner size={16} /> : <MapPinPlus size={16} />}</button>
+                                        <button onClick={() => startPickingOnMap('destination')} className="flex-shrink-0 p-1" title="Escolher local no mapa" style={{ color: colors.accent }}><MapPin size={16} /></button>
                                     </div>
-                                    <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Pessoa</span>
-                                    <span className="text-[10px] text-center leading-tight" style={{ color: colors.textSecondary }}>
-                                        Uma corrida pra te levar, buscar alguém ou os dois juntos
-                                    </span>
-                                </button>
-
-                                <button
-                                    onClick={() => handleSelectType('animal')}
-                                    className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
-                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
-                                >
-                                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                        <PawPrint size={22} />
-                                    </div>
-                                    <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Animal</span>
-                                    <span className="text-[10px] text-center leading-tight" style={{ color: colors.textSecondary }}>
-                                        Transporte cuidadoso do seu animal, mesmo sem você junto
-                                    </span>
-                                </button>
-
-                                <button
-                                    onClick={() => handleSelectType('objeto')}
-                                    className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
-                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
-                                >
-                                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                        <Package size={22} />
-                                    </div>
-                                    <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Objeto</span>
-                                    <span className="text-[10px] text-center leading-tight" style={{ color: colors.textSecondary }}>
-                                        Retirada ou entrega de algo, sem você precisar sair de casa
-                                    </span>
-                                </button>
+                                    {!destination.address && recentDestinations.length > 0 && (
+                                        <div className="flex gap-1.5 overflow-x-auto px-3 pb-2 -mt-0.5" style={{ scrollbarWidth: 'none' }} aria-label="Chegadas recentes">
+                                            {recentDestinations.map((place) => (
+                                                <button key={`d-${place.address}`} onClick={() => selectRecentDestination(place)}
+                                                    className="flex-shrink-0 flex items-center gap-1 px-2.5 h-7 rounded-full text-[11.5px] font-bold" style={{ background: '#ef444414', color: colors.textPrimary }}>
+                                                    <History size={11} style={{ color: '#ef4444' }} />{shortAddress(place.address)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {showDestinationComplement && (
+                                        <input type="text" value={destinationComplement} onChange={(e) => setDestinationComplement(e.target.value)} autoFocus placeholder="Complemento da chegada (apto, bloco...)"
+                                            className="w-[calc(100%-1.5rem)] mx-3 mb-2 px-3 py-1.5 rounded-lg text-xs focus:outline-none" style={{ background: `${colors.border}25`, color: colors.textPrimary }} />
+                                    )}
+                                </div>
                             </div>
 
-                                </>
-                            )}
+                            {/* atalhos numa linha só */}
+                            <div className="flex items-center gap-3 mt-1.5 text-[12px] font-bold" style={{ color: colors.accent }}>
+                                {(!showOriginComplement || !showDestinationComplement) && (
+                                    <button onClick={() => { setShowOriginComplement(true); setShowDestinationComplement(true); stops.forEach((_, i) => openStopComplement(i)) }}>+ Complemento</button>
+                                )}
+                                {stops.length < 2 && <button onClick={addStop} className="flex items-center gap-1"><Plus size={13} />{stops.length === 0 ? 'Parada' : 'Outra parada'}</button>}
+                                {loadingRoutes && <span className="ml-auto flex items-center gap-1.5 font-semibold" style={{ color: colors.textSecondary }}><Spinner size={12} />Calculando rota…</span>}
+                            </div>
 
-                            {/* Corridas que a pessoa já pediu 2+ vezes (mesmo tipo + destino):
-                                atalho pra ver os detalhes e pedir de novo sem digitar tudo. */}
+                            {/* corridas que a pessoa já pediu 2+ vezes: uma linha, um toque preenche tudo (no máximo 2) */}
                             {frequentRides.length > 0 && (
-                                <div className="mt-5">
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <History size={13} style={{ color: colors.textSecondary }} />
-                                        <span className="text-xs font-black" style={{ color: colors.textSecondary }}>Corridas frequentes</span>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        {frequentRides.map((fr) => {
-                                            const isOpen = expandedFrequentRide === fr.key
-                                            const Icon = fr.requestFor === 'pessoa' ? Users : fr.requestFor === 'animal' ? PawPrint : Package
-                                            const label = fr.requestFor === 'pessoa' ? 'Pessoa' : fr.requestFor === 'animal' ? 'Animal' : 'Objeto'
-                                            return (
-                                                <div
-                                                    key={fr.key}
-                                                    className="rounded-2xl overflow-hidden"
-                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
-                                                >
-                                                    <button
-                                                        onClick={() => setExpandedFrequentRide(isOpen ? null : fr.key)}
-                                                        className="w-full flex items-center gap-2.5 py-3 px-3 text-left"
-                                                    >
-                                                        <div className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                                            <Icon size={16} />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{label} · {fr.destinationAddress}</p>
-                                                            <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>De: {fr.originAddress}</p>
-                                                        </div>
-                                                        <span
-                                                            className="flex-shrink-0 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-                                                            style={{ background: `${colors.border}60`, color: colors.textPrimary }}
-                                                        >
-                                                            {fr.count}x
-                                                        </span>
-                                                    </button>
-                                                    {isOpen && (
-                                                        <div className="px-3 pb-3">
-                                                            <button
-                                                                onClick={() => requestFrequentRideAgain(fr)}
-                                                                className="w-full py-2.5 rounded-full font-bold text-xs text-white"
-                                                                style={{ background: GRADIENT }}
-                                                            >
-                                                                Pedir de novo
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {/* ===== ETAPA 2: ENDEREÇOS ===== */}
-                    {step === 'where' && (
-                        <>
-                            {/* Local de início */}
-                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>Qual local para iniciar a corrida?</h2>
-                            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
-                                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
-                                <input
-                                    readOnly
-                                    onClick={() => openField('origin')}
-                                    value={locatingOrigin ? 'Localizando...' : origin.address}
-                                    placeholder="Local de início"
-                                    className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                    style={inputStyle}
-                                />
-                                <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" title="Usar minha localização atual" style={{ color: colors.accent }}>
-                                    {locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}
-                                </button>
-                                <button onClick={() => startPickingOnMap('origin')} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
-                                    <MapPin size={16} />
-                                </button>
-                            </div>
-                            {showOriginComplement ? (
-                                <input
-                                    type="text"
-                                    value={originComplement}
-                                    onChange={(e) => setOriginComplement(e.target.value)}
-                                    autoFocus
-                                    placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
-                                    className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
-                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                />
-                            ) : (
-                                <button
-                                    onClick={() => setShowOriginComplement(true)}
-                                    className="text-xs font-bold mt-2"
-                                    style={{ color: colors.accent }}
-                                >
-                                    + Adicionar complemento
-                                </button>
-                            )}
-
-                            {/* Locais de partida já usados */}
-                            {recentOrigins.length > 0 && (
-                                <div className="flex gap-2 overflow-x-auto pt-2 pb-1">
-                                    {recentOrigins.map((place) => (
-                                        <button
-                                            key={place.address}
-                                            onClick={() => selectRecentOrigin(place)}
-                                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
-                                            style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            <History size={12} style={{ color: '#22c55e' }} />
-                                            {shortAddress(place.address)}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Local de chegada */}
-                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3 mt-4`} style={{ color: colors.textPrimary }}>Para onde quer ir?</h2>
-                            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
-                                <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
-                                <input
-                                    readOnly
-                                    onClick={() => openField('destination')}
-                                    value={locatingDestination ? 'Localizando...' : destination.address}
-                                    placeholder="Local de chegada"
-                                    className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                    style={inputStyle}
-                                />
-                                <button onClick={() => useMyLocationAsDestination()} className="flex-shrink-0" title="Usar minha localização atual" style={{ color: colors.accent }}>
-                                    {locatingDestination ? <Spinner size={16} /> : <MapPinPlus size={16} />}
-                                </button>
-                                <button onClick={() => startPickingOnMap('destination')} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
-                                    <MapPin size={16} />
-                                </button>
-                            </div>
-                            {showDestinationComplement ? (
-                                <input
-                                    type="text"
-                                    value={destinationComplement}
-                                    onChange={(e) => setDestinationComplement(e.target.value)}
-                                    autoFocus
-                                    placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
-                                    className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
-                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                />
-                            ) : (
-                                <button
-                                    onClick={() => setShowDestinationComplement(true)}
-                                    className="text-xs font-bold mt-2"
-                                    style={{ color: colors.accent }}
-                                >
-                                    + Adicionar complemento
-                                </button>
-                            )}
-
-                            {/* Locais de chegada já usados */}
-                            {recentDestinations.length > 0 && (
-                                <div className="flex gap-2 overflow-x-auto pt-2 pb-1">
-                                    {recentDestinations.map((place) => (
-                                        <button
-                                            key={place.address}
-                                            onClick={() => selectRecentDestination(place)}
-                                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
-                                            style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            <History size={12} style={{ color: '#ef4444' }} />
-                                            {shortAddress(place.address)}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Paradas (opcional, até 2) — pontos entre a partida e a chegada */}
-                            {stops.map((s, idx) => {
-                                const fieldId = idx === 0 ? 'stop0' : 'stop1'
-                                return (
-                                    <div key={idx} className="mt-3">
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
-                                                Parada {idx + 1}
-                                            </h3>
-                                            <button
-                                                onClick={() => removeStop(idx)}
-                                                className="flex items-center gap-1 text-xs font-bold"
-                                                style={{ color: colors.textSecondary }}
-                                            >
-                                                <Trash2 size={12} />
-                                                Remover
+                                <div className="flex flex-col gap-1 mt-2">
+                                    {frequentRides.slice(0, 2).map((fr) => {
+                                        const Icon = fr.requestFor === 'pessoa' ? Users : fr.requestFor === 'animal' ? PawPrint : Package
+                                        return (
+                                            <button key={fr.key} onClick={() => requestFrequentRideAgain(fr)} className="flex items-center gap-2 px-2.5 h-9 rounded-full text-left active:scale-[0.99] transition" style={{ background: `${colors.border}30` }}>
+                                                <Icon size={13} style={{ color: '#ea580c' }} />
+                                                <span className="min-w-0 flex-1 text-[12px] font-bold truncate" style={{ color: colors.textPrimary }}>{shortAddress(fr.originAddress)} → {shortAddress(fr.destinationAddress)}</span>
+                                                <span className="text-[11px] font-black flex-shrink-0" style={{ color: '#ea580c' }}>Pedir de novo · {fr.count}x</span>
                                             </button>
-                                        </div>
-                                        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
-                                            <Flag size={14} className="flex-shrink-0" style={{ color: '#eab308' }} />
-                                            <input
-                                                readOnly
-                                                onClick={() => openField(fieldId)}
-                                                value={s.address}
-                                                placeholder={`Onde vai ser a ${idx + 1}ª parada?`}
-                                                className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                                style={inputStyle}
-                                            />
-                                            <button onClick={() => startPickingOnMap(fieldId)} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
-                                                <MapPin size={16} />
-                                            </button>
-                                        </div>
-                                        {s.complementOpen ? (
-                                            <input
-                                                type="text"
-                                                value={s.complement}
-                                                onChange={(e) => updateStopComplement(idx, e.target.value)}
-                                                autoFocus
-                                                placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
-                                                className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                            />
-                                        ) : (
-                                            <button
-                                                onClick={() => openStopComplement(idx)}
-                                                className="text-xs font-bold mt-2"
-                                                style={{ color: colors.accent }}
-                                            >
-                                                + Adicionar complemento
-                                            </button>
-                                        )}
-                                    </div>
-                                )
-                            })}
-
-                            {stops.length < 2 && (
-                                <button
-                                    onClick={addStop}
-                                    className="flex items-center gap-1.5 text-xs font-bold mt-3"
-                                    style={{ color: colors.accent }}
-                                >
-                                    <Plus size={14} />
-                                    {stops.length === 0 ? 'Adicionar parada' : 'Adicionar outra parada'}
-                                </button>
-                            )}
-
-                            {/* Rota (uma só, sem alternativas) — a distância/tempo aparece no mapa, no marcador de chegada */}
-                            {loadingRoutes && (
-                                <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
-                                    <Spinner size={14} />
-                                    Calculando rota...
+                                        )
+                                    })}
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-2 mt-4">
-                                <button
-                                    onClick={() => setStep('type')}
-                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
-                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                >
-                                    Voltar
-                                </button>
-                                <button
-                                    onClick={goNext}
-                                    disabled={!origin.address.trim() || !destination.address.trim() || stops.some((s) => !s.address.trim())}
-                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100`}
-                                    style={{ background: GRADIENT, color: '#fff' }}
-                                >
-                                    Continuar
-                                </button>
-                            </div>
+                            <button
+                                onClick={goNext}
+                                disabled={!origin.address.trim() || !destination.address.trim() || stops.some((st) => !st.address.trim())}
+                                className={`w-full mt-3 ${v3 ? 'h-12 rounded-full text-[14px]' : 'py-3.5 rounded-xl uppercase text-sm tracking-wider'} font-black transition-all active:scale-95 disabled:opacity-50`}
+                                style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff' }}
+                            >
+                                Continuar
+                            </button>
                         </>
                     )}
 
                     {/* ===== ETAPA: VEÍCULO ===== */}
-                    {step === 'vehicle' && requestFor && (
+                    {step === 'final' && requestFor && (
                         <>
-                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-1`} style={{ color: colors.textPrimary }}>Qual veículo prefere?</h2>
-                            <p className={`text-xs ${v3 ? 'mb-2.5' : 'mb-4'}`} style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
+                            {/* resumo do trajeto numa linha: tocar volta para mudar */}
+                            <button type="button" onClick={() => setStep('where')} className="w-full flex items-center gap-2 rounded-full px-3 h-9 mb-2.5 text-left active:scale-[0.99] transition" style={{ background: `${colors.border}30` }}>
+                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                                <span className="min-w-0 flex-1 text-[12px] font-bold truncate" style={{ color: colors.textPrimary }}>{shortAddress(origin.address)} <span style={{ color: colors.textSecondary }}>→</span> {shortAddress(destination.address)}</span>
+                                <span className="text-[11px] font-black flex-shrink-0" style={{ color: '#ea580c' }}>Mudar</span>
+                            </button>
+                            <h2 className="text-[13px] font-black mb-1.5" style={{ color: colors.textPrimary }}>Veículo</h2>
 
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className={v3 ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-2 gap-2'}>
                                 {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => {
                                     const active = vehicleTypeChoice === kind
                                     const Icon = kind === 'moto' ? Motorbike : kind === 'bicicleta' ? Bike : kind === 'qualquer' ? Shuffle : Car
@@ -2251,18 +2188,18 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                             disabled={!allowed}
                                             onClick={() => chooseVehicle(kind)}
                                             className={v3
-                                                ? 'flex items-center gap-2.5 h-[58px] px-3 rounded-2xl text-left transition active:scale-95 disabled:opacity-40'
+                                                ? 'flex flex-col items-center justify-start gap-0.5 py-1.5 px-1 rounded-2xl text-center transition active:scale-95 disabled:opacity-40'
                                                 : 'flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:hover:scale-100'}
-                                            style={active ? { background: GRADIENT } : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                            style={active ? { background: v3 ? '#f97316' : GRADIENT } : { background: `${colors.border}30`, border: v3 ? '1px solid transparent' : `1px solid ${colors.border}` }}
                                         >
-                                            <div className={`${v3 ? 'w-9 h-9' : 'w-12 h-12'} flex-shrink-0 rounded-full flex items-center justify-center`} style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
-                                                <Icon size={v3 ? 18 : 22} />
+                                            <div className={`${v3 ? 'w-7 h-7' : 'w-12 h-12'} flex-shrink-0 rounded-full flex items-center justify-center`} style={{ background: active ? 'rgba(255,255,255,0.25)' : v3 ? '#f9731622' : GRADIENT, color: active || !v3 ? '#fff' : '#ea580c' }}>
+                                                <Icon size={v3 ? 15 : 22} />
                                             </div>
-                                            <span className="min-w-0 flex flex-col">
-                                                <span className="text-xs font-black leading-tight" style={{ color: active ? '#fff' : colors.textPrimary }}>{v3 && kind === 'carro' ? 'Carro' : VEHICLE_TYPE_LABELS[kind]}</span>
+                                            <span className={v3 ? 'min-w-0 flex flex-col items-center' : 'min-w-0 flex flex-col'}>
+                                                <span className="text-xs font-black leading-tight" style={{ color: active ? '#fff' : colors.textPrimary }}>{v3 ? (kind === 'carro' ? 'Carro' : kind === 'qualquer' ? 'Qualquer' : VEHICLE_TYPE_LABELS[kind]) : VEHICLE_TYPE_LABELS[kind]}</span>
                                                 {v3 && driversLoaded && (
                                                     <span className="text-[10px] font-bold leading-tight" style={{ color: active ? 'rgba(255,255,255,0.85)' : activeNow > 0 ? '#16a34a' : colors.textSecondary }}>
-                                                        {activeNow > 0 ? `${activeNow} ativo${activeNow > 1 ? 's' : ''} agora` : 'nenhum agora'}
+                                                        {v3 ? (activeNow > 0 ? `${activeNow} agora` : 'nenhum') : activeNow > 0 ? `${activeNow} ativo${activeNow > 1 ? 's' : ''} agora` : 'nenhum agora'}
                                                     </span>
                                                 )}
                                             </span>
@@ -2271,6 +2208,33 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 })}
                             </div>
 
+                            {/* CARROS POR PERTO: cada motorista ativo do tipo escolhido, com o que o carro TEM e o que NÃO tem (ar, Wi-Fi, carregador,
+                                som, pet), lugares e cadeirinha — o passageiro compara antes de pedir; tocar abre o card completo (e "Chamar este motorista") */}
+                            {v3 && nearbyCars.length > 0 && (
+                                <div className="mt-2.5">
+                                    <p className="text-[12px] font-black mb-1" style={{ color: colors.textPrimary }}>
+                                        Carros por perto <span className="font-semibold" style={{ color: colors.textSecondary }}>· o que cada um tem</span>
+                                    </p>
+                                    <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 snap-x scroll-pl-4" style={{ scrollbarWidth: 'none' }}>
+                                        {nearbyCars.map(({ d, km }) => (
+                                            <button key={d.id} type="button" onClick={() => setPickedDriver(d)} className="snap-start flex-shrink-0 w-[236px] rounded-2xl p-2 text-left active:scale-[0.98] transition" style={{ background: `${colors.border}30` }}>
+                                                <span className="flex items-center gap-2">
+                                                    {d.photoUrl ? <img src={d.photoUrl} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
+                                                        : <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f9731622', color: '#ea580c' }}>{d.kind === 'moto' ? <Motorbike size={17} /> : d.kind === 'bicicleta' ? <Bike size={17} /> : <Car size={17} />}</span>}
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block text-[12.5px] font-black truncate" style={{ color: colors.textPrimary }}>{[d.model, d.color].filter(Boolean).join(' · ')}</span>
+                                                        <span className="block text-[10.5px] font-bold truncate" style={{ color: colors.textSecondary }}>
+                                                            {d.rating != null && d.ratingCount > 0 ? <span style={{ color: '#f59e0b' }}>★ {d.rating.toFixed(1).replace('.', ',')} </span> : 'novo · '}
+                                                            {km != null ? `${km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1).replace('.', ',')} km`} de você` : ''}
+                                                        </span>
+                                                    </span>
+                                                </span>
+                                                <span className="block mt-1.5"><CarAmenities services={d.services} seats={d.capacity} babySeat={d.babySeat} compact /></span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             {requestFor === 'animal' && petWeightRange && petWeightRange !== 'ate_5kg' && (
                                 <div className="px-3 py-2.5 rounded-lg text-xs font-semibold mt-3" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
                                     {petWeightRange === '5_a_15kg'
@@ -2299,170 +2263,11 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-2 mt-4">
-                                <button
-                                    onClick={goPrev}
-                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
-                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                >
-                                    Voltar
-                                </button>
-                                <button
-                                    onClick={goNext}
-                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95`}
-                                    style={{ background: GRADIENT, color: '#fff' }}
-                                >
-                                    Continuar
-                                </button>
-                            </div>
-                        </>
-                    )}
-
-                    {/* ===== ETAPA 3: ACESSO ===== */}
-                    {step === 'access' && (
-                        <>
-                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>Acesso</h2>
-
-                            {/* Condomínio fechado — precisa de nº/apto/quadra pra achar? */}
-                            <div className="flex flex-col gap-2">
-                                <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                                        <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                            <Building2 size={13} style={{ color: '#22c55e' }} />
-                                            Estou esperando dentro do condomínio
-                                        </span>
-                                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                                            <button
-                                                onClick={() => setOriginNeedsAccess(true)}
-                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                style={originNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                SIM
-                                            </button>
-                                            <button
-                                                onClick={() => { setOriginNeedsAccess(false); setOriginAccessNotes('') }}
-                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                style={!originNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                NÃO
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {originNeedsAccess && (
-                                        <input
-                                            type="text"
-                                            value={originAccessNotes}
-                                            onChange={(e) => setOriginAccessNotes(e.target.value)}
-                                            autoFocus
-                                            placeholder="Número da rua, apartamento ou quadra..."
-                                            className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                        />
-                                    )}
-                                </div>
-
-                                {requestFor === 'objeto' ? (
-                                    <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                        <span className="flex items-center gap-1.5 text-xs font-bold mb-2" style={{ color: colors.textPrimary }}>
-                                            <Building2 size={13} style={{ color: '#ef4444' }} />
-                                            Onde entregar?
-                                        </span>
-                                        <div className="flex flex-col gap-2">
-                                            {([
-                                                { value: 'portaria', label: 'Portaria', hint: 'Deixar com o porteiro/recepção' },
-                                                { value: 'area_interna', label: 'Área interna do prédio/condomínio', hint: 'Entrar e deixar em área comum' },
-                                                { value: 'apartamento', label: 'Apartamento/residência do destinatário', hint: 'Entregar na porta' },
-                                            ] as const).map((opt) => {
-                                                const active = deliveryLocation === opt.value
-                                                return (
-                                                    <button
-                                                        key={opt.value}
-                                                        onClick={() => setDeliveryLocation(opt.value)}
-                                                        className="text-left px-3 py-2 rounded-lg transition-all"
-                                                        style={active ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        <span className="text-xs font-bold block">{opt.label}</span>
-                                                        <span className="text-[10px] block opacity-80">{opt.hint}</span>
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                        {deliveryLocation && deliveryLocation !== 'portaria' && (
-                                            <input
-                                                type="text"
-                                                value={destinationAccessNotes}
-                                                onChange={(e) => setDestinationAccessNotes(e.target.value)}
-                                                placeholder="Número da rua, apartamento ou quadra..."
-                                                className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                            />
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                                            <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                                <Building2 size={13} style={{ color: '#ef4444' }} />
-                                                Me deixa dentro do condomínio
-                                            </span>
-                                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                <button
-                                                    onClick={() => setDestinationNeedsAccess(true)}
-                                                    className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                    style={destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                >
-                                                    SIM
-                                                </button>
-                                                <button
-                                                    onClick={() => { setDestinationNeedsAccess(false); setDestinationAccessNotes('') }}
-                                                    className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                    style={!destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                >
-                                                    NÃO
-                                                </button>
-                                            </div>
-                                        </div>
-                                        {destinationNeedsAccess && (
-                                            <input
-                                                type="text"
-                                                value={destinationAccessNotes}
-                                                onChange={(e) => setDestinationAccessNotes(e.target.value)}
-                                                autoFocus
-                                                placeholder="Número da rua, apartamento ou quadra..."
-                                                className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                            />
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Pessoa com deficiência: para quem vai a pessoa, a pergunta vem na etapa "Quem vai com você?"; aqui só no pedido de animal */}
-                            {requestFor === 'animal' && renderSpecialNeeds()}
-
-                            <div className="flex items-center gap-2 mt-4">
-                                <button
-                                    onClick={() => setStep('payment')}
-                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
-                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                >
-                                    Voltar
-                                </button>
-                                <button
-                                    onClick={handleRequestConfirm}
-                                    disabled={submitting || !origin.address.trim() || !destination.address.trim()}
-                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2`}
-                                    style={{ background: GRADIENT, color: '#fff' }}
-                                >
-                                    {submitting ? <Spinner size={18} /> : <Car size={18} />}
-                                    Pedir motorista
-                                </button>
-                            </div>
                         </>
                     )}
 
                     {/* ===== ETAPA: QUEM VAI / O QUE LEVA ===== */}
-                    {step === 'extras' && requestFor && (
+                    {((step === 'extras' && requestFor !== 'pessoa') || (step === 'final' && requestFor === 'pessoa')) && requestFor && (
                         <>
                             {requestFor !== 'pessoa' && (
                                 <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>
@@ -2472,10 +2277,9 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
                             {requestFor === 'pessoa' ? (
                                 <>
-                                    {renderSpecialNeeds()}
                                     {/* O título vem DEPOIS da pergunta de deficiência, pra não parecer que ela faz parte de "Quem vai com você?" */}
-                                    <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3 mt-4`} style={{ color: colors.textPrimary }}>
-                                        Quem ou o que vai com você?
+                                    <h2 className="text-[13px] font-black mb-1.5 mt-3" style={{ color: colors.textPrimary }}>
+                                        Vai mais alguém ou algo junto? <span className="font-semibold" style={{ color: colors.textSecondary }}>(opcional)</span>
                                     </h2>
                                     {/* Cada adicional é um contador — 0 significa que não tem esse adicional */}
                                     <div className="flex flex-col gap-2">
@@ -2919,13 +2723,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             ) : (
                                 <button
                                     onClick={() => setShowNotes(true)}
-                                    className="text-xs font-bold mt-3"
+                                    className="text-xs font-bold mt-2"
                                     style={{ color: colors.accent }}
                                 >
                                     + Adicionar observação
                                 </button>
                             )}
 
+                            {step === 'extras' && (
                             <div className="flex items-center gap-2 mt-4">
                                 <button
                                     onClick={goPrev}
@@ -2942,14 +2747,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                     Continuar
                                 </button>
                             </div>
+                            )}
                         </>
                     )}
 
                     {/* ===== ETAPA: FORMA DE PAGAMENTO ===== */}
-                    {step === 'payment' && requestFor && (
+                    {step === 'final' && requestFor && (
                         <>
-                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-1`} style={{ color: colors.textPrimary }}>Forma de pagamento</h2>
-                            <p className={`text-xs ${v3 ? 'mb-2.5' : 'mb-4'}`} style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
+                            <h2 id="pagamento-corrida" className="text-[13px] font-black mb-1.5 mt-3" style={{ color: colors.textPrimary }}>Pagamento <span style={{ color: '#ef4444' }}>*</span> <span className="font-semibold" style={{ color: paymentMissing ? '#ef4444' : colors.textSecondary }}>{paymentMissing ? '· escolha como vai pagar' : '· direto ao motorista'}</span></h2>
 
                             <div className="grid grid-cols-3 gap-2">
                                 {([
@@ -2968,14 +2773,16 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                                 if (value !== 'cartao') setCardIsContactless(null)
                                             }}
                                             className={v3
-                                                ? 'flex flex-col items-center gap-1 py-2.5 px-2 rounded-2xl transition active:scale-95'
+                                                ? 'flex items-center justify-center gap-1.5 h-11 px-2 rounded-full transition active:scale-95'
                                                 : 'flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95'}
-                                            style={active ? { background: GRADIENT } : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                            style={active ? { background: v3 ? '#f97316' : GRADIENT } : { background: `${colors.border}30`, border: paymentMissing ? '1.5px solid #ef4444' : v3 ? '1px solid transparent' : `1px solid ${colors.border}` }}
                                         >
-                                            <div className={`${v3 ? 'w-9 h-9' : 'w-12 h-12'} rounded-full flex items-center justify-center`} style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
-                                                <Icon size={v3 ? 18 : 22} />
+                                            {v3 ? <Icon size={16} style={{ color: active ? '#fff' : '#ea580c' }} /> : (
+                                            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
+                                                <Icon size={22} />
                                             </div>
-                                            <span className="text-xs font-black" style={{ color: active ? '#fff' : colors.textPrimary }}>{label}</span>
+                                            )}
+                                            <span className={v3 ? 'text-[13px] font-black' : 'text-xs font-black'} style={{ color: active ? '#fff' : colors.textPrimary }}>{label}</span>
                                         </button>
                                     )
                                 })}
@@ -3014,51 +2821,172 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 </div>
                             )}
 
-                            {!isTwoWheels && requestFor !== 'objeto' && (
-                                <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                            {/* "Quero ar condicionado" saiu (10/11/2026): a pessoa não escolhe mais; cada motorista MOSTRA o que o carro tem (ícones no veículo e no candidato) */}
+
+                        </>
+                    )}
+                    {/* ===== ETAPA 3: ACESSO ===== */}
+                    {step === 'final' && (
+                        <>
+                            {/* "Mais opções": acessibilidade e condomínio quase nunca são usados — ficam recolhidos (abrem sozinhos se algo já foi marcado).
+                                No objeto, "Onde entregar?" fica sempre à vista. */}
+                            {requestFor !== 'objeto' && (
+                                <button type="button" onClick={() => setMoreOpts((v) => !v)} aria-expanded={moreOptsOpen}
+                                    className="w-full flex items-center gap-2 mt-3 rounded-full px-3 h-9 text-left active:scale-[0.99] transition" style={{ background: `${colors.border}30` }}>
+                                    <Accessibility size={15} style={{ color: '#ea580c' }} />
+                                    <span className="min-w-0 flex-1 text-[13px] font-black" style={{ color: colors.textPrimary }}>
+                                        Mais opções <span className="font-semibold" style={{ color: colors.textSecondary }}>· acessibilidade, condomínio</span>
+                                    </span>
+                                    {moreOptsCount > 0 && <span className="text-[11px] font-black px-2 py-0.5 rounded-full" style={{ background: '#f97316', color: '#fff' }}>{moreOptsCount}</span>}
+                                    <ChevronDown size={15} style={{ color: colors.textSecondary, transform: moreOptsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
+                                </button>
+                            )}
+                            {(requestFor === 'objeto' || moreOptsOpen) && <>
+                            {requestFor !== 'objeto' && <div className="mt-3">{renderSpecialNeeds()}</div>}
+                            <h2 className="text-[13px] font-black mb-2 mt-4" style={{ color: colors.textPrimary }}>Condomínio <span className="font-semibold" style={{ color: colors.textSecondary }}>(se for o caso)</span></h2>
+
+                            {/* Condomínio fechado — precisa de nº/apto/quadra pra achar? */}
+                            <div className="flex flex-col gap-2">
+                                <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                         <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                            <Wind size={13} style={{ color: colors.accent }} />
-                                            Quero ar condicionado
+                                            <Building2 size={13} style={{ color: '#22c55e' }} />
+                                            Estou esperando dentro do condomínio
                                         </span>
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
                                             <button
-                                                onClick={() => setWantsAirConditioning(true)}
+                                                onClick={() => setOriginNeedsAccess(true)}
                                                 className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                style={wantsAirConditioning ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                style={originNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                             >
                                                 SIM
                                             </button>
                                             <button
-                                                onClick={() => setWantsAirConditioning(false)}
+                                                onClick={() => { setOriginNeedsAccess(false); setOriginAccessNotes('') }}
                                                 className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                style={!wantsAirConditioning ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                style={!originNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                             >
                                                 NÃO
                                             </button>
                                         </div>
                                     </div>
+                                    {originNeedsAccess && (
+                                        <input
+                                            type="text"
+                                            value={originAccessNotes}
+                                            onChange={(e) => setOriginAccessNotes(e.target.value)}
+                                            autoFocus
+                                            placeholder="Número da rua, apartamento ou quadra..."
+                                            className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        />
+                                    )}
                                 </div>
-                            )}
 
-                            <div className="flex items-center gap-2 mt-4">
+                                {requestFor === 'objeto' ? (
+                                    <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                        <span className="flex items-center gap-1.5 text-xs font-bold mb-2" style={{ color: colors.textPrimary }}>
+                                            <Building2 size={13} style={{ color: '#ef4444' }} />
+                                            Onde entregar?
+                                        </span>
+                                        <div className="flex flex-col gap-2">
+                                            {([
+                                                { value: 'portaria', label: 'Portaria', hint: 'Deixar com o porteiro/recepção' },
+                                                { value: 'area_interna', label: 'Área interna do prédio/condomínio', hint: 'Entrar e deixar em área comum' },
+                                                { value: 'apartamento', label: 'Apartamento/residência do destinatário', hint: 'Entregar na porta' },
+                                            ] as const).map((opt) => {
+                                                const active = deliveryLocation === opt.value
+                                                return (
+                                                    <button
+                                                        key={opt.value}
+                                                        onClick={() => setDeliveryLocation(opt.value)}
+                                                        className="text-left px-3 py-2 rounded-lg transition-all"
+                                                        style={active ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        <span className="text-xs font-bold block">{opt.label}</span>
+                                                        <span className="text-[10px] block opacity-80">{opt.hint}</span>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                        {deliveryLocation && deliveryLocation !== 'portaria' && (
+                                            <input
+                                                type="text"
+                                                value={destinationAccessNotes}
+                                                onChange={(e) => setDestinationAccessNotes(e.target.value)}
+                                                placeholder="Número da rua, apartamento ou quadra..."
+                                                className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            />
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                            <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                                <Building2 size={13} style={{ color: '#ef4444' }} />
+                                                Me deixa dentro do condomínio
+                                            </span>
+                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                <button
+                                                    onClick={() => setDestinationNeedsAccess(true)}
+                                                    className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                    style={destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    SIM
+                                                </button>
+                                                <button
+                                                    onClick={() => { setDestinationNeedsAccess(false); setDestinationAccessNotes('') }}
+                                                    className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                    style={!destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    NÃO
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {destinationNeedsAccess && (
+                                            <input
+                                                type="text"
+                                                value={destinationAccessNotes}
+                                                onChange={(e) => setDestinationAccessNotes(e.target.value)}
+                                                autoFocus
+                                                placeholder="Número da rua, apartamento ou quadra..."
+                                                className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            </>}
+
+                            <div className={v3 ? 'sticky bottom-0 -mx-4 px-4 pt-2 pb-1 mt-3 flex items-center gap-2' : 'flex items-center gap-2 mt-4'} style={v3 ? { background: colors.surface } : undefined}>
                                 <button
                                     onClick={goPrev}
-                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
-                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                    aria-label="Voltar"
+                                    className={v3 ? 'w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 active:scale-95' : 'py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95'}
+                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }}
                                 >
-                                    Voltar
+                                    {v3 ? <ArrowLeft size={18} /> : 'Voltar'}
                                 </button>
                                 <button
-                                    onClick={goNext}
-                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95`}
-                                    style={{ background: GRADIENT, color: '#fff' }}
+                                    onClick={() => {
+                                        // o pagamento é OBRIGATÓRIO: sem ele o botão avisa e marca a seção em vermelho
+                                        if (!paymentMethod) { setPaymentMissing(true); toast.error('Escolha a forma de pagamento'); document.getElementById('pagamento-corrida')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
+                                        if (!shoppingSizeMissing()) handleRequestConfirm()
+                                    }}
+                                    disabled={submitting || !origin.address.trim() || !destination.address.trim()}
+                                    className={`flex-1 ${v3 ? 'h-12 rounded-full text-[15px]' : 'py-3.5 rounded-xl uppercase text-sm tracking-wider'} font-black transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2`}
+                                    style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff', opacity: paymentMethod ? 1 : 0.6 }}
                                 >
-                                    Continuar
+                                    {submitting ? <Spinner size={18} /> : <Car size={18} />}
+                                    {!paymentMethod ? 'Escolha o pagamento' : calledDriver ? `Chamar ${calledDriver.name?.split(' ')[0] || 'o motorista'}` : 'Pedir motorista'}
                                 </button>
                             </div>
                         </>
                     )}
+
                     </div>
                 </div>
             )}

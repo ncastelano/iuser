@@ -1,5 +1,6 @@
 // src/lib/driverPricing.ts
 
+import { tripFareText } from './tariffSummary'
 import { RIDE_GAP_MIN, ridesInOneHour } from './rideCycle'
 import type { VehicleKind } from './rideVehicle'
 
@@ -27,6 +28,8 @@ export interface DriverPricing {
     pricePerKmAfterBase: number
     extraFees: DriverExtraFees
     conditionExtraFees: DriverConditionExtraFees
+    /** "Minha tarifa por tempo": R$ por minuto de trabalho (ir buscar + corrida). null/ausente = o motorista não definiu (só a tarifa própria dele tem; a da plataforma não) */
+    pricePerMinute?: number | null
 }
 
 // Flags da corrida que podem gerar cobrança extra por condição — um
@@ -52,8 +55,8 @@ export interface RideConditionFlags {
 // candidatar, não há tarifa própria pra usar ainda).
 export const PLATFORM_DEFAULT_EXTRA_FEES: DriverExtraFees = {
     pessoa: 0,
-    animal: 5,
-    objeto: 3,
+    animal: 0,
+    objeto: 0,
 }
 
 export const PLATFORM_DEFAULT_CONDITION_EXTRA_FEES: DriverConditionExtraFees = {
@@ -101,6 +104,7 @@ export interface DriverPricingRow {
     base_distance_km: number | null
     base_fee: number | null
     price_per_km_after_base: number | null
+    price_per_minute?: number | null
     extra_fee_pessoa?: number | null
     extra_fee_animal?: number | null
     extra_fee_objeto?: number | null
@@ -123,6 +127,7 @@ export function getEffectivePricing(row: DriverPricingRow, vehicleKind: VehicleK
         baseDistanceKm: row.base_distance_km ?? platformDefault.baseDistanceKm,
         baseFee: row.base_fee ?? platformDefault.baseFee,
         pricePerKmAfterBase: row.price_per_km_after_base ?? platformDefault.pricePerKmAfterBase,
+        pricePerMinute: row.price_per_minute ?? null,
         extraFees: {
             pessoa: row.extra_fee_pessoa ?? PLATFORM_DEFAULT_EXTRA_FEES.pessoa,
             animal: row.extra_fee_animal ?? PLATFORM_DEFAULT_EXTRA_FEES.animal,
@@ -159,6 +164,13 @@ export function computeConditionExtras(ride: RideConditionFlags, fees: DriverCon
     return total
 }
 
+// Os extras da corrida (tipo: animal/objeto... + condições marcadas no pedido), os mesmos nas tarifas por km e por tempo.
+export function computeRideExtras(rideType: RideRequestType | undefined, ride: RideConditionFlags | undefined, pricing: DriverPricing): number {
+    const rideTypeExtra = rideType ? pricing.extraFees[rideType] : 0
+    const conditionExtra = ride ? computeConditionExtras(ride, pricing.conditionExtraFees) : 0
+    return rideTypeExtra + conditionExtra
+}
+
 // rideType e ride são opcionais pra permitir uma prévia genérica (sem
 // corrida real associada, ex: painel-motorista) — nesse caso nenhum valor
 // extra entra.
@@ -180,6 +192,11 @@ export function explainSuggestedPrice(distanceKm: number, pricing: DriverPricing
     const extraKm = Math.max(0, distanceKm - pricing.baseDistanceKm)
     const kmPart = extraKm * pricing.pricePerKmAfterBase
     return { base: pricing.baseFee, extraKm, kmPart, total: pricing.baseFee + kmPart }
+}
+
+// Frase que mostra COMO o valor da corrida (só partida → chegada) sai da tarifa (texto em lib/tariffSummary.ts, testado lá).
+export function describeTripFare(distanceKm: number, pricing: DriverPricing): string {
+    return tripFareText(distanceKm, { baseDistanceKm: pricing.baseDistanceKm, baseFee: pricing.baseFee, pricePerKm: pricing.pricePerKmAfterBase })
 }
 
 // Deslocamento do motorista até o ponto de partida, somado à Tarifa iUser: km × valor/km.

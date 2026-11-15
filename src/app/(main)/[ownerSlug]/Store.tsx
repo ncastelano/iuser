@@ -1,6 +1,7 @@
 // src/components/owner/Store.tsx
 'use client'
 
+import { useReportStorePresence } from '@/modules/store-presence'
 import { profileLabel } from '@/lib/profileDisplay'
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
@@ -39,10 +40,12 @@ import {
     UserCheck,
     UserPlus,
     Camera,
+    ChevronDown,
+    ChevronsUpDown,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { getAvatarUrl } from '@/lib/avatar'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 import StoreSchedule from '@/components/StoreSchedule'
@@ -53,11 +56,18 @@ import StoreVipClubMember from './StoreVipClubMember'
 import StoreHeaderV3 from '@/components/v3/StoreHeaderV3'
 import StoreAgendaV3 from '@/components/v3/StoreAgendaV3'
 import ReviewsV3 from '@/components/v3/ReviewsV3'
-import { pageActions, parseStoreModel, type StoreModel } from '@/lib/storeModel'
+import { creatorPage, isCreatorModel, pageActions, parseStoreModel, type StoreModel } from '@/lib/storeModel'
+import FeaturedHero from '@/components/digital/FeaturedHero'
+import BookShelf from '@/components/digital/BookShelf'
 import { sanitizeStoreLinks, type StoreLink } from '@/lib/storeLinks'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
+import { orderCategories } from '@/lib/categoryOrder'
+import StoreFrame from '@/components/store/StoreFrame'
+import StoreDigitalShelves from '@/components/digital/StoreDigitalShelves'
+import { loadDigitalShowcase, pickFeatured, type ShowcaseItem } from '@/modules/digital'
+import PostpaidLimitText from '@/components/PostpaidLimitText'
 
 interface StoreProps {
     ownerSlug: string
@@ -88,12 +98,16 @@ interface OwnerData {
     x?: string | null
     links?: StoreLink[]
     store_model?: StoreModel
+    /** nível da loja (moldura do logo; 0 = sem) */
+    store_level?: number
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
     allow_scheduling?: boolean
     chat_enabled?: boolean
     location?: any
+    /** a ordem das categorias escolhida pela loja (Editar loja → Catálogo); null = a de sempre */
+    category_order?: string[] | null
 }
 
 type RatingRow = {
@@ -124,7 +138,7 @@ type Publication = {
     created_at: string
 }
 
-type TabType = 'products' | 'services' | 'reviews'
+type TabType = 'products' | 'digital' | 'services' | 'reviews'   // 'reviews' só existe na 2.0; na 3.0 as avaliações abrem num diálogo (toque na nota do cabeçalho)
 
 export function Store({
     ownerSlug,
@@ -144,6 +158,8 @@ export function Store({
     const [error, setError] = useState<string | null>(null)
     const [owner, setOwner] = useState<OwnerData | null>(null)
     const [isOwner, setIsOwner] = useState(false)
+    // "Agora na sua loja": avisa (sem identidade) que alguém está vendo a loja; a dona olhando não conta
+    useReportStorePresence(owner?.id, 'loja', null, isOwner)
     // null enquanto carrega (evita mostrar "fechada" num flash antes da
     // resposta chegar) — depois true/false conforme o dono tem assinatura
     // ativa do plano Loja/Combo. Diferente de isStoreOpen (que é sobre
@@ -155,6 +171,7 @@ export function Store({
     const [isFollowing, setIsFollowing] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
     const [products, setProducts] = useState<any[]>([])
+    const [digitalItems, setDigitalItems] = useState<ShowcaseItem[]>([])     // os conteúdos digitais da loja (aba "Digitais"): só os que já têm conteúdo
     const [publications, setPublications] = useState<Publication[]>([])
     const [ratings, setRatings] = useState<RatingRow[]>([])
     const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -162,10 +179,13 @@ export function Store({
     const [cartAnimating, setCartAnimating] = useState(false)
     const [activeTab, setActiveTab] = useState<TabType>('products')
     const [searchQuery, setSearchQuery] = useState('')
+    // Categorias recolhidas (para passar rápido pelos produtos/serviços); a chave leva a aba junto
+    const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({})
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
     const [showAllHours, setShowAllHours] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
+    const [showReviews, setShowReviews] = useState(false)           // 3.0: diálogo de avaliações
     const [scheduleProductId, setScheduleProductId] = useState<string | null>(null)
     // dia e horário escolhidos na agenda da página (abrem o agendador já preenchido)
     const [schedulePick, setSchedulePick] = useState<{ date: Date; time: string } | null>(null)
@@ -185,10 +205,10 @@ export function Store({
     // cheia está aberto, pra ele esconder os botões flutuantes ("Ver
     // Catálogo" / Home) que senão ficam por cima do dialog.
     useEffect(() => {
-        onDialogOpenChange?.(showAllHours || showScheduleModal || showAgendaDialog || showProductModal || showFollowers || !!editingProductId)
+        onDialogOpenChange?.(showAllHours || showScheduleModal || showReviews || showAgendaDialog || showProductModal || showFollowers || !!editingProductId)
         return () => { onDialogOpenChange?.(false) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showAllHours, showScheduleModal, showAgendaDialog, showProductModal, showFollowers, editingProductId])
+    }, [showAllHours, showScheduleModal, showReviews, showAgendaDialog, showProductModal, showFollowers, editingProductId])
 
     // States para Publicações
     const [isCreatingPublication, setIsCreatingPublication] = useState(false)
@@ -254,11 +274,27 @@ export function Store({
     // ========== PRODUTOS x SERVIÇOS ==========
     // A loja publica as duas coisas na mesma tabela (products.type = 'service' é serviço);
     // cada uma tem a própria aba, pra não ficarem misturadas.
-    const goods = useMemo(() => products.filter(p => p.type !== 'service'), [products])
+    // digital COM conteúdo vai para a aba "Digitais"; digital ainda sem conteúdo (rascunho do dono) continua em "Produtos"
+    const digitalIds = useMemo(() => new Set(digitalItems.map(d => d.id)), [digitalItems])
+    const goods = useMemo(() => products.filter(p => p.type !== 'service' && !digitalIds.has(p.id)), [products, digitalIds])
     const services = useMemo(() => products.filter(p => p.type === 'service'), [products])
     const catalogList = activeTab === 'services' ? services : goods
-    // Modelo da loja (produtos / atendimento / mista): define o botão central, a ordem das abas e se os serviços viram linhas
+    // Modelo da loja (produtos / atendimento / mista / Studio / Conteúdo / Editora): define o botão central, a ordem das abas e se os serviços viram linhas
     const model = parseStoreModel(owner?.store_model)
+    // loja de CRIADOR (Studio = música e vídeo, Conteúdo = audiolivros e podcasts, Editora = livros): a página abre nos conteúdos e, no Studio e no
+    // Conteúdo, o topo é o DESTAQUE (a música/álbum/vídeo principal) no lugar do botão de comprar
+    const creator = isCreatorModel(model) ? creatorPage(model) : null
+    const featured = useMemo(() => (creator?.hero ? pickFeatured(digitalItems, creator.heroKinds) : null), [digitalItems, model])   // eslint-disable-line react-hooks/exhaustive-deps
+    const reloadDigital = useCallback(() => { if (owner?.id) loadDigitalShowcase(100, undefined, owner.id).then(setDigitalItems).catch(() => {}) }, [owner?.id])
+    // loja de criador, ou que só vende conteúdo digital, abre direto na aba de conteúdos (uma vez; depois a pessoa escolhe)
+    const autoDigital = useRef(false)
+    useEffect(() => {
+        if (autoDigital.current || !owner) return
+        if (creator) { autoDigital.current = true; setActiveTab('digital'); return }
+        if (digitalItems.length === 0) return
+        autoDigital.current = true
+        if (goods.length === 0 && services.length === 0) setActiveTab('digital')
+    }, [digitalItems, goods.length, services.length, owner, model])   // eslint-disable-line react-hooks/exhaustive-deps
     const actions = pageActions(model, !!owner?.allow_scheduling, goods.length > 0)
 
     // Se a loja só tem serviços (nenhum produto), a aba de serviços já abre na frente
@@ -335,8 +371,10 @@ export function Store({
             if (!groups[cat]) groups[cat] = []
             groups[cat].push(product)
         })
-        return groups
-    }, [filteredProducts])
+        // a ordem que a loja escolheu (Editar loja → Catálogo) e, no resto, "Promoções" primeiro e as com mais itens (mesma ordem do catálogo)
+        const names = orderCategories(Object.keys(groups), owner?.category_order, (n) => groups[n].length)
+        return Object.fromEntries(names.map(n => [n, groups[n]])) as Record<string, any[]>
+    }, [filteredProducts, owner?.category_order])
 
     // ========== RATINGS STATS ==========
     const ratingsStats = useMemo(() => {
@@ -345,6 +383,28 @@ export function Store({
         const avg = sum / ratings.length
         return { avg: avg.toFixed(1), count: ratings.length }
     }, [ratings])
+
+    // avatar de quem avaliou (clicar leva ao perfil; avaliação anônima não leva a lugar nenhum) — usado na aba (2.0) e no diálogo (3.0)
+    const renderReviewAvatar = (rating: any) => {
+                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
+                                    const avatarBox = (
+                                        <PlanAvatarRing userId={rating.is_anonymous ? null : rating.profile_id} radius="999px">
+                                            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0" style={{ background: `${colors.border}60` }}>
+                                                {avatarUrl && !rating.is_anonymous ? (
+                                                    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="font-black text-xs" style={{ color: '#f97316' }}>
+                                                        {rating.is_anonymous ? '?' : (rating.profiles?.profileSlug || rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </PlanAvatarRing>
+                                    )
+                                    // clicar no avatar leva ao perfil de quem avaliou (avaliação anônima não leva a lugar nenhum)
+                                    return !rating.is_anonymous && rating.profiles?.profileSlug
+                                        ? <a href={`/${rating.profiles.profileSlug}`} aria-label={`Ver perfil de ${profileLabel(rating.profiles)}`} className="shrink-0">{avatarBox}</a>
+                                        : avatarBox
+                                }
 
     // ========== WHATSAPP ==========
     const whatsappLink = useMemo(() => {
@@ -580,6 +640,8 @@ export function Store({
                 x: store.x,
                 links: sanitizeStoreLinks(store.links),
                 store_model: parseStoreModel(store.store_model),
+                store_level: Number(store.store_level) || 0,
+                category_order: Array.isArray(store.category_order) ? store.category_order : null,
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -633,12 +695,13 @@ export function Store({
                     : null,
             }))
             setProducts(mappedProducts)
+            loadDigitalShowcase(100, undefined, store.id).then(setDigitalItems).catch(() => setDigitalItems([]))
 
             await loadPublications(store.id)
 
             const { data: storeRatings } = await supabase
                 .from('product_reviews')
-                .select('id, rating, comment, is_anonymous, profile_id, created_at, products(name), profiles(id, name, avatar_url, "profileSlug")')
+                .select('id, rating, comment, photo_path, is_anonymous, profile_id, created_at, products(name), profiles(id, name, avatar_url, "profileSlug")')
                 .eq('store_id', store.id)
                 .order('created_at', { ascending: false })
 
@@ -802,7 +865,7 @@ export function Store({
                             <p>• Ativar a agenda: valor único cobrado uma vez</p>
                             <p>• Cada pessoa que agendar na sua loja: valor por agendamento</p>
                             <p style={{ color: colors.textSecondary }}>
-                                Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a R$ 50 — veja os valores atuais em Planos → Pós-pago.
+                                Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a <PostpaidLimitText /> — veja os valores atuais em Planos → Pós-pago.
                             </p>
                         </div>
 
@@ -887,36 +950,36 @@ export function Store({
                             </button>
                         </div>
 
-                        {/* Imagem */}
-                        <div className="w-full aspect-square rounded-xl overflow-hidden mb-4" style={{ background: colors.accentLight }}>
-                            {selectedProduct.image_url ? (
-                                <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-sm font-medium" style={{ color: colors.textSecondary }}>
-                                    Sem imagem
+                        {/* O que é o produto vem primeiro: a foto é só uma miniatura ao lado do nome e do preço */}
+                        <div className="flex items-start gap-3">
+                            <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
+                                {selectedProduct.image_url ? (
+                                    <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-medium" style={{ color: colors.textSecondary }}>
+                                        Sem imagem
+                                    </div>
+                                )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h4 className="text-xl font-black leading-tight" style={{ color: colors.textPrimary }}>
+                                    {selectedProduct.name}
+                                </h4>
+                                <div className="mt-1">
+                                    <span className="text-2xl font-extrabold" style={{ color: '#f97316' }}>
+                                        {selectedProduct.type === 'service' && !((selectedProduct.price || 0) > 0) ? 'Valor a combinar' : `R$ ${(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                                    </span>
+                                    {selectedProduct.price_type === 'hourly' && (selectedProduct.price || 0) > 0 && (
+                                        <span className="text-sm ml-1 opacity-75" style={{ color: colors.textSecondary }}>/h</span>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Nome */}
-                        <h4 className="text-xl font-black" style={{ color: colors.textPrimary }}>
-                            {selectedProduct.name}
-                        </h4>
-
-                        {/* Preço */}
-                        <div className="mt-2">
-                            <span className="text-2xl font-extrabold" style={{ color: '#f97316' }}>
-                                {selectedProduct.type === 'service' && !((selectedProduct.price || 0) > 0) ? 'Valor a combinar' : `R$ ${(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                            </span>
-                            {selectedProduct.price_type === 'hourly' && (selectedProduct.price || 0) > 0 && (
-                                <span className="text-sm ml-1 opacity-75" style={{ color: colors.textSecondary }}>/h</span>
-                            )}
+                            </div>
                         </div>
 
                         {/* Descrição */}
                         {selectedProduct.description && (
                             <div className="mt-3 p-3 rounded-xl" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
-                                <p className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
+                                <p className="text-sm leading-relaxed font-bold" style={{ color: colors.textPrimary }}>
                                     {selectedProduct.description}
                                 </p>
                             </div>
@@ -927,13 +990,13 @@ export function Store({
                             {selectedProduct.category && (
                                 <div className="flex justify-between">
                                     <span>Categoria</span>
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>{selectedProduct.category}</span>
+                                    <span className="font-normal" style={{ color: colors.textPrimary }}>{selectedProduct.category}</span>
                                 </div>
                             )}
                             {selectedProduct.type && (
                                 <div className="flex justify-between">
                                     <span>Tipo</span>
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                    <span className="font-normal" style={{ color: colors.textPrimary }}>
                                         {selectedProduct.type === 'physical' ? 'Produto' :
                                             selectedProduct.type === 'service' ? 'Serviço' : 'Digital'}
                                     </span>
@@ -942,7 +1005,7 @@ export function Store({
                             {selectedProduct.stock_quantity !== undefined && selectedProduct.stock_quantity !== null && (
                                 <div className="flex justify-between">
                                     <span>Estoque</span>
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                    <span className="font-normal" style={{ color: colors.textPrimary }}>
                                         {selectedProduct.stock_quantity > 0 ? `${selectedProduct.stock_quantity} unidades` : 'Indisponível'}
                                     </span>
                                 </div>
@@ -997,6 +1060,7 @@ export function Store({
                     colors={colors}
                     name={owner.name}
                     imageUrl={imageUrl}
+                    level={owner.store_level || 0}
                     description={owner.description}
                     isOpen={isStoreOpen}
                     statusText={statusText}
@@ -1014,17 +1078,19 @@ export function Store({
                     isFollowing={isFollowing}
                     onFollowToggle={handleFollowToggle}
                     onOpenCatalog={() => router.push(`/${ownerSlug}/catalogo`)}
+                    onOpenReviews={() => setShowReviews(true)}
                     whatsappLink={whatsappLink}
                     links={owner.links ?? []}
                     allowScheduling={!!owner.allow_scheduling}
                     onOpenSchedule={() => { setScheduleProductId(null); setSchedulePick(null); setShowScheduleModal(true) }}
                     onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
-                    agendaSlot={owner.allow_scheduling && model !== 'products' ? (
+                    agendaSlot={creator?.hero && featured ? <FeaturedHero item={featured} ownerHint={isOwner} /> : owner.allow_scheduling && model !== 'products' && !isCreatorModel(model) ? (
                         <StoreAgendaV3
                             storeId={owner.id}
                             colors={colors}
                             durationMin={Math.max(15, Math.min(...services.map((sv: any) => Number(sv.duration_minutes) || 60), 60))}
                             onPick={(date, time) => { setScheduleProductId(null); setSchedulePick({ date, time }); setShowScheduleModal(true) }}
+                            onSchedule={() => { setScheduleProductId(null); setSchedulePick(null); setShowScheduleModal(true) }}
                         />
                     ) : undefined}
                     showBuy={actions.buy}
@@ -1036,7 +1102,7 @@ export function Store({
                     chatSaving={chatSaving}
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
                     onOpenAgendaDialog={() => setShowAgendaDialog(true)}
-                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="Falar com a loja" /> : undefined}
+                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="Conversar" /> : undefined}
                     extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
                     ownerToolsSlot={isOwner && !isStoreOpen ? (
                         <StoreOperatingDays
@@ -1068,6 +1134,7 @@ export function Store({
 
                 <div className="flex items-center gap-4">
                     <div className="flex-shrink-0">
+                        <StoreFrame level={owner.store_level || 0} size={80} innerRadius={16} ring={4} bg={colors.background}>
                         <div
                             className={`w-20 h-20 rounded-2xl p-[4px] ${isStoreOpen ? 'animate-pulse-glow-open' : 'animate-pulse-glow-closed'}`}
                             style={{
@@ -1086,6 +1153,7 @@ export function Store({
                                 )}
                             </div>
                         </div>
+                        </StoreFrame>
                     </div>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-black tracking-tight" style={{ color: colors.textPrimary }}>{owner.name}</h2>
@@ -1416,14 +1484,22 @@ export function Store({
                 />
             )}
 
+            {/* ===== DESTAQUE (Studio / Conteúdo): no lugar do botão de comprar, a música/álbum/vídeo ou o audiolivro/podcast principal ===== */}
+            {!v3 && creator?.hero && featured && <FeaturedHero item={featured} ownerHint={isOwner} />}
+
             {/* ===== TABS ===== */}
             <div className={v3 ? 'flex' : 'flex rounded-2xl p-1.5 gap-1'} style={v3 ? { borderBottom: `1px solid ${colors.border}60` } : cardStyle}>
                 {(() => {
                     const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
                     const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
+                    const digitalTab = { id: 'digital', label: creator?.tab || 'Digitais', count: digitalItems.length }
                     // Normal: Produtos, Serviços, Avaliações. Sem produtos, mas com serviços: Serviços vem na frente.
-                    const catalogTabs = (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab] : [productsTab, servicesTab]
-                    return [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
+                    const digitalTabs = digitalItems.length > 0 || creator ? [digitalTab] : []     // "Digitais" só aparece se a loja tem conteúdo digital (loja de criador: sempre)
+                    // loja de criador: os conteúdos primeiro; Produtos e Serviços só se existirem (a dona sempre vê Produtos, para poder cadastrar)
+                    const catalogTabs = creator
+                        ? [digitalTab, ...(goods.length > 0 || isOwner ? [productsTab] : []), ...(services.length > 0 ? [servicesTab] : [])]
+                        : (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab, ...digitalTabs] : [productsTab, ...digitalTabs, servicesTab]
+                    return v3 ? catalogTabs : [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
                 })().map(tab => {
                     const isActive = activeTab === tab.id
                     return (
@@ -1488,7 +1564,9 @@ export function Store({
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2 mb-4">
+                        {/* v3: sem nada para buscar, não mostra a busca */}
+                        {!(v3 && catalogList.length === 0) && (
+                        <div className={`flex items-center gap-2 ${v3 ? 'mb-3' : 'mb-4'}`}>
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
                                 <input
@@ -1506,6 +1584,7 @@ export function Store({
                                 />
                             </div>
                         </div>
+                        )}
 
                         {storeSubscriptionActive === false ? (
                             <div className="py-8 text-center rounded-xl" style={{
@@ -1549,6 +1628,10 @@ export function Store({
                                         <Plus size={16} /> {activeTab === 'services' ? 'Adicionar serviço' : 'Adicionar Produto'}
                                     </button>
                                 </div>
+                            ) : v3 && catalogList.length === 0 ? (
+                                <p className="py-3 text-[13px] font-bold" style={{ color: colors.textSecondary }}>
+                                    {activeTab === 'services' ? 'Esta loja ainda não publicou serviços.' : 'Esta loja ainda não publicou produtos.'}
+                                </p>
                             ) : (
                                 <div className="py-8 text-center rounded-xl" style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
@@ -1564,11 +1647,36 @@ export function Store({
                                 </div>
                             )
                         ) : (
-                            Object.entries(groupedProducts).map(([category, products]) => (
+                            Object.entries(groupedProducts).map(([category, products], groupIndex, allGroups) => {
+                                const catKey = `${activeTab}:${category}`
+                                // buscando, tudo fica aberto (o resultado não pode ficar escondido)
+                                const isCollapsed = !searchQuery.trim() && !!collapsedCats[catKey]
+                                const allCollapsed = allGroups.every(([c]) => collapsedCats[`${activeTab}:${c}`])
+                                return (
                                 <div key={category} className="space-y-2 mt-3">
-                                    <h4 className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                        {category}
-                                    </h4>
+                                    {groupIndex === 0 && allGroups.length > 1 && !searchQuery.trim() && (
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>{allGroups.length} categorias</span>
+                                            <button
+                                                onClick={() => setCollapsedCats(Object.fromEntries(allGroups.map(([c]) => [`${activeTab}:${c}`, !allCollapsed])))}
+                                                className="h-8 px-3 rounded-full text-[11px] font-black flex items-center gap-1 transition active:scale-95"
+                                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                            >
+                                                <ChevronsUpDown size={13} /> {allCollapsed ? 'Expandir todas' : 'Recolher todas'}
+                                            </button>
+                                        </div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setCollapsedCats(prev => ({ ...prev, [catKey]: !prev[catKey] }))}
+                                        aria-expanded={!isCollapsed}
+                                        className="w-full flex items-center gap-2 text-left transition active:opacity-70"
+                                    >
+                                        <ChevronDown size={14} className="flex-shrink-0 transition-transform" style={{ color: '#f97316', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
+                                        <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>{category}</span>
+                                        <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={{ background: `${colors.border}55`, color: colors.textSecondary }}>{products.length}</span>
+                                    </button>
+                                    {!isCollapsed && (
                                     <div className={v3 && activeTab === 'services' && actions.serviceRows ? 'flex flex-col' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
                                         {products.map(product => {
                                             const isHourly = product.price_type === 'hourly'
@@ -1737,14 +1845,42 @@ export function Store({
                                             )
                                         })}
                                     </div>
+                                    )}
                                 </div>
-                            ))
+                                )
+                            })
                         )}
                     </div>
                 )}
 
                 {/* TAB AVALIAÇÕES */}
-                {activeTab === 'reviews' && (
+                {/* TAB DIGITAIS: as prateleiras por tipo (cursos, músicas, audiolivros, filmes, e-books, programas) */}
+                {activeTab === 'digital' && (
+                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                        {(() => {
+                            const ownerCtl = isOwner && owner && creator?.hero ? { storeId: owner.id, heroKinds: creator.heroKinds, onChanged: reloadDigital } : undefined
+                            if (digitalItems.length === 0) return (
+                                <p className="text-[13px] text-center py-8" style={{ color: colors.textSecondary }}>
+                                    {isOwner ? <>Nenhum conteúdo publicado ainda. <button onClick={() => router.push(`/${ownerSlug}/criar-produto`)} className="font-black underline" style={{ color: '#f97316' }}>Publicar o primeiro</button></> : 'Esta loja ainda não publicou conteúdos.'}
+                                </p>
+                            )
+                            if (model === 'publisher') {
+                                // Editora: a ESTANTE de livros primeiro (com prévia das páginas); o resto, se houver, em prateleiras embaixo
+                                const books = digitalItems.filter((d) => d.kind === 'ebook' || d.kind === 'arquivo')
+                                const rest = digitalItems.filter((d) => d.kind !== 'ebook' && d.kind !== 'arquivo')
+                                return (
+                                    <div className="space-y-6">
+                                        {books.length > 0 && <BookShelf items={books} />}
+                                        {rest.length > 0 && <StoreDigitalShelves items={rest} order={creator?.shelfOrder} />}
+                                    </div>
+                                )
+                            }
+                            return <StoreDigitalShelves items={digitalItems} order={creator?.shelfOrder} owner={ownerCtl} />
+                        })()}
+                    </div>
+                )}
+
+                {activeTab === 'reviews' && !v3 && (
                     <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
                         {/* v3: a aba já diz "Avaliações" e a nota já aparece no cabeçalho: sem título nem cartão */}
                         <div className={`flex items-center gap-2 mb-3 ${v3 ? 'hidden' : ''}`}>
@@ -1763,26 +1899,7 @@ export function Store({
                             <ReviewsV3
                                 ratings={ratings as any}
                                 colors={colors}
-                                renderAvatar={(rating: any) => {
-                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
-                                    const avatarBox = (
-                                        <PlanAvatarRing userId={rating.is_anonymous ? null : rating.profile_id} radius="999px">
-                                            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0" style={{ background: `${colors.border}60` }}>
-                                                {avatarUrl && !rating.is_anonymous ? (
-                                                    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <span className="font-black text-xs" style={{ color: '#f97316' }}>
-                                                        {rating.is_anonymous ? '?' : (rating.profiles?.profileSlug || rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </PlanAvatarRing>
-                                    )
-                                    // clicar no avatar leva ao perfil de quem avaliou (avaliação anônima não leva a lugar nenhum)
-                                    return !rating.is_anonymous && rating.profiles?.profileSlug
-                                        ? <a href={`/${rating.profiles.profileSlug}`} aria-label={`Ver perfil de ${profileLabel(rating.profiles)}`} className="shrink-0">{avatarBox}</a>
-                                        : avatarBox
-                                }}
+                                renderAvatar={renderReviewAvatar}
                             />
                         ) : ratings.length === 0 ? (
                             <div className="py-8 text-center rounded-xl" style={{
@@ -1846,6 +1963,22 @@ export function Store({
                     </div>
                 )}
             </div>
+
+            {/* ===== DIÁLOGO DE AVALIAÇÕES (3.0): abre ao tocar na nota do cabeçalho ===== */}
+            {v3 && showReviews && (
+                <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowReviews(false)}>
+                    <div className="w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[88vh] flex flex-col" style={{ background: colors.surface }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Avaliações da loja">
+                        <div className="flex items-center gap-2 px-5 pt-4 pb-2 flex-shrink-0">
+                            <Star size={17} style={{ color: '#f97316', fill: '#f97316' }} />
+                            <h3 className="text-base font-black flex-1" style={{ color: colors.textPrimary }}>Avaliações{ratingsStats ? <span className="ml-2 text-xs font-bold" style={{ color: '#f97316' }}>{ratingsStats.avg.replace('.', ',')} ★ · {ratingsStats.count}</span> : null}</h3>
+                            <button onClick={() => setShowReviews(false)} aria-label="Fechar" className="w-9 h-9 rounded-full flex items-center justify-center text-xl" style={{ color: colors.textSecondary, background: `${colors.border}40` }}>×</button>
+                        </div>
+                        <div className="overflow-y-auto px-5 pb-6">
+                            <ReviewsV3 ratings={ratings as any} colors={colors} renderAvatar={renderReviewAvatar} />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ===== MODAL DE HORÁRIOS ===== */}
             {showAllHours && owner.business_hours && (

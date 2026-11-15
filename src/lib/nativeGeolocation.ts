@@ -6,6 +6,7 @@
 
 import { Capacitor } from '@capacitor/core'
 import { Geolocation } from '@capacitor/geolocation'
+import { isLocalDevOnly } from '@/lib/devOnly'
 
 function toWebPosition(pos: { coords: { latitude: number; longitude: number; accuracy: number; altitude?: number | null; altitudeAccuracy?: number | null; heading?: number | null; speed?: number | null }; timestamp: number }): GeolocationPosition {
     return {
@@ -38,6 +39,14 @@ export function getCurrentPosition(
     options?: PositionOptions
 ): void {
     if (!Capacitor.isNativePlatform()) {
+        // GPS DE TESTE (só LOCAL, só em desenvolvimento): o Teatro de /tres-telas grava "lat,lng" em localStorage.iuser_dev_pos para o motorista "estar" no ponto da parada/destino
+        if (typeof window !== 'undefined' && isLocalDevOnly()) {
+            const [la, lo] = (localStorage.getItem('iuser_dev_pos') || '').split(',').map(Number)
+            if (Number.isFinite(la) && Number.isFinite(lo)) {
+                onSuccess(toWebPosition({ coords: { latitude: la, longitude: lo, accuracy: 5 }, timestamp: Date.now() }))
+                return
+            }
+        }
         if (!navigator.geolocation) {
             onError?.(toWebError('Geolocalização não suportada neste navegador'))
             return

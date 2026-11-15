@@ -2,7 +2,7 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { PAYMENT_LABELS, PIX_TYPE_LABEL, brl, paymentErrorText, paymentStateText } from '@/modules/delivery-search'
 import { copyText, usePaymentView } from './usePaymentView'

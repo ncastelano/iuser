@@ -37,7 +37,22 @@ export async function notifyDriversOfRide(ride: {
     requirePayoutPix?: boolean
     /** Cliente chamou um motorista específico (abriu a página dele): ele recebe um aviso direto, além do geral */
     preferred_driver_id?: string | null
+    /** Fim da janela dos favoritos: o aviso agora vai só a quem NÃO é favorito da loja (os favoritos já foram avisados primeiro) */
+    skipFavorites?: boolean
 }): Promise<number> {
+    // Entrega de loja com JANELA dos favoritos aberta: só os favoritos aceitos da loja são avisados (o banco já esconde a oferta dos demais)
+    const { data: win } = await supabaseAdmin.from('ride_requests').select('store_id, exclusive_until').eq('id', ride.id).maybeSingle()
+    const exclusiveUntil = win?.exclusive_until && win.store_id && new Date(win.exclusive_until).getTime() > Date.now() ? new Date(win.exclusive_until) : null
+    let favoriteIds: Set<string> | null = null
+    let storeName = ''
+    if (win?.store_id && (exclusiveUntil || ride.skipFavorites)) {
+        const [{ data: favs }, { data: st }] = await Promise.all([
+            supabaseAdmin.from('store_favorite_drivers').select('driver_id').eq('store_id', win.store_id).eq('status', 'accepted'),
+            supabaseAdmin.from('stores').select('name').eq('id', win.store_id).maybeSingle(),
+        ])
+        favoriteIds = new Set((favs || []).map((f) => f.driver_id as string))
+        storeName = st?.name || 'A loja'
+    }
     const { data: drivers } = await supabaseAdmin
         .from('driver_pricing')
         .select('driver_id, live_lat, live_lng, live_updated_at, delivery_radius_km')
@@ -56,6 +71,7 @@ export async function notifyDriversOfRide(ride: {
         return km <= limit
     }
     const ids = (drivers || []).filter(withinRadius).map((d) => d.driver_id as string)
+        .filter((id) => !favoriteIds || (exclusiveUntil ? favoriteIds.has(id) : !favoriteIds.has(id)))
     if (ids.length === 0) return 0
 
     const [{ data: vehicles }, { data: charges }] = await Promise.all([
@@ -115,13 +131,14 @@ export async function notifyDriversOfRide(ride: {
     const originText = short(offer?.origin_address)
     const destinationText = short(offer?.destination_address)
     const priceText = ride.offered_price != null ? ` · Frete R$ ${Number(ride.offered_price).toFixed(2)}` : ''
+    const exclusiveMin = exclusiveUntil ? Math.max(1, Math.ceil((exclusiveUntil.getTime() - Date.now()) / 60_000)) : 0
     const results = await Promise.allSettled(
         eligible.map((id) => {
             const pricing = pricingByDriver.get(id)
             const tariffs = fullRide && pricing ? computeRideTariffs(fullRide as Parameters<typeof computeRideTariffs>[0], pricing as Parameters<typeof computeRideTariffs>[1]) : null
             return sendPushToUser(id, {
-                title: callerLabel && id === ride.preferred_driver_id ? `${callerLabel} chamou você!` : 'Nova corrida disponível!',
-                body: `${originText} → ${destinationText}${priceText}`,
+                title: exclusiveUntil ? `★ ${storeName} chamou você primeiro!` : callerLabel && id === ride.preferred_driver_id ? `${callerLabel} chamou você!` : 'Nova corrida disponível!',
+                body: `${originText} → ${destinationText}${priceText}${exclusiveUntil ? ` · exclusiva por ${exclusiveMin} min` : ''}`,
                 url: `/aceitar-corridas/mapa?ride=${ride.id}`,
                 tag: `new-ride-${ride.id}`,
                 urgent: true,

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useInsideShell } from '@/components/InsideShell'
 import V3Section from './V3Section'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import {
     ShoppingCart,
     X,

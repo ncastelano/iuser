@@ -5,6 +5,7 @@
 // os dados chegam prontos de `Store.tsx` e o avatar (moldura do plano, imagem) vem por `renderAvatar`.
 'use client'
 
+import ReviewPhoto from '@/components/ratings/ReviewPhoto'
 import Link from 'next/link'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Star } from 'lucide-react'
@@ -18,6 +19,7 @@ export interface ReviewV3Row {
     id: string
     rating: number
     comment?: string | null
+    photo_path?: string | null
     is_anonymous?: boolean
     created_at: string
     products?: { name?: string | null } | null
@@ -89,6 +91,7 @@ export default function ReviewsV3({ ratings, colors, renderAvatar }: { ratings: 
                                 )}
                             </div>
                             {r.comment && <p className="mt-1 text-[13px] leading-relaxed" style={{ color: colors.textPrimary }}>{r.comment}</p>}
+                            <ReviewPhoto path={r.photo_path} />
                         </div>
                     </li>
                 ))}

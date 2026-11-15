@@ -43,7 +43,8 @@ let imageBaseHost = ''
 try { if (imageBase) imageBaseHost = new URL(imageBase).hostname } catch {}
 
 const nextConfig = {
-  allowedDevOrigins: ['192.168.1.33'], // se necessário, mantenha
+  // `*.tela.localhost`: a observação em 3 telas (/tres-telas, só local) abre cada tela num endereço (owner/client/driver.tela.localhost) para guardar uma sessão por tela
+  allowedDevOrigins: ['192.168.1.33', '*.localhost', '*.tela.localhost'], // se necessário, mantenha
 
   env: { NEXT_PUBLIC_IMAGE_BASE: imageBase },
 

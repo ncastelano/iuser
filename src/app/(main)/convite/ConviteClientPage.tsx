@@ -13,7 +13,7 @@ import { PlanRingFrame, useAvatarBorder } from '@/components/PlanAvatarRing'
 import ShareLinkDialog from '@/components/ShareLinkDialog'
 import { HomeGlassCard, HOME_GRADIENT } from '@/app/(main)/inicio/sections/HomeSectionKit'
 import { Spinner } from '@/components/Spinner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { normalizeReferralSlug } from '@/lib/referralCapture'
 
 function ConviteContent() {
@@ -332,7 +332,7 @@ function ConviteContent() {
                 <div className="flex items-center justify-center gap-2 flex-wrap">
                     {chip('Sua loja')}
                     {chip('Venda em tempo real')}
-                    {chip('Taxa 0% no Pré-pago ou pague só pelo que usar no Pós-pago')}
+                    {chip('Taxa do iUser 0% no Pré-pago ou pague só pelo que usar no Pós-pago')}
                 </div>
             </HomeGlassCard>
 

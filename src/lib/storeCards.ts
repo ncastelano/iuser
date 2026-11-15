@@ -68,7 +68,7 @@ export function priceRangeLabel(min: number | null, max: number | null): string 
 export async function fetchStoreCards(opts: { limit?: number; me?: { lat: number; lng: number } | null } = {}): Promise<StoreCardData[]> {
     const { data } = await supabase
         .from('stores')
-        .select('id, name, "storeSlug", logo_url, category, ratings_avg, ratings_count, view_count, business_hours, created_at, accepts_delivery, accepts_pickup, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng, prep_time_min, prep_time_max')
+        .select('id, name, "storeSlug", logo_url, category, ratings_avg, ratings_count, view_count, business_hours, created_at, store_level, accepts_delivery, accepts_pickup, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng, prep_time_min, prep_time_max')
         .eq('is_active', true)
         .limit(opts.limit ?? 400)
     const rows = (data || []) as any[]
@@ -85,7 +85,7 @@ export async function fetchStoreCards(opts: { limit?: number; me?: { lat: number
         const logo = s.logo_url ? (s.logo_url.startsWith('http') ? s.logo_url : supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl) : null
         const ratingsCount = Number(s.ratings_count) || 0
         return {
-            id: s.id, name: s.name, slug: s.storeSlug, logo,
+            id: s.id, name: s.name, slug: s.storeSlug, logo, level: Number(s.store_level) || 0,
             category: s.category || null,
             categorySlug: resolveCategoria(s.category)?.slug || null,
             rating: ratingsCount > 0 && Number(s.ratings_avg) > 0 ? Number(s.ratings_avg) : null,

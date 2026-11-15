@@ -25,6 +25,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/components/Header'
 import { Spinner } from '@/components/Spinner'
+import { toast } from '@/lib/toast'
 
 /* ============= HELPERS ============= */
 function toMinutes(timeStr: string): number { const [h, m] = timeStr.split(':').map(Number); return h * 60 + m }
@@ -296,7 +297,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         setSubmitting(true)
         const { data: session } = await supabase.auth.getSession()
         const uid = session.session?.user?.id
-        if (!uid) { alert('Você precisa estar logado.'); setSubmitting(false); return }
+        if (!uid) { toast.error('Você precisa estar logado.'); setSubmitting(false); return }
         const dateStr = selectedDate.toISOString().split('T')[0]
         const note = appointmentNote.trim() || 'Agendamento'
 
@@ -316,7 +317,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                 .select('owner_id, storeSlug, name, logo_url')
                 .eq('id', storeId)
                 .single()
-            if (!store) { alert('Loja não encontrada.'); setSubmitting(false); return }
+            if (!store) { toast.error('Loja não encontrada.'); setSubmitting(false); return }
             const { data: targetProfile } = await supabase
                 .from('profiles')
                 .select('profileSlug, avatar_url')
@@ -342,7 +343,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                 direction: 'incoming',
             }
             const { error } = await supabase.from('appointments').insert(storeAppointment)
-            if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
+            if (error) { toast.error(`Erro: ${error.message}`); setSubmitting(false); return }
             notifyAppointment(inviteId)
             await refetch()
             onBack()
@@ -354,7 +355,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
             .select('owner_id, storeSlug, name, logo_url')
             .eq('id', target.id)
             .single()
-        if (!store) { alert('Loja não encontrada.'); setSubmitting(false); return }
+        if (!store) { toast.error('Loja não encontrada.'); setSubmitting(false); return }
         const { data: myProfile } = await supabase
             .from('profiles')
             .select('profileSlug, avatar_url')
@@ -380,7 +381,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
             direction: 'outgoing',
         }
         const { error } = await supabase.from('appointments').insert(clientAppointment)
-        if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
+        if (error) { toast.error(`Erro: ${error.message}`); setSubmitting(false); return }
         notifyAppointment(bookingId)
         await refetch()
         onBack()

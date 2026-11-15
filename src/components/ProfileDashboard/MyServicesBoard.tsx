@@ -13,7 +13,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
 import { Spinner } from '@/components/Spinner'
 import { Wrench, Store, Plus, Pencil, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import EditProductDialog from '@/components/EditProductDialog'
 import ProfileServiceListing from '@/components/ProfileDashboard/ProfileServiceListing'
 

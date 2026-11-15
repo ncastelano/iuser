@@ -47,7 +47,7 @@ const DRIVERS = [
 const ids = {}
 for (const d of DRIVERS) ids[d.slug] = await ensureUser(`${d.slug}@staging.iuser.test`, d.name)
 await upsert('profiles', DRIVERS.map((d) => ({ id: ids[d.slug], name: d.name, profileSlug: `motorista-${d.slug}`, email: `${d.slug}@staging.iuser.test`, is_active: true })), 'id')
-await upsert('driver_vehicles', DRIVERS.map((d) => ({ driver_id: ids[d.slug], vehicle_kind: d.kind, services: ['pessoa', 'objeto'] })), 'driver_id,vehicle_kind')
+await upsert('driver_vehicles', DRIVERS.map((d) => ({ driver_id: ids[d.slug], vehicle_kind: d.kind, services: [] /* comodidades (ar_condicionado, wifi...), não tipos de corrida */ })), 'driver_id,vehicle_kind')
 
 let tick = 0
 async function refresh() {

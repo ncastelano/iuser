@@ -41,3 +41,14 @@ test('dinheiro: inteiro sem centavos, quebrado com vírgula', () => {
     assert.equal(money(7), 'R$ 7')
     assert.equal(money(7.5), 'R$ 7,50')
 })
+
+// Frase que explica o valor da corrida (partida → chegada) nos cards de corridas disponíveis
+import { tripFareText } from '../src/lib/tariffSummary.ts'
+
+test('tripFareText: dentro da base paga só a base (3,6 km com base de 5 km = R$ 7,00)', () => {
+    assert.equal(tripFareText(3.6, t(5)), 'Corrida de 3,6 km (partida → chegada): dentro dos 5 km da base, R$ 7,00.')
+})
+
+test('tripFareText: com base de 3 km os 3,6 km passam da base (R$ 7,00 + 0,6 km × R$ 2,00 = R$ 8,20)', () => {
+    assert.equal(tripFareText(3.6, t(3)), 'Corrida de 3,6 km (partida → chegada): R$ 7,00 até 3 km + 0,6 km × R$ 2,00 = R$ 8,20.')
+})

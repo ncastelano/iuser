@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { Mail, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
 
 interface RecoverPasswordProps {

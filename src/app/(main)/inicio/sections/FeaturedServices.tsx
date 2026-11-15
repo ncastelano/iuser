@@ -2,8 +2,8 @@
 //
 // Carrossel de "Meus serviços publicados" (ProfileDashboard) — mesmo padrão
 // visual de FeaturedPublications, mas "ver todos" leva pro marketplace de
-// serviços (/solicitar-servico, com mapa e filtros) em vez de /procurar-servico
-// (que é a busca de trabalho pro prestador, não a vitrine pro cliente).
+// serviços (/servicos-disponiveis: lista com busca, filtros e abas Todos/Profissionais/Lojas; NÃO /solicitar-servico, que é o mapa/formulário de PEDIR um serviço)
+// em vez de /procurar-servico (que é a busca de trabalho pro prestador, não a vitrine pro cliente).
 'use client'
 
 import { useState, useEffect, useMemo, ReactNode } from 'react'
@@ -235,7 +235,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
         // Vai pra página do serviço (/<perfil ou loja>/<slug-do-serviço>); sem
         // slug (dado antigo), cai no perfil/loja de quem oferece.
         if (service.providerSlug && service.slug) router.push(`/${service.providerSlug}/${service.slug}`)
-        else router.push(service.providerSlug ? `/${service.providerSlug}` : '/solicitar-servico')
+        else router.push(service.providerSlug ? `/${service.providerSlug}` : '/servicos-disponiveis')
     }
 
     if (loading) {

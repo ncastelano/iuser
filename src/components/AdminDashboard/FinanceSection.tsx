@@ -2,7 +2,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Spinner } from '@/components/Spinner'
 import { hexToRgb } from '@/lib/color'
 import { callAdminApi } from '@/lib/callAdminApi'

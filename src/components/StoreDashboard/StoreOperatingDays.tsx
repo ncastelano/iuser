@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { X, Clock, ChevronDown, ChevronUp, AlertCircle, RefreshCw } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'

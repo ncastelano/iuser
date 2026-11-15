@@ -1,8 +1,8 @@
 // app/(main)/painel-loja/[storeSlug]/page.tsx
 //
-// Painel de UMA loja (modo loja): cada loja tem o seu próprio endereço, /painel-loja/<storeSlug>. Mostra o StoreDashboard
-// completo (pedidos, venda presencial, horários, catálogo, entrega, pagamento, funcionários, agenda, publicações, clube,
-// visitantes) dentro da casca de modos (topo + menu lateral), com um cabeçalho no desenho do /modeloinicial.
+// Painel de UMA loja (modo loja): cada loja tem o seu próprio endereço, /painel-loja/<storeSlug>. É o painel do FEEDBACK do que
+// acontece na loja: pedidos (produtos e serviços a aceitar), agenda, venda presencial, vendas, avaliações/comentários e visitantes.
+// Informações e preferências da loja ficam em /editar-loja/<storeSlug>.
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -61,12 +61,12 @@ export default function PainelLojaPage() {
                 <div className="mt-6 rounded-3xl border p-6 text-center" style={{ background: colors.surface, borderColor: colors.border }}>
                     <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Esta loja não foi encontrada na sua conta.</p>
                     <p className="text-xs mt-1 mb-3" style={{ color: colors.textSecondary }}>Escolha uma das suas lojas no menu.</p>
-                    <button onClick={() => router.push('/modeloinicial')} className="px-5 py-2.5 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Voltar</button>
+                    <button onClick={() => router.push('/')} className="px-5 py-2.5 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Voltar</button>
                 </div>
             ) : (
                 <>
                     <div className="-mx-4">
-                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} infoFirst showDebtBanner={false} previewLogo={store.logo} previewName={store.name} />
+                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} view="painel" showDebtBanner={false} previewLogo={store.logo} previewName={store.name} />
                     </div>
                 </>
             )}

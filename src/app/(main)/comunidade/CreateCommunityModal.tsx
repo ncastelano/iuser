@@ -8,7 +8,7 @@ import { useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { sanitizeSlug } from '@/lib/slugUtils'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { X, MessageCircle, ImagePlus, MapPin, Globe, Link2, Lock, Unlock, Check } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 

@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { MessageCircle, Megaphone, ImageIcon, Send } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'

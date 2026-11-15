@@ -5,6 +5,7 @@
 // "Serviços que você pode gostar" da home 3.0 (as duas mostram a mesma coisa).
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
+import { resolveCategoria } from '@/lib/categorias'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 
 export interface ServiceCard {
@@ -25,6 +26,9 @@ export interface ServiceCard {
     storeOpen: boolean | null
     /** Serviço de pessoa: está online agora (null = serviço de loja) */
     ownerOnline: boolean | null
+    createdAt: string | null
+    /** Categoria da loja (slug); serviço de pessoa não tem */
+    categorySlug: string | null
 }
 
 const publicImage = (bucket: string, path: string | null | undefined) => {
@@ -35,7 +39,7 @@ const publicImage = (bucket: string, path: string | null | undefined) => {
 export async function loadServiceCards(): Promise<ServiceCard[]> {
     const { data: rows } = await supabase
         .from('products')
-        .select('id, name, slug, description, image_url, price, duration_minutes, view_count, owner_id, store_id, owner_image_url')
+        .select('id, name, slug, description, image_url, price, duration_minutes, view_count, owner_id, store_id, owner_image_url, created_at')
         .eq('is_active', true)
         .or('listing_type.eq.service_offer,and(type.eq.service,listing_type.eq.sale)')
         .order('view_count', { ascending: false })
@@ -46,7 +50,7 @@ export async function loadServiceCards(): Promise<ServiceCard[]> {
     const storeIds = [...new Set(list.filter((r) => r.store_id).map((r) => r.store_id))]
     const ownerIds = [...new Set(list.filter((r) => !r.store_id && r.owner_id).map((r) => r.owner_id))]
     const [{ data: stores }, { data: profiles }, { data: reviews }] = await Promise.all([
-        storeIds.length ? supabase.from('stores').select('id, name, "storeSlug", logo_url, owner_id, business_hours').in('id', storeIds) : Promise.resolve({ data: [] as any[] }),
+        storeIds.length ? supabase.from('stores').select('id, name, "storeSlug", logo_url, owner_id, business_hours, category').in('id', storeIds) : Promise.resolve({ data: [] as any[] }),
         ownerIds.length ? supabase.from('profiles').select('id, name, "profileSlug", avatar_url').in('id', ownerIds) : Promise.resolve({ data: [] as any[] }),
         supabase.from('product_reviews').select('product_id, rating').in('product_id', list.map((r) => r.id)),
     ])
@@ -89,6 +93,8 @@ export async function loadServiceCards(): Promise<ServiceCard[]> {
             href: `/${slug}/${r.slug}`,
             storeOpen: store ? isStoreOpenNow(store.business_hours as BusinessHours | null) : null,
             ownerOnline: store ? null : (online.get(r.owner_id) ?? false),
+            createdAt: r.created_at ?? null,
+            categorySlug: store ? resolveCategoria(store.category)?.slug ?? null : null,
         })
     }
     return cards

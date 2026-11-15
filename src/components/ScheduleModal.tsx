@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { X, Calendar, Clock, CheckCircle2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import { toast } from '@/lib/toast'
 
 interface ScheduleModalProps {
     isOpen: boolean
@@ -82,7 +83,7 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-            alert('Você precisa estar logado para agendar.')
+            toast.error('Você precisa estar logado para agendar.')
             setLoading(false)
             return
         }
@@ -102,7 +103,7 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
             })
 
         if (error) {
-            alert('Erro ao agendar: ' + error.message)
+            toast.error('Erro ao agendar: ' + error.message)
         } else {
             setSuccess(true)
             onSuccess?.()

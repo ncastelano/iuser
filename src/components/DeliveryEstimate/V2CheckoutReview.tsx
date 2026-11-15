@@ -6,7 +6,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { requestDeliveryEstimate } from '@/lib/deliveryEstimate'
 import { estimateKey, isEstimateUsable, type DeliveryEstimate } from '@/modules/delivery-estimate'
 import { V2OrderReview } from './V2OrderReview'

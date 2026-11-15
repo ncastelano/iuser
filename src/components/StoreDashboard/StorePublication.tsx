@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
 import {
     ChevronDown,
@@ -16,6 +16,9 @@ import {
     Trash2,
     ExternalLink,
     MessageCircle,
+    Eye,
+    Heart,
+    Share2,
     } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
@@ -77,6 +80,8 @@ export default function StorePublication({ storeId }: PublicationProps) {
     const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+    // 3.0: os números de cada publicação (visualizações, curtidas, comentários, compartilhamentos), como no laboratório do painel
+    const [stats, setStats] = useState<Record<string, { views: number; likes: number; comments: number; shares: number }>>({})
 
     useEffect(() => {
         if (!isExpanded || !storeId) return
@@ -94,6 +99,7 @@ export default function StorePublication({ storeId }: PublicationProps) {
 
                 if (!error && data && isMounted) {
                     setPublications(data as Publication[])
+                    if (v3) loadStats(data as Publication[]).then((st) => { if (isMounted) setStats(st) })
                 }
 
                 const { data: storeData } = await supabase
@@ -115,6 +121,24 @@ export default function StorePublication({ storeId }: PublicationProps) {
 
         return () => { isMounted = false }
     }, [isExpanded, storeId])
+
+    // uma contagem por publicação (cabeçalho só, sem trazer linhas): as 30 mais novas
+    const loadStats = async (pubs: Publication[]) => {
+        const out: Record<string, { views: number; likes: number; comments: number; shares: number }> = {}
+        const ids = pubs.slice(0, 30).map((p) => p.id)
+        if (ids.length === 0) return out
+        const { data: sh } = await supabase.from('products').select('id, share_count').in('id', ids)
+        const shares = new Map((sh || []).map((r: any) => [r.id, Number(r.share_count) || 0]))
+        await Promise.all(ids.map(async (id) => {
+            const [v, l, c] = await Promise.all([
+                supabase.from('product_views').select('product_id', { count: 'exact', head: true }).eq('product_id', id),
+                supabase.from('likes').select('id', { count: 'exact', head: true }).eq('publication_id', id),
+                supabase.from('comments').select('id', { count: 'exact', head: true }).eq('publication_id', id),
+            ])
+            out[id] = { views: v.count || 0, likes: l.count || 0, comments: c.count || 0, shares: shares.get(id) || 0 }
+        }))
+        return out
+    }
 
     useEffect(() => {
         if (!imageFile) return
@@ -265,6 +289,19 @@ export default function StorePublication({ storeId }: PublicationProps) {
                             </div>
                         ) : (
                             <>
+                                {v3 && Object.keys(stats).length > 0 && (() => {
+                                    const t = Object.values(stats).reduce((a, x) => ({ views: a.views + x.views, likes: a.likes + x.likes, comments: a.comments + x.comments, shares: a.shares + x.shares }), { views: 0, likes: 0, comments: 0, shares: 0 })
+                                    return (
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {([['Visualizações', t.views, <Eye key="v" size={13} />], ['Curtidas', t.likes, <Heart key="l" size={13} />], ['Comentários', t.comments, <MessageCircle key="c" size={13} />], ['Compart.', t.shares, <Share2 key="s" size={13} />]] as const).map(([rot, n, ic]) => (
+                                                <div key={rot} className="rounded-2xl p-2 text-center" style={{ background: `${colors.border}30` }}>
+                                                    <p className="text-[15px] font-black flex items-center justify-center gap-1" style={{ color: textPrimary }}><span style={{ color: '#f97316' }}>{ic}</span>{n.toLocaleString('pt-BR')}</p>
+                                                    <p className="text-[9.5px] font-bold uppercase" style={{ color: textSecondary }}>{rot}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )
+                                })()}
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {publications.map(pub => {
                                         const imgUrl = getImageUrl(pub.image_url)
@@ -292,6 +329,14 @@ export default function StorePublication({ storeId }: PublicationProps) {
                                                 <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
                                                     {pub.name}
                                                 </p>
+                                                {v3 && stats[pub.id] && (
+                                                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10.5px] font-bold" style={{ color: textSecondary }}>
+                                                        <span className="inline-flex items-center gap-0.5"><Eye size={11} />{stats[pub.id].views}</span>
+                                                        <span className="inline-flex items-center gap-0.5"><Heart size={11} />{stats[pub.id].likes}</span>
+                                                        <span className="inline-flex items-center gap-0.5"><MessageCircle size={11} />{stats[pub.id].comments}</span>
+                                                        <span className="inline-flex items-center gap-0.5"><Share2 size={11} />{stats[pub.id].shares}</span>
+                                                    </div>
+                                                )}
                                                 <div className="flex items-center justify-between mt-auto">
                                                     <button
                                                         onClick={() => router.push(`/${pub.slug}/editar-produto`)}
@@ -380,6 +425,7 @@ export default function StorePublication({ storeId }: PublicationProps) {
                                         type="text"
                                         placeholder="Ex: Promoção de verão!"
                                         value={name}
+                                        maxLength={60}
                                         onChange={(e) => setName(e.target.value)}
                                         className="w-full px-3 py-2 rounded-full border text-sm focus:outline-none"
                                         style={{
@@ -397,6 +443,7 @@ export default function StorePublication({ storeId }: PublicationProps) {
                                     <textarea
                                         placeholder="Descreva sua novidade..."
                                         value={description}
+                                        maxLength={500}
                                         onChange={(e) => setDescription(e.target.value)}
                                         rows={3}
                                         className="w-full px-3 py-2 rounded-2xl border text-sm focus:outline-none resize-none"
@@ -407,6 +454,26 @@ export default function StorePublication({ storeId }: PublicationProps) {
                                         }}
                                     />
                                 </div>
+
+                                {v3 && (
+                                    <div className="flex flex-col gap-2">
+                                        <p className="text-[10px] font-bold uppercase text-right -mt-1" style={{ color: textSecondary }}>{name.length}/60 · {description.length}/500</p>
+                                        <p className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Como vai aparecer</p>
+                                        <div className="flex gap-3 items-start">
+                                            <div className="w-[96px] h-[158px] rounded-2xl overflow-hidden relative flex-shrink-0" style={{ background: preview ? '#000' : 'linear-gradient(135deg,#f97316,#dc2626)' }}>
+                                                {preview && <img src={preview} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+                                                <div className="absolute inset-x-0 bottom-0 p-2" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,.7))' }}>
+                                                    <p className="text-[10.5px] font-black text-white leading-tight line-clamp-2">{name || 'Título da publicação'}</p>
+                                                </div>
+                                                {!preview && description && <p className="absolute inset-x-2 top-1/3 text-[10px] font-bold text-white text-center line-clamp-4">{description}</p>}
+                                            </div>
+                                            <div className="text-[11.5px] leading-snug" style={{ color: textSecondary }}>
+                                                <p><b style={{ color: textPrimary }}>Onde aparece:</b> na página da loja e nas buscas do iUser.</p>
+                                                <p className="mt-1.5 inline-flex items-center gap-1 font-black px-2 py-0.5 rounded-full" style={{ background: '#16a34a22', color: '#15803d' }}>Missão de hoje · +5 pts</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {storeWhatsapp && (
                                     <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-full">

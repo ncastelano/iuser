@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, Gift, MessageCircle, Star } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'

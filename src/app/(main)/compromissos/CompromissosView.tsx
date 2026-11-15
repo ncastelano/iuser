@@ -53,6 +53,9 @@ import AppointmentReviewPanel from '@/components/appointments/AppointmentReviewP
 import ClientTrackRecord from '@/components/appointments/ClientTrackRecord'
 import ServiceInvitationCard from '@/components/appointments/ServiceInvitationCard'
 import { isServiceBooking } from '@/lib/appointmentReviews'
+import { toast } from '@/lib/toast'
+import { useInsideShell } from '@/components/InsideShell'
+import AgendaDiaV3 from './AgendaDiaV3'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -230,6 +233,7 @@ function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
    Página principal
    =================================================== */
 export default function CompromissosView({ agendaSlug }: { agendaSlug: string }) {
+    const insideShell = useInsideShell()
     const router = useRouter()
     const hoje = new Date()
     const { colors } = useTheme()
@@ -608,7 +612,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
             .select('id, name, profileSlug, avatar_url')
             .eq('profileSlug', inviteSlugDetail.trim())
             .maybeSingle()
-        if (error || !data) alert('Perfil não encontrado.')
+        if (error || !data) toast.error('Perfil não encontrado.')
         else setSearchedProfileDetail(data)
         setSearchingDetail(false)
     }
@@ -635,9 +639,9 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
             direction: 'incoming',
         }
         const { error } = await supabase.from('appointments').insert(convite)
-        if (error) alert(`Erro ao convidar: ${error.message}`)
+        if (error) toast.error(`Erro ao convidar: ${error.message}`)
         else {
-            alert(`Convite enviado para ${searchedProfileDetail.name}!`)
+            toast.success(`Convite enviado para ${searchedProfileDetail.name}!`)
             setSearchedProfileDetail(null)
             setInviteSlugDetail('')
             refetch()
@@ -657,6 +661,8 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
 
     const isClientSide = activeTab !== 'pessoal' // loja ou "quem agendou comigo": pendentes/confirmados
     const activeStore = activeTab !== 'pessoal' && activeTab !== 'agenda-perfil' ? myStores.find((st) => st.id === activeTab) : null
+    // agenda de LOJA dentro da casca da 3.0: um dia por vez, em linha do tempo
+    const storeV3 = insideShell && !!activeStore
     const todayStr = formatDate(new Date())
     const isSelectedToday = selectedDateStr === todayStr
 
@@ -703,7 +709,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
         ...(waitingCount > 0
             ? [{ id: waitingId, label: isClientSide ? 'Pendentes' : 'Convites', icon: Bell, count: waitingCount, attention: true }]
             : []),
-        { id: 'hoje', label: 'Hoje', icon: Clock3, count: filteredAppointments.filter((a) => a.date === todayStr).length },
+        { id: 'hoje', label: storeV3 ? 'Agenda' : 'Hoje', icon: Clock3, count: filteredAppointments.filter((a) => a.date === todayStr).length },
         { id: 'aceitos', label: isClientSide ? 'Confirmados' : 'Aceitos', icon: UserCheck, count: listaAceitos.length },
         { id: 'horarios', label: 'Horários', icon: CalendarClock, count: 0 },
     ]
@@ -981,7 +987,17 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             </div>
                         )}
 
-                        {/* AGENDA DO DIA */}
+                        {/* AGENDA DO DIA — na loja da 3.0, a LINHA DO TEMPO de um dia (desenho do laboratório) */}
+                        {storeV3 && activeStore ? (
+                            <>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => router.push(`/editar-loja/${encodeURIComponent(activeStore.storeSlug)}?secao=regras`)} style={{ flex: 1, height: 40, borderRadius: 999, border: `1px solid ${colors.border}`, background: 'transparent', color: colors.textPrimary, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>⚙ Regras da agenda</button>
+                                <button onClick={() => selectSection('horarios')} style={{ flex: 1, height: 40, borderRadius: 999, border: `1px solid ${colors.border}`, background: 'transparent', color: colors.textPrimary, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Horários</button>
+                            </div>
+                            <AgendaDiaV3 storeId={activeStore.id} date={selectedDate} appts={eventosDoDia} renderCard={(a) => renderCard(a, { accept: true })} onNovo={() => router.push('/compromissos/agendar')} />
+                            </>
+                        ) : (
+                        <>
                         <section>
                             <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, color: colors.textPrimary, display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <Clock3 size={22} color={colors.accent} /> {isSelectedToday ? 'Hoje' : selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}{isSelectedToday ? ` • ${selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}` : ''}
@@ -995,6 +1011,11 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             )}
                         </section>
 
+                        </>
+                        )}
+
+                        {!storeV3 && (
+                        <>
                         {/* PRÓXIMOS COMPROMISSOS (agora dentro de Hoje) */}
                         <section>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -1023,6 +1044,8 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                 </div>
                             )}
                         </section>
+                        </>
+                        )}
                         </>
                         )}
 

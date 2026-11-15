@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
 import FreeTrialGift from '@/components/FreeTrialGift'
+import { usePostpaidLimit } from '@/lib/postpaid'
 
 interface ActivePlanBadge {
     name: string
@@ -20,7 +21,6 @@ interface ActivePlanBadge {
 }
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-const POSTPAID_LIMIT = 50
 const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
 
 function daysLeft(iso: string | null): number | null {
@@ -30,6 +30,7 @@ function daysLeft(iso: string | null): number | null {
 }
 
 export default function PlanPromotions({ profileId, className = '' }: { profileId: string; className?: string }) {
+    const POSTPAID_LIMIT = usePostpaidLimit()
     const router = useRouter()
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)

@@ -4,7 +4,7 @@
 // suavemente até o cartão "Seu carrinho" (quando a página tem um: elemento com o id informado), que dá uma pulsada de destaque —
 // a pessoa vê que algo aconteceu e onde está o carrinho. Respeita "reduzir movimento" (só rola, sem balançar). Só apresentação.
 
-const CART_ICONS = '[data-cart-target], button[aria-label="Carrinho"], button[aria-label="Ver carrinho"], [data-cart-wiggle]'
+const CART_ICONS = '[data-cart-target], button[aria-label="Carrinho"], button[aria-label^="Ver carrinho"], [data-cart-wiggle]'
 
 function wiggle(el: Element) {
     const node = (el.querySelector('svg') as Element | null) || el

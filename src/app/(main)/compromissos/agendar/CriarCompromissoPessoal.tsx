@@ -20,6 +20,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { Spinner } from '@/components/Spinner'
+import { toast } from '@/lib/toast'
 
 /* ============= HELPERS ============= */
 function toMinutes(timeStr: string): number { const [h, m] = timeStr.split(':').map(Number); return h * 60 + m }
@@ -153,7 +154,7 @@ export default function CriarCompromissoPessoal({ onBack }: Props) {
         setSubmitting(true)
         const { data: session } = await supabase.auth.getSession()
         const uid = session.session?.user?.id
-        if (!uid) { alert('Você precisa estar logado.'); setSubmitting(false); return }
+        if (!uid) { toast.error('Você precisa estar logado.'); setSubmitting(false); return }
         const dateStr = selectedDate.toISOString().split('T')[0]
         const note = appointmentNote.trim() || 'Compromisso pessoal'
         const { data: myProfile } = await supabase.from('profiles').select('profileSlug, avatar_url').eq('id', uid).single()
@@ -177,7 +178,7 @@ export default function CriarCompromissoPessoal({ onBack }: Props) {
             is_public: isPublic,
         }
         const { error } = await supabase.from('appointments').insert(appointment)
-        if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
+        if (error) { toast.error(`Erro: ${error.message}`); setSubmitting(false); return }
         await refetch()
         onBack()
     }

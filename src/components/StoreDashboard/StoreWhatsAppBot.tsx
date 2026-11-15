@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { MessageCircle, Check, Copy, Clock, Loader2, X, ShieldCheck, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
 import { hexToRgb } from '@/lib/color'
 import { Spinner } from '@/components/Spinner'

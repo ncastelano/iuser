@@ -10,7 +10,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { MapPin, Plus, Check, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
 import ServiceRequestViewDialog from '@/components/ServiceRequestViewDialog'
@@ -299,6 +299,7 @@ export default function NeedAService({ dragHandle, limit = 8, origin }: { dragHa
                     applied={applied.has(viewItem.id)}
                     onApply={() => { const id = viewItem.id; setViewItem(null); goFromHome(`/procurar-servico?pedido=${id}`) }}
                     onClose={() => setViewItem(null)}
+                    origin={origin}
                 />
             )}
 

@@ -26,6 +26,10 @@ export interface PushPayload {
     chat?: boolean
     /** Aviso que não pode passar batido (corrida nova, motorista chegando): fica na tela e vibra mais. */
     urgent?: boolean
+    /** Aviso da ilha: se o app está aberto e visível, o service worker não repete (a ilha já mostrou) */
+    live?: boolean
+    /** Resposta de um toque na própria notificação (ex.: "Já estou descendo") */
+    replyAction?: { rideId: string; code: string; label: string }
     /** Corrida nova: o service worker monta os botões de valor (Tarifa iUser / Minha tarifa / editar) na notificação. */
     rideAlert?: { rideId: string; platformPrice: number; customPrice: number | null; preferredPrice: number; offeredPrice: number | null }
 }
@@ -67,6 +71,8 @@ async function sendWebPush(userId: string, payload: PushPayload): Promise<number
         chat: !!payload.chat,
         urgent: !!payload.urgent,
         rideAlert: payload.rideAlert,
+        live: !!payload.live,
+        replyAction: payload.replyAction,
     })
 
     const results = await Promise.allSettled(

@@ -2,7 +2,7 @@
 //
 // Seção da home "Quem já oferece serviço": vitrine dos serviços que
 // profissionais e lojas já publicaram, sem card em volta (tudo flutuante), 
-// "ver serviços" (com o total) no cabeçalho e o botão "Publicar o seu" embaixo, igual ao "Quem procura serviço".
+// "ver serviços" (com o total) no cabeçalho — leva à lista /servicos-disponiveis (não ao mapa de /solicitar-servico, que é para PEDIR um serviço) e o botão "Publicar o seu" embaixo, igual ao "Quem procura serviço".
 'use client'
 
 import { ReactNode } from 'react'
@@ -36,7 +36,7 @@ export default function OfferAService({ dragHandle }: OfferAServiceProps) {
                 subtitle="Profissionais e lojas prontos para te atender"
                 hideIcon
                 dragHandle={dragHandle}
-                onViewAll={() => { startNavProgress(); router.push('/solicitar-servico') }}
+                onViewAll={() => { startNavProgress(); router.push('/servicos-disponiveis') }}
             />
 
             {/* Mesmo botão padrão (laranja → vermelho) do "Peça o seu", fora do carrossel pra ficar sempre à mão */}

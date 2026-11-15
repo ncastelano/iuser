@@ -109,7 +109,7 @@ export default function CareerPlans() {
                 <HomeGlassCard className="p-5 sm:p-6">
                     <HomeSectionHeader
                         title="Melhor plano para você"
-                        subtitle="50 centavos por serviço ou R$ 100 mensal sem taxa por serviço"
+                        subtitle="50 centavos por serviço ou R$ 100 mensal sem a taxa do iUser por serviço"
                         action={<span />}
                     />
 
@@ -131,7 +131,7 @@ export default function CareerPlans() {
                         </div>
                         <div className="flex flex-col gap-2">
                             {[
-                                'Venda ou compre com taxa 0%',
+                                'Venda ou compre com 0% de taxa do iUser',
                                 'Vale também pra quem já está no pós-pago',
                             ].map((f) => (
                                 <div key={f} className="flex items-start gap-1.5">

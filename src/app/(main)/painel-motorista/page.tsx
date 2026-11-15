@@ -1,7 +1,7 @@
 // app/(main)/painel-motorista/page.tsx
 'use client'
 
-import { useEffect, useState, useMemo, useCallback, Suspense } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -9,9 +9,9 @@ import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { sendFirstDriverPosition } from '@/lib/driverLocationSync'
-import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
+import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2, Bike } from 'lucide-react'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { Spinner } from '@/components/Spinner'
 import { hourlyLine, tariffLine } from '@/lib/tariffSummary'
@@ -24,11 +24,15 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import InviteButton from '@/components/InviteButton'
-import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab } from '@/components/AceitarCorridas/AceitarCorridas'
+import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab, type DriverRequestsSummary } from '@/components/AceitarCorridas/AceitarCorridas'
 import { callAdminApi } from '@/lib/callAdminApi'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useInsideShell } from '@/components/InsideShell'
 import DriverPanelHome from '@/components/v3/DriverPanelHome'
+import { announceDriverMode } from '@/lib/driverMode'
+import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
+import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
+import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
 
 const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 const ORANGE_V3 = '#f97316'
@@ -102,6 +106,8 @@ function PainelMotoristaContent() {
     const [baseDistanceKm, setBaseDistanceKm] = useState('5')
     const [baseFee, setBaseFee] = useState('7')
     const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
+    // "Minha tarifa por tempo": R$ por minuto de trabalho (ir buscar + corrida). Vazio = não definida.
+    const [pricePerMinute, setPricePerMinute] = useState('')
     // A tarifa da plataforma vem do banco (Admin → Tarifas); isso força o redesenho quando ela chega
     const [tariffsVersion, setTariffsVersion] = useState(0)
     const [extraFeePessoa, setExtraFeePessoa] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.pessoa))
@@ -153,12 +159,12 @@ function PainelMotoristaContent() {
     type PainelTab = 'painel' | 'veiculo' | 'plano' | 'avaliacoes' | 'solicitacoes' | 'candidaturas' | 'aceita'
     const [activeTab, setActiveTab] = useState<PainelTab>(() => {
         const aba = searchParams.get('aba')
-        return aba === 'solicitacoes' || aba === 'candidaturas' ? aba : 'painel'
+        return aba === 'solicitacoes' || aba === 'candidaturas' || aba === 'plano' ? aba : 'painel'
     })
 
     // Abas que eram do /aceitar-corridas (Solicitações de motorista / Me candidatei /
     // Corrida aceita) — o conteúdo vem do mesmo componente, embutido aqui.
-    const [rideSummary, setRideSummary] = useState({ rides: 0, candidacies: 0, hasAccepted: false })
+    const [rideSummary, setRideSummary] = useState<DriverRequestsSummary>({ rides: 0, deliveries: 0, candidacies: 0, hasAccepted: false, acceptedIsDelivery: false, incoming: [] })
     const [rideSummaryLoaded, setRideSummaryLoaded] = useState(false)
     const rideTabFromPanel: Record<string, AceitarCorridasTab> = { solicitacoes: 'servicos', candidaturas: 'candidatos', aceita: 'aceita' }
     const handleRideTabChange = useCallback((t: AceitarCorridasTab) => {
@@ -265,7 +271,7 @@ function PainelMotoristaContent() {
 
         const { data } = await supabase
             .from('driver_pricing')
-            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
             .eq('driver_id', userId)
             .maybeSingle()
 
@@ -275,6 +281,7 @@ function PainelMotoristaContent() {
             if (data.base_distance_km != null) setBaseDistanceKm(String(data.base_distance_km))
             if (data.base_fee != null) setBaseFee(String(data.base_fee))
             if (data.price_per_km_after_base != null) setPricePerKmAfterBase(String(data.price_per_km_after_base))
+            if (data.price_per_minute != null) setPricePerMinute(String(data.price_per_minute))
             if (data.extra_fee_pessoa != null) setExtraFeePessoa(String(data.extra_fee_pessoa))
             if (data.extra_fee_animal != null) setExtraFeeAnimal(String(data.extra_fee_animal))
             if (data.extra_fee_objeto != null) setExtraFeeObjeto(String(data.extra_fee_objeto))
@@ -318,6 +325,10 @@ function PainelMotoristaContent() {
             setActiveTab('veiculo')
         } else if (searchParams.get('aba') === 'veiculo') {
             setActiveTab('veiculo')
+        } else if (searchParams.get('aba') === 'plano') {
+            setActiveTab('plano')   // /painel-motorista?aba=plano&veiculo=carro: a aba da tarifa daquele veículo
+            // &modo=personalizada (vindo de "Por km / Por tempo: definir" nos cards da corrida): abre já na TARIFA PERSONALIZADA, não na da plataforma
+            if (searchParams.get('modo') === 'personalizada') { setPricingMode('custom'); setCustomTouched(true) }
         }
 
         const { data: reviewRows } = await supabase
@@ -414,16 +425,17 @@ function PainelMotoristaContent() {
         }
     }
 
-    const handleSaveVehicle = async () => {
+    /** Salva o veículo. Devolve true se salvou (o assistente só segue para as corridas depois de salvar de verdade). */
+    const handleSaveVehicle = async (): Promise<boolean> => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
             setShowLogin(true)
-            return
+            return false
         }
 
         if (!isAdmin && ((!carPhotoFile && !carPhotoPath) || (!driverPhotoFile && !driverPhotoPath))) {
             toast.error('A foto do veículo e a sua foto são obrigatórias')
-            return
+            return false
         }
 
         setSavingVehicle(true)
@@ -499,8 +511,10 @@ function PainelMotoristaContent() {
                 setIsFirstVehicleSetup(false)
                 setShowFirstVehicleDialog(true)
             }
+            return true
         } catch (err: any) {
             toast.error('Erro ao salvar o veículo: ' + (err.message || 'tente novamente'))
+            return false
         } finally {
             setSavingVehicle(false)
         }
@@ -530,8 +544,11 @@ function PainelMotoristaContent() {
             toast.error(`Falta completar: ${missingFields.join(', ')}`)
             return
         }
-        await handleSaveVehicle()
-        setActiveTab('plano')
+        const saved = await handleSaveVehicle()
+        if (!saved) return
+        // Veículo cadastrado: a pessoa vai direto para as corridas (é lá que aparece quanto ela ganha); a tarifa da plataforma já vale
+        setShowFirstVehicleDialog(false)
+        router.push(nextUrl || '/aceitar-corridas')
     }
 
     useEffect(() => {
@@ -554,6 +571,7 @@ function PainelMotoristaContent() {
         base_distance_km: customTouched ? (parseFloat(baseDistanceKm) || 0) : null,
         base_fee: customTouched ? (parseFloat(baseFee) || 0) : null,
         price_per_km_after_base: customTouched ? (parseFloat(pricePerKmAfterBase) || 0) : null,
+        price_per_minute: customTouched && (parseFloat(pricePerMinute) || 0) > 0 ? Math.min(20, Math.round(parseFloat(pricePerMinute) * 10000) / 10000) : null,
         extra_fee_pessoa: customTouched ? (parseFloat(extraFeePessoa) || 0) : null,
         extra_fee_animal: customTouched ? (parseFloat(extraFeeAnimal) || 0) : null,
         extra_fee_objeto: customTouched ? (parseFloat(extraFeeObjeto) || 0) : null,
@@ -565,7 +583,24 @@ function PainelMotoristaContent() {
         extra_fee_ar_condicionado: customTouched ? (parseFloat(extraFeeArCondicionado) || 0) : null,
     })
 
+    // "Minha tarifa por tempo": nunca menor que o ganho mínimo por hora do iUser ÷ 60 (R$ 40/h → R$ 0,67/min) e só muda para CIMA; vazio = vale o padrão
+    const defaultHourly = useDefaultMinHourly()
+    const timeFloor = timeRateFloor(defaultHourly)
+    const timeEntered = parseFloat(String(pricePerMinute).replace(',', '.')) || 0
+    const timeBelowFloor = pricingMode === 'custom' && timeEntered > 0 && timeEntered < timeFloor
+    // a lista em R$ POR HORA (do mínimo para cima); "Outro valor" abre um campo, também com o mínimo
+    const [timeOther, setTimeOther] = useState(false)
+    const [timeOtherText, setTimeOtherText] = useState('')
+    const hourlyList = hourlyOptions(defaultHourly)
+    const hourlyNow = timeEntered > 0 ? rateToHourly(timeEntered) : defaultHourly
+    const hourlySelect = timeOther || !hourlyList.includes(hourlyNow) ? 'outro' : String(hourlyNow)
+    const pickHourly = (hourly: number) => { setCustomTouched(true); setPricePerMinute(hourly <= defaultHourly ? '' : String(hourlyToRate(hourly))) }
     const handleSave = async () => {
+        if (timeBelowFloor) {
+            toast.error(`A tarifa por tempo não pode ser menor que R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o mínimo do iUser). Só dá para aumentar.`)
+            setActiveTab('plano')
+            return
+        }
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
             setShowLogin(true)
@@ -643,6 +678,7 @@ function PainelMotoristaContent() {
             if (error) throw error
 
             setDriverModeActive(next)
+            announceDriverMode(next)   // o aviso de corrida nova liga/desliga na hora (e os cartões abertos saem ao desligar)
             if (next) {
                 toast.success('Modo motorista ligado!')
                 sendFirstDriverPosition(user.id)
@@ -686,6 +722,18 @@ function PainelMotoristaContent() {
         setPricePerKmAfterBase(String(t.pricePerKmAfterBase))
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [customTouched, vehicleKind, tariffsVersion])
+
+    // &secao=km|tempo: rola até essa parte da tarifa (uma vez)
+    const scrolledToSection = useRef(false)
+    useEffect(() => {
+        const sec = searchParams.get('secao')
+        if (activeTab !== 'plano' || !sec || scrolledToSection.current) return
+        const t = setTimeout(() => {
+            const el = document.getElementById(`tarifa-${sec}`)
+            if (el) { scrolledToSection.current = true; el.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+        }, 700)
+        return () => clearTimeout(t)
+    }, [activeTab, pricingMode, searchParams])
 
     const previewDistance = 10
     const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
@@ -762,7 +810,8 @@ function PainelMotoristaContent() {
         const allTabs = [
             { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
             ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
-            { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: rideSummary.rides > 0 ? { count: rideSummary.rides } : null },
+            { id: 'entregas', label: 'Entregas', icon: Bike, isActive: false, onClick: () => router.push('/entregas'), badge: null },
+            { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides + rideSummary.deliveries > 0 ? { count: rideSummary.rides + rideSummary.deliveries } : null },
             // "Me candidatei" só aparece quando tem algo nela (candidatura pendente) ou há corrida aceita.
             ...(rideSummary.candidacies > 0 || rideSummary.hasAccepted ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null }] : []),
             {
@@ -813,6 +862,13 @@ function PainelMotoristaContent() {
                         />
                     )}
 
+                    {/* Na aba Painel (3.0) o mesmo carregador roda ESCONDIDO só para alimentar os números de "Agora" (corridas, entregas de lojas, candidaturas) e a lista "Chegando agora" */}
+                    {!loading && !showLogin && !showActivationWizard && activeTab === 'painel' && v3 && (
+                        <div hidden aria-hidden>
+                            <AceitarCorridas embedded tab="servicos" onTabChange={() => {}} onSummaryChange={setRideSummary} onRegisterVehicle={() => {}} />
+                        </div>
+                    )}
+
                     {!loading && !showLogin && (
                         <div className="flex flex-col gap-5">
                             {activeTab === 'painel' && v3 && (
@@ -825,9 +881,14 @@ function PainelMotoristaContent() {
                                     missingCount={missingFields.length}
                                     onContinueSignup={() => { setShowActivationWizard(true); setActiveTab('veiculo') }}
                                     rides={rideSummary.rides}
+                                    deliveries={rideSummary.deliveries}
+                                    acceptedIsDelivery={rideSummary.acceptedIsDelivery}
+                                    incoming={rideSummary.incoming}
                                     candidacies={rideSummary.candidacies}
                                     hasAccepted={rideSummary.hasAccepted}
                                     goTab={setActiveTab}
+                                    onDeliveries={() => router.push('/entregas')}
+                                    onEarnings={() => router.push('/ganhos')}
                                     vehicleLabel={carModel.trim() ? `${VEHICLE_KIND_LABELS[vehicleKind]} · ${carModel.trim()}${carPlate.trim() ? ` · ${carPlate.trim().toUpperCase()}` : ''}` : null}
                                     vehicles={(Object.entries(vehiclesByKind) as [VehicleKind, VehicleRow][])
                                         .filter(([, v]) => v?.car_model?.trim())
@@ -1022,6 +1083,10 @@ function PainelMotoristaContent() {
                                 </button>
                             </div>
 
+                            <div id="tarifa-km" className="flex items-center gap-2 mt-1 scroll-mt-24">
+                                <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por distância (km)</span>
+                                <span className="flex-1 h-px" style={{ background: colors.border }} />
+                            </div>
                             {pricingMode === 'platform' ? (
                                 <div className={cardCls} style={cardStyle}>
                                     {tariffSummary}
@@ -1067,6 +1132,74 @@ function PainelMotoristaContent() {
                                 </div>
                             )}
 
+                            <div id="tarifa-tempo" className="flex items-center gap-2 mt-1 scroll-mt-24">
+                                <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por tempo</span>
+                                <span className="flex-1 h-px" style={{ background: colors.border }} />
+                            </div>
+                            {pricingMode === 'custom' ? (
+                                <div className={cardCls} style={cardStyle}>
+                                    <label className={labelCls}>Minha tarifa por tempo (R$ por hora)</label>
+                                    <select
+                                        value={hourlySelect}
+                                        onChange={(e) => {
+                                            if (e.target.value === 'outro') { setTimeOther(true); setTimeOtherText(String(hourlyNow)); return }
+                                            setTimeOther(false)
+                                            pickHourly(Number(e.target.value))
+                                        }}
+                                        className={inputCls}
+                                        style={{ ...fieldStyle, ...(timeBelowFloor ? { border: '1.5px solid #ef4444' } : {}) }}
+                                        aria-label="Minha tarifa por tempo, em reais por hora"
+                                    >
+                                        {hourlyList.map((h) => (
+                                            <option key={h} value={String(h)}>R$ {h.toLocaleString('pt-BR')} por hora{h === defaultHourly ? ' · padrão do iUser' : ''}</option>
+                                        ))}
+                                        <option value="outro">Outro valor…</option>
+                                    </select>
+                                    {hourlySelect === 'outro' && (
+                                        <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            min={defaultHourly}
+                                            step="1"
+                                            value={timeOtherText}
+                                            onChange={(e) => {
+                                                setTimeOtherText(e.target.value)
+                                                const h = parseFloat(e.target.value.replace(',', '.'))
+                                                setCustomTouched(true)
+                                                setPricePerMinute(h > 0 ? String(hourlyToRate(h)) : '')
+                                            }}
+                                            placeholder={`R$ por hora (mínimo ${defaultHourly.toLocaleString('pt-BR')})`}
+                                            className={`${inputCls} mt-2`}
+                                            style={{ ...fieldStyle, ...(timeBelowFloor ? { border: '1.5px solid #ef4444' } : {}) }}
+                                        />
+                                    )}
+                                    <p className={`${v3 ? 'text-xs' : 'text-[11px]'} font-bold mt-1.5`} style={{ color: timeBelowFloor ? '#ef4444' : colors.textSecondary }}>
+                                        {timeBelowFloor
+                                            ? `Abaixo do mínimo: R$ ${rateToHourly(timeEntered).toLocaleString('pt-BR')} por hora. Use pelo menos R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o mínimo do iUser).`
+                                            : `Mínimo R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o padrão do iUser): só dá para aumentar. R$ ${hourlyNow.toLocaleString('pt-BR')} por hora = R$ ${hourlyToRate(hourlyNow).toFixed(2).replace('.', ',')} por minuto.`}
+                                    </p>
+                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-1.5`} style={{ color: colors.textSecondary }}>
+                                        Cobra os minutos de trabalho (ir buscar + a corrida). É o seu 3º valor, ao lado da Tarifa iUser e da tarifa por km: em cada corrida você escolhe qual propor. O mínimo do iUser por minuto e o seu ganho mínimo por hora (abaixo) também valem para ele.
+                                    </p>
+                                    {!timeBelowFloor && (
+                                        <p className={`${v3 ? 'text-xs' : 'text-[11px]'} font-bold mt-1`} style={{ color: '#16a34a' }}>
+                                            Ex.: uma corrida de 20 min de trabalho = R$ {(20 * hourlyToRate(hourlyNow)).toFixed(2).replace('.', ',')}
+                                        </p>
+                                    )}
+                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-1`} style={{ color: colors.textSecondary }}>A espera na parada não entra aqui: é regra do iUser.</p>
+                                </div>
+                            ) : (
+                                <p className={`${v3 ? 'text-xs' : 'text-[11px]'} px-1`} style={{ color: colors.textSecondary }}>
+                                    Na tarifa da plataforma o tempo vale o mínimo do iUser por minuto. Para ter o seu valor por minuto, escolha a Tarifa Personalizada acima.
+                                </p>
+                            )}
+
+                            <DriverEarningGoalCard driverId={userId} />
+
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Extras</span>
+                                <span className="flex-1 h-px" style={{ background: colors.border }} />
+                            </div>
                             <div
                                 className={cardCls}
                                 style={cardStyle}
@@ -1114,7 +1247,7 @@ function PainelMotoristaContent() {
                                                 type="number"
                                                 value={extraFeeAnimal}
                                                 onChange={(e) => setExtraFeeAnimal(e.target.value)}
-                                                placeholder="5"
+                                                placeholder="0"
                                                 className={inputCls}
                                                 style={fieldStyle}
                                             />
@@ -1125,7 +1258,7 @@ function PainelMotoristaContent() {
                                                 type="number"
                                                 value={extraFeeObjeto}
                                                 onChange={(e) => setExtraFeeObjeto(e.target.value)}
-                                                placeholder="3"
+                                                placeholder="0"
                                                 className={inputCls}
                                                 style={fieldStyle}
                                             />
@@ -1609,19 +1742,19 @@ function PainelMotoristaContent() {
                             Agora ligue o <strong>Modo motorista</strong> no painel pra ficar disponível: sua localização é compartilhada, você vê as solicitações em tempo real e pode se candidatar.
                         </p>
                         <button
-                            onClick={() => { setShowFirstVehicleDialog(false); setActiveTab('painel') }}
+                            onClick={() => { setShowFirstVehicleDialog(false); router.push(nextUrl || '/aceitar-corridas') }}
                             className="mt-2 w-full py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2"
                             style={{ background: GRADIENT, color: '#fff' }}
                         >
                             <Car size={18} />
-                            Ir para o painel
+                            Ver corridas e valores
                         </button>
                         <button
-                            onClick={() => setShowFirstVehicleDialog(false)}
+                            onClick={() => { setShowFirstVehicleDialog(false); setActiveTab('painel') }}
                             className="w-full py-2.5 rounded-full font-bold text-sm"
                             style={{ color: colors.textSecondary }}
                         >
-                            Continuar aqui
+                            Ir para o painel
                         </button>
                     </div>
                 </div>

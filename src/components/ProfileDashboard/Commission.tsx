@@ -41,7 +41,7 @@ import { Spinner } from '@/components/Spinner'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -56,7 +56,7 @@ import {
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useMyGraduation, GraduationOverview, GraduationCommissions, GraduationTree } from './MyGraduation'
 import { useMyPoints, MyPointsBody } from './MyPoints'
-import { rankStyle } from '@/app/(main)/social/SocialProfileCard'
+import { rankStyle } from '@/components/social/SocialProfileCard'
 
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====

@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import { ArrowLeft, Users, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import PeoplePicker, { PersonAvatar } from './PeoplePicker'
