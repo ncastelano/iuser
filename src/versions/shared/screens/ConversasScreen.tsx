@@ -16,7 +16,6 @@ import { useTheme } from '@/app/contexts/theme'
 import PageTabs from '@/components/PageTabs'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import type { UiVersion } from '@/versions/registry'
 import GroupAvatar from '@/modules/chat/ui/GroupAvatar'
 import NewConversationSheet from '@/modules/chat/ui/NewConversationSheet'
 import GroupInfoSheet from '@/modules/chat/ui/GroupInfoSheet'
@@ -378,8 +377,7 @@ function RoomSwitch({ tabs, colors }: { tabs: any[]; colors: any }) {
     )
 }
 
-function ConversasInner({ ui, embedded = false, basePath = '/conversas', defaultRoom = null }: { ui: UiVersion; embedded?: boolean; basePath?: string; defaultRoom?: string | null }) {
-    const v3 = ui === 'v3'
+function ConversasInner({ embedded = false, basePath = '/conversas', defaultRoom = null }: { embedded?: boolean; basePath?: string; defaultRoom?: string | null }) {
     const router = useRouter()
     const search = useSearchParams()
     const { colors } = useTheme()
@@ -490,30 +488,16 @@ function ConversasInner({ ui, embedded = false, basePath = '/conversas', default
     const active = rows?.find((r) => r.id === activeId) || null
 
     return (
-        <div className={v3 ? undefined : 'relative min-h-dvh'} style={v3 ? undefined : { background: colors.background }}>
-            {!v3 && (
-                <div className="fixed inset-0 z-0">
-                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-                </div>
-            )}
+        <div className={(undefined)} style={(undefined)}>
+            
 
-            <main className={v3 ? 'relative pb-8' : 'relative z-10 min-h-dvh pb-8'}>
-                {v3 ? (
+            <main className={('relative pb-8')}>
+                {((
                     // as CAIXAS (a da pessoa e a de cada loja) seguem o modo; só aparecem quando há mais de uma e num desenho próprio, para não parecerem as subabas de cima
                     tabs.length > 1 ? <RoomSwitch tabs={tabs} colors={colors} /> : (!embedded ? <PageTabs tabs={tabs} /> : null)
-                ) : (
-                    <Header
-                        title="Conversas"
-                        showBack
-                        onBack={() => router.push('/')}
-                        greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                        avatarUrl={avatarUrl}
-                        loading={profileLoading}
-                        tabs={tabs}
-                    />
-                )}
+                ))}
 
-                <section className={v3 ? 'mt-3' : 'px-4 md:px-6 mt-3'}>
+                <section className={('mt-3')}>
                     {!profileLoading && !userId ? (
                         <div className="rounded-3xl p-8 text-center flex flex-col items-center gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                             <MessageCircle size={36} style={{ color: colors.accent }} />
@@ -525,16 +509,16 @@ function ConversasInner({ ui, embedded = false, basePath = '/conversas', default
                             <Link href="/login?redirect=/conversas" className="px-6 py-3 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Entrar</Link>
                         </div>
                     ) : (
-                        <div className={`grid grid-cols-[minmax(0,1fr)] md:grid-cols-[360px_minmax(0,1fr)] gap-4 ${v3 ? 'md:h-[calc(100dvh-230px)]' : 'md:h-[calc(100dvh-260px)]'}`}>
+                        <div className={`grid grid-cols-[minmax(0,1fr)] md:grid-cols-[360px_minmax(0,1fr)] gap-4 ${('md:h-[calc(100dvh-230px)]')}`}>
                             {/* Lista: o título sozinho em cima e os cartões (quadrados) embaixo */}
                             <div className={`${active ? 'hidden md:flex' : 'flex'} flex-col min-h-0 min-w-0`}>
                                 <div className="pb-3 flex-shrink-0">
                                     <div className="flex items-center justify-between gap-3">
                                     <p className="text-[17px] font-black min-w-0 truncate" style={{ color: colors.textPrimary }}>
                                         {activeStore ? `Conversas de ${activeStore.name}` : 'Minhas conversas'}
-                                        {v3 && rows && rows.length > 0 && <span className="ml-2 text-xs font-bold" style={{ color: colors.textSecondary }}>{rows.length}</span>}
+                                        {(rows) && rows.length > 0 && <span className="ml-2 text-xs font-bold" style={{ color: colors.textSecondary }}>{rows.length}</span>}
                                     </p>
-                                    {v3 && !activeStore && (
+                                    {(!activeStore) && (
                                         <button
                                             onClick={() => setShowNew(true)}
                                             className="flex items-center gap-1.5 pl-3 pr-3.5 h-9 rounded-full text-xs font-black text-white flex-shrink-0 transition active:scale-95"
@@ -544,14 +528,10 @@ function ConversasInner({ ui, embedded = false, basePath = '/conversas', default
                                         </button>
                                     )}
                                     </div>
-                                    {!v3 && (
-                                        <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                            {activeStore ? 'Só as conversas desta loja' : 'Pessoas que falaram com você e conversas que você começou'}
-                                        </p>
-                                    )}
+                                    
                                 </div>
-                                <div className={`flex-1 min-h-0 overflow-y-auto flex flex-col ${v3 ? 'gap-2' : 'gap-3'}`}>
-                                    {v3 && !activeStore && invites.length > 0 && (
+                                <div className={`flex-1 min-h-0 overflow-y-auto flex flex-col ${('gap-2')}`}>
+                                    {(!activeStore) && invites.length > 0 && (
                                         <div className="mb-2 flex flex-col gap-2">
                                             <p className="px-1 text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Convites ({invites.length})</p>
                                             {invites.map((inv) => (
@@ -594,7 +574,7 @@ function ConversasInner({ ui, embedded = false, basePath = '/conversas', default
                                     {rows === null ? (
                                         <div className="flex justify-center py-10"><Spinner size={22} color={colors.accent} /></div>
                                     ) : rows.length === 0 ? (
-                                        <div className="p-8 text-center flex flex-col items-center gap-2 rounded-3xl" style={v3 ? { background: `${colors.border}30` } : { background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                        <div className="p-8 text-center flex flex-col items-center gap-2 rounded-3xl" style={({ background: `${colors.border}30` })}>
                                             <span className="w-14 h-14 rounded-full flex items-center justify-center text-white" style={{ background: GRADIENT }}><MessageCircle size={26} /></span>
                                             <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Nenhuma conversa ainda</p>
                                             <p className="text-xs" style={{ color: colors.textSecondary }}>
@@ -606,8 +586,7 @@ function ConversasInner({ ui, embedded = false, basePath = '/conversas', default
                                     ) : rows.map((r) => {
                                         const unread = r.unread > 0
                                         const img = otherAvatarUrl(r)
-                                        if (v3) {
-                                            // 3.0: linha limpa — avatar redondo, nome, última mensagem numa linha, hora e o contador
+                                                                                    // 3.0: linha limpa — avatar redondo, nome, última mensagem numa linha, hora e o contador
                                             const selected = r.id === activeId
                                             return (
                                                 <button
@@ -635,57 +614,14 @@ function ConversasInner({ ui, embedded = false, basePath = '/conversas', default
                                                     </span>
                                                 </button>
                                             )
-                                        }
-                                        // Não lida: o cartão inteiro fica verde e o texto, branco
-                                        const fg = unread ? '#ffffff' : colors.textPrimary
-                                        const fg2 = unread ? 'rgba(255,255,255,0.85)' : colors.textSecondary
-                                        return (
-                                            <button
-                                                key={r.id}
-                                                onClick={() => setParams({ c: r.id })}
-                                                className="w-full flex items-stretch text-left overflow-hidden transition-transform hover:-translate-y-0.5"
-                                                style={{
-                                                    background: unread ? '#16a34a' : colors.surface,
-                                                    border: `1px solid ${unread ? '#15803d' : r.id === activeId ? colors.accent : colors.border}`,
-                                                    boxShadow: unread ? '0 6px 18px #16a34a55' : colors.shadow,
-                                                }}
-                                            >
-                                                {/* A imagem ocupa o quadrado todo, do lado esquerdo */}
-                                                <span className="relative w-24 h-24 flex-shrink-0 overflow-hidden flex items-center justify-center text-white text-3xl font-black" style={{ background: GRADIENT }}>
-                                                    {img ? (
-                                                        <img src={img} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-                                                    ) : r.other_is_store ? (
-                                                        <StoreIcon size={32} />
-                                                    ) : (
-                                                        (otherLabel(r, '?')).replace('@', '').charAt(0).toUpperCase()
-                                                    )}
-                                                    {!r.other_is_store && <PlanRingInset userId={r.other_id} width={3} radius="0px" />}
-                                                </span>
-                                                <span className="min-w-0 flex-1 px-3 py-2.5 flex flex-col justify-center gap-0.5">
-                                                    <span className="flex items-baseline justify-between gap-2">
-                                                        <span className="text-sm font-black truncate" style={{ color: fg }}>{otherLabel(r)}</span>
-                                                        <span className="text-[11px] flex-shrink-0" style={{ color: fg2 }}>{timeLabel(r.last_message_at)}</span>
-                                                    </span>
-                                                    <span className="flex items-center justify-between gap-2">
-                                                        <span className="text-xs line-clamp-2" style={{ color: fg2, fontWeight: unread ? 700 : 400 }}>
-                                                            {r.last_message ? `${r.last_sender_id === userId ? 'Você: ' : ''}${r.last_message}` : 'Conversa iniciada'}
-                                                        </span>
-                                                        {unread && (
-                                                            <span className="min-w-5 h-5 px-1.5 rounded-full text-[11px] font-black flex items-center justify-center flex-shrink-0" style={{ background: '#ffffff', color: '#16a34a' }}>{r.unread}</span>
-                                                        )}
-                                                    </span>
-                                                    {r.role === 'customer' && <span className="text-[10px]" style={{ color: fg2 }}>Você começou esta conversa</span>}
-                                                </span>
-                                            </button>
-                                        )
                                     })}
                                 </div>
                             </div>
 
                             {/* Conversa aberta */}
-                            <div className={`${active ? 'flex' : 'hidden md:flex'} flex-col min-h-0 overflow-hidden`} style={{ height: active ? 'calc(100dvh - 250px)' : undefined, minHeight: 360, ...(v3 ? { background: `${colors.border}18`, borderRadius: 28 } : { background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }) }}>
+                            <div className={`${active ? 'flex' : 'hidden md:flex'} flex-col min-h-0 overflow-hidden`} style={{ height: active ? 'calc(100dvh - 250px)' : undefined, minHeight: 360, ...(({ background: `${colors.border}18`, borderRadius: 28 })) }}>
                                 {active && userId ? (
-                                    <Thread key={active.id} conversation={active} userId={userId} colors={colors} modern={v3}
+                                    <Thread key={active.id} conversation={active} userId={userId} colors={colors} modern={true}
                                         onOpenInfo={() => setShowInfo(true)} infoVersion={infoVersion}
                                         onBack={() => {
                                             if (cameFromOutside.current && window.history.length > 1) { router.back(); return }
@@ -730,10 +666,10 @@ function ConversasInner({ ui, embedded = false, basePath = '/conversas', default
 }
 
 /** Sala de conversas. Uma implementação só para as duas versões (muda só a moldura, ver CarrinhoScreen). */
-export default function ConversasScreen({ ui = 'v3', embedded = false, basePath = '/conversas', defaultRoom = null }: { ui?: UiVersion; embedded?: boolean; basePath?: string; defaultRoom?: string | null }) {
+export default function ConversasScreen({ embedded = false, basePath = '/conversas', defaultRoom = null }: { embedded?: boolean; basePath?: string; defaultRoom?: string | null }) {
     return (
         <Suspense fallback={null}>
-            <ConversasInner ui={ui} embedded={embedded} basePath={basePath} defaultRoom={defaultRoom} />
+            <ConversasInner embedded={embedded} basePath={basePath} defaultRoom={defaultRoom} />
         </Suspense>
     )
 }

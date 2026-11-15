@@ -35,8 +35,7 @@ const SORTS: SortOption[] = [
 const catList = categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social')
 const catName = (slug: string) => (slug === 'transporte' ? 'Frete' : catList.find((c) => c.slug === slug)?.nome || slug)
 
-export default function LojasScreen({ ui }: { ui: 'v2' | 'v3' }) {
-    const v3 = ui === 'v3'
+export default function LojasScreen() {
     const router = useRouter()
     const { colors } = useTheme()
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -193,8 +192,7 @@ export default function LojasScreen({ ui }: { ui: 'v2' | 'v3' }) {
         </>
     )
 
-    if (v3) {
-        return (
+            return (
             <div className="pb-6">
                 {/* Voltar + busca na mesma linha, no mesmo estilo (cápsulas cinza-claras) */}
                 <div className="flex items-center gap-2 mb-4">
@@ -221,7 +219,6 @@ export default function LojasScreen({ ui }: { ui: 'v2' | 'v3' }) {
                 {body}
             </div>
         )
-    }
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>

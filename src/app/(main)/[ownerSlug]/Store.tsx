@@ -78,7 +78,6 @@ interface StoreProps {
     onOpenPublications?: (publications: any[], initialIndex: number, storeSlug: string) => void
     onDialogOpenChange?: (open: boolean) => void
     /** v3 = cabeçalho compacto, abas em cápsulas e produtos sem moldura (mesma lógica da v2) */
-    ui?: 'v2' | 'v3'
 }
 
 interface OwnerData {
@@ -148,9 +147,7 @@ export function Store({
     loggedUserSlug,
     onOpenPublications,
     onDialogOpenChange,
-    ui = 'v2',
 }: StoreProps) {
-    const v3 = ui === 'v3'
     const router = useRouter()
     const { userId: currentUserId } = useProfile()
 
@@ -1055,7 +1052,7 @@ export function Store({
             )}
 
             {/* ===== CARD DA LOJA (CABEÇALHO) ===== */}
-            {v3 ? (
+            {((
                 <StoreHeaderV3
                     colors={colors}
                     name={owner.name}
@@ -1111,297 +1108,7 @@ export function Store({
                         />
                     ) : undefined}
                 />
-            ) : (
-            <>
-            <div className="relative rounded-2xl p-6 space-y-4" style={cardStyle}>
-                <button
-                    onClick={handleShareStore}
-                    className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                    style={{ background: glassBg, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                    aria-label="Compartilhar"
-                    title="Compartilhar"
-                >
-                    <Share2 size={16} />
-                    {shareCount > 0 && (
-                        <span
-                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-white text-[9px] flex items-center justify-center font-black leading-none"
-                            style={{ backgroundColor: '#ef4444', border: `2px solid ${colors.surface}` }}
-                        >
-                            {shareCount}
-                        </span>
-                    )}
-                </button>
-
-                <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0">
-                        <StoreFrame level={owner.store_level || 0} size={80} innerRadius={16} ring={4} bg={colors.background}>
-                        <div
-                            className={`w-20 h-20 rounded-2xl p-[4px] ${isStoreOpen ? 'animate-pulse-glow-open' : 'animate-pulse-glow-closed'}`}
-                            style={{
-                                background: isStoreOpen
-                                    ? 'linear-gradient(135deg, #10b981, #059669, #34d399)'
-                                    : 'linear-gradient(135deg, #ef4444, #dc2626, #f87171)',
-                            }}
-                        >
-                            <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
-                                {imageUrl ? (
-                                    <img src={imageUrl} alt={owner.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <span className="text-2xl font-black" style={{ color: '#f97316' }}>
-                                        {owner.name?.charAt(0) || '?'}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                        </StoreFrame>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h2 className="text-xl font-black tracking-tight" style={{ color: colors.textPrimary }}>{owner.name}</h2>
-                        <div className="flex flex-col gap-1 mt-0.5 text-xs" style={{ color: colors.textSecondary }}>
-                            <button
-                                onClick={() => {
-                                    if (owner.business_hours && Object.keys(owner.business_hours).length > 0) {
-                                        setShowAllHours(true)
-                                    }
-                                }}
-                                className="flex items-center gap-1 font-bold hover:underline cursor-pointer w-fit"
-                                style={{
-                                    color: isStoreOpen ? '#10b981' : '#ef4444',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    padding: 0,
-                                }}
-                            >
-                                <Clock className="w-3.5 h-3.5" />
-                                <span className="truncate max-w-[200px]">{statusText}</span>
-                            </button>
-                            {!isStoreOpen && nextAvailable && (
-                                <span className="text-[10px] font-bold" style={{ color: '#f97316' }}>
-                                    Abre {nextAvailable.day} às {nextAvailable.open}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {owner.description && (
-                    <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
-                        {expandedDesc || owner.description.length <= DESC_LIMIT
-                            ? owner.description
-                            : `${owner.description.slice(0, DESC_LIMIT)}...`}
-                        {owner.description.length > DESC_LIMIT && (
-                            <button
-                                onClick={() => setExpandedDesc(!expandedDesc)}
-                                className="ml-1 font-bold text-xs uppercase hover:underline"
-                                style={{ color: '#f97316' }}
-                            >
-                                {expandedDesc ? 'ver menos' : 'ver mais'}
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {owner.address && (
-                    <button
-                        onClick={openGoogleMaps}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
-                        style={{ background: glassBg, border: `1px solid ${colors.border}` }}
-                    >
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                            <MapPin size={18} />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Localização</p>
-                            <p className="text-xs mt-0.5 truncate" style={{ color: colors.textSecondary }}>{owner.address}</p>
-                        </div>
-                    </button>
-                )}
-
-                {isOwner && (
-                    <>
-                        <button
-                                onClick={() => handleToggleChat(!owner.chat_enabled)}
-                                disabled={chatSaving}
-                                className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01] disabled:opacity-70"
-                                style={{ background: glassBg, border: `1px ${owner.chat_enabled ? 'solid' : 'dashed'} ${owner.chat_enabled ? colors.border : '#f97316'}` }}
-                            >
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: owner.chat_enabled ? 'rgba(249,115,22,0.15)' : GRADIENT, color: owner.chat_enabled ? '#f97316' : '#fff' }}>
-                                    <MessageCircle size={18} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{owner.chat_enabled ? 'Chat ativo' : 'Ativar chat'}</p>
-                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                        {owner.chat_enabled ? 'Sua loja mostra o botão Conversar. Toque para desativar' : 'Deixe os clientes te chamarem por mensagem na sua loja'}
-                                    </p>
-                                </div>
-                            </button>
-                            {owner.chat_enabled && (
-                                <button
-                                    onClick={() => router.push('/conversas')}
-                                    className="w-full text-xs font-bold underline text-center"
-                                    style={{ color: '#f97316' }}
-                                >
-                                    Ver minhas conversas
-                                </button>
-                            )}
-                    </>
-                )}
-
-                {isOwner && (
-                    <button
-                        onClick={() => setShowAgendaDialog(true)}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
-                        style={{ background: glassBg, border: `1px ${owner.allow_scheduling ? 'solid' : 'dashed'} ${owner.allow_scheduling ? colors.border : '#f97316'}` }}
-                    >
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: owner.allow_scheduling ? 'rgba(249,115,22,0.15)' : GRADIENT, color: owner.allow_scheduling ? '#f97316' : '#fff' }}>
-                            <Calendar size={18} />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
-                            </p>
-                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                {owner.allow_scheduling ? 'Toque para ver os custos ou desativar' : 'Receba pedidos de agendamento na sua loja'}
-                            </p>
-                        </div>
-                    </button>
-                )}
-
-                {owner.allow_scheduling && (
-                    <button
-                        onClick={() => setShowScheduleModal(true)}
-                        className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01] ${nextAvailable ? 'animate-pulse-status' : ''}`}
-                        style={{ background: glassBg, border: `1px solid ${colors.border}` }}
-                    >
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                            <Calendar size={18} />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Agendar Atendimento</p>
-                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                {nextAvailable ? `Próximo horário disponível: ${nextAvailable.day} ${nextAvailable.open}` : 'Ver horários disponíveis'}
-                            </p>
-                        </div>
-                    </button>
-                )}
-
-                {owner.chat_enabled && !isOwner && (
-                    <ChatContactButton storeId={owner.id} colors={colors} background={glassBg} />
-                )}
-
-                {whatsappLink && (
-                    <a
-                        href={whatsappLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
-                        style={{ background: glassBg, border: `1px solid ${colors.border}` }}
-                    >
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#25D366', color: '#fff' }}>
-                            <MessageCircle size={18} />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>WhatsApp</p>
-                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{owner.whatsapp}</p>
-                        </div>
-                    </a>
-                )}
-
-                {instagramLink && (
-                    <a
-                        href={instagramLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
-                        style={{ background: glassBg, border: `1px solid ${colors.border}` }}
-                    >
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)', color: '#fff' }}>
-                            <Camera size={18} />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Instagram</p>
-                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{owner.instagram}</p>
-                        </div>
-                    </a>
-                )}
-
-                <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
-                        <Eye size={12} />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
-                        <span>visitantes</span>
-                    </div>
-
-                    <button
-                        onClick={() => setShowFollowers(true)}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105"
-                        style={{ background: glassBg, color: colors.textSecondary }}
-                    >
-                        <Users size={12} />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>{followersCount}</span>
-                        <span>seguidores</span>
-                    </button>
-
-                    {currentUserId && currentUserId !== owner.id && (
-                        <button
-                            onClick={handleFollowToggle}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105 ${isFollowing ? 'border-2' : ''}`}
-                            style={isFollowing ? {
-                                borderColor: '#f97316',
-                                color: '#f97316',
-                                background: 'transparent'
-                            } : {
-                                background: GRADIENT,
-                                color: '#fff'
-                            }}
-                        >
-                            {isFollowing ? <UserCheck size={12} /> : <UserPlus size={12} />}
-                            {isFollowing ? 'Seguindo' : 'Seguir'}
-                        </button>
-                    )}
-                </div>
-
-                <StoreVipClubMember storeId={owner.id} userId={currentUserId} />
-
-                {!isStoreOpen && (
-                    <div
-                        className="rounded-xl p-4 text-center"
-                        style={{
-                            background: 'rgba(239, 68, 68, 0.08)',
-                            border: `1px dashed #ef4444`,
-                        }}
-                    >
-                        <AlertCircle size={20} style={{ color: '#ef4444' }} className="mx-auto mb-2" />
-                        <p className="text-xs font-bold" style={{ color: '#ef4444' }}>
-                            Loja fechada no momento
-                        </p>
-                        {products.length > 0 ? (
-                            <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
-                                Clique em um produto para ver mais detalhes
-                            </p>
-                        ) : (
-                            <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
-                                Essa loja ainda não possui produtos
-                            </p>
-                        )}
-                        {nextAvailable && (
-                            <p className="text-[10px] font-bold mt-1" style={{ color: '#f97316' }}>
-                                Abre {nextAvailable.day} às {nextAvailable.open}
-                            </p>
-                        )}
-                    </div>
-                )}
-
-                {/* Só o dono: ajustar os dias e horários de funcionamento */}
-                {isOwner && !isStoreOpen && (
-                    <StoreOperatingDays
-                        storeId={owner.id}
-                        onSaved={(config) => setOwner(prev => prev ? { ...prev, business_hours: config as any } : prev)}
-                    />
-                )}
-            </div>
-            </>
-            )}
+            ))}
 
             {/* ===== PUBLICAÇÕES (círculos estilo stories, acima das tabs) ===== */}
             {(publications.length > 0 || isOwner) && (
@@ -1485,10 +1192,10 @@ export function Store({
             )}
 
             {/* ===== DESTAQUE (Studio / Conteúdo): no lugar do botão de comprar, a música/álbum/vídeo ou o audiolivro/podcast principal ===== */}
-            {!v3 && creator?.hero && featured && <FeaturedHero item={featured} ownerHint={isOwner} />}
+            
 
             {/* ===== TABS ===== */}
-            <div className={v3 ? 'flex' : 'flex rounded-2xl p-1.5 gap-1'} style={v3 ? { borderBottom: `1px solid ${colors.border}60` } : cardStyle}>
+            <div className={('flex')} style={({ borderBottom: `1px solid ${colors.border}60` })}>
                 {(() => {
                     const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
                     const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
@@ -1499,30 +1206,15 @@ export function Store({
                     const catalogTabs = creator
                         ? [digitalTab, ...(goods.length > 0 || isOwner ? [productsTab] : []), ...(services.length > 0 ? [servicesTab] : [])]
                         : (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab, ...digitalTabs] : [productsTab, ...digitalTabs, servicesTab]
-                    return v3 ? catalogTabs : [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
+                    return (catalogTabs)
                 })().map(tab => {
                     const isActive = activeTab === tab.id
                     return (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as TabType)}
-                            className={v3
-                                ? 'flex-1 h-10 -mb-px flex items-center justify-center gap-1.5 text-[13px] font-black transition active:scale-95'
-                                : `flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
-                            style={v3
-                                ? { background: 'transparent', color: isActive ? colors.textPrimary : colors.textSecondary, borderBottom: `3px solid ${isActive ? '#f97316' : 'transparent'}` }
-                                : isActive
-                                    ? {
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: `0 4px 12px #f9731650`,
-                                        border: 'none',
-                                    }
-                                    : {
-                                        background: 'transparent',
-                                        color: colors.textSecondary,
-                                        border: '1px solid transparent',
-                                    }
+                            className={('flex-1 h-10 -mb-px flex items-center justify-center gap-1.5 text-[13px] font-black transition active:scale-95')}
+                            style={({ background: 'transparent', color: isActive ? colors.textPrimary : colors.textSecondary, borderBottom: `3px solid ${isActive ? '#f97316' : 'transparent'}` })
                             }
                         >
                             <span>{tab.label}</span>
@@ -1538,20 +1230,12 @@ export function Store({
             <div className="space-y-4">
                 {/* TAB PRODUTOS / SERVIÇOS (mesmo layout, listas separadas) */}
                 {(activeTab === 'products' || activeTab === 'services') && (
-                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                    <div className={('')} style={(undefined)}>
                         {/* v3: a aba já diz "Produtos"/"Serviços" e o cabeçalho já diz se está fechada: sem título repetido (só o botão do dono) */}
-                        <div className={`flex items-center gap-2 ${v3 ? (isOwner && storeSubscriptionActive !== false ? 'mb-3' : 'hidden') : 'mb-3'}`}>
-                            {!v3 && <ShoppingCart size={16} style={{ color: '#f97316' }} />}
-                            {!v3 && (
-                                <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
-                                    {activeTab === 'services' ? 'Serviços' : 'Produtos'}
-                                </h3>
-                            )}
-                            {!v3 && !isStoreOpen && (
-                                <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>
-                                    Fechado
-                                </span>
-                            )}
+                        <div className={`flex items-center gap-2 ${((isOwner && storeSubscriptionActive !== false ? 'mb-3' : 'hidden'))}`}>
+                            
+                            
+                            
                             {isOwner && storeSubscriptionActive !== false && (
                                 <button
                                     onClick={() => router.push(`/${ownerSlug}/criar-produto${activeTab === 'services' ? '?type=service' : ''}`)}
@@ -1565,8 +1249,8 @@ export function Store({
                         </div>
 
                         {/* v3: sem nada para buscar, não mostra a busca */}
-                        {!(v3 && catalogList.length === 0) && (
-                        <div className={`flex items-center gap-2 ${v3 ? 'mb-3' : 'mb-4'}`}>
+                        {!((catalogList.length === 0)) && (
+                        <div className={`flex items-center gap-2 ${('mb-3')}`}>
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
                                 <input
@@ -1628,7 +1312,7 @@ export function Store({
                                         <Plus size={16} /> {activeTab === 'services' ? 'Adicionar serviço' : 'Adicionar Produto'}
                                     </button>
                                 </div>
-                            ) : v3 && catalogList.length === 0 ? (
+                            ) : (catalogList.length === 0) ? (
                                 <p className="py-3 text-[13px] font-bold" style={{ color: colors.textSecondary }}>
                                     {activeTab === 'services' ? 'Esta loja ainda não publicou serviços.' : 'Esta loja ainda não publicou produtos.'}
                                 </p>
@@ -1677,13 +1361,13 @@ export function Store({
                                         <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={{ background: `${colors.border}55`, color: colors.textSecondary }}>{products.length}</span>
                                     </button>
                                     {!isCollapsed && (
-                                    <div className={v3 && activeTab === 'services' && actions.serviceRows ? 'flex flex-col' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
+                                    <div className={(activeTab === 'services') && actions.serviceRows ? 'flex flex-col' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
                                         {products.map(product => {
                                             const isHourly = product.price_type === 'hourly'
                                             const hasImage = !!product.image_url
 
                                             // v3, lojas de atendimento e mistas: serviços em LINHAS (foto pequena, nome, duração e preço, botão Agendar)
-                                            if (v3 && activeTab === 'services' && actions.serviceRows) {
+                                            if ((activeTab === 'services') && actions.serviceRows) {
                                                 return (
                                                     <div
                                                         key={product.id}
@@ -1772,15 +1456,10 @@ export function Store({
                                                     key={product.id}
                                                     id={`produto-${product.id}`}
                                                     onClick={(e) => handleProductClick(product, e)}
-                                                    className={v3
-                                                        ? 'relative cursor-pointer transition active:scale-[0.98]'
-                                                        : 'relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer'}
-                                                    style={v3 ? undefined : {
-                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                                        borderColor: colors.border,
-                                                    }}
+                                                    className={('relative cursor-pointer transition active:scale-[0.98]')}
+                                                    style={(undefined)}
                                                 >
-                                                    <div className={`aspect-square relative overflow-hidden ${v3 ? 'rounded-2xl' : ''}`} style={{ background: colors.accentLight }}>
+                                                    <div className={`aspect-square relative overflow-hidden ${('rounded-2xl')}`} style={{ background: colors.accentLight }}>
                                                         {product.image_url ? (
                                                             <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                         ) : (
@@ -1795,23 +1474,19 @@ export function Store({
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className={v3 ? 'pt-1.5 px-0.5' : 'p-2'}>
-                                                        <h4 className={`${v3 ? 'text-[13px]' : 'text-xs'} font-bold line-clamp-1`} style={{ color: colors.textPrimary }}>
+                                                    <div className={('pt-1.5 px-0.5')}>
+                                                        <h4 className={`${('text-[13px]')} font-bold line-clamp-1`} style={{ color: colors.textPrimary }}>
                                                             {product.name}
                                                         </h4>
-                                                        {!v3 && (
-                                                            <p className="text-[10px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
-                                                                {product.description || 'Sem descrição'}
-                                                            </p>
-                                                        )}
-                                                        <div className={`${v3 ? 'mt-0.5' : 'mt-2'} flex items-center`}>
+                                                        
+                                                        <div className={`${('mt-0.5')} flex items-center`}>
                                                             <span className="text-sm font-extrabold" style={{ color: '#f97316' }}>
                                                                 R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                             </span>
                                                             {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
-                                                            {v3 && product.type === 'service' && product.duration_minutes ? <span className="text-[11px] ml-2 font-bold" style={{ color: colors.textSecondary }}>{product.duration_minutes} min</span> : null}
+                                                            {(product.type === 'service') && product.duration_minutes ? <span className="text-[11px] ml-2 font-bold" style={{ color: colors.textSecondary }}>{product.duration_minutes} min</span> : null}
                                                         </div>
-                                                        {v3 && product.type === 'service' && !!owner?.allow_scheduling && !isOwner && (
+                                                        {(product.type === 'service') && !!owner?.allow_scheduling && !isOwner && (
                                                             <button
                                                                 onClick={e => { e.stopPropagation(); setScheduleProductId(product.id); setShowScheduleModal(true) }}
                                                                 className="mt-1.5 w-full h-9 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
@@ -1856,7 +1531,7 @@ export function Store({
                 {/* TAB AVALIAÇÕES */}
                 {/* TAB DIGITAIS: as prateleiras por tipo (cursos, músicas, audiolivros, filmes, e-books, programas) */}
                 {activeTab === 'digital' && (
-                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                    <div className={('')} style={(undefined)}>
                         {(() => {
                             const ownerCtl = isOwner && owner && creator?.hero ? { storeId: owner.id, heroKinds: creator.heroKinds, onChanged: reloadDigital } : undefined
                             if (digitalItems.length === 0) return (
@@ -1880,92 +1555,11 @@ export function Store({
                     </div>
                 )}
 
-                {activeTab === 'reviews' && !v3 && (
-                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
-                        {/* v3: a aba já diz "Avaliações" e a nota já aparece no cabeçalho: sem título nem cartão */}
-                        <div className={`flex items-center gap-2 mb-3 ${v3 ? 'hidden' : ''}`}>
-                            <Star size={16} style={{ color: '#f97316' }} />
-                            <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
-                                Avaliações
-                            </h3>
-                            {ratingsStats && (
-                                <span className="text-xs font-bold ml-auto" style={{ color: '#f97316' }}>
-                                    {ratingsStats.avg} ★ ({ratingsStats.count})
-                                </span>
-                            )}
-                        </div>
-
-                        {v3 ? (
-                            <ReviewsV3
-                                ratings={ratings as any}
-                                colors={colors}
-                                renderAvatar={renderReviewAvatar}
-                            />
-                        ) : ratings.length === 0 ? (
-                            <div className="py-8 text-center rounded-xl" style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}>
-                                <Star className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textSecondary }} />
-                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Nenhuma avaliação ainda</p>
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>Seja o primeiro a avaliar!</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                                {ratings.map((rating: any) => {
-                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
-                                    return (
-                                        <div key={rating.id} className="flex gap-3 p-3 rounded-xl border" style={{
-                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                            borderColor: colors.border,
-                                        }}>
-                                            <PlanAvatarRing userId={rating.is_anonymous ? null : rating.profile_id} radius="12px">
-                                            <div className="w-8 h-8 rounded-xl p-[2px] shrink-0" style={{ background: GRADIENT }}>
-                                                <div className="w-full h-full rounded-xl overflow-hidden bg-white flex items-center justify-center">
-                                                    {avatarUrl ? (
-                                                        <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span className="font-bold text-xs" style={{ color: '#f97316' }}>
-                                                            {(rating.profiles?.profileSlug || rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            </PlanAvatarRing>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between">
-                                                    <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                                        {profileLabel(rating.profiles)}
-                                                    </p>
-                                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                                        {new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                    </span>
-                                                </div>
-                                                <div className="mt-0.5">
-                                                    <RatingStars value={rating.rating} size={12} />
-                                                    {!rating.is_anonymous && rating.products?.name && (
-                                                        <span className="ml-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase" style={{ background: '#f9731620', color: '#f97316' }}>
-                                                            {rating.products.name}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {rating.comment && (
-                                                    <p className="text-xs italic mt-1 leading-relaxed" style={{ color: colors.textSecondary }}>
-                                                        "{rating.comment}"
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        )}
-                    </div>
-                )}
+                
             </div>
 
             {/* ===== DIÁLOGO DE AVALIAÇÕES (3.0): abre ao tocar na nota do cabeçalho ===== */}
-            {v3 && showReviews && (
+            {(showReviews) && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowReviews(false)}>
                     <div className="w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[88vh] flex flex-col" style={{ background: colors.surface }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Avaliações da loja">
                         <div className="flex items-center gap-2 px-5 pt-4 pb-2 flex-shrink-0">

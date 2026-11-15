@@ -2,5 +2,5 @@
 import PedirMotoristaScreen from '@/versions/shared/screens/PedirMotoristaScreen'
 
 export default function PedirMotoristaV3Page() {
-    return <PedirMotoristaScreen ui="v3" />
+    return <PedirMotoristaScreen />
 }

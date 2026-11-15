@@ -479,7 +479,6 @@ export default function OwnerClientPage() {
                     <>
                         {ownerType === 'profile' ? (
                             <Profile
-                                ui={insideShell ? 'v3' : 'v2'}
                                 ownerSlug={ownerSlug}
                                 colors={colors}
                                 bgMode={bgMode}
@@ -488,7 +487,6 @@ export default function OwnerClientPage() {
                             />
                         ) : (
                             <Store
-                                ui={insideShell ? 'v3' : 'v2'}
                                 ownerSlug={ownerSlug}
                                 colors={colors}
                                 bgMode={bgMode}

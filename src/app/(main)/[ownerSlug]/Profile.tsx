@@ -75,7 +75,6 @@ interface ProfileProps {
     customBgUrl?: string | null
     loggedUserSlug?: string | null
     /** v3 = cabeçalho compacto e abas em cápsulas (mesma lógica da v2) */
-    ui?: 'v2' | 'v3'
 }
 
 interface OwnerData {
@@ -251,8 +250,7 @@ export function extractStreetDisplay(fullAddress: string): string {
 }
 // ========== FIM DA LOGICA DO LOCATION PICKER ==========
 
-export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, ui = 'v2' }: ProfileProps) {
-    const v3 = ui === 'v3'
+export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug }: ProfileProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { userId: currentUserId, loading: profileCtxLoading } = useProfile()
@@ -1594,7 +1592,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
             `}</style>
 
             {/* ===== HEADER DO PERFIL ===== */}
-            {v3 ? (
+            {((
                 <ProfileHeaderV3
                     colors={colors}
                     name={owner.name}
@@ -1635,311 +1633,10 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     }))}
                     onOpenStore={(slug) => router.push(`/${slug}`)}
                 />
-            ) : (
-            <>
-            <div className="relative rounded-2xl p-5" style={cardStyle}>
-                <button
-                    onClick={handleShareProfile}
-                    className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                    style={{ background: glassBg, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                    aria-label="Compartilhar"
-                    title="Compartilhar"
-                >
-                    <Share2 size={16} />
-                    {shareCount > 0 && (
-                        <span
-                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-white text-[9px] flex items-center justify-center font-black leading-none"
-                            style={{ backgroundColor: '#ef4444', border: `2px solid ${colors.surface}` }}
-                        >
-                            {shareCount}
-                        </span>
-                    )}
-                </button>
-
-                <div className="flex flex-col items-center text-center">
-                    {renderAvatar('w-28 h-28', 'text-5xl')}
-
-                    <h1 className="text-2xl font-black mt-3 tracking-tight" style={{ color: colors.textPrimary }}>
-                        {owner.name}
-                    </h1>
-                    {ownerLevel && (
-                        <div className="mt-1.5 flex justify-center"><LevelBadge level={ownerLevel} size="sm" /></div>
-                    )}
-                    {ownerSeen && (
-                        <p className="mt-1.5 flex items-center justify-center gap-1.5 text-xs font-bold" style={{ color: ownerSeen.online ? '#16a34a' : colors.textSecondary }}>
-                            <span className={`w-2 h-2 rounded-full ${ownerSeen.online ? 'animate-pulse' : ''}`} style={{ background: ownerSeen.online ? '#22c55e' : colors.textSecondary, opacity: ownerSeen.online ? 1 : 0.5 }} />
-                            {ownerSeen.text}
-                        </p>
-                    )}
-
-                    {owner.description && (
-                        <div className="mt-3 text-sm leading-relaxed max-w-lg mx-auto" style={{ color: colors.textSecondary }}>
-                            {expandedDesc || owner.description.length <= DESC_LIMIT
-                                ? owner.description
-                                : `${owner.description.slice(0, DESC_LIMIT)}...`}
-                            {owner.description.length > DESC_LIMIT && (
-                                <button
-                                    onClick={() => setExpandedDesc(!expandedDesc)}
-                                    className="ml-1 font-bold text-xs uppercase hover:underline"
-                                    style={{ color: '#f97316' }}
-                                >
-                                    {expandedDesc ? 'ver menos' : 'ver mais'}
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                <div className="mt-4 space-y-3">
-                    {owner.address && (owner.show_location !== false || isOwner) && (
-                        <button
-                            onClick={() => {
-                                const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(owner.address!)}`
-                                window.open(url, '_blank')
-                            }}
-                            className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
-                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
-                        >
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: LOCATION_GRADIENT, color: '#fff' }}>
-                                <MapPin size={18} />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Localização</p>
-                                <p className="text-xs mt-0.5 truncate" style={{ color: colors.textSecondary }}>{owner.address}</p>
-                            </div>
-                        </button>
-                    )}
-
-                    {isOwner && (
-                        <>
-                            <button
-                                onClick={() => handleToggleChat(!owner.chat_enabled)}
-                                disabled={chatSaving}
-                                className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01] disabled:opacity-70"
-                                style={{ background: glassBg, border: `1px ${owner.chat_enabled ? 'solid' : 'dashed'} ${owner.chat_enabled ? colors.border : '#f97316'}` }}
-                            >
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: owner.chat_enabled ? 'rgba(249,115,22,0.15)' : GRADIENT, color: owner.chat_enabled ? '#f97316' : '#fff' }}>
-                                    <MessageCircle size={18} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{owner.chat_enabled ? 'Chat ativo' : 'Ativar chat'}</p>
-                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                        {owner.chat_enabled ? 'Seu perfil mostra o botão Conversar. Toque para desativar' : 'Deixe as pessoas te chamarem por mensagem pelo seu perfil'}
-                                    </p>
-                                </div>
-                            </button>
-                            {owner.chat_enabled && (
-                                <button
-                                    onClick={() => router.push('/conversas')}
-                                    className="w-full text-xs font-bold underline text-center"
-                                    style={{ color: '#f97316' }}
-                                >
-                                    Ver minhas conversas
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setShowAgendaDialog(true)}
-                                className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
-                                style={{ background: glassBg, border: `1px ${owner.allow_scheduling ? 'solid' : 'dashed'} ${owner.allow_scheduling ? colors.border : '#f97316'}` }}
-                            >
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: owner.allow_scheduling ? 'rgba(249,115,22,0.15)' : GRADIENT, color: owner.allow_scheduling ? '#f97316' : '#fff' }}>
-                                    <Calendar size={18} />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}</p>
-                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                        {owner.allow_scheduling ? 'Toque para ver os custos ou desativar' : 'Receba pedidos de agendamento no seu perfil'}
-                                    </p>
-                                </div>
-                            </button>
-                            {owner.allow_scheduling && (
-                                <button
-                                    onClick={() => router.push('/compromissos?tab=agenda-perfil')}
-                                    className="w-full text-xs font-bold underline text-center"
-                                    style={{ color: '#f97316' }}
-                                >
-                                    Ver pedidos e ajustar horários de atendimento
-                                </button>
-                            )}
-                        </>
-                    )}
-
-                    {!isOwner && owner.allow_scheduling && (
-                        <button
-                            onClick={() => setShowScheduleModal(true)}
-                            className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
-                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
-                        >
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                                <Calendar size={18} />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Agendar atendimento</p>
-                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>Escolha um dia e horário na agenda de {owner.name}</p>
-                            </div>
-                        </button>
-                    )}
-
-                    {agendaDialogs}
-
-                    {liveLocCard}
-
-                    {owner.chat_enabled && owner.id !== currentUserId && (
-                        <ChatContactButton profileId={owner.id} colors={colors} background={glassBg} />
-                    )}
-
-                    {whatsappLink && (
-                        <a
-                            href={whatsappLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
-                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
-                        >
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: WHATSAPP_GRADIENT, color: '#fff' }}>
-                                <MessageCircle size={18} />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>WhatsApp</p>
-                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{formatBrazilianPhone(owner.whatsapp!)}</p>
-                            </div>
-                        </a>
-                    )}
-
-                    {instagramLink && (
-                        <a
-                            href={instagramLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
-                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
-                        >
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)', color: '#fff' }}>
-                                <Camera size={18} />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Instagram</p>
-                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{owner.instagram}</p>
-                            </div>
-                        </a>
-                    )}
-                </div>
-
-                <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
-                        <Eye size={12} />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
-                        <span>visitas</span>
-                    </div>
-
-                    <button
-                        onClick={() => {
-                            setFollowType('followers')
-                            setShowFollows(true)
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105 hover:bg-white/10"
-                        style={{ background: glassBg, color: colors.textSecondary }}
-                    >
-                        <Users size={12} />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>{followersCount}</span>
-                        <span>seguidores</span>
-                    </button>
-
-                    <button
-                        onClick={() => {
-                            setFollowType('following')
-                            setShowFollows(true)
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105 hover:bg-white/10"
-                        style={{ background: glassBg, color: colors.textSecondary }}
-                    >
-                        <UserCheck size={12} />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>{followingCount}</span>
-                        <span>seguindo</span>
-                    </button>
-
-                    {currentUserId && currentUserId !== owner.id && (
-                        <button
-                            onClick={handleFollowToggle}
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
-                            style={isFollowing ? {
-                                background: 'transparent',
-                                color: '#f97316',
-                                border: `2px solid ${GRADIENT}`,
-                            } : {
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                border: 'none',
-                            }}
-                        >
-                            {isFollowing ? <UserCheck size={12} /> : <UserPlus size={12} />}
-                            {isFollowing ? 'Seguindo' : 'Seguir'}
-                        </button>
-                    )}
-                </div>
-
-                {isOwner && (
-                    <div className="flex justify-center mt-3">
-                        <button
-                            onClick={() => setShowEditDialog(true)}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                boxShadow: '0 4px 14px rgba(249, 115, 22, 0.4)',
-                                border: 'none',
-                            }}
-                        >
-                            <Pencil size={14} />
-                            Editar Perfil
-                        </button>
-                    </div>
-                )}
-
-                {stores.length > 0 && (
-                    <div className="mt-4 pt-4 border-t" style={{ borderColor: colors.border }}>
-                        <div className="flex flex-wrap items-center justify-center gap-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider mr-1" style={{ color: colors.textSecondary }}>
-                                Lojas
-                            </span>
-                            {stores.map((store) => {
-                                const logoUrl = store.logo_url
-                                    ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
-                                    : null
-                                return (
-                                    <button
-                                        key={store.id}
-                                        onClick={() => router.push(`/${store.storeSlug}`)}
-                                        className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:scale-105"
-                                        style={{
-                                            background: GRADIENT,
-                                            color: '#ffffff',
-                                            boxShadow: '0 2px 10px rgba(249, 115, 22, 0.3)',
-                                            border: 'none',
-                                        }}
-                                    >
-                                        <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
-                                            {logoUrl ? (
-                                                <img src={logoUrl} className="w-full h-full object-cover" alt={store.name} />
-                                            ) : (
-                                                <span className="text-xs font-black text-white">
-                                                    {store.name?.charAt(0).toUpperCase()}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <span>{store.name}</span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    </div>
-                )}
-            </div>
-            </>
-            )}
+            ))}
 
             {/* ===== TABS ===== */}
-            <div className={v3 ? 'flex gap-1.5' : 'flex rounded-2xl p-1.5 gap-1'} style={v3 ? undefined : cardStyle}>
+            <div className={('flex gap-1.5')} style={(undefined)}>
                 {[
                     { id: 'publications', label: 'Publicações', icon: Megaphone, count: publications.length },
                     { id: 'services', label: 'Serviços', icon: Wrench, count: services.length },
@@ -1951,23 +1648,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as ProfileTab)}
-                            className={v3
-                                ? 'flex-1 h-10 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-black transition active:scale-95'
-                                : `flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
-                            style={v3
-                                ? (isActive ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary })
-                                : isActive
-                                    ? {
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: `0 4px 12px #f9731650`,
-                                        border: 'none',
-                                    }
-                                    : {
-                                        background: 'transparent',
-                                        color: colors.textSecondary,
-                                        border: '1px solid transparent',
-                                    }
+                            className={('flex-1 h-10 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-black transition active:scale-95')}
+                            style={((isActive ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary }))
                             }
                         >
                             <Icon size={14} />
@@ -1984,9 +1666,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
             <div className="space-y-4">
                 {/* TAB PUBLICAÇÕES */}
                 {activeTab === 'publications' && (
-                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
-                        <div className={`flex items-center justify-between ${v3 ? (isOwner ? 'mb-3' : 'hidden') : 'mb-4'}`}>
-                            <div className={`flex items-center gap-2 ${v3 ? 'hidden' : ''}`}>
+                    <div className={('')} style={(undefined)}>
+                        <div className={`flex items-center justify-between ${((isOwner ? 'mb-3' : 'hidden'))}`}>
+                            <div className={`flex items-center gap-2 ${('hidden')}`}>
                                 <Megaphone size={16} style={{ color: '#f97316' }} />
                                 <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                     Publicações
@@ -2010,11 +1692,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         </div>
 
                         {publications.length === 0 ? (
-                            <div className={`${v3 ? 'py-5' : 'py-10'} text-center ${v3 ? floatCls : 'rounded-xl'}`} style={v3 ? floatCard : {
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}>
-                                <Megaphone className={v3 ? 'w-6 h-6 mx-auto mb-1.5' : 'w-10 h-10 mx-auto mb-3'} style={{ color: colors.textSecondary }} />
+                            <div className={`${('py-5')} text-center ${(floatCls)}`} style={(floatCard)}>
+                                <Megaphone className={('w-6 h-6 mx-auto mb-1.5')} style={{ color: colors.textSecondary }} />
                                 <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                     {isOwner ? 'Comece sua primeira publicação' : 'Nenhuma publicação ainda'}
                                 </p>
@@ -2042,11 +1721,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 {publications.map((pub, idx) => (
                                     <div
                                         key={pub.id}
-                                        className={`${v3 ? floatCls : 'rounded-xl border'} p-4 transition-all hover:shadow-lg cursor-pointer`}
-                                        style={v3 ? floatCard : {
-                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
-                                            borderColor: colors.border,
-                                        }}
+                                        className={`${(floatCls)} p-4 transition-all hover:shadow-lg cursor-pointer`}
+                                        style={(floatCard)}
                                         onClick={() => {
                                             if (!owner) return
                                             const feed = publications.map(p => ({
@@ -2226,9 +1902,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                 {/* TAB SERVIÇOS */}
                 {activeTab === 'services' && (
-                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
-                        <div className={`flex items-center justify-between ${v3 ? (isOwner ? 'mb-3' : 'hidden') : 'mb-4'}`}>
-                            <div className={`flex items-center gap-2 ${v3 ? 'hidden' : ''}`}>
+                    <div className={('')} style={(undefined)}>
+                        <div className={`flex items-center justify-between ${((isOwner ? 'mb-3' : 'hidden'))}`}>
+                            <div className={`flex items-center gap-2 ${('hidden')}`}>
                                 <Wrench size={16} style={{ color: '#f97316' }} />
                                 <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                     Serviços
@@ -2247,11 +1923,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         </div>
 
                         {services.length === 0 ? (
-                            <div className={`${v3 ? 'py-5' : 'py-10'} text-center ${v3 ? floatCls : 'rounded-xl'}`} style={v3 ? floatCard : {
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}>
-                                <Wrench className={v3 ? 'w-6 h-6 mx-auto mb-1.5' : 'w-10 h-10 mx-auto mb-3'} style={{ color: colors.textSecondary }} />
+                            <div className={`${('py-5')} text-center ${(floatCls)}`} style={(floatCard)}>
+                                <Wrench className={('w-6 h-6 mx-auto mb-1.5')} style={{ color: colors.textSecondary }} />
                                 <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                     {isOwner ? 'Publique o seu primeiro serviço' : 'Nenhum serviço publicado ainda'}
                                 </p>
@@ -2278,8 +1951,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                         <div
                                             key={svc.id}
                                             onClick={() => router.push(`/${ownerSlug}/${svc.slug}`)}
-                                            className={`${v3 ? floatCls : 'rounded-xl border'} overflow-hidden flex cursor-pointer transition-all hover:shadow-lg`}
-                                            style={v3 ? floatCard : { background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, borderColor: colors.border }}
+                                            className={`${(floatCls)} overflow-hidden flex cursor-pointer transition-all hover:shadow-lg`}
+                                            style={(floatCard)}
                                         >
                                             <div className="w-24 sm:w-32 flex-shrink-0 flex items-center justify-center" style={{ background: svc.image_url ? undefined : GRADIENT }}>
                                                 {svc.image_url ? (
@@ -2320,8 +1993,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                 {/* TAB COMENTÁRIOS DO PERFIL */}
                 {activeTab === 'profile_comments' && (
-                    <div className={v3 ? 'space-y-3' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
-                        <div className={`flex items-center gap-2 mb-4 ${v3 ? 'hidden' : ''}`}>
+                    <div className={('space-y-3')} style={(undefined)}>
+                        <div className={`flex items-center gap-2 mb-4 ${('hidden')}`}>
                             <MessageCircle size={16} style={{ color: '#f97316' }} />
                             <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                 Comentários do Perfil
@@ -2333,7 +2006,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                         {/* Input para novo comentário principal */}
                         {currentUserId ? (
-                            <div className={`flex gap-2 ${v3 ? `${floatCls} p-2` : 'mb-4'}`} style={v3 ? floatCard : undefined}>
+                            <div className={`flex gap-2 ${(`${floatCls} p-2`)}`} style={(floatCard)}>
                                 <input
                                     type="text"
                                     value={commentContent}
@@ -2365,10 +2038,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 </button>
                             </div>
                         ) : (
-                            <div className={`p-3 text-center ${v3 ? floatCls : 'rounded-xl mb-4'}`} style={v3 ? floatCard : {
-                                background: 'rgba(255,255,255,0.05)',
-                                border: `1px dashed ${colors.border}`
-                            }}>
+                            <div className={`p-3 text-center ${(floatCls)}`} style={(floatCard)}>
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>
                                     <button
                                         onClick={() => router.push('/login')}
@@ -2384,7 +2054,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         )}
 
                         {loadingComments ? (
-                            <div className={`flex flex-col gap-4 ${v3 ? `${floatCls} p-4` : 'py-2'}`} style={v3 ? floatCard : undefined} aria-hidden>
+                            <div className={`flex flex-col gap-4 ${(`${floatCls} p-4`)}`} style={(floatCard)} aria-hidden>
                                 {[0, 1, 2].map((i) => (
                                     <div key={i} className="flex gap-3">
                                         <span className="block w-9 h-9 rounded-full animate-pulse flex-shrink-0" style={{ background: colors.border }} />
@@ -2396,16 +2066,13 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 ))}
                             </div>
                         ) : profileComments.length === 0 ? (
-                            <div className={`${v3 ? 'py-5' : 'py-10'} text-center ${v3 ? floatCls : 'rounded-xl'}`} style={v3 ? floatCard : {
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}>
-                                <MessageCircle className={v3 ? 'w-6 h-6 mx-auto mb-1.5' : 'w-10 h-10 mx-auto mb-3'} style={{ color: colors.textSecondary }} />
+                            <div className={`${('py-5')} text-center ${(floatCls)}`} style={(floatCard)}>
+                                <MessageCircle className={('w-6 h-6 mx-auto mb-1.5')} style={{ color: colors.textSecondary }} />
                                 <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Nenhum comentário ainda</p>
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>Seja o primeiro a comentar neste perfil!</p>
                             </div>
                         ) : (
-                            <div className={v3 ? `${floatCls} p-4 space-y-3` : 'space-y-3 max-h-[500px] overflow-y-auto pr-1'} style={v3 ? floatCard : undefined}>
+                            <div className={(`${floatCls} p-4 space-y-3`)} style={(floatCard)}>
                                 {renderCommentTree(profileComments, 'profile')}
                             </div>
                         )}

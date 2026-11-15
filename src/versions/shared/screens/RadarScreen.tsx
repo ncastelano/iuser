@@ -33,7 +33,6 @@ import RadarLocationPrompt from '@/components/radar/RadarLocationPrompt'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { parseCoords } from '@/lib/geoParse'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
-import type { UiVersion } from '@/versions/registry'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -147,7 +146,6 @@ function CrownBadge({ rank, size = 28 }: { rank: number; size?: number }) {
     return <span aria-label={`Top ${rank}`} style={{ display: 'inline-block', lineHeight: 0, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.35))' }} dangerouslySetInnerHTML={{ __html: crownSvg(rank, size) }} />
 }
 
-type EdgeIndicator = { id: string; x: number; y: number; angle: number; item: any; rank: number; km: number }
 
 // Onde o mapa começa quando a pessoa não define o local (Porto Velho - RO)
 const PORTO_VELHO = { lat: -8.7612, lng: -63.9039 }
@@ -155,8 +153,7 @@ const PORTO_VELHO = { lat: -8.7612, lng: -63.9039 }
 const DEVICE_LOCATION_KEY = 'iuser_device_location'
 const RADAR_LOC_CHOICE_KEY = 'iuser_radar_loc_choice'
 
-export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
-    const v3 = ui === 'v3'
+export default function RadarScreen() {
     const { userId: contextUserId, profileSlug, avatarUrl, loading: profileLoading } = useProfile()
     const mapRef = useRef<mapboxgl.Map | null>(null)
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
@@ -184,7 +181,6 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // pontos do Outdoor do tipo que está na tela (id → pontos); vazio enquanto carrega ou em motoristas
     const [outdoorPts, setOutdoorPts] = useState<Record<string, number>>({})
     const [showRankMenu, setShowRankMenu] = useState(false)
-    const [edgeIndicators, setEdgeIndicators] = useState<EdgeIndicator[]>([])
     const [stores, setStores] = useState<any[]>([])
     const [products, setProducts] = useState<any[]>([])
     const [filtered, setFiltered] = useState<any[]>([])
@@ -1033,85 +1029,6 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         maybeBeginScan()
     }, [filtered, mode, stores, mapReady, dataReady, loadingLocation])
 
-    // TOP 3 SEMPRE VISÍVEIS: quando a loja está fora da área visível do mapa
-    // (ou escondida atrás do cabeçalho/lista), mostra o ícone dela na borda,
-    // com uma seta apontando a direção e a distância até ela.
-    useEffect(() => {
-        if (!mapReady || !mapRef.current) return
-        // 3.0: sem as setas/indicadores dos 3 primeiros no mapa (a distância vai na lista, no canto de cada item)
-        if (v3) { setEdgeIndicators([]); return }
-        const map = mapRef.current
-
-        const top3 = (mode === 'motoristas' ? [] : filtered.slice(0, 3)).map((item, i) => ({
-            item,
-            rank: i + 1,
-            coords: resolveItemCoords(item, mode, stores),
-        })).filter((t): t is { item: any; rank: number; coords: [number, number] } => !!t.coords)
-
-        if (top3.length === 0) { setEdgeIndicators([]); return }
-
-        let raf = 0
-        const update = () => {
-            const c = map.getContainer()
-            const w = c.clientWidth
-            const h = c.clientHeight
-            // Zona realmente visível: abaixo do cabeçalho + lista, acima da barra inferior.
-            const inset = { top: v3 ? Math.min(230, h * 0.3) : Math.min(300, h * 0.38), bottom: v3 ? 90 : 140, left: 34, right: 84 }
-            const cx = (inset.left + (w - inset.right)) / 2
-            const cy = (inset.top + (h - inset.bottom)) / 2
-            const halfW = ((w - inset.right) - inset.left) / 2
-            const halfH = ((h - inset.bottom) - inset.top) / 2
-            const center = map.getCenter()
-            const next: EdgeIndicator[] = []
-            for (const t of top3) {
-                const p = map.project(t.coords)
-                const inside = p.x >= inset.left && p.x <= w - inset.right && p.y >= inset.top && p.y <= h - inset.bottom
-                if (inside) continue
-                const dx = p.x - cx
-                const dy = p.y - cy
-                const k = Math.min(halfW / Math.max(Math.abs(dx), 0.0001), halfH / Math.max(Math.abs(dy), 0.0001))
-                next.push({
-                    id: t.item.id,
-                    x: cx + dx * k,
-                    y: cy + dy * k,
-                    angle: (Math.atan2(dy, dx) * 180) / Math.PI,
-                    item: t.item,
-                    rank: t.rank,
-                    km: haversineKm([center.lng, center.lat], t.coords),
-                })
-            }
-            // Vários no mesmo lado (ex: as 3 lojas na mesma direção) não podem
-            // ficar uns sobre os outros: afasta ao longo da borda, respeitando a zona visível.
-            const GAP = 80
-            const spread = (group: EdgeIndicator[], axis: 'x' | 'y', min: number, max: number) => {
-                group.sort((a, b) => a[axis] - b[axis])
-                for (let i = 1; i < group.length; i++) {
-                    if (group[i][axis] - group[i - 1][axis] < GAP) group[i][axis] = group[i - 1][axis] + GAP
-                }
-                const overflow = group.length ? group[group.length - 1][axis] - max : 0
-                if (overflow > 0) for (const g of group) g[axis] -= overflow
-                for (const g of group) g[axis] = Math.max(min, g[axis])
-                for (let i = 1; i < group.length; i++) {
-                    if (group[i][axis] - group[i - 1][axis] < GAP) group[i][axis] = group[i - 1][axis] + GAP
-                }
-            }
-            const onSide = (e: EdgeIndicator) => e.x <= inset.left + 1 || e.x >= w - inset.right - 1
-            spread(next.filter(onSide), 'y', inset.top, h - inset.bottom)
-            spread(next.filter(e => !onSide(e)), 'x', inset.left, w - inset.right)
-            setEdgeIndicators(next)
-        }
-        const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(update) }
-
-        map.on('move', schedule)
-        map.on('resize', schedule)
-        update()
-        return () => {
-            cancelAnimationFrame(raf)
-            map.off('move', schedule)
-            map.off('resize', schedule)
-        }
-    }, [filtered, mode, stores, mapReady])
-
     // PROFILE MARKER
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
@@ -1352,7 +1269,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     }
     // menu do filtro (mais/menos vistos, vendidos...) — o mesmo nas duas versões
     const rankMenuNode = showRankMenu ? (
-<div className={`absolute right-0 ${v3 ? 'top-full mt-2' : 'bottom-full mb-2'} w-64 max-h-[46vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5`}>
+<div className={`absolute right-0 ${('top-full mt-2')} w-64 max-h-[46vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5`}>
                                 {RANK_GROUPS.filter(g => !g.storesOnly || mode === 'lojas').map(g => (
                                     <div key={g.id} className="px-3 py-1.5">
                                         <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">{g.title}</p>
@@ -1388,7 +1305,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     ]
 
     return (
-        <div className={`fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)] ${v3 ? 'radar-v3' : ''}`} style={{ zIndex: 0 }}>
+        <div className={`fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)] ${('radar-v3')}`} style={{ zIndex: 0 }}>
             <style>{`
                 /* 3.0: a busca e os modos ficam no rodapé; os controles do mapa e a logo sobem acima deles */
                 .radar-v3 .mapboxgl-ctrl-bottom-right,
@@ -1467,7 +1384,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 força position:relative no próprio container do mapa via JS, o que
                 empurraria um Header "sticky" pra fora da tela se ele viesse depois
                 dele no DOM. */}
-            {v3 ? (
+            {((
                 <div className="absolute bottom-3 inset-x-3 z-[60] pointer-events-none flex flex-col gap-2">
                     {/* Filtros de modo (lojas, serviços, produtos, pessoas), em cima da busca */}
                     <div className="flex items-center pointer-events-auto">
@@ -1516,38 +1433,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     </div>
 
                 </div>
-            ) : (
-            <div className="absolute top-0 left-0 right-0 z-20">
-                <Header
-                    title="Radar"
-                    showBack
-                    onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
-                    tabs={radarTabs}
-                    showSearch={true}
-                    searchPlaceholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : mode === 'pessoas' ? 'Procurar pessoas' : mode === 'motoristas' ? 'Procurar motoristas' : 'Procurar produtos'}
-                    searchValue={search}
-                    onSearch={(q) => { setSearch(q); setOverrideList(null) }}
-                    locationElement={
-                        <button
-                            onClick={() => setShowLocationDialog(true)}
-                            disabled={isSavingLocation}
-                            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
-                            style={{ color: '#fff' }}
-                        >
-                            <MapPin size={14} />
-                            {isSavingLocation
-                                ? 'Salvando...'
-                                : userAddress
-                                    ? userAddress.split(',').slice(0, 2).join(',')
-                                    : 'Definir local'
-                            }
-                        </button>
-                    }
-                />
-            </div>
-            )}
+            ))}
 
             {/* Location Picker - mesmo componente compartilhado do homepage.
                 Disponível pra visitante também: o próprio LocationPicker manda
@@ -1582,7 +1468,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             {/* Cluster Header */}
             {clusterItems && clusterLocation && (
-                <div className={`absolute ${v3 ? 'top-[158px]' : 'top-[170px]'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30`}>
+                <div className={`absolute ${('top-[158px]')} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30`}>
                     <div className="bg-yellow-500 rounded-2xl px-4 py-3 shadow-lg flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Building2 className="w-5 h-5 text-white" />
@@ -1648,7 +1534,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             {/* Horizontal List — do mais visto ao menos visto (esquerda → direita) */}
             {filtered.length > 0 && !clusterItems && !selectedItem && (
-                <div className={`absolute ${v3 ? 'top-1 z-[55]' : 'z-20 flex flex-col'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(v3 ? {} : { bottom: 'calc(12px + var(--staging-banner-h, 0px))' }), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
+                <div className={`absolute ${('top-1 z-[55]')} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(({})), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
                     <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
                             const rank = idx < 3 && mode !== 'motoristas' ? idx + 1 : 0
@@ -1686,14 +1572,14 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                             {pointsLabel(outdoorPts[item.id] || 0)}
                                         </span>
                                     )}
-                                    {v3 && (() => {
+                                    {((() => {
                                         const c = resolveItemCoords(item, mode, stores)
                                         const km = c && referenceLocation ? haversineKm([referenceLocation.lng, referenceLocation.lat], c) : null
                                         const label = formatDistance(km)
                                         return label ? (
                                             <span className="absolute z-10 right-0.5 bottom-0.5 rounded-full px-1.5 py-px text-[9px] font-black text-white leading-tight" style={{ background: 'rgba(0,0,0,0.72)' }}>{label}</span>
                                         ) : null
-                                    })()}
+                                    })())}
                                     <div
                                         className={`w-full h-full ${item.isPerson || item.isDriver ? 'rounded-full' : 'rounded-2xl'} overflow-hidden shadow-md bg-white ${rank ? '' : `border-2 ${mode === 'lojas'
                                             ? (item.is_open ? 'border-green-500' : 'border-red-500')
@@ -1711,7 +1597,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     </div>
 
                     {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos. Motoristas ficam do mais perto pro mais longe, sem filtro. */}
-                    {mode !== 'motoristas' && <div className={`flex justify-end relative ${v3 ? '-mt-1' : 'order-first mb-1.5'}`}>
+                    {mode !== 'motoristas' && <div className={`flex justify-end relative ${('-mt-1')}`}>
                         <button
                             onClick={() => setShowRankMenu(v => !v)}
                             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow-lg"
@@ -1727,52 +1613,9 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 </div>
             )}
 
-            {/* Indicadores dos 3 primeiros quando estão fora do mapa: ícone da loja na
-                borda + seta na direção + distância. Clique = voar até lá. */}
-            {edgeIndicators.map(ind => {
-                const col = RANK_COLORS[ind.rank]
-                const img = ind.item.logo_url || ind.item.image_url
-                return (
-                    <button
-                        key={ind.id}
-                        onClick={() => {
-                            setSelectedItem(ind.item)
-                            let loc = mode === 'lojas' ? ind.item.location : stores.find(s => s.id === ind.item.store_id)?.location
-                            const coords = parseCoords(loc)
-                            if (coords && mapRef.current) mapRef.current.flyTo({ center: coords, zoom: 16, duration: 1000 })
-                        }}
-                        className="absolute z-10"
-                        style={{ left: ind.x, top: ind.y, transform: 'translate(-50%, -50%)' }}
-                        aria-label={`Top ${ind.rank}: ${ind.item.name}, a ${ind.km.toFixed(1)} km`}
-                    >
-                        {/* seta na direção da loja */}
-                        <span
-                            className="absolute"
-                            style={{ left: '50%', top: '50%', transform: `rotate(${ind.angle}deg) translateX(36px) translate(-50%, -50%)` }}
-                        >
-                            <span style={{ display: 'block', width: 0, height: 0, borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: `14px solid ${col.fill}`, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} />
-                        </span>
-                        <span className="absolute left-1/2 -translate-x-1/2" style={{ top: -22 }}>
-                            <CrownBadge rank={ind.rank} size={26} />
-                        </span>
-                        <span
-                            className="block w-11 h-11 rounded-xl overflow-hidden bg-white"
-                            style={{ border: `3px solid ${col.fill}`, boxShadow: `0 0 0 3px ${col.fill}55, 0 6px 16px rgba(0,0,0,0.4)` }}
-                        >
-                            {img ? <img src={img} className="w-full h-full object-cover" alt="" /> : (
-                                <span className="w-full h-full flex items-center justify-center text-xs font-black bg-gradient-to-br from-orange-100 to-red-100 text-orange-500">{ind.item.name?.charAt(0)}</span>
-                            )}
-                        </span>
-                        <span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-1.5 text-[9px] font-black text-white" style={{ top: 'calc(100% + 2px)', background: 'rgba(0,0,0,0.7)' }}>
-                            {ind.km < 1 ? `${Math.round(ind.km * 1000)} m` : `${ind.km.toFixed(1)} km`}
-                        </span>
-                    </button>
-                )
-            })}
-
             {/* Selected Item Card */}
             {selectedItem && !clusterItems && (
-                <div className={`absolute ${v3 ? 'bottom-[136px]' : 'bottom-24'} left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-30 animate-in slide-in-from-bottom-5 duration-500`}>
+                <div className={`absolute ${('bottom-[136px]')} left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-30 animate-in slide-in-from-bottom-5 duration-500`}>
                     <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-orange-200 flex flex-col max-h-[72vh]">
                         <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-orange-100 hover:bg-orange-500 hover:text-white transition-all z-10 shadow-md">
                             <X className="w-4 h-4" />
@@ -2087,7 +1930,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 (grupo branco arredondado com sombra), posicionado logo acima
                 deles pra parecer um botão a mais do mesmo conjunto. */}
             {mapReady && (
-                <div className="absolute z-30" style={{ bottom: v3 ? '267px' : 'calc(360px + var(--staging-banner-h, 0px))', right: '10px' }}>
+                <div className="absolute z-30" style={{ bottom: ('267px'), right: '10px' }}>
                     <div className="bg-white rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.2)] overflow-hidden">
                         <button
                             onClick={toggleMapStyle}

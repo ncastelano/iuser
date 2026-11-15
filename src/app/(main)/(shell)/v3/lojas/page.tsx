@@ -2,5 +2,5 @@
 import LojasScreen from '@/versions/shared/screens/LojasScreen'
 
 export default function LojasV3Page() {
-    return <LojasScreen ui="v3" />
+    return <LojasScreen />
 }

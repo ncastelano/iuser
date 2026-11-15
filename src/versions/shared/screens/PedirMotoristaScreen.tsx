@@ -424,11 +424,9 @@ async function fetchRoute(origin: [number, number], destination: [number, number
     }
 }
 
-export type PedirMotoristaUi = 'v2' | 'v3'
 
 /** Mesma lógica nas duas versões; `ui` só troca a moldura/visual (v3 = compacta, abaixo da navbar, com motoristas ativos no mapa). */
-export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotoristaUi }) {
-    const v3 = ui === 'v3'
+export default function PedirMotoristaScreen() {
     const router = useRouter()
     const { colors } = useTheme()
     const { userId: contextUserId, loading: profileLoading } = useProfile()
@@ -1450,14 +1448,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         const yesNo = (on: boolean, yes: () => void, no: () => void) => (
             <div className="flex items-center gap-1.5 flex-shrink-0">
                 <button type="button" onClick={yes} className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                    style={on ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }}>SIM</button>
+                    style={on ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: ('none') }}>SIM</button>
                 <button type="button" onClick={no} className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                    style={!on ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }}>NÃO</button>
+                    style={!on ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: ('none') }}>NÃO</button>
             </div>
         )
-        const optionStyle = (on: boolean) => on ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }
+        const optionStyle = (on: boolean) => on ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: ('none') }
         return (
-            <div className="rounded-xl px-3 py-2.5 mb-3" style={{ background: `${colors.border}30`, border: v3 ? 'none' : `1px solid ${colors.border}` }}>
+            <div className="rounded-xl px-3 py-2.5 mb-3" style={{ background: `${colors.border}30`, border: ('none') }}>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
                         <ShieldAlert size={13} style={{ color: colors.accent }} />
@@ -1516,7 +1514,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             onChange={(e) => setSpecialNeedsDescription(e.target.value)}
                             placeholder="Outras necessidades (opcional)"
                             className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
-                            style={{ background: colors.surface, border: v3 ? 'none' : `1px solid ${colors.border}`, color: colors.textPrimary }}
+                            style={{ background: colors.surface, border: ('none'), color: colors.textPrimary }}
                         />
                     </div>
                 )}
@@ -1720,7 +1718,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     const [rideStatus, setRideStatus] = useState<string | null>(null)
     // Tocar num motorista no mapa abre o card dele (os mesmos detalhes do /radar); "Chamar" o escolhe pro pedido (como ?motorista=<id>)
     const [pickedDriver, setPickedDriver] = useState<RadarDriverItem | null>(null)
-    const driversEnabled = v3 && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending')
+    const driversEnabled = (((!activeRideId && !checkingActiveRide) || rideStatus === 'pending'))
     const { drivers: mapDrivers, counts: driverCounts, loaded: driversLoaded } = useActiveDriversLayer({
         map: mapRef.current,
         mapReady,
@@ -1775,14 +1773,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                 <button
                     onClick={handleBack}
                     aria-label="Voltar"
-                    className={`absolute ${v3 ? 'top-3 left-3' : 'top-6 left-4'} z-30 w-11 h-11 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition`}
+                    className={`absolute ${('top-3 left-3')} z-30 w-11 h-11 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition`}
                     style={{ background: colors.surface, color: colors.textPrimary }}
                 >
                     <ArrowLeft size={20} />
                 </button>
 
                 {/* v3: motoristas ativos agora (carro / moto / bicicleta), os mesmos que aparecem no mapa */}
-                {v3 && driversLoaded && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending') && (
+                {(driversLoaded) && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending') && (
                     <div
                         role="status"
                         className="absolute top-3 right-3 z-30 flex items-center gap-2.5 px-3 h-11 rounded-full text-[12px] font-black shadow-xl"
@@ -1979,7 +1977,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                         map={mapRef.current}
                         mapReady={mapReady}
                         onFitBounds={(bounds, padding) => { lastFitBoundsRef.current = { bounds, padding } }}
-                        compact={v3}
+                        compact={true}
                         onRideStatus={setRideStatus}
                     />
                 </div>
@@ -2004,7 +2002,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
             )}
             {!activeField && !activeRideId && !checkingActiveRide && !sheetMin && (
                 <div
-                    className={`flex-shrink-0 rounded-t-3xl overflow-y-auto ${v3 ? 'px-4 pt-2 pb-3' : 'px-5 pt-3 pb-8'}`}
+                    className={`flex-shrink-0 rounded-t-3xl overflow-y-auto ${('px-4 pt-2 pb-3')}`}
                     style={{
                         background: colors.surface,
                         boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
@@ -2014,7 +2012,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                 >
                     <div ref={setSheetContentRef}>
                     {/* Indicador de progresso das etapas + MINIMIZAR (o cartão vira uma barrinha e o mapa ganha a tela) */}
-                    <div className={`relative flex items-center gap-1.5 justify-center h-7 ${v3 ? 'mb-1.5' : 'mb-2'}`}>
+                    <div className={`relative flex items-center gap-1.5 justify-center h-7 ${('mb-1.5')}`}>
                         {orderedSteps.map((s, i) => (
                             <div
                                 key={s}
@@ -2155,8 +2153,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             <button
                                 onClick={goNext}
                                 disabled={!origin.address.trim() || !destination.address.trim() || stops.some((st) => !st.address.trim())}
-                                className={`w-full mt-3 ${v3 ? 'h-12 rounded-full text-[14px]' : 'py-3.5 rounded-xl uppercase text-sm tracking-wider'} font-black transition-all active:scale-95 disabled:opacity-50`}
-                                style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff' }}
+                                className={`w-full mt-3 ${('h-12 rounded-full text-[14px]')} font-black transition-all active:scale-95 disabled:opacity-50`}
+                                style={{ background: ('#f97316'), color: '#fff' }}
                             >
                                 Continuar
                             </button>
@@ -2174,7 +2172,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             </button>
                             <h2 className="text-[13px] font-black mb-1.5" style={{ color: colors.textPrimary }}>Veículo</h2>
 
-                            <div className={v3 ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-2 gap-2'}>
+                            <div className={('grid grid-cols-4 gap-1.5')}>
                                 {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => {
                                     const active = vehicleTypeChoice === kind
                                     const Icon = kind === 'moto' ? Motorbike : kind === 'bicicleta' ? Bike : kind === 'qualquer' ? Shuffle : Car
@@ -2187,19 +2185,17 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                             type="button"
                                             disabled={!allowed}
                                             onClick={() => chooseVehicle(kind)}
-                                            className={v3
-                                                ? 'flex flex-col items-center justify-start gap-0.5 py-1.5 px-1 rounded-2xl text-center transition active:scale-95 disabled:opacity-40'
-                                                : 'flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:hover:scale-100'}
-                                            style={active ? { background: v3 ? '#f97316' : GRADIENT } : { background: `${colors.border}30`, border: v3 ? '1px solid transparent' : `1px solid ${colors.border}` }}
+                                            className={('flex flex-col items-center justify-start gap-0.5 py-1.5 px-1 rounded-2xl text-center transition active:scale-95 disabled:opacity-40')}
+                                            style={active ? { background: ('#f97316') } : { background: `${colors.border}30`, border: ('1px solid transparent') }}
                                         >
-                                            <div className={`${v3 ? 'w-7 h-7' : 'w-12 h-12'} flex-shrink-0 rounded-full flex items-center justify-center`} style={{ background: active ? 'rgba(255,255,255,0.25)' : v3 ? '#f9731622' : GRADIENT, color: active || !v3 ? '#fff' : '#ea580c' }}>
-                                                <Icon size={v3 ? 15 : 22} />
+                                            <div className={`${('w-7 h-7')} flex-shrink-0 rounded-full flex items-center justify-center`} style={{ background: active ? 'rgba(255,255,255,0.25)' : ('#f9731622'), color: active || !true ? '#fff' : '#ea580c' }}>
+                                                <Icon size={(15)} />
                                             </div>
-                                            <span className={v3 ? 'min-w-0 flex flex-col items-center' : 'min-w-0 flex flex-col'}>
-                                                <span className="text-xs font-black leading-tight" style={{ color: active ? '#fff' : colors.textPrimary }}>{v3 ? (kind === 'carro' ? 'Carro' : kind === 'qualquer' ? 'Qualquer' : VEHICLE_TYPE_LABELS[kind]) : VEHICLE_TYPE_LABELS[kind]}</span>
-                                                {v3 && driversLoaded && (
+                                            <span className={('min-w-0 flex flex-col items-center')}>
+                                                <span className="text-xs font-black leading-tight" style={{ color: active ? '#fff' : colors.textPrimary }}>{((kind === 'carro' ? 'Carro' : kind === 'qualquer' ? 'Qualquer' : VEHICLE_TYPE_LABELS[kind]))}</span>
+                                                {(driversLoaded) && (
                                                     <span className="text-[10px] font-bold leading-tight" style={{ color: active ? 'rgba(255,255,255,0.85)' : activeNow > 0 ? '#16a34a' : colors.textSecondary }}>
-                                                        {v3 ? (activeNow > 0 ? `${activeNow} agora` : 'nenhum') : activeNow > 0 ? `${activeNow} ativo${activeNow > 1 ? 's' : ''} agora` : 'nenhum agora'}
+                                                        {((activeNow > 0 ? `${activeNow} agora` : 'nenhum'))}
                                                     </span>
                                                 )}
                                             </span>
@@ -2210,7 +2206,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
                             {/* CARROS POR PERTO: cada motorista ativo do tipo escolhido, com o que o carro TEM e o que NÃO tem (ar, Wi-Fi, carregador,
                                 som, pet), lugares e cadeirinha — o passageiro compara antes de pedir; tocar abre o card completo (e "Chamar este motorista") */}
-                            {v3 && nearbyCars.length > 0 && (
+                            {(nearbyCars.length > 0) && (
                                 <div className="mt-2.5">
                                     <p className="text-[12px] font-black mb-1" style={{ color: colors.textPrimary }}>
                                         Carros por perto <span className="font-semibold" style={{ color: colors.textSecondary }}>· o que cada um tem</span>
@@ -2270,7 +2266,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {((step === 'extras' && requestFor !== 'pessoa') || (step === 'final' && requestFor === 'pessoa')) && requestFor && (
                         <>
                             {requestFor !== 'pessoa' && (
-                                <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>
+                                <h2 className={`${('text-[15px]')} font-black mb-3`} style={{ color: colors.textPrimary }}>
                                     {requestFor === 'animal' ? 'Sobre o animal' : 'Sobre o objeto'}
                                 </h2>
                             )}
@@ -2322,7 +2318,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all active:scale-95"
                                                         style={selected
                                                             ? { background: GRADIENT, color: '#fff', boxShadow: open ? '0 0 0 2px #f9731666' : undefined }
-                                                            : { background: `${colors.border}30`, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }}
+                                                            : { background: `${colors.border}30`, color: colors.textSecondary, border: ('none') }}
                                                     >
                                                         <Icon size={13} />
                                                         {label}{selected ? ` · ${count}` : ''}
@@ -2333,7 +2329,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
                                         {openExtra === 'adultos' && (
                                             <div className="flex flex-col gap-2">
-                                                <CounterRow compact={v3} label="Quantos adultos a mais?" icon={Users} value={extraPeopleCount} onChange={(n) => { setExtraPeopleCount(n); if (n === 0) setOpenExtra(null) }} max={29} colors={colors} />
+                                                <CounterRow compact={true} label="Quantos adultos a mais?" icon={Users} value={extraPeopleCount} onChange={(n) => { setExtraPeopleCount(n); if (n === 0) setOpenExtra(null) }} max={29} colors={colors} />
                                                 
                                             </div>
                                         )}
@@ -2346,7 +2342,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
                                         {openExtra === 'crianca' && (
                                             <div className="flex flex-col gap-2">
-                                                <CounterRow compact={v3} label="Quantas crianças?" icon={Baby} value={childrenCount} onChange={(n) => { setChildrenCount(n); if (n === 0) setOpenExtra(null) }} max={10} colors={colors} />
+                                                <CounterRow compact={true} label="Quantas crianças?" icon={Baby} value={childrenCount} onChange={(n) => { setChildrenCount(n); if (n === 0) setOpenExtra(null) }} max={10} colors={colors} />
                                                 {hasChild && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textPrimary }}>
@@ -2367,7 +2363,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                         )}
                                         {openExtra === 'compras' && (
                                             <div className="flex flex-col gap-2">
-                                                <CounterRow compact={v3} label="Quantas sacolas?" icon={ShoppingCart} value={bagCount} onChange={(n) => { setBagCount(n); if (n === 0) setOpenExtra(null) }} max={20} colors={colors} />
+                                                <CounterRow compact={true} label="Quantas sacolas?" icon={ShoppingCart} value={bagCount} onChange={(n) => { setBagCount(n); if (n === 0) setOpenExtra(null) }} max={20} colors={colors} />
                                                 {hasShopping && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" id="tamanho-compra" style={{ color: colors.textSecondary }}>Tamanho da compra <span style={{ color: '#ef4444' }}>*</span></span>
@@ -2397,7 +2393,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                         )}
                                         {openExtra === 'objeto' && (
                                             <div className="flex flex-col gap-2">
-                                                <CounterRow compact={v3} label="Quantos objetos?" icon={PackagePlus} value={extraObjectCount} onChange={(n) => { setExtraObjectCount(n); if (n === 0) setOpenExtra(null) }} max={10} colors={colors} />
+                                                <CounterRow compact={true} label="Quantos objetos?" icon={PackagePlus} value={extraObjectCount} onChange={(n) => { setExtraObjectCount(n); if (n === 0) setOpenExtra(null) }} max={10} colors={colors} />
                                                 {hasExtraObject && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho do objeto</span>
@@ -2445,7 +2441,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                         )}
                                         {openExtra === 'pet' && (
                                             <div className="flex flex-col gap-2">
-                                                <CounterRow compact={v3} label="Quantos pets?" icon={PawPrint} value={petCount} onChange={(n) => { setPetCount(n); if (n === 0) setOpenExtra(null) }} max={10} colors={colors} />
+                                                <CounterRow compact={true} label="Quantos pets?" icon={PawPrint} value={petCount} onChange={(n) => { setPetCount(n); if (n === 0) setOpenExtra(null) }} max={10} colors={colors} />
                                                 {hasPet && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Qual é o animal?</span>
@@ -2734,14 +2730,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             <div className="flex items-center gap-2 mt-4">
                                 <button
                                     onClick={goPrev}
-                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
+                                    className={`${('py-2.5')} px-5 rounded-xl font-black ${('text-[13px]')} transition-all active:scale-95`}
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
                                 </button>
                                 <button
                                     onClick={() => { if (!shoppingSizeMissing()) goNext() }}
-                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95`}
+                                    className={`flex-1 ${('py-2.5')} rounded-xl font-black ${('text-[13px]')} transition-all hover:scale-[1.02] active:scale-95`}
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
                                     Continuar
@@ -2772,17 +2768,11 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                                 if (value !== 'dinheiro') setCashChangeFor('')
                                                 if (value !== 'cartao') setCardIsContactless(null)
                                             }}
-                                            className={v3
-                                                ? 'flex items-center justify-center gap-1.5 h-11 px-2 rounded-full transition active:scale-95'
-                                                : 'flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95'}
-                                            style={active ? { background: v3 ? '#f97316' : GRADIENT } : { background: `${colors.border}30`, border: paymentMissing ? '1.5px solid #ef4444' : v3 ? '1px solid transparent' : `1px solid ${colors.border}` }}
+                                            className={('flex items-center justify-center gap-1.5 h-11 px-2 rounded-full transition active:scale-95')}
+                                            style={active ? { background: ('#f97316') } : { background: `${colors.border}30`, border: paymentMissing ? '1.5px solid #ef4444' : ('1px solid transparent') }}
                                         >
-                                            {v3 ? <Icon size={16} style={{ color: active ? '#fff' : '#ea580c' }} /> : (
-                                            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
-                                                <Icon size={22} />
-                                            </div>
-                                            )}
-                                            <span className={v3 ? 'text-[13px] font-black' : 'text-xs font-black'} style={{ color: active ? '#fff' : colors.textPrimary }}>{label}</span>
+                                            {(<Icon size={16} style={{ color: active ? '#fff' : '#ea580c' }} />)}
+                                            <span className={('text-[13px] font-black')} style={{ color: active ? '#fff' : colors.textPrimary }}>{label}</span>
                                         </button>
                                     )
                                 })}
@@ -2961,14 +2951,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
                             </>}
 
-                            <div className={v3 ? 'sticky bottom-0 -mx-4 px-4 pt-2 pb-1 mt-3 flex items-center gap-2' : 'flex items-center gap-2 mt-4'} style={v3 ? { background: colors.surface } : undefined}>
+                            <div className={('sticky bottom-0 -mx-4 px-4 pt-2 pb-1 mt-3 flex items-center gap-2')} style={({ background: colors.surface })}>
                                 <button
                                     onClick={goPrev}
                                     aria-label="Voltar"
-                                    className={v3 ? 'w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 active:scale-95' : 'py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95'}
-                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }}
+                                    className={('w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 active:scale-95')}
+                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: ('none') }}
                                 >
-                                    {v3 ? <ArrowLeft size={18} /> : 'Voltar'}
+                                    {(<ArrowLeft size={18} />)}
                                 </button>
                                 <button
                                     onClick={() => {
@@ -2977,8 +2967,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                         if (!shoppingSizeMissing()) handleRequestConfirm()
                                     }}
                                     disabled={submitting || !origin.address.trim() || !destination.address.trim()}
-                                    className={`flex-1 ${v3 ? 'h-12 rounded-full text-[15px]' : 'py-3.5 rounded-xl uppercase text-sm tracking-wider'} font-black transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2`}
-                                    style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff', opacity: paymentMethod ? 1 : 0.6 }}
+                                    className={`flex-1 ${('h-12 rounded-full text-[15px]')} font-black transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2`}
+                                    style={{ background: ('#f97316'), color: '#fff', opacity: paymentMethod ? 1 : 0.6 }}
                                 >
                                     {submitting ? <Spinner size={18} /> : <Car size={18} />}
                                     {!paymentMethod ? 'Escolha o pagamento' : calledDriver ? `Chamar ${calledDriver.name?.split(' ')[0] || 'o motorista'}` : 'Pedir motorista'}
