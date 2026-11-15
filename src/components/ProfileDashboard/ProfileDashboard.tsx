@@ -56,6 +56,7 @@ import ProfileRadarVisibility from './ProfileRadarVisibility'
 import ProfileLinkButtons from './ProfileLinkButtons'
 import UiVersionCard from './UiVersionCard'
 import MyTasks from './MyTasks'
+import StaffPickupCodes from './StaffPickupCodes'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
@@ -1432,6 +1433,7 @@ export default function ProfileDashboard({
             </div>
 
             {/* ===== TAREFAS — só aparece pra quem é funcionário vinculado a alguma loja ===== */}
+            <StaffPickupCodes />
             <MyTasks />
 
             {/* ===== CARD DE AVISO - WHATSAPP ===== */}

@@ -67,6 +67,15 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     ride_wait_started: { level: 'info', icon: '⏱️', label: 'Ver', duration: 8000 },
     ride_wait_declined: { level: 'info', icon: '🙅', label: 'Ver', duration: 7000 },
     ride_wait_ended: { level: 'success', icon: '🏁', label: 'Ver', duration: 9000 },
+    // ciclo das entregas (migration ...68): nada fica parado — prazos, cancelamento pelo cliente, desistências e recusas
+    order_waiting_store: { level: 'message', icon: '⏰', label: 'Aceitar', duration: 15000 },     // loja: aceite logo ou o pedido cai
+    order_store_timeout: { level: 'error', icon: '⏰', label: 'Ver', duration: 9000 },            // cliente e loja: cancelado por falta de resposta
+    order_customer_cancelled: { level: 'info', icon: '🙅', label: 'Ver', duration: 7000 },        // loja: o cliente desistiu antes do aceite
+    delivery_driver_idle: { level: 'error', icon: '⏰', label: 'Ver', duration: 9000 },           // entregador: a entrega foi para outro
+    delivery_driver_waiting: { level: 'message', icon: '🛵', label: 'Ver pedidos', duration: 12000 },   // loja: o entregador espera o pedido
+    delivery_late: { level: 'error', icon: '⏳', label: 'Ver', duration: 12000 },                 // cliente e loja: a entrega está demorando
+    delivery_quit_blocked: { level: 'error', icon: '⛔', label: 'Ver', duration: 12000 },         // entregador: entregas pausadas
+    store_reject_warning: { level: 'error', icon: '⚠️', label: 'Ver', duration: 12000 },         // loja: muitas recusas depois do aceite do entregador
 }
 
 export function islandEventFor(n: RawNotification): IslandEvent | null {

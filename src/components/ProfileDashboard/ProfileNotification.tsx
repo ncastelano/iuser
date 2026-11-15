@@ -49,7 +49,7 @@ const FILTERS: { id: Filter; label: string; kinds: string[] | null }[] = [
     { id: 'comments', label: 'Comentários', kinds: ['publication_comment', 'profile_comment', 'comment_reply'] },
     { id: 'followers', label: 'Seguidores', kinds: ['follow', 'invite_signup'] },
     { id: 'visits', label: 'Visitas', kinds: ['profile_view', 'link_visit'] },
-    { id: 'orders', label: 'Pedidos e entregas', kinds: ['order_new', 'digital_order_new', 'digital_access_released', 'order_accepted', 'order_ready', 'order_rejected', 'order_delivered', 'delivery_driver_assigned', 'delivery_driver_accepted', 'delivery_driver_arrived', 'delivery_picked_up', 'delivery_at_door', 'delivery_message', 'delivery_issue', 'delivery_order_ready', 'delivery_completed', 'delivery_done', 'delivery_driver_cancelled', 'delivery_cancelled', 'favorite_invite', 'favorite_accepted', 'favorite_declined', 'dues_update', 'dispute_update', 'moderation_update'] },
+    { id: 'orders', label: 'Pedidos e entregas', kinds: ['order_new', 'digital_order_new', 'digital_access_released', 'order_accepted', 'order_ready', 'order_rejected', 'order_delivered', 'delivery_driver_assigned', 'delivery_driver_accepted', 'delivery_driver_arrived', 'delivery_picked_up', 'delivery_at_door', 'delivery_message', 'delivery_issue', 'delivery_order_ready', 'delivery_completed', 'delivery_done', 'delivery_driver_cancelled', 'delivery_cancelled', 'favorite_invite', 'favorite_accepted', 'favorite_declined', 'dues_update', 'dispute_update', 'moderation_update', 'order_waiting_store', 'order_store_timeout', 'order_customer_cancelled', 'delivery_driver_idle', 'delivery_driver_waiting', 'delivery_late', 'delivery_quit_blocked', 'store_reject_warning'] },
     { id: 'agenda', label: 'Agenda', kinds: ['appointment_new', 'appointment_confirmed', 'appointment_cancelled', 'appointment_changed'] },
     { id: 'services', label: 'Serviços', kinds: ['service_application', 'service_selected', 'service_completed', 'service_review', 'ride_application', 'ride_selected', 'ride_review', 'customer_review', 'ride_offer_new', 'ride_offer_declined', 'ride_offer_agreed', 'ride_offer_expired', 'ride_wait_requested', 'ride_wait_started', 'ride_wait_declined', 'ride_wait_ended'] },
 ]
@@ -108,6 +108,14 @@ const KIND_ICON: Record<string, { icon: typeof Bell; color: string }> = {
     delivery_done: { icon: CheckCircle2, color: '#3b82f6' },
     delivery_driver_cancelled: { icon: CalendarX, color: '#ef4444' },
     delivery_cancelled: { icon: CalendarX, color: '#ef4444' },
+    order_waiting_store: { icon: Clock, color: '#f97316' },
+    order_store_timeout: { icon: CalendarX, color: '#ef4444' },
+    order_customer_cancelled: { icon: CalendarX, color: '#94a3b8' },
+    delivery_driver_idle: { icon: Clock, color: '#ef4444' },
+    delivery_driver_waiting: { icon: Clock, color: '#f59e0b' },
+    delivery_late: { icon: Clock, color: '#ef4444' },
+    delivery_quit_blocked: { icon: CalendarX, color: '#ef4444' },
+    store_reject_warning: { icon: CalendarX, color: '#f59e0b' },
     appointment_new: { icon: CalendarDays, color: '#0ea5e9' },
     appointment_confirmed: { icon: CalendarCheck, color: '#22c55e' },
     appointment_cancelled: { icon: CalendarX, color: '#ef4444' },
@@ -209,7 +217,7 @@ export default function ProfileNotification({ userId }: { userId: string }) {
     }
 
     const hrefOf = (n: Notif): string | null => {
-        if ((n.kind.startsWith('order_') || n.kind.startsWith('delivery_') || n.kind.startsWith('ride_offer_') || n.kind.startsWith('ride_wait_')) && n.meta?.path) return n.meta.path
+        if ((n.kind.startsWith('order_') || n.kind.startsWith('delivery_') || n.kind.startsWith('ride_offer_') || n.kind.startsWith('ride_wait_') || n.kind === 'store_reject_warning') && n.meta?.path) return n.meta.path
         if (n.meta?.owner_slug && n.meta?.slug && ['publication_like', 'service_like', 'product_like', 'publication_comment', 'comment_like', 'comment_reply'].includes(n.kind)) {
             return `/${n.meta.owner_slug}/${n.meta.slug}`
         }

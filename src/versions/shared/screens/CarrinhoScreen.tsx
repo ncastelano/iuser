@@ -58,6 +58,7 @@ import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHo
 import CatalogBag from '@/app/(main)/[ownerSlug]/catalogo/CatalogBag'
 import CarrinhoSkeleton from './CarrinhoSkeleton'
 import DeliveryIncreasePrompt from '@/components/DeliveryIncreasePrompt'
+import CancelPendingOrder from '@/components/orders/CancelPendingOrder'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -1446,6 +1447,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
         if (order.held) statusStyle = { ...statusStyle, label: 'Procurando entregador', icon: '🛵', message: 'Procurando um entregador. Quando um aceitar, o pedido vai para a loja.' }
         else if (order.status === 'rejected' && order.closed_reason === 'no_driver') statusStyle = { ...statusStyle, label: 'Cancelado', icon: '🚫', message: 'Ninguém aceitou a entrega e o pedido foi cancelado. Peça de novo para retirar na loja.' }
         else if (order.status === 'rejected' && order.closed_reason === 'customer_cancelled') statusStyle = { ...statusStyle, label: 'Cancelado', icon: '🚫', message: 'Você cancelou este pedido.' }
+        else if (order.status === 'rejected' && order.closed_reason === 'store_timeout') statusStyle = { ...statusStyle, label: 'Cancelado', icon: '⏰', message: 'A loja não respondeu a tempo e o pedido foi cancelado.' }
         const bgColor = getStatusColor(order.status)
 
         // ===== 3.0: cartão claro com linha do tempo =====
@@ -1499,6 +1501,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                                 ))}
                             </div>
                             <p className="mt-2 text-xs font-bold" style={{ color: colors.textPrimary }}>{statusStyle.message}</p>
+                            {order.status === 'pending' && !order.held && order.order_id && <CancelPendingOrder orderId={order.order_id} compact />}
                         </div>
                     )}
 
@@ -1617,6 +1620,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                 <div className={`mt-3 text-[10px] font-bold text-center py-2 rounded-lg ${statusStyle.badge}`}>
                     {statusStyle.icon} {statusStyle.message}
                 </div>
+                {order.status === 'pending' && !order.held && order.order_id && <CancelPendingOrder orderId={order.order_id} />}
             </div>
         )
     }

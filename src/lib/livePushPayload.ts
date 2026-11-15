@@ -28,6 +28,14 @@ export const LIVE_PUSH_KINDS: Record<string, { urgent: boolean }> = {
     ride_wait_started: { urgent: false },
     ride_wait_declined: { urgent: false },
     ride_wait_ended: { urgent: false },
+    order_waiting_store: { urgent: true },        // a loja precisa aceitar logo ou o pedido cai
+    order_store_timeout: { urgent: false },       // a loja não respondeu: pedido cancelado
+    order_customer_cancelled: { urgent: false },  // o cliente cancelou antes de a loja aceitar
+    delivery_driver_idle: { urgent: false },      // o entregador demorou e a entrega foi passada adiante
+    delivery_driver_waiting: { urgent: true },    // o entregador está na loja esperando o pedido
+    delivery_late: { urgent: true },              // o pedido está demorando a chegar
+    delivery_quit_blocked: { urgent: false },     // entregas pausadas por desistências
+    store_reject_warning: { urgent: false },      // a loja recusou muitos pedidos que já tinham entregador
 }
 
 export interface LivePushRow { id: string; kind: string; meta?: Record<string, any> | null }
