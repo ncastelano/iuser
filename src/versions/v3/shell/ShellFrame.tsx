@@ -1,13 +1,11 @@
 // src/versions/v3/shell/ShellFrame.tsx
 //
-// Casca única das páginas do app (/v3, /carrinho, /conversas, /painel-perfil, /modoprestador, /painel-loja,
-// veículo): vive no layout `(main)/(shell)`, então a barra do topo, o menu e a aba clara NÃO são recriados a cada
+// Casca única das páginas do app (todas, menos as de SHELL_EXCLUDED): vive no layout `(main)` (AppFrame), então a barra do topo, o menu e a aba clara NÃO são recriados a cada
 // página — a aba desliza de verdade entre os ícones e o menu mantém o que já carregou.
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ModeShell from './ModeShell'
-import { InsideShellContext } from '@/components/InsideShell'
 
 interface ShellSearch {
     value: string
@@ -42,12 +40,10 @@ export default function ShellFrame({ children }: { children: ReactNode }) {
     const setter = useMemo(() => setSearch, [])
     return (
         <ShellSearchContext.Provider value={setter}>
-            <InsideShellContext.Provider value>
-                {/* --shell-top: onde termina a navbar. Telas cheias (mapas) começam aqui em vez de no topo da janela. */}
-                <div style={{ display: 'contents', ['--shell-top' as string]: 'calc(74px + env(safe-area-inset-top))' }}>
-                    <ModeShell search={search || undefined}>{children}</ModeShell>
-                </div>
-            </InsideShellContext.Provider>
+            {/* --shell-top: onde termina a navbar. Telas cheias (mapas) começam aqui em vez de no topo da janela. */}
+            <div style={{ display: 'contents', ['--shell-top' as string]: 'calc(74px + env(safe-area-inset-top))' }}>
+                <ModeShell search={search || undefined}>{children}</ModeShell>
+            </div>
         </ShellSearchContext.Provider>
     )
 }

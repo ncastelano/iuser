@@ -12,7 +12,6 @@ import { toast } from '@/lib/toast'
 import {
     ArrowLeft,
     Save,
-    X,
     ImageIcon,
     Trash2,
 } from 'lucide-react'
@@ -121,14 +120,6 @@ export function EditProductClient() {
         setImagePreview(url)
         return () => URL.revokeObjectURL(url)
     }, [imageFile])
-
-    // Função para obter URL pública
-    const getPublicUrl = (path: string | null) => {
-        if (!path) return null
-        if (path.startsWith('http')) return path
-        const { data } = supabase.storage.from('product-images').getPublicUrl(path)
-        return data.publicUrl
-    }
 
     // Salvar produto
     const handleSave = async () => {
@@ -271,9 +262,6 @@ export function EditProductClient() {
                     title="Editar Produto"
                     showBack={true}
                     onBack={() => router.back()}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl || null}
-                    loading={profileLoading}
                 />
 
                 <div className="w-full px-4 md:px-6 py-6">

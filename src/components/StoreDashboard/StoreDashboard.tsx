@@ -1,51 +1,24 @@
 // app/(main)/StoreDashboard.tsx
 'use client'
 
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useCallback } from 'react'
 
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { toast } from '@/lib/toast'
-import { hexToRgb } from '@/lib/color'
 import { handleShareLink } from '@/lib/share'
-import {
-    Settings,
-    RefreshCw,
-    Store as StoreIcon,
-    Copy,
-    ExternalLink,
-    Clock,
-    Eye,
-    Store,
-    TrendingUp,
-    TrendingDown,
-    ChevronUp,
-    ChevronDown,
-} from 'lucide-react'
 import Employee from './Employee'
-import ButtonInPersonSale from './ButtonInPersonSale'
 import Publication from './StorePublication'
-import StoreCatalog from './StoreCatalog'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { callAdminApi } from '@/lib/callAdminApi'
 import StoreClubVip from './StoreClubVip'
 import StoreSalesExtractDialog, { type ExtractPeriod } from './StoreSalesExtractDialog'
-import StoreVisitors from './StoreVisitors'
-import { useInsideShell } from '@/components/InsideShell'
-import V3Section from './V3Section'
 import StoreDashboardSkeleton from './StoreDashboardSkeleton'
 import StoreOperatingDays from './StoreOperatingDays'
 import StoreDepositEditor from './StoreDepositEditor'
-import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
-import StoreOrders from './StoreOrders'
-import StoreDeliveryDues from './StoreDeliveryDues'
-import StoreMissions from './StoreMissions'
-import StoreDigital from './StoreDigital'
-import StoreFeedback from './StoreFeedback'
 import StoreDeliverySettings from './StoreDeliverySettings'
 import StoreFavoriteDrivers from './StoreFavoriteDrivers'
 import StorePromotions from './StorePromotions'
@@ -56,14 +29,9 @@ import EditarHub from './painel/EditarHub'
 import { parseStoreModel } from '@/lib/storeModel'
 import type { PaidOrder } from './painel/SalesChart'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
-
-import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
-import StoreSchedule from '@/components/StoreSchedule'
 import { StoreDescription } from './StoreDescription'
 import { checkSlugAvailability } from '@/lib/slugUtils'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
-
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
 
 function startOfDay(date: Date = new Date()): string {
@@ -87,37 +55,6 @@ function startOfCurrentMonth(): string {
     return d.toISOString()
 }
 
-const CURRENT_MONTH_LABEL = () => {
-    const name = new Date().toLocaleDateString('pt-BR', { month: 'long' })
-    return name.charAt(0).toUpperCase() + name.slice(1)
-}
-
-function startOfPeriod(daysAgo: number): string {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    d.setDate(d.getDate() - daysAgo)
-    return d.toISOString()
-}
-
-const pillButtonStyle = {
-    padding: '0.75rem 1.25rem',
-    borderRadius: '9999px',
-    fontWeight: 700,
-    fontSize: '0.875rem',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.5rem',
-    transition: 'all 0.2s ease',
-    cursor: 'pointer',
-    border: 'none',
-}
-
-const pillButtonFullStyle = {
-    ...pillButtonStyle,
-    flex: 1,
-}
-
 export default function StoreDashboard({
     profileSlug,
     storeSlug,
@@ -128,7 +65,7 @@ export default function StoreDashboard({
     showDebtBanner = true,
     previewLogo,
     previewName,
-    view = 'all',
+    view,
 }: {
     profileSlug: string
     storeSlug: string
@@ -143,23 +80,16 @@ export default function StoreDashboard({
     /** Logo e nome que a página já conhece: o esqueleto de carregamento (3.0) já mostra em "Informações da loja" */
     previewLogo?: string | null
     previewName?: string | null
-    /** `painel`: só o que dá feedback à loja (pedidos, agenda, venda presencial, vendas, avaliações, visitantes) · `editar`: informações e preferências da loja · `all`: tudo (2.0) */
-    view?: 'all' | 'painel' | 'editar'
+    /** `painel`: o "comando do dia" da loja (/painel-loja/<slug>) · `editar`: informações e preferências (/editar-loja/<slug>) */
+    view: 'painel' | 'editar'
 }) {
-    const showP = view !== 'editar'
-    const showE = view !== 'painel'
-    const router = useRouter()
     const { colors } = useTheme()
-    // Dentro da casca da 3.0 a ordem das seções muda um pouco (Visitantes sobe) e os cartões ganham o desenho novo
-    const insideShell = useInsideShell()
-    const surfaceRgb = hexToRgb(colors.surface)
 
     const { userId } = useProfile()
     // Atendimento automático por WhatsApp: escondido, a menos que o administrador ligue (Admin → WhatsApp Bot)
     const showWhatsAppBot = useFeatureFlag('store_whatsapp_bot')
     const [store, setStore] = useState<any>(null)
     const [loading, setLoading] = useState(true)
-    const [refreshing, setRefreshing] = useState(false)
 
     const [metrics, setMetrics] = useState({
         daily: { revenue: 0, orders: 0 },
@@ -174,15 +104,13 @@ export default function StoreDashboard({
         onDialogOpenChange?.(!!extractPeriod || showDeleteStore)
     }, [extractPeriod, showDeleteStore, onDialogOpenChange])
     useEffect(() => () => onDialogOpenChange?.(false), [onDialogOpenChange])
-    const [products, setProducts] = useState<any[]>([])
+    const [, setProducts] = useState<any[]>([])
     const [employees, setEmployees] = useState<any[]>([])
     const [employeeRoutes, setEmployeeRoutes] = useState<any[]>([])
     const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
-    const [showScheduleModal, setShowScheduleModal] = useState(false)
 
     // ===== ESTADO PARA StoreDescription =====
     const [isStoreDescriptionExpanded, setIsStoreDescriptionExpanded] = usePersistedExpanded('storeDescription', true)
-    const [isSalesExpanded, setIsSalesExpanded] = usePersistedExpanded('storeSales', true)
     const [savingDescription, setSavingDescription] = useState(false)
 
     // ===== ESTADOS PARA StoreDescription =====
@@ -193,24 +121,6 @@ export default function StoreDashboard({
     const [preview, setPreview] = useState<string | null>(null)
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
-
-    const intervalRef = useRef<any>(null)
-
-    const isStoreOpen = useMemo(() => {
-        if (!store) return false
-        return isStoreOpenNow(store.business_hours)
-    }, [store])
-
-    const statusText = useMemo(() => {
-        if (!store) return ''
-        const status = getStoreStatusWithLunch(store.business_hours)
-        return status.text
-    }, [store])
-
-    // ===== FUNÇÃO PARA NAVEGAR PARA EDITAR PERFIL =====
-    const handleEditProfile = () => {
-        router.push(`/${profileSlug}/editar-perfil`)
-    }
 
     // ===== VERIFICAÇÃO DE SLUG ÚNICO GLOBAL =====
     useEffect(() => {
@@ -419,8 +329,6 @@ export default function StoreDashboard({
 
     useEffect(() => { loadDashboard() }, [loadDashboard])
 
-    const handleRefresh = () => { setRefreshing(true); loadDashboard().finally(() => setRefreshing(false)) }
-
     // Recarrega só os funcionários (sem refazer o resto do dashboard) -
     // Employee.tsx chama isso depois de adicionar/editar/remover, senão a
     // lista mostrada ali fica presa no que foi carregado na abertura da
@@ -553,12 +461,6 @@ export default function StoreDashboard({
         return () => { supabase.removeChannel(channel) }
     }, [store?.id, loadEmployees])
 
-    const goToPublicStore = () => {
-        if (storeSlug) {
-            router.push(`/${storeSlug}`)
-        }
-    }
-
     const shareStoreLink = () => {
         if (!storeSlug) return
         const url = `${window.location.origin}/${storeSlug}`
@@ -570,7 +472,7 @@ export default function StoreDashboard({
     }
 
     // 3.0: esqueleto com a forma do painel (e a logo da loja, quando a página já sabe); 2.0 mantém o "Carregando"
-    if (loading && insideShell) return <StoreDashboardSkeleton logo={previewLogo} name={previewName} slug={storeSlug} />
+    if (loading && true) return <StoreDashboardSkeleton logo={previewLogo} name={previewName} slug={storeSlug} />
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
             <div className="text-center">
@@ -634,70 +536,6 @@ export default function StoreDashboard({
         </>
     )
 
-    // 3.0: Ver minha loja / Compartilhar link ficam logo abaixo de "Informações da loja"
-    const storeButtonsV3 = (
-        <div className="mb-6 grid grid-cols-2 gap-2">
-                    <button onClick={goToPublicStore} className="h-12 rounded-full text-sm font-black text-white transition active:scale-95" style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>
-                        Ver minha loja
-                    </button>
-                    <button onClick={shareStoreLink} className="h-12 rounded-full text-sm font-black transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>
-                        Compartilhar link
-                    </button>
-                </div>
-    )
-
-    const salesBody = (
-                    <>
-                    <div className="grid grid-cols-3 gap-2">
-                        {([
-                            { label: 'Hoje', period: 'daily' as const, data: metrics.daily },
-                            { label: 'Semana', period: 'weekly' as const, data: metrics.weekly },
-                            { label: CURRENT_MONTH_LABEL(), period: 'monthly' as const, data: metrics.monthly },
-                        ]).map(({ label, period, data }) => (
-                            <button
-                                key={label}
-                                onClick={() => setExtractPeriod(period)}
-                                className="rounded-xl p-3 text-center transition-transform hover:scale-[1.03] active:scale-95"
-                                style={{ background: `${colors.border}20` }}
-                            >
-                                <p className="text-lg font-black" style={{ color: '#f97316' }}>R$ {data.revenue.toFixed(2)}</p>
-                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                    <span className="font-bold" style={{ color: '#10b981' }}>{data.orders}</span> pedido{data.orders !== 1 ? 's' : ''}
-                                </p>
-                                <p className="text-[9px] uppercase font-bold mt-1" style={{ color: colors.textSecondary }}>{label}</p>
-                            </button>
-                        ))}
-                    </div>
-
-                    {products.length > 0 && (() => {
-                        const withSales = products.filter(p => p.salesCount > 0)
-                        const best = withSales.length > 0 ? [...withSales].sort((a, b) => b.salesCount - a.salesCount)[0] : null
-                        const worst = withSales.length > 1 ? [...withSales].sort((a, b) => a.salesCount - b.salesCount)[0] : null
-                        if (!best) return null
-                        return (
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="rounded-xl p-3" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
-                                    <p className="text-[9px] uppercase font-bold flex items-center gap-1" style={{ color: '#22c55e' }}>
-                                        <TrendingUp size={11} /> Mais vendido
-                                    </p>
-                                    <p className="text-xs font-bold truncate mt-1" style={{ color: colors.textPrimary }}>{best.name}</p>
-                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>{best.salesCount} vendido{best.salesCount !== 1 ? 's' : ''}</p>
-                                </div>
-                                {worst && (
-                                    <div className="rounded-xl p-3" style={{ background: '#ef444415', border: '1px solid #ef444440' }}>
-                                        <p className="text-[9px] uppercase font-bold flex items-center gap-1" style={{ color: '#ef4444' }}>
-                                            <TrendingDown size={11} /> Menos vendido
-                                        </p>
-                                        <p className="text-xs font-bold truncate mt-1" style={{ color: colors.textPrimary }}>{worst.name}</p>
-                                        <p className="text-[10px]" style={{ color: colors.textSecondary }}>{worst.salesCount} vendido{worst.salesCount !== 1 ? 's' : ''}</p>
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })()}
-                    </>
-    )
-
     // ===== PAINEL DA 3.0 (/painel-loja/<slug>): o "comando do dia" aprovado no laboratório /painel-teste, com os dados de verdade =====
     if (view === 'painel') return (
         <div className="w-full px-4 md:px-6 pb-28">
@@ -709,363 +547,24 @@ export default function StoreDashboard({
     )
 
     // ===== EDITAR LOJA DA 3.0 (/editar-loja/<slug>): a central agrupada do laboratório, com folhas e páginas que reaproveitam os blocos de sempre =====
-    if (view === 'editar' && insideShell) {
-        const mdl = parseStoreModel(store.store_model)
-        const hasServices = mdl === 'services' || mdl === 'mixed' || !!store.allow_scheduling
-        return (
-            <div className="w-full px-4 md:px-6 pb-28">
-                <EditarHub store={store} storeSlug={storeSlug} hasServices={hasServices} whatsapp={showWhatsAppBot}
-                    onShare={shareStoreLink} onDelete={() => setShowDeleteStore(true)} onStoreChange={(p) => setStore((prev: any) => ({ ...prev, ...p }))}
-                    blocos={{
-                        dados: descriptionNode,
-                        horarios: <StoreOperatingDays storeId={store.id} />,
-                        regras: <StoreDepositEditor storeId={store.id} />,
-                        entrega: <><StoreDeliverySettings storeId={store.id} onRefresh={loadDashboard} /><div className="mt-4"><StoreFavoriteDrivers storeId={store.id} v3 /></div></>,
-                        pagamento: <StorePaymentMethods storeId={store.id} onRefresh={loadDashboard} />,
-                        clube: <StoreClubVip storeId={store.id} />,
-                        whatsapp: showWhatsAppBot ? <StoreWhatsAppBot storeId={store.id} /> : null,
-                        equipe: <Employee employees={employees} employeeRoutes={employeeRoutes} assignmentMap={new Map()} expandedEmployee={expandedEmployee} onToggleExpand={setExpandedEmployee} storeId={store.id} storeName={store.name} onRefresh={loadEmployees} />,
-                        publicacoes: <Publication storeId={store.id} />,
-                        promocoes: <StorePromotions storeId={store.id} />,
-                    }} />
-                {showDeleteStore && (
-                    <DeleteConfirmDialog
-                        title={`Excluir ${store.name}`}
-                        description="Isso apaga a loja, produtos, pedidos, publicações e tudo o que está ligado a ela. Não dá pra desfazer."
-                        confirmLabel="Excluir loja"
-                        onConfirm={async (password) => {
-                            await callAdminApi('/api/stores/delete', { storeId: store.id, password })
-                            window.location.href = `/${profileSlug}`
-                        }}
-                        onClose={() => setShowDeleteStore(false)}
-                    />
-                )}
-            </div>
-        )
-    }
-
+    const mdl = parseStoreModel(store.store_model)
+    const hasServices = mdl === 'services' || mdl === 'mixed' || !!store.allow_scheduling
     return (
         <div className="w-full px-4 md:px-6 pb-28">
-            {/* ===== MODAL DE HORÁRIOS ===== */}
-            {showScheduleModal && store && (
-                <div
-                    className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-                    onClick={() => setShowScheduleModal(false)}
-                >
-                    <div
-                        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <StoreSchedule
-                            storeId={store.id}
-                            storeName={store.name}
-                            storeSlug={store.storeSlug}
-                            onClose={() => setShowScheduleModal(false)}
-                            onSuccess={loadDashboard}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {showE && infoFirst && descriptionNode}
-            {showE && infoFirst && insideShell && storeButtonsV3}
-
-            {showP && showDebtBanner && <DriverDebtBanner userId={userId} />}
-
-            {showP && (
-            <>
-            {/* ===== StoreOrders NO TOPO - é a primeira coisa que a loja precisa ver ===== */}
-            <div className="mb-6">
-                <StoreOrders
-                    storeId={store.id}
-                    storeName={store.name}
-                    onOrderCountsChange={onOrderCountsChange}
-                    storeSlug={store.storeSlug}
-                />
-            </div>
-
-            {/* ===== Caixa das entregas: repasses do dinheiro da porta, maquininha e entregas contestadas ===== */}
-            <div className={insideShell ? 'mb-6' : ''}>
-                <StoreDeliveryDues storeId={store.id} v3={insideShell} />
-            </div>
-
-            {/* ===== Missões da loja: pontuação diária (os pontos entram no Outdoor de lojas) ===== */}
-            <StoreMissions storeId={store.id} storeSlug={store.storeSlug} />
-
-            {/* ===== Digital: cursos, músicas e programas (produtos, vendas, o que liberar, Clube) + Apoios recebidos (gorjetas dos fãs) ===== */}
-            <StoreDigital storeId={store.id} storeSlug={store.storeSlug} hasPix={!!store.pix_key} v3={insideShell} />
-
-            </>
-            )}
-
-            {/* ===== Agenda da loja: logo abaixo dos Pedidos — só entra o serviço que a loja ACEITOU ===== */}
-            {showP && (
-            <>
-            <AtalhoCompromissosDaLoja profileSlug={profileSlug} storeId={store.id} storeSlug={store.storeSlug} />
-            </>
-            )}
-
-            {showP && (
-            <>
-            {/* ===== Venda Presencial (logo abaixo dos Pedidos) ===== */}
-            <div className="mb-6">
-                <ButtonInPersonSale
-                    storeId={store.id}
-                    storeName={store.name}
-                    storeSlug={storeSlug}
-                    profileSlug={profileSlug}
-                    onSaleCompleted={() => loadDashboard()}
-                />
-            </div>
-
-            </>
-            )}
-
-            {view === 'all' && insideShell && (
-            <>
-            {/* ===== Visitantes: na 3.0 ficam logo abaixo da Venda presencial (na 2.0 seguem no fim da página) ===== */}
-            {insideShell && (
-                <div className="mb-6">
-                    <StoreVisitors storeId={store.id} />
-                </div>
-            )}
-
-            </>
-            )}
-
-            {showE && (
-            <>
-            {/* ===== STORE OPERATING DAYS ===== */}
-            <div className="mb-4">
-                <StoreOperatingDays storeId={store.id} />
-            </div>
-
-            </>
-            )}
-
-            {showE && (
-            <>
-            {/* ===== ENTRADA NO AGENDAMENTO (opcional) ===== */}
-            <div className="mb-4">
-                <StoreDepositEditor storeId={store.id} />
-            </div>
-
-            </>
-            )}
-
-            {view === 'all' && (
-            <>
-            {!infoFirst && descriptionNode}
-            {!infoFirst && insideShell && storeButtonsV3}
-            </>
-            )}
-
-            {view === 'all' && (
-            <>
-            {!insideShell && (
-                <>
-            <div className="mb-6">
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        onClick={goToPublicStore}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 4px 12px #f9731640`,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <Store size={18} />
-                        Ver minha Loja
-                    </button>
-                    <button
-                        onClick={shareStoreLink}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 4px 12px #f9731640`,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <Copy size={18} />
-                        Compartilhar Link
-                    </button>
-
-                </div>
-            </div>
-
-                </>
-            )}
-            </>
-            )}
-
-            {view !== 'editar' && (
-            <>
-            {/* ===== Vendas do dia ===== */}
-            {insideShell ? (
-                <div className="mb-6">
-                    <V3Section
-                        title="Vendas"
-                        subtitle={<><span style={{ color: '#f97316', fontWeight: 800 }}>R$ {metrics.daily.revenue.toFixed(2)}</span> hoje · {metrics.daily.orders} pedido{metrics.daily.orders !== 1 ? 's' : ''}</>}
-                        expanded={isSalesExpanded}
-                        onToggle={() => setIsSalesExpanded(!isSalesExpanded)}
-                        className="mb-0"
-                    >
-                        {salesBody}
-                    </V3Section>
-                </div>
-            ) : (
-            <div className="mb-6">
-                <div
-                    className={`rounded-2xl relative flex flex-col ${isSalesExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    <button
-                        onClick={() => setIsSalesExpanded(!isSalesExpanded)}
-                        className="w-full flex items-center justify-between gap-3 text-left"
-                        style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <h3 className={`${isSalesExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
-                                Vendas
-                            </h3>
-                        </div>
-                        {isSalesExpanded ? (
-                            <ChevronUp size={isSalesExpanded ? 22 : 18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-                        ) : (
-                            <ChevronDown size={isSalesExpanded ? 22 : 18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-                        )}
-                    </button>
-
-                    {isSalesExpanded && (
-                    salesBody
-                    )}
-                </div>
-            </div>
-            )}
-
-            </>
-            )}
-
-            {/* ===== Avaliações e comentários dos clientes (produtos e serviços) ===== */}
-            {showP && <StoreFeedback storeId={store.id} />}
-
-
-            {showE && (
-            <>
-            {/* ===== Produtos e Serviços da Loja ===== */}
-            <StoreCatalog storeId={store.id} storeSlug={storeSlug} kind="product" />
-            <StoreCatalog storeId={store.id} storeSlug={storeSlug} kind="service" />
-
-            {/* ===== Promoções: combos montados com os itens da loja, com o desconto calculado ===== */}
-            <StorePromotions storeId={store.id} />
-
-
-            </>
-            )}
-
-            {showE && (
-            <>
-            {/* ===== Configurações de Entrega ===== */}
-            <div className="mb-6">
-                <StoreDeliverySettings
-                    storeId={store.id}
-                    onRefresh={loadDashboard}
-                />
-            </div>
-
-            {/* ===== Entregadores favoritos: recebem as entregas primeiro ===== */}
-            <StoreFavoriteDrivers storeId={store.id} v3={insideShell} />
-
-            </>
-            )}
-
-            {showE && (
-            <>
-            {/* ===== Atendimento automático por WhatsApp ===== */}
-            {showWhatsAppBot && (
-                <div className="mb-6">
-                    <StoreWhatsAppBot storeId={store.id} />
-                </div>
-            )}
-
-            </>
-            )}
-
-            {showE && (
-            <>
-            {/* ===== Formas de Pagamento ===== */}
-            <div className="mb-6">
-                <StorePaymentMethods
-                    storeId={store.id}
-                    onRefresh={loadDashboard}
-                />
-            </div>
-
-            </>
-            )}
-
-            {showE && (
-            <>
-            {/* ===== Funcionários ===== */}
-            <div className="mb-6">
-                <Employee
-                    employees={employees}
-                    employeeRoutes={employeeRoutes}
-                    assignmentMap={new Map()}
-                    expandedEmployee={expandedEmployee}
-                    onToggleExpand={setExpandedEmployee}
-                    storeId={store.id}
-                    storeName={store.name}
-                    onRefresh={loadEmployees}
-                />
-            </div>
-
-            </>
-            )}
-
-            {showE && (
-            <>
-            {/* ===== Publicações ===== */}
-            <Publication storeId={store.id} />
-
-            </>
-            )}
-
-            {showE && (
-            <>
-            {/* ===== Club VIP ===== */}
-            <StoreClubVip storeId={store.id} />
-
-            </>
-            )}
-
-            {view === 'all' && !insideShell && <StoreVisitors storeId={store.id} />}
-            {showE && (
-            <>
-            {/* ===== Excluir loja (no final, mesmo design do Excluir conta) ===== */}
-            <button
-                onClick={() => setShowDeleteStore(true)}
-                style={{
-                    ...pillButtonFullStyle,
-                    background: 'transparent',
-                    color: '#ef4444',
-                    border: '1px solid #ef444460',
-                    width: '100%',
-                }}
-                className="hover:scale-105 transition-transform active:scale-95"
-            >
-                Excluir loja
-            </button>
-
+            <EditarHub store={store} storeSlug={storeSlug} hasServices={hasServices} whatsapp={showWhatsAppBot}
+                onShare={shareStoreLink} onDelete={() => setShowDeleteStore(true)} onStoreChange={(p) => setStore((prev: any) => ({ ...prev, ...p }))}
+                blocos={{
+                    dados: descriptionNode,
+                    horarios: <StoreOperatingDays storeId={store.id} />,
+                    regras: <StoreDepositEditor storeId={store.id} />,
+                    entrega: <><StoreDeliverySettings storeId={store.id} onRefresh={loadDashboard} /><div className="mt-4"><StoreFavoriteDrivers storeId={store.id} v3 /></div></>,
+                    pagamento: <StorePaymentMethods storeId={store.id} onRefresh={loadDashboard} />,
+                    clube: <StoreClubVip storeId={store.id} />,
+                    whatsapp: showWhatsAppBot ? <StoreWhatsAppBot storeId={store.id} /> : null,
+                    equipe: <Employee employees={employees} employeeRoutes={employeeRoutes} assignmentMap={new Map()} expandedEmployee={expandedEmployee} onToggleExpand={setExpandedEmployee} storeId={store.id} storeName={store.name} onRefresh={loadEmployees} />,
+                    publicacoes: <Publication storeId={store.id} />,
+                    promocoes: <StorePromotions storeId={store.id} />,
+                }} />
             {showDeleteStore && (
                 <DeleteConfirmDialog
                     title={`Excluir ${store.name}`}
@@ -1078,18 +577,6 @@ export default function StoreDashboard({
                     onClose={() => setShowDeleteStore(false)}
                 />
             )}
-
-            {extractPeriod && (
-                <StoreSalesExtractDialog
-                    storeId={store.id}
-                    storeName={store.name}
-                    period={extractPeriod}
-                    onClose={() => setExtractPeriod(null)}
-                />
-            )}
-            </>
-            )}
-
         </div>
     )
 }

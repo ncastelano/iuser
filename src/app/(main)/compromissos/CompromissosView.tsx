@@ -2,13 +2,12 @@
 // Uma agenda (perfil ou loja) em /compromissos/<slug>. O dono do slug (perfil ou loja) é quem enxerga.
 'use client'
 
-import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react'
+import React, { useMemo, useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
 import {
     Search,
-    Check,
     X,
     ChevronLeft,
     ChevronRight,
@@ -19,8 +18,6 @@ import {
     Settings,
     Users,
     Calendar,
-    Edit3,
-    Eye,
     Store,
     Bell,
     UserCheck,
@@ -54,30 +51,9 @@ import ClientTrackRecord from '@/components/appointments/ClientTrackRecord'
 import ServiceInvitationCard from '@/components/appointments/ServiceInvitationCard'
 import { isServiceBooking } from '@/lib/appointmentReviews'
 import { toast } from '@/lib/toast'
-import { useInsideShell } from '@/components/InsideShell'
 import AgendaDiaV3 from './AgendaDiaV3'
 
 type BgMode = 'animated' | 'black' | 'custom'
-
-/* ===================================================
-   Busca nome do perfil a partir do slug
-   =================================================== */
-function ProfileName({ slug }: { slug: string }) {
-    const [name, setName] = useState<string | null>(null)
-    useEffect(() => {
-        if (!slug) return
-        supabase
-            .from('profiles')
-            .select('name')
-            .eq('profileSlug', slug)
-            .single()
-            .then(({ data }) => {
-                if (data) setName(data.name)
-            })
-    }, [slug])
-    if (name) return <>{name}</>
-    return <span style={{ opacity: 0.5 }}>@{slug}</span>
-}
 
 /* ===================================================
    Avatar adaptável
@@ -233,7 +209,6 @@ function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
    Página principal
    =================================================== */
 export default function CompromissosView({ agendaSlug }: { agendaSlug: string }) {
-    const insideShell = useInsideShell()
     const router = useRouter()
     const hoje = new Date()
     const { colors } = useTheme()
@@ -662,7 +637,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
     const isClientSide = activeTab !== 'pessoal' // loja ou "quem agendou comigo": pendentes/confirmados
     const activeStore = activeTab !== 'pessoal' && activeTab !== 'agenda-perfil' ? myStores.find((st) => st.id === activeTab) : null
     // agenda de LOJA dentro da casca da 3.0: um dia por vez, em linha do tempo
-    const storeV3 = insideShell && !!activeStore
+    const storeV3 = !!activeStore
     const todayStr = formatDate(new Date())
     const isSelectedToday = selectedDateStr === todayStr
 
@@ -809,9 +784,6 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                         title={activeStore ? `Compromissos · ${activeStore.name}` : 'Compromissos'}
                         showBack={true}
                         onBack={() => router.back()}
-                        greeting={`Olá, ${userProfileSlug ? `@${userProfileSlug}` : '...'}`}
-                        avatarUrl={userAvatarUrl ? getPublicUrl(userAvatarUrl, 'avatars') : null}
-                        loading={false}
                         tabs={sectionTabs.map((t) => ({
                             id: t.id,
                             label: t.label,
@@ -821,7 +793,6 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             badge: t.count > 0 ? { count: t.count, color: t.attention ? '#f97316' : '#64748b' } : null,
                         }))}
                         showSearch={false}
-                        onHomeClick={() => router.push('/')}
                     />
 
                     <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 28 }}>

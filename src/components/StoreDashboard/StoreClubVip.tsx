@@ -9,20 +9,15 @@ import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
 import {
-    ChevronDown,
-    ChevronUp,
     Plus,
     ImageIcon,
     Send,
     Users,
-    Gift,
     Check,
-    Receipt,
 } from 'lucide-react'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
-import { useInsideShell } from '@/components/InsideShell'
-import V3Section, { V3_GRADIENT } from './V3Section'
+import V3Section from './V3Section'
 
 interface StoreClubVipProps {
     storeId: string
@@ -85,14 +80,13 @@ function startOfPeriod(daysAgo: number): string {
 
 export default function StoreClubVip({ storeId }: StoreClubVipProps) {
     const { colors } = useTheme()
-    const v3 = useInsideShell()
     const surfaceRgb = hexToRgb(colors.surface)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const [isExpanded, setIsExpanded] = usePersistedExpanded('storeClubVip', true)
     const [loading, setLoading] = useState(false)
     const [vipEnabled, setVipEnabled] = useState(false)
-    const [vipPrice, setVipPrice] = useState<number | null>(null)
+    const [, setVipPrice] = useState<number | null>(null)
     const [savingToggle, setSavingToggle] = useState(false)
 
     const [members, setMembers] = useState<Member[]>([])
@@ -370,7 +364,7 @@ export default function StoreClubVip({ storeId }: StoreClubVipProps) {
                                                         <div className="min-w-0">
                                                             <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{c.products?.name}</p>
                                                             <p className="text-[10px] flex items-center gap-1" style={{ color: textSecondary }}>
-                                                                {!v3 && <Receipt size={10} />} {campaignRedemptions.length} resgate{campaignRedemptions.length !== 1 ? 's' : ''}
+                                                                 {campaignRedemptions.length} resgate{campaignRedemptions.length !== 1 ? 's' : ''}
                                                             </p>
                                                         </div>
                                                         <span className="text-[10px] font-black px-2 py-1 rounded-full flex-shrink-0" style={{ background: '#22c55e20', color: '#22c55e' }}>
@@ -522,8 +516,7 @@ export default function StoreClubVip({ storeId }: StoreClubVipProps) {
     )
 
     // 3.0: o mesmo cartão de seção das outras partes do painel
-    if (v3) {
-        return (
+    return (
             <V3Section
                 title="Club VIP"
                 subtitle={vipEnabled ? `${members.length} membro${members.length !== 1 ? 's' : ''}` : 'Desativado'}
@@ -534,40 +527,4 @@ export default function StoreClubVip({ storeId }: StoreClubVipProps) {
                 {body}
             </V3Section>
         )
-    }
-
-    return (
-        <div className="mb-6 mt-4">
-            <div
-                className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between text-left"
-                    style={{ padding: isExpanded ? '0.5rem 0.75rem' : 0, borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                >
-                    <div className="flex items-center gap-3">
-                        <div>
-                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>Club VIP</h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                {vipEnabled ? `${members.length} membro${members.length !== 1 ? 's' : ''}` : 'Desativado'}
-                            </p>
-                        </div>
-                    </div>
-                    {isExpanded ? <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} /> : <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />}
-                </button>
-
-                {isExpanded && (
-                    body
-                )}
-            </div>
-        </div>
-    )
 }

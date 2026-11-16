@@ -1,21 +1,12 @@
 // app/(main)/lojas/[categoria]/page.tsx
 'use client'
 
-import { useInsideShell } from '@/components/InsideShell'
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
 import {
     Store,
-    MapPin,
-    Clock,
-    Star,
-    ChevronRight,
-    TrendingUp,
-    Eye,
-    ShoppingCart,
-    Coffee,
     AlertCircle,
     ChevronLeft,
     ChevronRight as ChevronRightIcon,
@@ -29,7 +20,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import { categoriasMap } from '@/lib/categorias'
-import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
+import { type BusinessHours } from '@/lib/storeHours'
 import { StoreCard } from '@/components/StoreCard'
 import CreatePublicationDialog from '@/components/CreatePublicationDialog'
 
@@ -82,12 +73,8 @@ interface CategoryPublication {
 
 // ===== COMPONENTE CARD PARA CRIAR LOJA =====
 function CreateStoreCard({ colors, category }: { colors: any; category: string }) {
-    const v3 = useInsideShell()
     const router = useRouter()
     const { userId } = useProfile()
-
-    const surfaceRgb = hexToRgb(colors.surface)
-    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
     const handleCreateStore = () => {
         if (userId) {
@@ -98,8 +85,7 @@ function CreateStoreCard({ colors, category }: { colors: any; category: string }
     }
 
     // v3: um convite em linha, não um cartão gigante
-    if (v3) {
-        return (
+    return (
             <button onClick={handleCreateStore} className="w-full py-4 flex items-center gap-3 text-left transition active:opacity-80">
                 <span className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#f9731620', color: '#f97316' }}><PlusCircle size={22} /></span>
                 <span className="min-w-0">
@@ -108,56 +94,6 @@ function CreateStoreCard({ colors, category }: { colors: any; category: string }
                 </span>
             </button>
         )
-    }
-
-    return (
-        <div
-            onClick={handleCreateStore}
-            className="group w-full h-full min-h-[420px] rounded-3xl overflow-hidden border-2 border-dashed transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col items-center justify-center p-8 text-center"
-            style={{
-                background: cardBg,
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                borderColor: colors.border,
-                boxShadow: colors.shadow,
-            }}
-        >
-            <div
-                className="w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110"
-                style={{
-                    background: GRADIENT,
-                    color: '#ffffff',
-                    boxShadow: `0 4px 20px #f9731640`,
-                }}
-            >
-                <PlusCircle size={32} />
-            </div>
-
-            <h3 className="text-lg font-bold mb-2" style={{ color: colors.textPrimary }}>
-                Cadastrar Loja
-            </h3>
-
-            <p className="text-sm mb-4 max-w-xs" style={{ color: colors.textSecondary }}>
-                Adicione sua loja aqui também e comece a vender seus produtos!
-            </p>
-
-            <div
-                className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
-                style={{
-                    background: GRADIENT,
-                    color: '#ffffff',
-                    boxShadow: `0 4px 14px #f9731660`,
-                }}
-            >
-                <Store size={16} />
-                Criar Loja Agora
-            </div>
-
-            <p className="text-[10px] mt-3 opacity-50" style={{ color: colors.textSecondary }}>
-                Demora apenas alguns minutos 🚀
-            </p>
-        </div>
-    )
 }
 
 // ===== FUNÇÃO PARA CONVERTER business_hours =====
@@ -176,7 +112,6 @@ const convertBusinessHours = (data: any): BusinessHours | null => {
 
 // ===== COMPONENTE PRINCIPAL =====
 export default function ListaCategoriaPage() {
-    const v3 = useInsideShell()
     const params = useParams()
     const router = useRouter()
     const categoriaRaw = params.categoria
@@ -476,9 +411,6 @@ export default function ListaCategoriaPage() {
                     title={info.nome}
                     showBack={true}
                     onBack={() => router.push('/')}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                     showSearch={true}
                     searchPlaceholder="Filtrar lojas..."
                     onSearch={setSearchQuery}
@@ -670,7 +602,7 @@ export default function ListaCategoriaPage() {
                                         </span>
                                     </div>
 
-                                    <div className={v3 ? 'flex flex-col gap-3' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'}>
+                                    <div className={'flex flex-col gap-3'}>
                                         {currentItems.map((store) => (
                                             <StoreCard
                                                 key={store.id}

@@ -145,8 +145,6 @@ export default function AgendarPage() {
                     title="Agendar"
                     showBack={true}
                     onBack={() => router.back()}
-                    greeting="Novo compromisso"
-                    avatarUrl={getPublicUrl(userAvatarUrl, 'avatars')}
                     tabs={tabs.map(tab => ({
                         ...tab,
                         onClick: () => {
@@ -156,7 +154,6 @@ export default function AgendarPage() {
                         isActive: activeTab === tab.id,
                     }))}
                     showSearch={false}
-                    onHomeClick={() => router.push('/')}
                 />
 
                 <div className="px-5 pt-0">

@@ -1,15 +1,12 @@
 // app/(main)/layout.tsx
 //
-// Resolve a versão da interface no servidor (cookie + permissão liberada pelo admin) e escolhe a moldura:
-// na 3.0 as páginas abrem dentro da casca (VersionFrame); na 2.0 cada página traz o próprio cabeçalho.
+// Moldura das páginas do app: dentro da casca (AppFrame → ShellFrame), menos as de SHELL_EXCLUDED.
 import { ReactNode } from 'react'
-import { cookies } from 'next/headers'
-import VersionFrame from '@/versions/VersionFrame'
-import { resolveRequestVersion } from '@/versions/access'
-import { VERSION_COOKIE } from '@/versions/registry'
+import AppFrame from '@/versions/AppFrame'
 
-export default async function MainLayout({ children }: { children: ReactNode }) {
-    const jar = await cookies()
-    const version = await resolveRequestVersion(jar.getAll(), jar.get(VERSION_COOKIE)?.value)
-    return <VersionFrame version={version}>{children}</VersionFrame>
+// As páginas sempre foram renderizadas a cada pedido (o layout lia o cookie da versão da interface); continua assim.
+export const dynamic = 'force-dynamic'
+
+export default function MainLayout({ children }: { children: ReactNode }) {
+    return <AppFrame>{children}</AppFrame>
 }

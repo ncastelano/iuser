@@ -28,7 +28,6 @@ import {
     User,
     Camera,
 } from 'lucide-react'
-import { useInsideShell } from '@/components/InsideShell'
 import { dateKey } from '@/lib/storeSlots'
 import ScheduleV3 from '@/components/v3/ScheduleV3'
 import AppointmentDepositPanel from '@/components/AppointmentDepositPanel'
@@ -129,8 +128,6 @@ export default function StoreSchedule({
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
     const { userId: contextUserId, loading: profileLoading } = useProfile()
-    // Na 3.0 as etapas de data/hora e de confirmação usam a tela nova (ScheduleV3); a busca de loja e as regras são as mesmas
-    const v3 = useInsideShell()
 
     // ---------- Estados ----------
     const [step, setStep] = useState<'search' | 'datetime' | 'confirm'>(
@@ -173,10 +170,10 @@ export default function StoreSchedule({
     const [showCalendar, setShowCalendar] = useState(false)
 
     // ===== ESTADOS DE AUTENTICAÇÃO =====
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [, setCurrentUserId] = useState<string | null>(null)
     const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
-    const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
-    const [currentUserName, setCurrentUserName] = useState<string | null>(null)
+    const [, setCurrentUserAvatar] = useState<string | null>(null)
+    const [, setCurrentUserName] = useState<string | null>(null)
     const [authLoading, setAuthLoading] = useState(false)
     const [authError, setAuthError] = useState<string | null>(null)
     const [authAvatarFile, setAuthAvatarFile] = useState<File | null>(null)
@@ -214,7 +211,7 @@ export default function StoreSchedule({
     const [isSlugAvailable, setIsSlugAvailable] = useState<boolean | null>(null)
     const slugTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const [isAuthenticated, setIsAuthenticated] = useState(false)
-    const [authInitialized, setAuthInitialized] = useState(false)
+    const [, setAuthInitialized] = useState(false)
 
     const hoje = new Date()
     const todayStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`
@@ -395,10 +392,10 @@ export default function StoreSchedule({
     }, [autoNote, isEditingNote])
 
     useEffect(() => {
-        if (!v3) return
+        
         const recado = v3Recado.trim()
         setAppointmentNote(autoNote + (recado ? (autoNote ? ' — ' : '') + recado : ''))
-    }, [v3, autoNote, v3Recado])
+    }, [autoNote, v3Recado])
 
     useEffect(() => {
         if (!target?.id || step === 'search') return
@@ -972,8 +969,8 @@ export default function StoreSchedule({
     const textSecondary = colors.textSecondary
     const accentColor = colors.accent
 
-    const v3Flow = v3 && !!target && !depositAppt && (step === 'datetime' || step === 'confirm')
-    const title = depositAppt ? 'Pague a entrada' : step === 'search' ? 'Buscar loja' : step === 'datetime' ? (v3 ? 'Agendar atendimento' : `Agendar em ${target?.name || ''}`) : 'Confirmar'
+    const v3Flow = !!target && !depositAppt && (step === 'datetime' || step === 'confirm')
+    const title = depositAppt ? 'Pague a entrada' : step === 'search' ? 'Buscar loja' : step === 'datetime' ? ('Agendar atendimento') : 'Confirmar'
 
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('pt-BR', {
@@ -984,9 +981,6 @@ export default function StoreSchedule({
     }
 
     const hasSelectedDateTime = selectedDate && selectedTime
-
-    // Se não estiver autenticado, mostra o formulário de login
-    const showAuthForm = !isAuthenticated && step === 'confirm'
 
     return (
         <div
@@ -1062,7 +1056,7 @@ export default function StoreSchedule({
                         <AppointmentDepositPanel appointmentId={depositAppt} role="customer" onChanged={() => { refetch() }} />
                         <button
                             onClick={() => { onSuccess?.(); onClose?.() }}
-                            style={v3 ? { height: 48, borderRadius: 9999, background: `${colors.border}40`, color: textPrimary, fontWeight: 900, fontSize: 14 } : { ...pillButtonStyle, background: 'transparent', border: `1px solid ${borderColor}`, color: textSecondary }}
+                            style={{ height: 48, borderRadius: 9999, background: `${colors.border}40`, color: textPrimary, fontWeight: 900, fontSize: 14 }}
                         >
                             Fechar (pago depois em Compromissos)
                         </button>

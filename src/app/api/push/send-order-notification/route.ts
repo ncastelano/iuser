@@ -83,7 +83,7 @@ export async function POST(req: Request) {
             title: `Novo pedido em ${store.name}`,
             body: `${order.buyer_profile_slug ? '@' + order.buyer_profile_slug : 'Um cliente'} fez um pedido de R$ ${Number(order.total_amount).toFixed(2)}`,
             // Leva direto para o StoreDashboard da loja (pedidos ficam no topo dele)
-            url: `/${store.storeSlug}?dashboard=pedidos`,
+            url: `/painel-loja/${store.storeSlug}/pedidos`,
             tag: `order-${order.id}`,
         })
 

@@ -1,8 +1,7 @@
 // src/components/v3/StoreHeaderV3.tsx
 //
 // Cabeçalho da página pública de uma LOJA na interface 3.0: logo, nome, status, atalhos em cápsulas e uma linha de ações (sem capa: a navbar da v3 já é a faixa laranja).
-// Só apresentação: todos os dados e ações vêm de `Store.tsx` (mesmas regras da v2). Fica em `components/v3` (neutro) e é usado
-// quando a tela está dentro da casca da 3.0 (`useInsideShell`).
+// Só apresentação: todos os dados e ações vêm de `Store.tsx`.
 'use client'
 
 import type { StoreModel } from '@/lib/storeModel'

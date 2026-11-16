@@ -53,7 +53,6 @@ import DigitalLibrary from '@/components/digital/DigitalLibrary'
 import { fetchLibrary } from '@/modules/digital'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import type { UiVersion } from '@/versions/registry'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import CatalogBag from '@/app/(main)/[ownerSlug]/catalogo/CatalogBag'
 import CarrinhoSkeleton from './CarrinhoSkeleton'
@@ -112,8 +111,7 @@ async function geocodeAddress(query: string): Promise<{ lat: number; lng: number
  * só a moldura muda — v2: Header + fundo animado próprios; v3: o cartão do app já vem do layout (ShellFrame).
  */
 /** `hideTabs` + `tab`: dentro da Atividade (3.0) a fileira de abas é a da Atividade (Pedidos, Carrinho, Biblioteca) e a aba aberta vem de fora */
-export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { ui?: UiVersion; hideTabs?: boolean; tab?: 'carrinho' | 'pedidos' | 'digital' | 'avaliacoes' }) {
-    const v3 = ui === 'v3'
+export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: boolean; tab?: 'carrinho' | 'pedidos' | 'digital' | 'avaliacoes' }) {
     const {
         itemsByStore,
         storeDetails,
@@ -1358,21 +1356,13 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
 
     const surfaceRgb = hexToRgb(colors.surface)
     // 3.0: cartões sólidos, no mesmo desenho da ilha e da barra (fundo da página, borda e sombra leve); 2.0: vidro sobre o fundo animado
-    const cardStyle = v3 ? {
+    const cardStyle = ({
         background: colors.surface,
         border: `1px solid ${colors.border}`,
         boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
         borderRadius: '1.5rem',
         padding: '1.25rem',
-    } : {
-        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: `1px solid ${colors.border}`,
-        boxShadow: colors.shadow,
-        borderRadius: '1rem',
-        padding: '1.5rem',
-    }
+    })
 
     // ===== TABS =====
     const tabs = useMemo(() => {
@@ -1448,10 +1438,8 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
         else if (order.status === 'rejected' && order.closed_reason === 'no_driver') statusStyle = { ...statusStyle, label: 'Cancelado', icon: '🚫', message: 'Ninguém aceitou a entrega e o pedido foi cancelado. Peça de novo para retirar na loja.' }
         else if (order.status === 'rejected' && order.closed_reason === 'customer_cancelled') statusStyle = { ...statusStyle, label: 'Cancelado', icon: '🚫', message: 'Você cancelou este pedido.' }
         else if (order.status === 'rejected' && order.closed_reason === 'store_timeout') statusStyle = { ...statusStyle, label: 'Cancelado', icon: '⏰', message: 'A loja não respondeu a tempo e o pedido foi cancelado.' }
-        const bgColor = getStatusColor(order.status)
 
         // ===== 3.0: cartão claro com linha do tempo =====
-        if (v3) {
             // cada etapa tem a sua cor; as linhas entre elas são laranjas (a cor do iUser)
             const STEPS = [
                 { key: 'pending', label: order.held ? 'Buscando' : 'Recebido', color: '#22c55e' },
@@ -1534,102 +1522,13 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                     </div>
                 </div>
             )
-        }
-
-        return (
-            <div
-                className="rounded-2xl p-4 shadow-sm"
-                style={{
-                    background: bgColor,
-                    border: `1px solid ${colors.border}`,
-                    color: '#000',
-                }}
-            >
-                <div className="-mx-3.5 -mt-1">
-                    <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} light top />
-                </div>
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-black italic" style={{ color: '#000' }}>
-                        {order.storeName || order.store_name}
-                    </h3>
-                    <span className={`text-[10px] font-black px-3 py-1.5 rounded-full ${statusStyle.badge}`}>
-                        {statusStyle.icon} {statusStyle.label}
-                    </span>
-                </div>
-                <div className="w-full bg-white/50 rounded-full h-2 mb-3 overflow-hidden">
-                    <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                            width:
-                                order.status === 'pending' ? '25%' :
-                                    order.status === 'preparing' ? '50%' :
-                                        order.status === 'ready' ? '75%' :
-                                            order.status === 'paid' ? '100%' : '100%',
-                            background:
-                                order.status === 'pending' ? '#22c55e' :
-                                    order.status === 'preparing' ? '#eab308' :
-                                        order.status === 'ready' ? '#a855f7' :
-                                            order.status === 'paid' ? '#3b82f6' : '#ef4444',
-                        }}
-                    ></div>
-                </div>
-                <div className="space-y-2">
-                    {order.items.map((item: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center text-sm">
-                            <span className="font-bold" style={{ color: '#000' }}>
-                                {item.quantity}x {item.product_name}
-                            </span>
-                            <div className="flex items-center gap-3">
-                                <span className="font-black" style={{ color: '#000' }}>
-                                    R$ {Number(item.price).toFixed(2)}
-                                </span>
-                                {order.status === 'paid' && (
-                                    <button
-                                        onClick={() =>
-                                            setReviewOrder({
-                                                isOpen: true,
-                                                orderId: order.id,
-                                                productId: item.product_id,
-                                                productName: item.product_name,
-                                                storeId: order.store_id,
-                                            })
-                                        }
-                                        className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase transition-all"
-                                        style={{ background: '#f9731620', color: '#f97316' }}
-                                    >
-                                        Avaliar
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <div className="flex justify-between items-center mt-3 pt-2 border-t border-black/20">
-                    <span className="text-[8px] font-black uppercase" style={{ color: '#000' }}>Total</span>
-                    <div className="text-right">
-                        <span className="text-xl font-black block" style={{ color: '#000' }}>
-                            R$ {Number(order.total_amount).toFixed(2)}
-                        </span>
-                        {Number(order.deliveryFee) > 0 && (
-                            <span className="text-[9px] font-bold text-black/60 block -mt-1">
-                                (frete R$ {Number(order.deliveryFee).toFixed(2)})
-                            </span>
-                        )}
-                    </div>
-                </div>
-                <div className={`mt-3 text-[10px] font-bold text-center py-2 rounded-lg ${statusStyle.badge}`}>
-                    {statusStyle.icon} {statusStyle.message}
-                </div>
-                {order.status === 'pending' && !order.held && order.order_id && <CancelPendingOrder orderId={order.order_id} />}
-            </div>
-        )
     }
 
     // v3: a barra do topo vem do layout (ShellFrame) e não some enquanto carrega
     // ===== 3.0: SUGESTÕES DA MESMA LOJA ("complete seu pedido") =====
     const cartSlugsKey = Object.keys(itemsByStore).sort().join('|')
     useEffect(() => {
-        if (!v3 || !cartSlugsKey) { setSuggestionsByStore({}); return }
+        if ((!cartSlugsKey)) { setSuggestionsByStore({}); return }
         let cancelled = false
         ;(async () => {
             const slugs = cartSlugsKey.split('|')
@@ -1659,7 +1558,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
             setSuggestionsByStore(out)
         })()
         return () => { cancelled = true }
-    }, [v3, cartSlugsKey])
+    }, [true, cartSlugsKey])
 
     useEffect(() => {
         if (!confirmClear) return
@@ -1667,28 +1566,17 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
         return () => clearTimeout(t)
     }, [confirmClear])
 
-    if (!mounted || globalLoading) return v3 ? (
+    if (!mounted || globalLoading) return ((
         // esqueleto: a página já aparece com a forma do carrinho e os dados entram no lugar
         <CarrinhoSkeleton />
-    ) : (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
-            <div className="text-center">
-                <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando carrinho...</p>
-            </div>
-        </div>
-    )
+    ))
 
     return (
-        <div className={v3 ? 'relative' : 'relative min-h-dvh'} style={v3 ? undefined : { background: colors.background }}>
-            {!v3 && (
-                <div className="fixed inset-0 z-0">
-                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-                </div>
-            )}
+        <div className={('relative')} style={(undefined)}>
+            
 
-            <main className={v3 ? 'relative' : 'relative z-10 min-h-dvh'} style={{ overscrollBehavior: 'none' }}>
-                {v3 ? (
+            <main className={('relative')} style={{ overscrollBehavior: 'none' }}>
+                {((
                     <>
                         {!hideTabs && <PageTabs tabs={tabs} />}
                         {activeTab === 'carrinho' && storeSlugs.length > 0 && (
@@ -1712,27 +1600,13 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                             </div>
                         )}
                     </>
-                ) : (
-                    <Header
-                        title="iUser"
-                        showBack={false}
-                        greeting={`Olá, ${currentUserSlug ? `@${currentUserSlug}` : 'Visitante'}`}
-                        avatarUrl={currentUserAvatar}
-                        loading={false}
-                        tabs={tabs}
-                        showSearch={true}
-                        searchPlaceholder="Buscar pedido, produto ou loja..."
-                        onSearch={setSearchQuery}
-                        profileSlug={currentUserSlug}
-                        onHomeClick={() => router.push('/')}
-                    />
-                )}
+                ))}
 
-                <div className={v3 ? 'pt-4 pb-24 space-y-10' : 'px-4 pt-4 pb-24 space-y-10'}>
+                <div className={('pt-4 pb-24 space-y-10')}>
                     {/* Seção Carrinho - visível apenas quando activeTab === 'carrinho' */}
                     {activeTab === 'carrinho' && (
                         <section id="section-carrinho" className="scroll-mt-24">
-                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
+                            <div className={('hidden')}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <ShoppingCart size={16} />
                                 </div>
@@ -2211,7 +2085,6 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                                         ) : null
 
                                         // ===== 3.0: cartão da loja (nome, status, itens, sugestões e finalizar) + checkout em folha =====
-                                        if (v3) {
                                             const soft = `${colors.border}40`
                                             const suggestions = (suggestionsByStore[slug] || [])
                                                 .filter((sg) => !items.some((it) => it.product.id === sg.id))
@@ -2382,65 +2255,6 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                                                     )}
                                                 </div>
                                             )
-                                        }
-
-                                        return (
-                                            <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
-                                                {/* O nome da loja já aparece do lado da logo, dentro do CatalogBag -
-                                                    repeti-lo aqui em cima seria redundante. */}
-                                                <div className="flex items-center justify-end mb-3">
-                                                    <span className="text-lg font-black" style={{ color: '#f97316' }}>R$ {itemsTotal.toFixed(2)}</span>
-                                                </div>
-
-                                                {/* ===== STATUS DA LOJA ===== */}
-                                                <div
-                                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 text-xs font-bold"
-                                                    style={{
-                                                        background: isStoreOpen ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-                                                        color: statusColor,
-                                                        border: `1px solid ${statusColor}30`,
-                                                    }}
-                                                >
-                                                    <Clock size={14} />
-                                                    <span>{statusIcon} {statusText}</span>
-                                                    {!isStoreOpen && nextOpening && (
-                                                        <span style={{ opacity: 0.7 }}>
-                                                            • Abre {nextOpening.dayLabel} às {nextOpening.time}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {/* Cada loja da sacola é o mesmo CatalogBag usado no catálogo e na
-                                                    página de produto - com a foto da loja no lugar do ícone de
-                                                    carrinho (esse cartão já é o carrinho daquela loja), e as
-                                                    mesmas etapas de Recebimento/Pagamento ao clicar em Finalizar. */}
-                                                <CatalogBag
-                                                    bagItems={items}
-                                                    isExpanded
-                                                    onToggleExpanded={() => { }}
-                                                    onIncrease={(product, comment, addons) => updateQuantity(slug, product.id, 1, comment, addons)}
-                                                    onDecrease={(productId, comment, addons) => updateQuantity(slug, productId, -1, comment, addons)}
-                                                    onRemove={(productId, comment, addons) => removeItem(slug, productId, comment, addons)}
-                                                    onCheckout={() => {
-                                                        if (!currentUserId) {
-                                                            setPendingReferralStoreSlug(slug)
-                                                            toast.info('Identifique-se para continuar')
-                                                            return
-                                                        }
-                                                        setCheckoutStepByStore(prev => ({ ...prev, [slug]: 'delivery' }))
-                                                    }}
-                                                    colors={colors}
-                                                    isStoreOpen={isStoreOpen}
-                                                    storeImageUrl={details?.logo_url ?? null}
-                                                    storeName={details?.name || slug}
-                                                    useStoreIconInBadge
-                                                    hideCollapseControls
-                                                    bare
-                                                    fullWidth
-                                                    checkoutContent={checkoutContent}
-                                                />
-                                            </div>
-                                        )
                                     })}
                                     {!currentUserId && storeSlugs.length > 0 && (
                                         <div className="rounded-2xl p-5" style={cardStyle}>
@@ -2507,7 +2321,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                     {/* Seção Pedidos - visível apenas quando activeTab === 'pedidos' */}
                     {currentUserId && activeTab === 'pedidos' && (
                         <section id="section-pedidos" className="scroll-mt-24">
-                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
+                            <div className={('hidden')}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <Package size={16} />
                                 </div>
@@ -2552,7 +2366,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                     {/* Seção Digital - o que a pessoa comprou de curso, aula, e-book e arquivo (liberado pela loja) */}
                     {currentUserId && activeTab === 'digital' && (
                         <section id="section-digital" className="scroll-mt-24">
-                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
+                            <div className={('hidden')}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}><GraduationCap size={16} /></div>
                                 <h2 className="text-base font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>Compras digitais</h2>
                             </div>
@@ -2566,7 +2380,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                             {hideTabs && (
                                 <button onClick={() => setActiveTab('pedidos')} className="mb-3 h-9 px-3.5 rounded-full text-xs font-black active:scale-95" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}>‹ Voltar aos pedidos</button>
                             )}
-                            <div className={v3 ? 'hidden' : 'flex items-center gap-2 mb-4'}>
+                            <div className={('hidden')}>
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
                                     <Star size={16} />
                                 </div>
@@ -2728,34 +2542,7 @@ export default function CarrinhoScreen({ ui = 'v3', hideTabs = false, tab }: { u
                     )}
                 </div>
 
-                {!v3 && <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                    <button
-                        onClick={() => router.back()}
-                        className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            border: `2px solid #f97316`,
-                            boxShadow: `0 8px 24px #f9731660`,
-                        }}
-                        aria-label="Voltar para a página anterior"
-                    >
-                        <ArrowLeft size={24} />
-                    </button>
-                    <button
-                        onClick={() => router.push('/')}
-                        className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            border: `2px solid #f97316`,
-                            boxShadow: `0 8px 24px #f9731660`,
-                        }}
-                        aria-label="Ir para o início"
-                    >
-                        <Home size={24} />
-                    </button>
-                </div>}
+                
             </main>
 
             {/* ===== MODAL DE LOCALIZAÇÃO ===== */}

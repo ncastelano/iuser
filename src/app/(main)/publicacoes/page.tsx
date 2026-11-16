@@ -7,25 +7,11 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
 import {
-    Store,
-    Search,
-    Grid,
-    List,
-    ChevronLeft,
-    ChevronRight,
     AlertCircle,
-    Eye,
-    Clock,
     Heart,
     Share2,
-    Calendar,
-    User,
     MessageCircle,
-    Pencil,
-    Trash2,
-    Plus,
     Megaphone,
-    MessageSquare,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
@@ -36,7 +22,6 @@ import Header from '@/components/Header'
 import { getAvatarUrl } from '@/lib/avatar'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { handleShareLink } from '@/lib/share'
-import { useInsideShell } from '@/components/InsideShell'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -90,7 +75,6 @@ function PublicationCardComponent({
     onLike?: (pubId: string) => void
 }) {
     const router = useRouter()
-    const v3 = useInsideShell()
     const [isLiked, setIsLiked] = useState(pub.is_liked || false)
     const [likeCount, setLikeCount] = useState(pub.like_count || 0)
     const [liking, setLiking] = useState(false)
@@ -150,12 +134,8 @@ function PublicationCardComponent({
         }
     }
 
-    const surfaceRgb = hexToRgb(colors.surface)
-    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
-
     // v3: publicação como item de feed (sem cartão): quem publicou, título e texto, imagem arredondada, ações discretas e o comentário mais curtido
-    if (v3) {
-        return (
+    return (
             <article onClick={handleClick} className="py-4 cursor-pointer" style={{ borderBottom: `1px solid ${colors.border}50` }}>
                 <div className="flex items-center gap-2.5">
                     <PlanAvatarRing userId={pub.ownerType === 'profile' ? pub.ownerId : undefined}>
@@ -211,183 +191,6 @@ function PublicationCardComponent({
                 )}
             </article>
         )
-    }
-
-    return (
-        <div
-            className="rounded-2xl p-5 flex flex-col gap-1"
-            style={{
-                background: cardBg,
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: `1px solid ${colors.border}`,
-                boxShadow: colors.shadow,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-            }}
-            onClick={handleClick}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.01)'
-                e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.15)'
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)'
-                e.currentTarget.style.boxShadow = colors.shadow
-            }}
-        >
-            {/* Header do card */}
-            <div className="flex items-start gap-3">
-                <PlanAvatarRing userId={pub.ownerType === 'profile' ? pub.ownerId : undefined}>
-                    <div
-                        className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
-                        style={{ background: GRADIENT }}
-                    >
-                        {pub.ownerImageUrl ? (
-                            <img src={pub.ownerImageUrl} className="w-full h-full object-cover" alt={pub.ownerName} />
-                        ) : (
-                            <span className="text-white font-bold text-lg">
-                                {pub.ownerName?.charAt(0).toUpperCase() || '?'}
-                            </span>
-                        )}
-                    </div>
-                </PlanAvatarRing>
-
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                            {pub.ownerName}
-                        </span>
-                        <span className="text-[10px]" style={{ color: colors.textSecondary }}>
-                            • {formattedDate || 'Data desconhecida'}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase" style={{ background: '#10b98120', color: '#10b981' }}>
-                            Novidade
-                        </span>
-                    </div>
-                    <p className="text-sm font-bold mt-1" style={{ color: colors.textPrimary }}>
-                        {pub.title || 'Sem título'}
-                    </p>
-                    {pub.description && (
-                        <p className="text-xs mt-1 line-clamp-2" style={{ color: colors.textSecondary }}>
-                            {pub.description}
-                        </p>
-                    )}
-                </div>
-            </div>
-
-            {/* Imagem da publicação */}
-            {pub.imageUrl && (
-                <div className="mt-3 rounded-xl overflow-hidden">
-                    <img src={pub.imageUrl} className="w-full max-h-[300px] object-cover" alt={pub.title} />
-                </div>
-            )}
-
-            {/* Ações da publicação */}
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t flex-wrap" style={{ borderColor: colors.border }}>
-                <button
-                    onClick={handleLike}
-                    disabled={liking}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105 disabled:opacity-50"
-                    style={{
-                        background: isLiked ? '#ef444420' : 'rgba(255,255,255,0.05)',
-                        color: isLiked ? '#ef4444' : colors.textSecondary,
-                        border: isLiked ? '1px solid #ef444440' : `1px solid ${colors.border}`,
-                    }}
-                >
-                    <Heart size={12} fill={isLiked ? '#ef4444' : 'none'} />
-                    <span>{likeCount}</span>
-                </button>
-
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        handleClick()
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
-                    style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        color: colors.textSecondary,
-                        border: `1px solid ${colors.border}`,
-                    }}
-                >
-                    <MessageCircle size={12} />
-                    <span>{pub.comment_count || 0}</span>
-                </button>
-
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        handleShareLink({
-                            title: pub.title || 'Publicação',
-                            text: pub.description || `Confira esta publicação no iUser!`,
-                            url: `${window.location.origin}/publicacoes/${pub.slug || pub.id}`
-                        })
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
-                    style={{
-                        background: GRADIENT,
-                        color: '#ffffff',
-                        boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)',
-                        border: 'none',
-                    }}
-                >
-                    <Share2 size={12} />
-                    Compartilhar
-                </button>
-            </div>
-
-            {/* Comentário mais curtido (embaixo das ações) */}
-            {pub.top_comment && (
-                <div
-                    className="mt-3 p-3 rounded-xl border-l-4 transition-all hover:opacity-90"
-                    style={{
-                        background: `${colors.surface}50`,
-                        borderColor: '#f97316',
-                        borderLeftWidth: '4px',
-                    }}
-                >
-                    <div className="flex items-start gap-2">
-                        <div
-                            className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
-                            style={{ background: GRADIENT }}
-                        >
-                            {pub.top_comment.profiles?.avatar_url ? (
-                                <img
-                                    src={getAvatarUrl(supabase, pub.top_comment.profiles.avatar_url) || ''}
-                                    className="w-full h-full object-cover"
-                                    alt={profileLabel(pub.top_comment.profiles)}
-                                />
-                            ) : (
-                                <span className="text-white font-bold text-[10px]">
-                                    {pub.top_comment.profiles?.name?.charAt(0).toUpperCase() || '?'}
-                                </span>
-                            )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>
-                                    {profileLabel(pub.top_comment.profiles)}
-                                </span>
-                                <span className="text-[9px]" style={{ color: colors.textSecondary }}>
-                                    • Comentário mais curtido
-                                </span>
-                            </div>
-                            <p className="text-xs mt-0.5 line-clamp-2" style={{ color: colors.textSecondary }}>
-                                "{pub.top_comment.content}"
-                            </p>
-                            <div className="flex items-center gap-1 mt-1">
-                                <Heart size={10} fill="#ef4444" color="#ef4444" />
-                                <span className="text-[9px] font-semibold" style={{ color: colors.textSecondary }}>
-                                    {pub.top_comment.like_count} {pub.top_comment.like_count === 1 ? 'curtida' : 'curtidas'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    )
 }
 
 // ========== SKELETON CARD ==========
@@ -430,7 +233,6 @@ function PublicationCardSkeleton({ colors }: { colors: any }) {
 
 // ========== PÁGINA PRINCIPAL ==========
 export default function AllPublicationsPage() {
-    const v3 = useInsideShell()
     const router = useRouter()
     const { colors } = useTheme()
     const { userId: currentUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -790,9 +592,6 @@ export default function AllPublicationsPage() {
                     title="Todas publicações"
                     showBack={true}
                     onBack={() => router.push('/')}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                     showSearch={true}
                     searchPlaceholder="Buscar publicações..."
                     onSearch={setSearchQuery}
@@ -864,7 +663,7 @@ export default function AllPublicationsPage() {
                                 </div>
                             ) : (
                                 <>
-                                    <div className={v3 ? '' : 'space-y-4'}>
+                                    <div className={''}>
                                         {displayedPublications.map((pub, index) => (
                                             <div key={`${pub.id}-${index}`} className="animate-fadeIn">
                                                 <PublicationCardComponent

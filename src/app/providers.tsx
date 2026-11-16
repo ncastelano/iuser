@@ -12,8 +12,6 @@ import { PushNotificationSetup } from '@/components/PushNotificationSetup'
 import { NavigationProgressBar } from '@/components/NavigationProgressBar'
 import PageViewTracker from '@/components/PageViewTracker'
 import { ThemeColorSync } from '@/components/ThemeColorSync'
-import { FinishedRideTrigger } from '@/components/ratings/FinishedRideTrigger'
-import { FinishedOrderTrigger } from '@/components/ratings/FinishedOrderTrigger'
 import { RideAcceptedDialog } from '@/components/RideAcceptedDialog'
 import { DriverLiveLocationBroadcaster } from '@/components/DriverLiveLocationBroadcaster'
 import { DriverRideAlertListener } from '@/components/DriverRideAlertListener'
@@ -58,8 +56,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <NavigationProgressBar />
         <FontLoader />
         <OrderNotification />
-        <FinishedRideTrigger />
-        <FinishedOrderTrigger />
         {/* 3.0: avaliação rápida (estrelas, comentário e foto num cartão só); a 2.0 segue com os dois avisos acima */}
         <QuickReviewHost />
         <RideAcceptedDialog />

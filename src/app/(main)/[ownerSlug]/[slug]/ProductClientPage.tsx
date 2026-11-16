@@ -3,16 +3,13 @@
 'use client'
 
 import { useReportStorePresence } from '@/modules/store-presence'
-import { profileLabel } from '@/lib/profileDisplay'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import {
     ArrowLeft,
     Store,
-    Calendar,
     Eye,
     EyeOff,
     Share2,
@@ -41,7 +38,6 @@ import { toast } from '@/lib/toast'
 import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import { useStoreCheckout } from './useStoreCheckout'
-import { RatingStars } from '@/components/ratings/RatingStars'
 import { getAvatarUrl } from '@/lib/avatar'
 import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
@@ -56,11 +52,8 @@ import AppDownloads from '@/components/digital/AppDownloads'
 import ReportButton from '@/components/moderation/ReportButton'
 import type { CurriculumItem } from '@/modules/digital'
 import Link from 'next/link'
-import { useInsideShell } from '@/components/InsideShell'
 import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
 import DriverFirstNote from '@/components/checkout/DriverFirstNote'
-
-const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ===== TIPOS =====
 interface ProductWithStore {
@@ -139,9 +132,7 @@ export function ProductClientPage({
     initialStore,
 }: ProductClientPageProps) {
     const router = useRouter()
-    // v3 (dentro da casca): laranja sólido no lugar do degradê laranja→vermelho, e cartões sem moldura (só apresentação)
-    const v3 = useInsideShell()
-    const GRADIENT = v3 ? '#f97316' : GRADIENT_V2
+    const GRADIENT = '#f97316'
     const { userId: currentUserId } = useProfile()
     const [editingProduct, setEditingProduct] = useState(false)
 
@@ -184,7 +175,6 @@ export function ProductClientPage({
         like_count: number
         is_liked: boolean
     }[]>([])
-    const [showReviews, setShowReviews] = useState(false)
 
     // ========== CARREGAR PRODUTO ==========
     // O produto e a loja já vêm prontos do SlugClientPage (que os buscou pra
@@ -535,23 +525,23 @@ export function ProductClientPage({
         <>
             <div
                 className="flex items-center gap-1 rounded-full p-1 flex-shrink-0"
-                style={v3 ? { background: `${colors.border}40` } : { border: `1px solid ${colors.border}` }}
+                style={{ background: `${colors.border}40` }}
             >
                 <button
                     onClick={() => handleQuantityChange(quantity - 1)}
                     aria-label="Diminuir quantidade"
-                    className={`${v3 ? 'w-8 h-8' : 'w-9 h-9'} rounded-full flex items-center justify-center transition hover:scale-105`}
+                    className={`${'w-8 h-8'} rounded-full flex items-center justify-center transition hover:scale-105`}
                     style={{ color: colors.textPrimary }}
                 >
                     <Minus size={16} />
                 </button>
-                <span className={`${v3 ? 'w-5' : 'w-6'} text-center font-black`} style={{ color: colors.textPrimary }}>
+                <span className={`${'w-5'} text-center font-black`} style={{ color: colors.textPrimary }}>
                     {quantity}
                 </span>
                 <button
                     onClick={() => handleQuantityChange(quantity + 1)}
                     aria-label="Aumentar quantidade"
-                    className={`${v3 ? 'w-8 h-8' : 'w-9 h-9'} rounded-full flex items-center justify-center transition hover:scale-105`}
+                    className={`${'w-8 h-8'} rounded-full flex items-center justify-center transition hover:scale-105`}
                     style={{ color: colors.textPrimary }}
                 >
                     <Plus size={16} />
@@ -561,13 +551,11 @@ export function ProductClientPage({
             <button
                 onClick={openAddModal}
                 disabled={addingToCart || addedToCart}
-                className={v3
-                    ? 'flex-1 min-w-0 h-11 flex items-center justify-center gap-2 px-3 rounded-full text-[13px] font-black whitespace-nowrap transition active:scale-95 disabled:opacity-60'
-                    : 'flex-1 min-w-0 flex items-center justify-center gap-2 px-3 py-3 md:py-3.5 rounded-2xl text-sm md:text-base font-bold whitespace-nowrap transition-all hover:scale-[1.01] disabled:opacity-60'}
+                className={'flex-1 min-w-0 h-11 flex items-center justify-center gap-2 px-3 rounded-full text-[13px] font-black whitespace-nowrap transition active:scale-95 disabled:opacity-60'}
                 style={{
                     background: addedToCart ? '#22c55e' : GRADIENT,
                     color: '#ffffff',
-                    ...(v3 ? {} : { boxShadow: addedToCart ? '0 4px 14px rgba(34, 197, 94, 0.4)' : '0 4px 14px rgba(249, 115, 22, 0.4)' }),
+                    ...({}),
                 }}
             >
                 {addedToCart ? (
@@ -1115,8 +1103,8 @@ export function ProductClientPage({
     ) : null
     const storeCartBar = renderStoreCartBar('full')
     // v2 no celular: o carrinho vira uma linha da própria barra do topo (fundida a ela); na v3 e no computador fica onde estava
-    const mobileCartBar = !v3 ? renderStoreCartBar('head') : null
-    const mobileCartBody = !v3 ? renderStoreCartBar('body') : null
+    const mobileCartBar = null
+    const mobileCartBody = null
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -1142,24 +1130,19 @@ export function ProductClientPage({
                 do iPhone atrapalha). */}
             <div
                 className="md:hidden sticky top-0 z-30"
-                style={v3 ? {
+                style={{
                     // v3: header parado logo abaixo da navbar, sem sombra
                     background: colors.background,
                     top: 'var(--shell-top, 0px)',
                     borderBottom: `1px solid ${colors.border}50`,
-                } : {
-                    background: colors.background,
-                    borderBottom: `1px solid ${colors.border}`,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-                    paddingTop: 'env(safe-area-inset-top)',
                 }}
             >
                 <div className="flex items-center gap-2 px-4 py-3">
                     <button
                         onClick={() => router.back()}
                         aria-label="Voltar"
-                        className={`${v3 ? 'w-11 h-11' : 'w-10 h-10'} rounded-full flex items-center justify-center flex-shrink-0 transition ${v3 ? 'active:scale-95' : 'hover:scale-105'}`}
-                        style={v3 ? { background: `${colors.border}40`, color: colors.textPrimary } : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                        className={`${'w-11 h-11'} rounded-full flex items-center justify-center flex-shrink-0 transition ${'active:scale-95'}`}
+                        style={{ background: `${colors.border}40`, color: colors.textPrimary }}
                     >
                         <ArrowLeft size={20} />
                     </button>
@@ -1214,71 +1197,14 @@ export function ProductClientPage({
 
                         {/* Loja + data + compartilhar - no rodapé da foto (v2). Tocar na loja (avatar/nome)
                             abre a loja; o compartilhar ocupa o lugar do antigo botão "ir pra loja". Na v3 isso vira uma linha abaixo da foto. */}
-                        {!v3 && (
-                        <div
-                            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8"
-                            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
-                        >
-                            <button
-                                onClick={goToStore}
-                                className="flex items-center gap-2 min-w-0 flex-1 text-left transition hover:opacity-90"
-                            >
-                                <div
-                                    className="w-8 h-8 rounded-full overflow-hidden border flex-shrink-0"
-                                    style={{ borderColor: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.15)' }}
-                                >
-                                    {finalStoreImage ? (
-                                        <img src={finalStoreImage} alt={storeDisplay.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <Store size={14} color="#ffffff" />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-bold truncate" style={{ color: '#ffffff' }}>
-                                        {storeDisplay.name}
-                                    </p>
-                                    <p className="flex items-center gap-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.8)' }}>
-                                        <Calendar size={9} />
-                                        {formattedDate}
-                                    </p>
-                                </div>
-                            </button>
-                            <button
-                                onClick={async () => {
-                                    if (await handleShareLink({
-                                        title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
-                                        text: product.description || 'Confira no iUser!'
-                                    })) void supabase.rpc('increment_product_share_count', { p_product: product.id })
-                                }}
-                                aria-label="Compartilhar"
-                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
-                                style={{ background: 'rgba(17,17,17,0.4)' }}
-                            >
-                                <Share2 size={18} color="#ffffff" />
-                            </button>
-                            {!!currentUserId && currentUserId === product.store?.owner_id && (
-                                <button
-                                    onClick={() => setEditingProduct(true)}
-                                    aria-label="Editar produto"
-                                    title="Editar produto"
-                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
-                                    style={{ background: 'rgba(17,17,17,0.4)' }}
-                                >
-                                    <MoreHorizontal size={18} color="#ffffff" />
-                                </button>
-                            )}
-                        </div>
-                        )}
+                        
                     </div>
 
                     {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
                     <main className="relative z-10" style={{ background: colors.background }}>
                         <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
                             {/* v3: loja, data e ações numa linha limpa (a foto fica sem camada escura por cima) */}
-                            {v3 && (
-                                <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-2.5">
                                     <button onClick={goToStore} className="flex items-center gap-2.5 min-w-0 flex-1 text-left transition active:opacity-70">
                                         <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.border}60` }}>
                                             {finalStoreImage ? <img src={finalStoreImage} alt={storeDisplay.name} className="w-full h-full object-cover" /> : <Store size={16} style={{ color: colors.textSecondary }} />}
@@ -1307,7 +1233,6 @@ export function ProductClientPage({
                                         </button>
                                     )}
                                 </div>
-                            )}
 
                             {/* Preço - o nome do produto já está no cabeçalho flutuante */}
                             <div className="flex items-center gap-3">
@@ -1349,7 +1274,7 @@ export function ProductClientPage({
                             )}
 
                             {/* v3: avaliações em cartão que gira (mais curtidas primeiro) e abre a lista completa */}
-                            {v3 && productReviews.length > 0 && (
+                            {productReviews.length > 0 && (
                                 <ProductReviewsV3
                                     reviews={productReviews as ProductReviewV3[]}
                                     colors={colors}
@@ -1371,89 +1296,7 @@ export function ProductClientPage({
                             )}
 
                             {/* Avaliações - resumo compacto, expande sob demanda (v2) */}
-                            {!v3 && productReviews.length > 0 && (
-                                <div className="border-t pt-2" style={{ borderColor: colors.border }}>
-                                    <button
-                                        onClick={() => setShowReviews((v) => !v)}
-                                        className="w-full flex items-center justify-between gap-2"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <RatingStars value={avgRating} size={14} />
-                                            <span className="text-xs font-black" style={{ color: colors.textPrimary }}>
-                                                {avgRating.toFixed(1)}
-                                            </span>
-                                            <span className="text-xs" style={{ color: colors.textSecondary, opacity: 0.75 }}>
-                                                ({productReviews.length} avaliaç{productReviews.length === 1 ? 'ão' : 'ões'})
-                                            </span>
-                                        </div>
-                                        <ChevronRight
-                                            size={16}
-                                            style={{
-                                                color: colors.textSecondary,
-                                                opacity: 0.6,
-                                                transform: showReviews ? 'rotate(90deg)' : undefined,
-                                                transition: 'transform 0.2s',
-                                            }}
-                                        />
-                                    </button>
-
-                                    {showReviews && (
-                                        <div className="space-y-2 mt-2 max-h-56 overflow-y-auto pr-0.5">
-                                            {productReviews.map((r) => {
-                                                const reviewerAvatar = getAvatarUrl(supabase, r.profiles?.avatar_url)
-                                                const reviewerName = r.is_anonymous ? 'Anônimo' : profileLabel(r.profiles)
-                                                return (
-                                                    <div
-                                                        key={r.id}
-                                                        className="flex gap-2 p-2.5 rounded-xl"
-                                                        style={{ background: `${colors.surface}66` }}
-                                                    >
-                                                        <a
-                                                            href={!r.is_anonymous && r.profiles?.profileSlug ? `/${r.profiles.profileSlug}` : undefined}
-                                                            aria-label={`Ver perfil de ${reviewerName}`}
-                                                            className="flex-shrink-0 self-start"
-                                                        >
-                                                        <PlanAvatarRing userId={r.is_anonymous ? null : r.profiles?.id}>
-                                                        <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: colors.border }}>
-                                                            {reviewerAvatar ? (
-                                                                <img src={reviewerAvatar} alt="" className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
-                                                                    {reviewerName.slice(0, 1).toUpperCase()}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        </PlanAvatarRing>
-                                                        </a>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                {!r.is_anonymous && r.profiles?.profileSlug ? (
-                                                                    <a href={`/${r.profiles.profileSlug}`} className="text-xs font-bold truncate hover:underline" style={{ color: colors.textPrimary }}>
-                                                                        {reviewerName}
-                                                                    </a>
-                                                                ) : (
-                                                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                                        {reviewerName}
-                                                                    </p>
-                                                                )}
-                                                                <span className="text-[9px] flex-shrink-0" style={{ color: colors.textSecondary, opacity: 0.75 }}>
-                                                                    {new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
-                                                                </span>
-                                                            </div>
-                                                            <RatingStars value={r.rating} size={10} />
-                                                            {r.comment && (
-                                                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary, lineHeight: 1.4 }}>
-                                                                    {r.comment}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            
 
                             {/* Quantidade e adicionar ao carrinho (web: inline na coluna) */}
                             <div className="hidden md:flex items-center gap-3 pt-2">
@@ -1462,7 +1305,7 @@ export function ProductClientPage({
 
                             {/* Carrinho da loja: abaixo da descrição; "outras pessoas pediram" vem depois */}
                             {storeCartBar && (
-                                <div id="carrinho-da-loja" className={`${v3 ? '' : 'hidden md:block '}rounded-3xl overflow-hidden scroll-mt-24`} style={{ border: '2px solid #f97316', background: colors.surface, boxShadow: '0 8px 28px #f9731645' }}>
+                                <div id="carrinho-da-loja" className={`${''}rounded-3xl overflow-hidden scroll-mt-24`} style={{ border: '2px solid #f97316', background: colors.surface, boxShadow: '0 8px 28px #f9731645' }}>
                                     {storeCartBar}
                                 </div>
                             )}
@@ -1486,16 +1329,14 @@ export function ProductClientPage({
                             <button
                                 key={other.id}
                                 onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
-                                className={v3
-                                    ? 'text-left flex-shrink-0 w-40 flex flex-col transition active:scale-95'
-                                    : 'text-left rounded-3xl overflow-hidden flex-shrink-0 w-44 md:w-48 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl'}
-                                style={v3 ? undefined : { background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                                className={'text-left flex-shrink-0 w-40 flex flex-col transition active:scale-95'}
+                                style={undefined}
                             >
-                                <div className={`relative w-full overflow-hidden ${v3 ? 'aspect-square rounded-2xl' : 'h-32'}`} style={{ background: GRADIENT }}>
+                                <div className={`relative w-full overflow-hidden ${'aspect-square rounded-2xl'}`} style={{ background: GRADIENT }}>
                                     {otherImageUrl ? (
                                         <>
                                             <img src={otherImageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-70" />
-                                            <img src={otherImageUrl} alt={other.name} className={`relative w-full h-full ${v3 && other.image_url ? 'object-cover' : other.image_url ? 'object-contain' : 'object-contain p-4'}`} />
+                                            <img src={otherImageUrl} alt={other.name} className={`relative w-full h-full ${other.image_url ? 'object-cover' : other.image_url ? 'object-contain' : 'object-contain p-4'}`} />
                                         </>
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center">
@@ -1508,9 +1349,9 @@ export function ProductClientPage({
                                         </span>
                                     ) : null}
                                 </div>
-                                <div className={`${v3 ? 'pt-1.5 px-0.5' : 'p-3'} flex flex-col gap-1`}>
-                                    <p className={`${v3 ? 'text-[13px]' : 'text-sm'} font-black leading-snug line-clamp-2`} style={{ color: colors.textPrimary }}>{other.name}</p>
-                                    <p className={`${v3 ? 'text-sm' : 'text-base'} font-black`} style={{ color: '#f97316' }}>{otherPrice}</p>
+                                <div className={`${'pt-1.5 px-0.5'} flex flex-col gap-1`}>
+                                    <p className={`${'text-[13px]'} font-black leading-snug line-clamp-2`} style={{ color: colors.textPrimary }}>{other.name}</p>
+                                    <p className={`${'text-sm'} font-black`} style={{ color: '#f97316' }}>{otherPrice}</p>
                                 </div>
                             </button>
                         )

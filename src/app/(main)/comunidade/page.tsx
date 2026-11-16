@@ -1,7 +1,6 @@
 // app/(main)/comunidade/page.tsx
 'use client'
 
-import { useInsideShell } from '@/components/InsideShell'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -9,7 +8,6 @@ import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
-import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useUserPlace } from '@/hooks/useUserPlace'
 import { getAvatarUrl } from '@/lib/avatar'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
@@ -59,9 +57,8 @@ interface CommunityCard {
 }
 
 export default function ComunidadePage() {
-    const v3 = useInsideShell()   // v3: lista corrida, sem cartões; só as 3 últimas conversas na prévia
     const router = useRouter()
-    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
     const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -84,7 +81,7 @@ export default function ComunidadePage() {
     } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
     const [isSavingLocation, setIsSavingLocation] = useState(false)
-    const { place, resolving: resolvingCity } = useUserPlace(savedLocation)
+    const { place } = useUserPlace(savedLocation)
     const userCity = place?.city ?? null
     const userState = place?.state ?? null
 
@@ -397,22 +394,15 @@ export default function ComunidadePage() {
 
     return (
         // v3: a página ocupa a área abaixo da navbar e NÃO rola; só a lista de comunidades rola (voltar, título, local e busca ficam parados)
-        <div className={v3 ? 'fixed inset-x-0 bottom-[var(--staging-banner-h,0px)] top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden' : 'relative min-h-dvh'} style={{ background: colors.background }}>
-            {!v3 && (
-                <div className="fixed inset-0 z-0">
-                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-                </div>
-            )}
+        <div className={'fixed inset-x-0 bottom-[var(--staging-banner-h,0px)] top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden'} style={{ background: colors.background }}>
+            
 
-            <main className={v3 ? 'relative z-10 h-full flex flex-col' : 'relative z-10 min-h-dvh'} style={{ overscrollBehavior: 'none' }}>
-                <div className={v3 ? 'flex-shrink-0 w-full max-w-5xl mx-auto px-4 pt-4' : ''}>
+            <main className={'relative z-10 h-full flex flex-col'} style={{ overscrollBehavior: 'none' }}>
+                <div className={'flex-shrink-0 w-full max-w-5xl mx-auto px-4 pt-4'}>
                 <Header
                     title="Comunidades"
                     showBack={true}
                     onBack={() => router.push('/')}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                     showSearch={true}
                     searchPlaceholder="Buscar comunidade ou cidade..."
                     onSearch={setSearchQuery}
@@ -437,7 +427,7 @@ export default function ComunidadePage() {
                 />
                 </div>
 
-                <section className={v3 ? 'flex-1 min-h-0 overflow-y-auto w-full max-w-5xl mx-auto px-4 pt-1 pb-28' : 'px-4 md:px-6 mt-2 pb-28'}>
+                <section className={'flex-1 min-h-0 overflow-y-auto w-full max-w-5xl mx-auto px-4 pt-1 pb-28'}>
                     {/* Loading */}
                     {loadingData && (
                         <div className="flex justify-center py-12">
@@ -550,21 +540,21 @@ export default function ComunidadePage() {
                                 )}
                                 <Link href={`/comunidade/${community.slug}`} className="block group">
                                     <div
-                                        className={v3 ? 'rounded-3xl p-4 border transition active:scale-[0.99]' : 'rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5'}
-                                        style={v3 ? { background: colors.surface, borderColor: sv?.pinned ? `${colors.accent}80` : colors.border } : { background: cardBg, backdropFilter: 'blur(12px)', borderColor: sv?.pinned ? `${colors.accent}80` : colors.border, boxShadow: colors.shadow }}
+                                        className={'rounded-3xl p-4 border transition active:scale-[0.99]'}
+                                        style={{ background: colors.surface, borderColor: sv?.pinned ? `${colors.accent}80` : colors.border }}
                                     >
                                         <div className="flex gap-4 items-center">
                                             <div
-                                                className={`${v3 ? 'w-14 h-14' : 'w-16 h-16'} rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0`}
-                                                style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff' }}
+                                                className={`${'w-14 h-14'} rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0`}
+                                                style={{ background: '#f97316', color: '#fff' }}
                                             >
                                                 {community.image_url
                                                     ? <img src={community.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
                                                     : <MessageCircle size={26} />}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h3 className={`${v3 ? 'text-base' : 'text-lg truncate'} font-black flex items-center gap-1.5`} style={{ color: colors.textPrimary }}>
-                                                    <span className={v3 ? 'line-clamp-2' : 'truncate'}>{community.name}</span>
+                                                <h3 className={`${'text-base'} font-black flex items-center gap-1.5`} style={{ color: colors.textPrimary }}>
+                                                    <span className={'line-clamp-2'}>{community.name}</span>
                                                     {sv?.pinned && <Pin size={13} className="flex-shrink-0" style={{ color: colors.accent }} />}
                                                     {community.requires_password && <Lock size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />}
                                                 </h3>
@@ -618,11 +608,11 @@ export default function ComunidadePage() {
 
                                         {/* Últimas conversas (até 10) */}
                                         {community.recent.length > 0 && (
-                                            <div className={v3 ? 'mt-3 flex flex-col gap-2' : 'mt-3 pt-3 border-t flex flex-col gap-2'} style={v3 ? undefined : { borderColor: colors.border }}>
+                                            <div className={'mt-3 flex flex-col gap-2'} style={undefined}>
                                                 <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                                                     Últimas conversas
                                                 </p>
-                                                {(v3 ? community.recent.slice(-3) : community.recent).map((m) => (
+                                                {(community.recent.slice(-3)).map((m) => (
                                                     <div key={m.id} className="flex items-start gap-2">
                                                         {m.avatar ? (
                                                             <img src={m.avatar} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" loading="lazy" />
@@ -664,9 +654,9 @@ export default function ComunidadePage() {
                         setShowCreateModal(true)
                     }}
                     className={`${menuFor ? 'hidden' : ''} fixed bottom-24 right-6 z-40 flex items-center gap-2 px-5 py-3.5 rounded-full font-black text-xs uppercase tracking-wider shadow-2xl transition-transform hover:scale-105 active:scale-95`}
-                    style={v3 ? { background: '#f97316', color: '#fff' } : { background: GRADIENT, color: '#fff', boxShadow: `0 8px 24px #14b8a660` }}
+                    style={{ background: '#f97316', color: '#fff' }}
                 >
-                    <Plus size={16} /> {v3 ? 'Criar comunidade' : 'Criar Comunidade'}
+                    <Plus size={16} /> {'Criar comunidade'}
                 </button>
 
                 {showCreateModal && userId && (

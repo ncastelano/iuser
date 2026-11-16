@@ -355,9 +355,6 @@ function PlanosContent({ focusPlan }: { focusPlan?: string }) {
                     showBack={true}
                     // Sempre volta pra visão geral de planos (em vez do histórico, que podia cair em outro lugar)
                     onBack={focusPlan ? () => router.push('/planos') : undefined}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                     tabs={headerTabs}
                 />
 

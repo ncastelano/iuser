@@ -35,8 +35,8 @@ function Inner() {
         <div className="relative pb-8">
             {!open && <AtividadeTabs aba={aba} />}
             <div className={open ? '' : 'mt-3'}>
-                {aba === 'conversas' ? <ConversasScreen ui="v3" embedded basePath="/atividade" defaultRoom={store} />
-                    : <CarrinhoScreen ui="v3" hideTabs tab={carrinhoTabOf(aba, param)} />}
+                {aba === 'conversas' ? <ConversasScreen embedded basePath="/atividade" defaultRoom={store} />
+                    : <CarrinhoScreen hideTabs tab={carrinhoTabOf(aba, param)} />}
             </div>
         </div>
     )

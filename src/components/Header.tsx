@@ -1,16 +1,10 @@
 // src/components/Header.tsx
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, MessageCircle, Search, ShoppingCart, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Search, X } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
-import { useState, useRef, useEffect, useMemo } from 'react'
-import { hexToRgb } from '@/lib/color'
-import { useCartStore } from '@/store/useCartStore'
-import { useChatUnread } from '@/hooks/useChatUnread'
-import { useProfile } from '@/app/contexts/ProfileContext'
-import PlanAvatarRing from '@/components/PlanAvatarRing'
-import { useInsideShell } from '@/components/InsideShell'
+import { useState, useRef, useEffect } from 'react'
 import PageTabs, { type Tab } from '@/components/PageTabs'
 
 export type { Tab }
@@ -19,9 +13,6 @@ interface HeaderProps {
     title?: string
     showBack?: boolean
     onBack?: () => void
-    greeting?: string
-    avatarUrl?: string | null
-    loading?: boolean
     tabs?: Tab[]
     showSearch?: boolean
     searchPlaceholder?: string
@@ -30,8 +21,6 @@ interface HeaderProps {
     searchRef?: React.RefObject<HTMLInputElement>
     onSearchFocus?: () => void
     onSearchBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
-    profileSlug?: string | null
-    onHomeClick?: () => void
     locationElement?: React.ReactNode
     /** v3: título, abas e busca ficam presos no topo enquanto a lista rola */
     pinned?: boolean
@@ -41,9 +30,6 @@ export default function Header({
     title,
     showBack = false,
     onBack,
-    greeting,
-    avatarUrl,
-    loading = false,
     tabs,
     showSearch = false,
     searchPlaceholder = 'Procurar...',
@@ -52,24 +38,11 @@ export default function Header({
     searchRef: externalSearchRef,
     onSearchFocus,
     onSearchBlur,
-    profileSlug,
-    onHomeClick,
     locationElement,
     pinned = false,
 }: HeaderProps) {
     const router = useRouter()
-    const pathname = usePathname()
-    const insideShell = useInsideShell()
     const { colors } = useTheme()
-    const { userId: myUserId } = useProfile()
-    // Dentro da casca da 3.0 a navbar já conta as conversas não lidas
-    const chatUnread = useChatUnread(insideShell ? null : myUserId)
-
-    const cartItemsByStore = useCartStore((state) => state.itemsByStore)
-    const cartCount = useMemo(
-        () => Object.values(cartItemsByStore).reduce((acc, items) => acc + items.length, 0),
-        [cartItemsByStore]
-    )
 
     const [internalSearchValue, setInternalSearchValue] = useState('')
     const [isFocused, setIsFocused] = useState(false)
@@ -174,23 +147,6 @@ export default function Header({
         else router.back()
     }
 
-    const handleHome = () => {
-        if (onHomeClick) {
-            onHomeClick()
-        } else {
-            router.push('/')
-        }
-    }
-
-    const surfaceRgb = hexToRgb(colors.surface)
-
-    // 90% do header (de cima) é sólido/opaco; só os 10% finais viram
-    // gradiente até transparente.
-    const gradientBg = `linear-gradient(to bottom,
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.98) 0%,
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.98) 90%,
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
-
     const enhancedTabs: Tab[] = tabs || []
 
     // Rola a aba ativa pra dentro da área visível - importante numa lista
@@ -220,32 +176,9 @@ export default function Header({
         }
     }, [activeTabId])
 
-    // Abas da faixa (v2): pílulas planas, sem sombra. Inativa = vidro leve com borda fina; ativa = laranja cheio; aba com status (perfil/loja aberta ou fechada) =
-    // tom suave da cor do status (verde/vermelho) com borda na cor, e cheio só quando é a ativa; chamada à ação (Nova loja, Ser motorista) = contorno laranja suave.
-    const getTabBackground = (tab: Tab): string => {
-        if (tab.isActive) return tab.statusColor ? tab.statusColor : 'linear-gradient(135deg, #f97316, #dc2626)'
-        if (tab.statusColor) return `${tab.statusColor}1f`
-        if (tab.glow) return '#f9731614'
-        return `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`
-    }
-
-    const getTabTextColor = (tab: Tab): string => {
-        if (tab.isActive) return '#ffffff'
-        if (tab.glow) return '#ea580c'
-        return colors.textPrimary
-    }
-
-    const getTabBorder = (tab: Tab): string => {
-        if (tab.isActive) return tab.statusColor || '#f97316'
-        if (tab.statusColor) return tab.statusColor
-        if (tab.glow) return '#f97316'
-        return colors.border
-    }
-
     // Dentro da casca da 3.0 a navbar e o menu já existem: aqui sobram só o voltar/título, as abas e a busca da página.
     // A linha do voltar + título fica SEMPRE fixa logo abaixo da navbar (não anda com a rolagem); com `pinned`, o bloco inteiro (abas e busca) fica.
-    if (insideShell) {
-        const hasTitleRow = showBack || (title && title !== 'iUser') || locationElement
+    const hasTitleRow = showBack || (title && title !== 'iUser') || locationElement
         const stickStyle = { background: colors.background, top: 'var(--shell-top, 0px)' }
         const titleRow = hasTitleRow ? (
             <div
@@ -314,490 +247,4 @@ export default function Header({
                 </div>
             </>
         )
-    }
-
-    return (
-        <div
-            style={{
-                color: colors.textPrimary,
-                padding: isExpanded ? '8px 12px' : '8px 12px 0 12px',
-                position: 'sticky',
-                top: 0,
-                zIndex: 20,
-                overflow: 'hidden',
-                background: gradientBg,
-                backdropFilter: 'blur(20px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                minHeight: isExpanded ? 80 : 120,
-                transition: 'min-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), padding 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                display: 'flex',
-                alignItems: isExpanded ? 'center' : 'flex-start',
-            }}
-            className="sm:px-6 sm:pt-5"
-        >
-            {/* Marca d'água */}
-            <div
-                style={{
-                    position: 'absolute',
-                    right: avatarUrl ? -25 : -15,
-                    top: avatarUrl ? -25 : -15,
-                    width: avatarUrl ? 160 : 120,
-                    height: avatarUrl ? 160 : 120,
-                    opacity: isExpanded ? 0 : (avatarUrl ? 0.5 : 0.4),
-                    transform: 'rotate(10deg)',
-                    maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
-                    WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
-                    pointerEvents: 'none',
-                    background: 'transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1,
-                    borderRadius: '0',
-                    transition: 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                }}
-            >
-                {avatarUrl ? (
-                    <img
-                        src={avatarUrl}
-                        alt=""
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            borderRadius: '0',
-                        }}
-                    />
-                ) : (
-                    <img
-                        src="/logotransparente.png"
-                        alt="headerimage"
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'contain',
-                            borderRadius: '0',
-                        }}
-                    />
-                )}
-            </div>
-
-            {/* Conteúdo */}
-            <div
-                className="relative z-10"
-                style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: isExpanded ? 'center' : 'flex-start',
-                    height: isExpanded ? '100%' : 'auto',
-                    width: '100%',
-                    transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                }}
-            >
-                {/* Elementos que escondem quando expandido */}
-                <div
-                    style={{
-                        maxHeight: isExpanded ? 0 : 1000,
-                        opacity: isExpanded ? 0 : 1,
-                        overflow: 'hidden',
-                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                        marginBottom: isExpanded ? 0 : undefined,
-                    }}
-                >
-                    <div className="flex items-center gap-2 mb-1">
-                        {showBack ? (
-                            <button
-                                onClick={handleBack}
-                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                            >
-                                <ArrowLeft size={16} color={colors.accent} />
-                            </button>
-                        ) : (
-                            <button
-                                onClick={handleHome}
-                                className="flex items-center gap-2 flex-shrink-0"
-                                style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                }}
-                            >
-                                <img
-                                    src="/logo.png"
-                                    alt="iUser"
-                                    className="h-5 sm:h-6 object-contain"
-                                />
-                            </button>
-                        )}
-                        {title && (
-                            <button
-                                onClick={handleHome}
-                                className="text-sm sm:text-lg font-semibold opacity-90 bg-transparent border-none cursor-pointer flex-shrink-0"
-                                style={{ color: colors.textPrimary }}
-                            >
-                                {title}
-                            </button>
-                        )}
-                        {locationElement && (
-                            <div className="ml-auto flex-shrink-0">
-                                {locationElement}
-                            </div>
-                        )}
-                    </div>
-
-                    {greeting && (
-                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mt-2 tracking-tight break-words">
-                            {greeting}
-                        </h1>
-                    )}
-
-                    {enhancedTabs.length > 0 && (
-                        <div
-                            ref={tabsScrollRef}
-                            className="flex gap-2 mt-3 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
-                            style={{
-                                overflowY: 'visible',
-                                scrollSnapType: 'x proximity',
-                                WebkitOverflowScrolling: 'touch',
-                                overscrollBehaviorX: 'contain',
-                            }}
-                        >
-                            {enhancedTabs.map((tab) => {
-                                const backgroundColor = getTabBackground(tab)
-                                const textColor = getTabTextColor(tab)
-                                const borderColor = getTabBorder(tab)
-                                const isActive = tab.isActive
-
-                                const button = (
-                                    <button
-                                        key={tab.id}
-                                        data-tab-id={tab.id}
-                                        onClick={tab.onClick}
-                                        disabled={loading}
-                                        className="relative flex items-center pl-1 pr-3.5 h-10 rounded-full text-xs sm:text-sm font-bold transition-colors duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
-                                        style={{
-                                            background: backgroundColor,
-                                            color: textColor,
-                                            overflow: 'visible',
-                                            scrollSnapAlign: 'start',
-                                            border: `1.5px solid ${borderColor}`,
-                                            boxShadow: 'none',
-                                        }}
-                                    >
-                                        {tab.imageUrl ? (
-                                            // A aba do meu perfil mostra a borda que estou usando
-                                            <PlanAvatarRing userId={tab.id === 'perfil' ? myUserId : undefined} width={2}>
-                                                <img
-                                                    src={tab.imageUrl}
-                                                    alt=""
-                                                    className="h-8 w-8 object-cover rounded-full flex-shrink-0"
-                                                />
-                                            </PlanAvatarRing>
-                                        ) : (
-                                            <div
-                                                className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                                style={{
-                                                    background: isActive ? 'rgba(255,255,255,0.22)' : tab.glow ? '#f97316' : `${colors.border}66`,
-                                                }}
-                                            >
-                                                <tab.icon
-                                                    size={15}
-                                                    color={isActive || tab.glow ? '#ffffff' : textColor}
-                                                />
-                                            </div>
-                                        )}
-                                        <span className="ml-2">{tab.label}</span>
-
-                                        {tab.indicator && (
-                                            <div className="absolute -top-1 -right-1 flex gap-0.5">
-                                                {tab.indicator.pending > 0 && (
-                                                    <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
-                                                        {tab.indicator.pending}
-                                                    </span>
-                                                )}
-                                                {tab.indicator.preparing > 0 && (
-                                                    <span className="w-4 h-4 rounded-full bg-yellow-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
-                                                        {tab.indicator.preparing}
-                                                    </span>
-                                                )}
-                                                {tab.indicator.ready > 0 && (
-                                                    <span className="w-4 h-4 rounded-full bg-purple-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
-                                                        {tab.indicator.ready}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {tab.badge && tab.badge.count > 0 && (
-                                            <div className="absolute -top-1 -right-1">
-                                                <span
-                                                    className="w-4 h-4 rounded-full text-white text-[7px] flex items-center justify-center font-black leading-none"
-                                                    style={{ backgroundColor: tab.badge.color || '#ef4444' }}
-                                                >
-                                                    {tab.badge.count}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </button>
-                                )
-
-                                return button
-                            })}
-                        </div>
-                    )}
-                </div>
-
-                {/* ButtonSearch */}
-                {showSearch && (
-                    <div
-                        className="w-full flex items-center"
-                        style={{
-                            marginTop: isExpanded ? 0 : 12,
-                            paddingBottom: isExpanded ? 0 : 16,
-                            gap: isExpanded ? 0 : 8,
-                            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1), gap 0.3s ease-in-out',
-                        }}
-                    >
-                        <div
-                            ref={containerRef}
-                            className="relative"
-                            style={{
-                                flex: 1,
-                                minWidth: 0,
-                                position: 'relative',
-                                height: 48,
-                                borderRadius: 999,
-                                display: 'flex',
-                                alignItems: 'center',
-                                padding: '0 4px',
-                                cursor: 'text',
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.35)`,
-                                backdropFilter: 'blur(16px) saturate(180%)',
-                                WebkitBackdropFilter: 'blur(16px) saturate(180%)',
-                                border: `1.5px solid ${isExpanded ? '#f97316' : colors.border}`,
-                                transition: 'border-color 0.3s ease-in-out',
-                                boxShadow: isExpanded ? `0 0 0 1px #f97316` : 'none',
-                            }}
-                            onClick={() => {
-                                if (inputRef.current) {
-                                    inputRef.current.focus()
-                                }
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: '50%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    flexShrink: 0,
-                                    color: colors.accent,
-                                    background: isExpanded ? `${colors.accent}15` : 'transparent',
-                                    transition: 'all 0.3s ease',
-                                }}
-                            >
-                                <Search size={18} strokeWidth={2} />
-                            </div>
-
-                            <div
-                                style={{
-                                    flex: 1,
-                                    height: '100%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    paddingRight: isExpanded ? 8 : 0,
-                                }}
-                            >
-                                <input
-                                    ref={inputRef}
-                                    type="search"
-                                    inputMode="search"
-                                    enterKeyHint="done"
-                                    placeholder={searchPlaceholder}
-                                    value={currentSearchValue}
-                                    onChange={(e) => handleSearch(e.target.value)}
-                                    onFocus={handleFocus}
-                                    onBlur={handleBlur}
-                                    onKeyDown={handleKeyDown}
-                                    style={{
-                                        flex: 1,
-                                        height: '100%',
-                                        background: 'transparent',
-                                        border: 'none',
-                                        outline: 'none',
-                                        padding: '0 12px',
-                                        fontSize: 14,
-                                        fontWeight: 500,
-                                        color: colors.textPrimary,
-                                        minWidth: 0,
-                                        letterSpacing: '0.3px',
-                                    }}
-                                />
-                            </div>
-
-                            {/* Botão X - aparece quando expandido */}
-                            {isExpanded && (
-                                <button
-                                    onClick={isSearching ? handleClear : handleClose}
-                                    style={{
-                                        width: 28,
-                                        height: 28,
-                                        borderRadius: '50%',
-                                        background: isSearching ? `${colors.textSecondary}15` : 'transparent',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexShrink: 0,
-                                        transition: 'all 0.2s ease',
-                                        color: colors.accent,
-                                        marginRight: 4,
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = isSearching ? `${colors.textSecondary}25` : `${colors.textSecondary}10`
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = isSearching ? `${colors.textSecondary}15` : 'transparent'
-                                    }}
-                                    aria-label={isSearching ? "Limpar busca" : "Fechar busca"}
-                                    title={isSearching ? "Limpar busca" : "Fechar busca"}
-                                >
-                                    <X size={16} strokeWidth={2} />
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Visitante também vê o ícone: ler é livre, e na hora de escrever pede o login */}
-                        {pathname !== '/conversas' && (
-                            <button
-                                onClick={() => router.push('/conversas')}
-                                className={`relative flex items-center justify-center rounded-full flex-shrink-0 hover:scale-105 active:scale-95 ${chatUnread > 0 && !isExpanded ? 'chat-unread-pulse' : ''}`}
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                    color: '#ffffff',
-                                    width: isExpanded ? 0 : 48,
-                                    height: 48,
-                                    opacity: isExpanded ? 0 : 1,
-                                    pointerEvents: isExpanded ? 'none' : 'auto',
-                                    transition: 'width 0.3s ease-in-out, opacity 0.2s ease-in-out, transform 0.2s ease-in-out',
-                                }}
-                                aria-label="Ver conversas"
-                                title="Conversas"
-                            >
-                                <div className="absolute inset-0 flex items-center justify-center rounded-full overflow-hidden">
-                                    <MessageCircle size={20} strokeWidth={2} />
-                                </div>
-                                {chatUnread > 0 && (
-                                    <span
-                                        className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full text-white text-[9px] flex items-center justify-center font-black leading-none"
-                                        style={{ background: '#16a34a', border: '2px solid #ffffff' }}
-                                    >
-                                        {chatUnread > 99 ? '99+' : chatUnread}
-                                    </span>
-                                )}
-                            </button>
-                        )}
-
-                        {pathname !== '/carrinho' && pathname !== '/radar' && (
-                            <button
-                                onClick={() => router.push('/carrinho')}
-                                className="relative flex items-center justify-center rounded-full flex-shrink-0 hover:scale-105 active:scale-95"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                    color: '#ffffff',
-                                    width: isExpanded ? 0 : 48,
-                                    height: 48,
-                                    opacity: isExpanded ? 0 : 1,
-                                    pointerEvents: isExpanded ? 'none' : 'auto',
-                                    transition: 'width 0.3s ease-in-out, opacity 0.2s ease-in-out, transform 0.2s ease-in-out',
-                                }}
-                                aria-label="Ver carrinho"
-                                title="Ver carrinho"
-                            >
-                                {/* overflow:hidden só no ícone (não no botão inteiro) - o
-                                    badge fica parcialmente fora da caixa de 48x48 (-top-1
-                                    -right-1) e ficava cortado, sobrando só um arco branco
-                                    sem cor visível quando estava no botão. */}
-                                <div
-                                    className="absolute inset-0 flex items-center justify-center rounded-full overflow-hidden"
-                                >
-                                    <ShoppingCart size={20} strokeWidth={2} />
-                                </div>
-                                {cartCount > 0 && (
-                                    <span
-                                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-[9px] flex items-center justify-center font-black leading-none"
-                                        style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', border: '2px solid #ffffff' }}
-                                    >
-                                        {cartCount}
-                                    </span>
-                                )}
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            <style jsx>{`
-                    .scrollbar-hide::-webkit-scrollbar {
-                        display: none;
-                    }
-                    .scrollbar-hide {
-                        -ms-overflow-style: none;
-                        scrollbar-width: none;
-                    }
-                    input::placeholder {
-                        color: ${colors.textPrimary} !important;
-                        opacity: 1;
-                        font-weight: 400;
-                        letter-spacing: 0.3px;
-                    }
-                    input::-webkit-input-placeholder {
-                        color: ${colors.textPrimary} !important;
-                        opacity: 1;
-                    }
-                    input::-moz-placeholder {
-                        color: ${colors.textPrimary} !important;
-                        opacity: 1;
-                    }
-                    input:-ms-input-placeholder {
-                        color: ${colors.textPrimary} !important;
-                        opacity: 1;
-                    }
-                    input:-moz-placeholder {
-                        color: ${colors.textPrimary} !important;
-                        opacity: 1;
-                    }
-                    input[type="search"]::-webkit-search-decoration,
-                    input[type="search"]::-webkit-search-cancel-button,
-                    input[type="search"]::-webkit-search-results-button,
-                    input[type="search"]::-webkit-search-results-decoration {
-                        display: none;
-                        -webkit-appearance: none;
-                    }
-                    input[type="search"] {
-                        -webkit-appearance: none;
-                    }
-                    /* Mensagem não lida: o ícone do chat e o selo verde crescem e diminuem juntos pra chamar atenção */
-                    @keyframes chatUnreadPulse {
-                        0%, 100% { transform: scale(1); }
-                        50% { transform: scale(1.18); }
-                    }
-                    .chat-unread-pulse { animation: chatUnreadPulse 1.3s ease-in-out infinite; }
-                    @media (prefers-reduced-motion: reduce) { .chat-unread-pulse { animation: none; } }
-                    @keyframes pulseGlow {
-                        0%, 100% {
-                            box-shadow: 0 0 0 1px #f97316, 0 0 5px #f9731640, 0 0 10px #fb923c20;
-                        }
-                        50% {
-                            box-shadow: 0 0 0 2px #fb923c, 0 0 10px #f9731660, 0 0 20px #fb923c40, 0 0 30px #f59e0b20;
-                        }
-                    }
-                `}</style>
-        </div>
-    )
 }

@@ -12,12 +12,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
-import { MessageCircle, Check, Copy, Clock, Loader2, X, ShieldCheck, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
+import { MessageCircle, Check, Copy, Clock, Loader2, X, ArrowLeft } from 'lucide-react'
 import { hexToRgb } from '@/lib/color'
 import { Spinner } from '@/components/Spinner'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
-import { useInsideShell } from '@/components/InsideShell'
-import V3Section, { V3_GRADIENT } from './V3Section'
+import V3Section from './V3Section'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -35,7 +34,6 @@ interface StoreWhatsAppBotProps {
 
 export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
     const { colors } = useTheme()
-    const v3 = useInsideShell()
     const surfaceRgb = hexToRgb(colors.surface)
 
     const [isExpanded, setIsExpanded] = usePersistedExpanded('storeWhatsAppBot', true)
@@ -226,7 +224,7 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
                                 </p>
 
                                 <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: '#f9731615', border: '1px solid #f9731640' }}>
-                                    {!v3 && <ShieldCheck size={16} style={{ color: '#f97316' }} className="flex-shrink-0 mt-0.5" />}
+                                    
                                     <div className="text-[11px] leading-relaxed" style={{ color: colors.textPrimary }}>
                                         <p>
                                             A Meta dá uma cota gratuita de mensagens por mês. Passou dela, cada mensagem do bot é cobrada <strong>à parte, em qualquer plano</strong> — é custo da Meta, fora da mensalidade:
@@ -300,8 +298,7 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
     )
 
     // 3.0: o mesmo cartão de seção das outras partes do painel
-    if (v3) {
-        return (
+    return (
             <V3Section
                 title="Atendimento automático por WhatsApp"
                 subtitle={'O bot responde catálogo, horário, pedido e status — sozinho'}
@@ -312,33 +309,4 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
                 {body}
             </V3Section>
         )
-    }
-
-    return (
-        <div className={`rounded-2xl flex flex-col ${isExpanded ? 'p-6 gap-4' : 'p-4'}`} style={cardStyle}>
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center justify-between gap-3 text-left"
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-            >
-                <div className="flex items-center gap-3">
-                    <div>
-                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>Atendimento automático por WhatsApp</h3>
-                        <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                            Cliente conversa com o WhatsApp da sua loja e o bot responde: catálogo, horário, pedido e status — sozinho.
-                        </p>
-                    </div>
-                </div>
-                {isExpanded ? (
-                    <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-                ) : (
-                    <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-                )}
-            </button>
-
-            {isExpanded && (
-                body
-            )}
-        </div>
-    )
 }

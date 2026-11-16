@@ -2,9 +2,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { VERSION_COOKIE } from '@/versions/registry'
-import { canonicalFromInternal, internalPathFor, versionOfInternalPath } from '@/versions/resolve'
-import { resolveRequestVersion } from '@/versions/access'
+import { canonicalFromLegacy } from '@/versions/resolve'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -83,7 +81,6 @@ const IGNORED_PREFIXES = [
     '/veiculo/', // página de um veículo (rota interna; o endereço público é iuser.com.br/<vehicleSlug>)
     '/img/', // proxy de imagens (iuser.com.br/img/<bucket>/<arquivo>) -> Storage do Supabase com cache da Vercel (next.config.js rewrites)
     '/imoveis/', // página de um imóvel (iuser.com.br/imoveis/<slug>) — o 1º segmento não é slug de perfil/loja
-    '/v3/', // implementações internas da interface 3.0 (iuser.com.br/carrinho é servido por /v3/carrinho) — não é slug
 ]
 
 // ===== EXTENSÕES IGNORADAS =====
@@ -140,34 +137,6 @@ const PUBLIC_ROUTE_PREFIXES = [
     '/comunidade/',  // Todas as rotas que começam com /comunidade/
 ]
 
-// ===== VERSÃO DA INTERFACE (desde 14/11/2026 só a 3.0: a escolha antiga não vale; os endereços /carrinho, /conversas... são servidos pela 3.0) =====
-/**
- * Resolve a versão e, quando preciso, reescreve (ou devolve ao endereço canônico). Retorna null quando não há nada a
- * fazer. Centralizado aqui: nenhuma página decide versão por conta própria.
- */
-async function resolveUiVersion(request: NextRequest, pathname: string): Promise<NextResponse | null> {
-    const internalVersion = versionOfInternalPath(pathname)
-    const isShared = internalPathFor('v3', pathname) !== null
-    if (!internalVersion && !isShared) return null
-
-    // desde 14/11/2026 sempre a 3.0 (resolveRequestVersion não consulta mais nada)
-    const version = await resolveRequestVersion(request.cookies.getAll(), request.cookies.get(VERSION_COOKIE)?.value)
-
-    // Endereço interno digitado direto (/v3/carrinho): só abre se for mesmo a versão da pessoa; senão, volta ao canônico
-    if (internalVersion) {
-        if (version === internalVersion) return NextResponse.next()
-        const back = request.nextUrl.clone()
-        back.pathname = canonicalFromInternal(pathname) || '/'
-        return NextResponse.redirect(back)
-    }
-
-    const target = internalPathFor(version, pathname)
-    if (!target) return null
-    const rewritten = request.nextUrl.clone()
-    rewritten.pathname = target
-    return NextResponse.rewrite(rewritten)
-}
-
 // Banco indisponível de verdade (cota do Supabase = 402, limite = 429, queda = 5xx ou falha de rede = status 0). Erro comum de consulta
 // (ex.: ilike com várias linhas) NÃO é queda e continua valendo como "não achou".
 function dbUnavailable(...results: Array<{ error: unknown; status: number }>): boolean {
@@ -219,9 +188,13 @@ export async function proxy(request: NextRequest) {
         if (to) return NextResponse.redirect(new URL(to, request.url))
     }
 
-    // --- 0. Versão da interface (2.0 / 3.0): mesma URL, implementação escolhida pela pessoa ---
-    const versioned = await resolveUiVersion(request, pathname)
-    if (versioned) return versioned
+    // --- 0. Endereços internos antigos da 3.0 (/v3, /v3/carrinho...): as páginas moram no endereço de verdade desde 16/11/2026 ---
+    const legacy = canonicalFromLegacy(pathname)
+    if (legacy) {
+        const back = request.nextUrl.clone()
+        back.pathname = legacy
+        return NextResponse.redirect(back)
+    }
 
     // --- 1. Verificar se é uma rota ignorada exata ---
     if (IGNORED_ROUTES.includes(pathname)) {

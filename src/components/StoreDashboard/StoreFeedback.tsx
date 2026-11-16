@@ -10,9 +10,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Star } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { useInsideShell } from '@/components/InsideShell'
 import { useProfilesById } from '@/hooks/useProfilesById'
-import { hexToRgb } from '@/lib/color'
 import V3Section from './V3Section'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
@@ -30,8 +28,6 @@ const ago = (iso: string) => {
 
 export default function StoreFeedback({ storeId }: { storeId: string }) {
     const { colors } = useTheme()
-    const v3 = useInsideShell()
-    const surfaceRgb = hexToRgb(colors.surface)
     const [expanded, setExpanded] = usePersistedExpanded('storeFeedback', true)
     const [reviews, setReviews] = useState<Review[]>([])
     const [items, setItems] = useState<Map<string, Item>>(new Map())
@@ -118,7 +114,7 @@ export default function StoreFeedback({ storeId }: { storeId: string }) {
                         const person = r.is_anonymous ? null : people.get(r.profile_id || '')
                         const item = items.get(r.product_id || '')
                         return (
-                            <div key={r.id} className="rounded-2xl p-3" style={{ background: v3 ? colors.surface : `${colors.border}15`, border: `1px solid ${colors.border}` }}>
+                            <div key={r.id} className="rounded-2xl p-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                 <div className="flex items-center gap-2.5">
                                     <span className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-xs font-black flex-shrink-0" style={{ background: `${colors.border}60`, color: colors.textPrimary }}>
                                         {person?.avatarUrl ? <img src={person.avatarUrl} alt="" className="w-full h-full object-cover" /> : (person?.name || '?').charAt(0).toUpperCase()}
@@ -142,8 +138,7 @@ export default function StoreFeedback({ storeId }: { storeId: string }) {
         </div>
     )
 
-    if (v3) {
-        const all = reviews.length ? reviews.reduce((a, r) => a + r.rating, 0) / reviews.length : 0
+    const all = reviews.length ? reviews.reduce((a, r) => a + r.rating, 0) / reviews.length : 0
         return (
             <V3Section
                 title="Avaliações e comentários"
@@ -154,11 +149,4 @@ export default function StoreFeedback({ storeId }: { storeId: string }) {
                 {body}
             </V3Section>
         )
-    }
-    return (
-        <div className="mb-6 rounded-2xl p-5 flex flex-col gap-4" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, border: `1px solid ${colors.border}` }}>
-            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Avaliações e comentários</h3>
-            {body}
-        </div>
-    )
 }

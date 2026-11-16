@@ -27,14 +27,11 @@ import InviteButton from '@/components/InviteButton'
 import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab, type DriverRequestsSummary } from '@/components/AceitarCorridas/AceitarCorridas'
 import { callAdminApi } from '@/lib/callAdminApi'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
-import { useInsideShell } from '@/components/InsideShell'
 import DriverPanelHome from '@/components/v3/DriverPanelHome'
 import { announceDriverMode } from '@/lib/driverMode'
 import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
-
-const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 const ORANGE_V3 = '#f97316'
 
 function formatDate(iso: string): string {
@@ -79,21 +76,19 @@ function PainelMotoristaContent() {
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
     const { hasDriver } = useActivePlans(userId)
-    // Na 3.0 a aba Painel é redesenhada por tema (DriverPanelHome); as regras e ações são as mesmas
-    const v3 = useInsideShell()
     // 3.0: laranja sólido, cartões macios sem moldura, campos e botões em cápsula (mesma linguagem da aba Painel).
     // As regras e ações são as mesmas da 2.0; só muda a apresentação.
-    const GRADIENT = v3 ? ORANGE_V3 : GRADIENT_V2
+    const GRADIENT = ORANGE_V3
     const soft = `${colors.border}30`
-    const bd = v3 ? 'none' : `1px solid ${colors.border}`
-    const cardCls = v3 ? 'p-4 rounded-3xl' : 'p-4 rounded-2xl border'
-    const cardStyle = v3 ? { background: soft } : { background: colors.surface, borderColor: colors.border }
-    const fieldStyle = v3 ? { background: colors.background, color: colors.textPrimary } : { background: colors.background, borderColor: colors.border, color: colors.textPrimary }
-    const inputCls = v3 ? 'w-full px-4 py-2.5 rounded-full text-sm font-semibold outline-none' : 'w-full p-2 rounded-full border text-sm'
-    const inputClsXs = v3 ? 'w-full px-3 py-2.5 rounded-full text-xs font-semibold outline-none' : 'w-full p-2 rounded-full border text-xs'
-    const labelCls = v3 ? 'text-[11px] font-bold block mb-1' : 'text-[9px] font-bold block mb-1'
-    const iconBadgeCls = v3 ? 'w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0' : 'w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0'
-    const iconBadgeStyle = v3 ? { background: soft, color: ORANGE_V3 } : { background: GRADIENT_V2, color: '#ffffff' }
+    const bd = 'none'
+    const cardCls = 'p-4 rounded-3xl'
+    const cardStyle = { background: soft }
+    const fieldStyle = { background: colors.background, color: colors.textPrimary }
+    const inputCls = 'w-full px-4 py-2.5 rounded-full text-sm font-semibold outline-none'
+    const inputClsXs = 'w-full px-3 py-2.5 rounded-full text-xs font-semibold outline-none'
+    const labelCls = 'text-[11px] font-bold block mb-1'
+    const iconBadgeCls = 'w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0'
+    const iconBadgeStyle = { background: soft, color: ORANGE_V3 }
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
@@ -762,13 +757,13 @@ function PainelMotoristaContent() {
     const summaryHourly = hourlyLine(fareTariff, previewDistance)
     const tariffSummary = (
         <div className="flex flex-col gap-1.5">
-            <p className={`${v3 ? 'text-sm' : 'text-xs'} font-black leading-snug`} style={{ color: colors.textPrimary }}>
+            <p className={`${'text-sm'} font-black leading-snug`} style={{ color: colors.textPrimary }}>
                 {/* quebra de linha só entre as partes (nunca no meio de "10 km = R$ 17") */}
                 {tariffLine(fareTariff, previewDistance).split(' • ').map((part, i) => (
                     <span key={i}>{i > 0 && ' • '}<span className="whitespace-nowrap">{part}</span></span>
                 ))}
             </p>
-            {summaryHourly && <p className={`${v3 ? 'text-sm' : 'text-xs'} font-bold leading-snug`} style={{ color: '#16a34a' }}>{summaryHourly}</p>}
+            {summaryHourly && <p className={`${'text-sm'} font-bold leading-snug`} style={{ color: '#16a34a' }}>{summaryHourly}</p>}
         </div>
     )
 
@@ -784,13 +779,13 @@ function PainelMotoristaContent() {
     const planButtonStyle = (active: boolean) => ({
         flex: 1,
         padding: '0.85rem 1rem',
-        borderRadius: v3 ? '1.5rem' : '1rem',
+        borderRadius: '1.5rem',
         fontSize: '0.8rem',
         fontWeight: 800,
         transition: 'all 0.2s',
         cursor: 'pointer',
         textAlign: 'left' as const,
-        background: active ? GRADIENT : (v3 ? soft : `${colors.border}20`),
+        background: active ? GRADIENT : (soft),
         color: active ? '#ffffff' : colors.textPrimary,
         border: active ? 'none' : bd,
     })
@@ -835,9 +830,6 @@ function PainelMotoristaContent() {
                 <Header
                     title="Painel do Motorista"
                     showBack={true}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                     tabs={tabs}
                 />
 
@@ -863,7 +855,7 @@ function PainelMotoristaContent() {
                     )}
 
                     {/* Na aba Painel (3.0) o mesmo carregador roda ESCONDIDO só para alimentar os números de "Agora" (corridas, entregas de lojas, candidaturas) e a lista "Chegando agora" */}
-                    {!loading && !showLogin && !showActivationWizard && activeTab === 'painel' && v3 && (
+                    {!loading && !showLogin && !showActivationWizard && activeTab === 'painel' && true && (
                         <div hidden aria-hidden>
                             <AceitarCorridas embedded tab="servicos" onTabChange={() => {}} onSummaryChange={setRideSummary} onRegisterVehicle={() => {}} />
                         </div>
@@ -871,7 +863,7 @@ function PainelMotoristaContent() {
 
                     {!loading && !showLogin && (
                         <div className="flex flex-col gap-5">
-                            {activeTab === 'painel' && v3 && (
+                            {activeTab === 'painel' && true && (
                                 <DriverPanelHome
                                     colors={colors}
                                     driverStatus={driverStatus}
@@ -912,7 +904,7 @@ function PainelMotoristaContent() {
                                     invite={<InviteButton label="Convide amigos e ganhe" showCount />}
                                 />
                             )}
-                            {activeTab === 'painel' && !v3 && (
+                            {activeTab === 'painel' && false && (
                             <>
                             {hasDriver && <DriverDebtBanner userId={userId} />}
                             <InviteButton label="Convide amigos e ganhe" showCount />
@@ -1043,7 +1035,7 @@ function PainelMotoristaContent() {
                                         <div className="h-1.5 rounded-full transition-all" style={{ width: 8, background: colors.border }} />
                                         <div className="h-1.5 rounded-full transition-all" style={{ width: 26, background: GRADIENT }} />
                                     </div>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider text-center`} style={{ color: colors.textSecondary }}>
+                                    <p className={`${'text-xs'} font-black uppercase tracking-wider text-center`} style={{ color: colors.textSecondary }}>
                                         Etapa 2 de 2 · Sua tarifa
                                     </p>
                                     <p className="text-xs text-center" style={{ color: colors.textSecondary }}>
@@ -1075,16 +1067,16 @@ function PainelMotoristaContent() {
                             <div className="flex gap-2">
                                 <button onClick={() => setPricingMode('platform')} style={planButtonStyle(pricingMode === 'platform')}>
                                     Tarifa da plataforma
-                                    <div className={`${v3 ? 'text-xs' : 'text-[10px]'} font-normal mt-0.5 opacity-80`}>Valor padrão, sem configurar nada</div>
+                                    <div className={`${'text-xs'} font-normal mt-0.5 opacity-80`}>Valor padrão, sem configurar nada</div>
                                 </button>
                                 <button onClick={() => { setPricingMode('custom'); setCustomTouched(true) }} style={planButtonStyle(pricingMode === 'custom')}>
                                     Tarifa Personalizada
-                                    <div className={`${v3 ? 'text-xs' : 'text-[10px]'} font-normal mt-0.5 opacity-80`}>Seus próprios valores, sempre salvos — ao se candidatar você escolhe qual usar</div>
+                                    <div className={`${'text-xs'} font-normal mt-0.5 opacity-80`}>Seus próprios valores, sempre salvos — ao se candidatar você escolhe qual usar</div>
                                 </button>
                             </div>
 
                             <div id="tarifa-km" className="flex items-center gap-2 mt-1 scroll-mt-24">
-                                <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por distância (km)</span>
+                                <span className={`${'text-xs'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por distância (km)</span>
                                 <span className="flex-1 h-px" style={{ background: colors.border }} />
                             </div>
                             {pricingMode === 'platform' ? (
@@ -1133,7 +1125,7 @@ function PainelMotoristaContent() {
                             )}
 
                             <div id="tarifa-tempo" className="flex items-center gap-2 mt-1 scroll-mt-24">
-                                <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por tempo</span>
+                                <span className={`${'text-xs'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por tempo</span>
                                 <span className="flex-1 h-px" style={{ background: colors.border }} />
                             </div>
                             {pricingMode === 'custom' ? (
@@ -1173,23 +1165,23 @@ function PainelMotoristaContent() {
                                             style={{ ...fieldStyle, ...(timeBelowFloor ? { border: '1.5px solid #ef4444' } : {}) }}
                                         />
                                     )}
-                                    <p className={`${v3 ? 'text-xs' : 'text-[11px]'} font-bold mt-1.5`} style={{ color: timeBelowFloor ? '#ef4444' : colors.textSecondary }}>
+                                    <p className={`${'text-xs'} font-bold mt-1.5`} style={{ color: timeBelowFloor ? '#ef4444' : colors.textSecondary }}>
                                         {timeBelowFloor
                                             ? `Abaixo do mínimo: R$ ${rateToHourly(timeEntered).toLocaleString('pt-BR')} por hora. Use pelo menos R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o mínimo do iUser).`
                                             : `Mínimo R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o padrão do iUser): só dá para aumentar. R$ ${hourlyNow.toLocaleString('pt-BR')} por hora = R$ ${hourlyToRate(hourlyNow).toFixed(2).replace('.', ',')} por minuto.`}
                                     </p>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-1.5`} style={{ color: colors.textSecondary }}>
+                                    <p className={`${'text-xs'} mt-1.5`} style={{ color: colors.textSecondary }}>
                                         Cobra os minutos de trabalho (ir buscar + a corrida). É o seu 3º valor, ao lado da Tarifa iUser e da tarifa por km: em cada corrida você escolhe qual propor. O mínimo do iUser por minuto e o seu ganho mínimo por hora (abaixo) também valem para ele.
                                     </p>
                                     {!timeBelowFloor && (
-                                        <p className={`${v3 ? 'text-xs' : 'text-[11px]'} font-bold mt-1`} style={{ color: '#16a34a' }}>
+                                        <p className={`${'text-xs'} font-bold mt-1`} style={{ color: '#16a34a' }}>
                                             Ex.: uma corrida de 20 min de trabalho = R$ {(20 * hourlyToRate(hourlyNow)).toFixed(2).replace('.', ',')}
                                         </p>
                                     )}
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-1`} style={{ color: colors.textSecondary }}>A espera na parada não entra aqui: é regra do iUser.</p>
+                                    <p className={`${'text-xs'} mt-1`} style={{ color: colors.textSecondary }}>A espera na parada não entra aqui: é regra do iUser.</p>
                                 </div>
                             ) : (
-                                <p className={`${v3 ? 'text-xs' : 'text-[11px]'} px-1`} style={{ color: colors.textSecondary }}>
+                                <p className={`${'text-xs'} px-1`} style={{ color: colors.textSecondary }}>
                                     Na tarifa da plataforma o tempo vale o mínimo do iUser por minuto. Para ter o seu valor por minuto, escolha a Tarifa Personalizada acima.
                                 </p>
                             )}
@@ -1197,7 +1189,7 @@ function PainelMotoristaContent() {
                             <DriverEarningGoalCard driverId={userId} />
 
                             <div className="flex items-center gap-2 mt-1">
-                                <span className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Extras</span>
+                                <span className={`${'text-xs'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Extras</span>
                                 <span className="flex-1 h-px" style={{ background: colors.border }} />
                             </div>
                             <div
@@ -1206,25 +1198,25 @@ function PainelMotoristaContent() {
                             >
                                 <div className="flex items-center gap-2 mb-1">
                                     <TrendingUp size={16} style={{ color: '#f97316' }} />
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black`} style={{ color: '#f97316' }}>
+                                    <p className={`${'text-xs'} font-black`} style={{ color: '#f97316' }}>
                                         Valor extra por tipo de corrida
                                     </p>
                                 </div>
-                                <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mb-3`} style={{ color: colors.textSecondary }}>
+                                <p className={`${'text-xs'} mb-3`} style={{ color: colors.textSecondary }}>
                                     Somado à tarifa base, conforme o tipo do pedido
                                 </p>
                                 {pricingMode === 'platform' ? (
                                     <div className="grid grid-cols-3 gap-2 text-center">
                                         <div>
-                                            <p className={`${v3 ? 'text-xs' : 'text-[9px]'} font-bold`} style={{ color: colors.textSecondary }}>Pessoa</p>
+                                            <p className={`${'text-xs'} font-bold`} style={{ color: colors.textSecondary }}>Pessoa</p>
                                             <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {platformPricingForVehicle.extraFees.pessoa.toFixed(2)}</p>
                                         </div>
                                         <div>
-                                            <p className={`${v3 ? 'text-xs' : 'text-[9px]'} font-bold`} style={{ color: colors.textSecondary }}>Animal</p>
+                                            <p className={`${'text-xs'} font-bold`} style={{ color: colors.textSecondary }}>Animal</p>
                                             <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {platformPricingForVehicle.extraFees.animal.toFixed(2)}</p>
                                         </div>
                                         <div>
-                                            <p className={`${v3 ? 'text-xs' : 'text-[9px]'} font-bold`} style={{ color: colors.textSecondary }}>Objeto</p>
+                                            <p className={`${'text-xs'} font-bold`} style={{ color: colors.textSecondary }}>Objeto</p>
                                             <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {platformPricingForVehicle.extraFees.objeto.toFixed(2)}</p>
                                         </div>
                                     </div>
@@ -1273,18 +1265,18 @@ function PainelMotoristaContent() {
                             >
                                 <div className="flex items-center gap-2 mb-1">
                                     <TrendingUp size={16} style={{ color: '#f97316' }} />
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black`} style={{ color: '#f97316' }}>
+                                    <p className={`${'text-xs'} font-black`} style={{ color: '#f97316' }}>
                                         Valor extra por condição da corrida
                                     </p>
                                 </div>
-                                <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mb-3`} style={{ color: colors.textSecondary }}>
+                                <p className={`${'text-xs'} mb-3`} style={{ color: colors.textSecondary }}>
                                     Somado à tarifa base, conforme o que o pedido precisar (condomínio conta em dobro se for na origem e no destino)
                                 </p>
                                 {pricingMode === 'platform' ? (
                                     <div className="grid grid-cols-2 gap-3 text-center">
                                         {conditionExtraFeeFields.map((field) => (
                                             <div key={field.key}>
-                                                <p className={`${v3 ? 'text-xs' : 'text-[9px]'} font-bold`} style={{ color: colors.textSecondary }}>{field.label}</p>
+                                                <p className={`${'text-xs'} font-bold`} style={{ color: colors.textSecondary }}>{field.label}</p>
                                                 <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {field.platformDefault.toFixed(2)}</p>
                                             </div>
                                         ))}
@@ -1327,7 +1319,7 @@ function PainelMotoristaContent() {
                                         <div className="h-1.5 rounded-full transition-all" style={{ width: 26, background: GRADIENT }} />
                                         <div className="h-1.5 rounded-full transition-all" style={{ width: 8, background: colors.border }} />
                                     </div>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black uppercase tracking-wider text-center`} style={{ color: colors.textSecondary }}>
+                                    <p className={`${'text-xs'} font-black uppercase tracking-wider text-center`} style={{ color: colors.textSecondary }}>
                                         Etapa 1 de 2 · Seu carro
                                     </p>
                                 </div>
@@ -1349,7 +1341,7 @@ function PainelMotoristaContent() {
                             </div>
 
                             <div className={`${cardCls} flex flex-col gap-3`} style={cardStyle}>
-                                <p className={`${v3 ? 'text-xs' : 'text-[10px]'}`} style={{ color: colors.textSecondary }}>
+                                <p className={`${'text-xs'}`} style={{ color: colors.textSecondary }}>
                                     Cadastre quantos veículos quiser — cada tipo é independente (✓ = já cadastrado).
                                 </p>
                                 <div className="flex items-center gap-1.5">
@@ -1371,7 +1363,7 @@ function PainelMotoristaContent() {
                                     <div
                                         onClick={() => document.getElementById('car-photo-input')?.click()}
                                         className="w-20 h-20 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0"
-                                        style={{ background: `${colors.border}30`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
+                                        style={{ background: `${colors.border}30`, border: 'none' }}
                                     >
                                         {carPhotoUrl ? (
                                             <img src={carPhotoUrl} className="w-full h-full object-cover" alt="" />
@@ -1424,11 +1416,11 @@ function PainelMotoristaContent() {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 pt-1 border-t" style={{ borderColor: v3 ? 'transparent' : colors.border }}>
+                                <div className="flex items-center gap-3 pt-1 border-t" style={{ borderColor: 'transparent' }}>
                                     <div
                                         onClick={() => document.getElementById('driver-photo-input')?.click()}
                                         className="w-20 h-20 rounded-full flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0"
-                                        style={{ background: `${colors.border}30`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
+                                        style={{ background: `${colors.border}30`, border: 'none' }}
                                     >
                                         {driverPhotoUrl ? (
                                             <img src={driverPhotoUrl} className="w-full h-full object-cover" alt="" />
@@ -1453,7 +1445,7 @@ function PainelMotoristaContent() {
                                     />
                                     <div>
                                         <p className="text-xs font-black" style={{ color: colors.textPrimary }}>Sua foto</p>
-                                        <p className={`${v3 ? 'text-xs' : 'text-[10px]'}`} style={{ color: colors.textSecondary }}>
+                                        <p className={`${'text-xs'}`} style={{ color: colors.textSecondary }}>
                                             Uma foto sua de rosto, pro passageiro reconhecer quem vai dirigir
                                         </p>
                                     </div>
@@ -1461,7 +1453,7 @@ function PainelMotoristaContent() {
 
                                 {vehicleKind === 'carro' && (
                                 <div>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black mb-2`} style={{ color: colors.textSecondary }}>Capacidade do carro</p>
+                                    <p className={`${'text-xs'} font-black mb-2`} style={{ color: colors.textSecondary }}>Capacidade do carro</p>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <label className={labelCls} style={{ color: colors.textSecondary }}>Quantos passageiros cabem?</label>
@@ -1496,7 +1488,7 @@ function PainelMotoristaContent() {
                                         </div>
                                     </div>
 
-                                    <p className={`${v3 ? 'text-xs' : 'text-[9px]'} font-bold mt-3 mb-1.5`} style={{ color: colors.textSecondary }}>
+                                    <p className={`${'text-xs'} font-bold mt-3 mb-1.5`} style={{ color: colors.textSecondary }}>
                                         Sacolas de compras que cabem no porta-malas
                                     </p>
                                     <div className="grid grid-cols-3 gap-2">
@@ -1538,13 +1530,13 @@ function PainelMotoristaContent() {
                                         </div>
                                     </div>
 
-                                    <p className={`${v3 ? 'text-xs' : 'text-[9px]'} font-bold mt-3 mb-1.5`} style={{ color: colors.textSecondary }}>
+                                    <p className={`${'text-xs'} font-bold mt-3 mb-1.5`} style={{ color: colors.textSecondary }}>
                                         Malas de viagem que cabem no porta-malas
                                     </p>
                                     <div className="grid grid-cols-3 gap-2">
                                         <div>
-                                            <label className={`${v3 ? 'text-xs' : 'text-[9px]'} font-bold block`} style={{ color: colors.textSecondary }}>Pequena</label>
-                                            <span className={`${v3 ? 'text-[10px]' : 'text-[8px]'} block mb-1`} style={{ color: colors.textSecondary, opacity: 0.7 }}>até 55cm</span>
+                                            <label className={`${'text-xs'} font-bold block`} style={{ color: colors.textSecondary }}>Pequena</label>
+                                            <span className={`${'text-[10px]'} block mb-1`} style={{ color: colors.textSecondary, opacity: 0.7 }}>até 55cm</span>
                                             <input
                                                 type="number"
                                                 min={0}
@@ -1556,8 +1548,8 @@ function PainelMotoristaContent() {
                                             />
                                         </div>
                                         <div>
-                                            <label className={`${v3 ? 'text-xs' : 'text-[9px]'} font-bold block`} style={{ color: colors.textSecondary }}>Média</label>
-                                            <span className={`${v3 ? 'text-[10px]' : 'text-[8px]'} block mb-1`} style={{ color: colors.textSecondary, opacity: 0.7 }}>até 65cm</span>
+                                            <label className={`${'text-xs'} font-bold block`} style={{ color: colors.textSecondary }}>Média</label>
+                                            <span className={`${'text-[10px]'} block mb-1`} style={{ color: colors.textSecondary, opacity: 0.7 }}>até 65cm</span>
                                             <input
                                                 type="number"
                                                 min={0}
@@ -1569,8 +1561,8 @@ function PainelMotoristaContent() {
                                             />
                                         </div>
                                         <div>
-                                            <label className={`${v3 ? 'text-xs' : 'text-[9px]'} font-bold block`} style={{ color: colors.textSecondary }}>Grande</label>
-                                            <span className={`${v3 ? 'text-[10px]' : 'text-[8px]'} block mb-1`} style={{ color: colors.textSecondary, opacity: 0.7 }}>até 75cm</span>
+                                            <label className={`${'text-xs'} font-bold block`} style={{ color: colors.textSecondary }}>Grande</label>
+                                            <span className={`${'text-[10px]'} block mb-1`} style={{ color: colors.textSecondary, opacity: 0.7 }}>até 75cm</span>
                                             <input
                                                 type="number"
                                                 min={0}
@@ -1587,7 +1579,7 @@ function PainelMotoristaContent() {
 
                                 {vehicleKind === 'carro' ? (
                                 <div>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black mb-2`} style={{ color: colors.textSecondary }}>Serviços oferecidos</p>
+                                    <p className={`${'text-xs'} font-black mb-2`} style={{ color: colors.textSecondary }}>Serviços oferecidos</p>
                                     <div className="grid grid-cols-2 gap-2">
                                         {DRIVER_SERVICE_OPTIONS.map((opt) => {
                                             const Icon = opt.icon
@@ -1714,7 +1706,7 @@ function PainelMotoristaContent() {
                                             <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
                                                 {shortAddress(h.origin_address)} → {shortAddress(h.destination_address)}
                                             </p>
-                                            <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-0.5`} style={{ color: colors.textSecondary }}>
+                                            <p className={`${'text-xs'} mt-0.5`} style={{ color: colors.textSecondary }}>
                                                 {formatDate(h.created_at)}{h.distance_km != null ? ` · ${h.distance_km.toFixed(1)} km` : ''}
                                             </p>
                                         </div>

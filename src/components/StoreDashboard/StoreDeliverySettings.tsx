@@ -5,11 +5,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
-import { Truck, ChevronDown, ChevronUp, Check, AlertTriangle, Bike, Store, MessageCircle } from 'lucide-react'
+import { Truck, Check, AlertTriangle, Bike, Store, MessageCircle } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { hexToRgb } from '@/lib/color'
-import { useInsideShell } from '@/components/InsideShell'
-import V3Section, { V3_GRADIENT } from './V3Section'
+import V3Section from './V3Section'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE } from '@/lib/driverPricing'
 
@@ -38,7 +37,6 @@ interface StoreDeliverySettingsProps {
 
 export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliverySettingsProps) {
     const { colors } = useTheme()
-    const v3 = useInsideShell()
     const surfaceRgb = hexToRgb(colors.surface)
 
     const [loading, setLoading] = useState(true)
@@ -424,8 +422,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
     )
 
     // 3.0: o mesmo cartão de seção das outras partes do painel
-    if (v3) {
-        return (
+    return (
             <V3Section
                 title="Configurações de entrega"
                 subtitle={<>{deliveryWho === 'iuser' ? 'Entregador do iUser' : deliveryWho === 'own' ? 'Eu entrego' : 'Sem entrega'} · {acceptsPickup ? 'Retirada ativa' : 'Retirada desativada'}{deliveryWho === 'own' && <span style={{ color: '#f97316', fontWeight: 700 }}> · {getDeliverySummary()}</span>}</>}
@@ -436,62 +433,4 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                 {body}
             </V3Section>
         )
-    }
-
-    return (
-        <div
-            className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
-            style={{
-                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: `1px solid ${colors.border}`,
-                boxShadow: colors.shadow,
-            }}
-        >
-            {/* Cabeçalho com toggle - PILL */}
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center justify-between text-left"
-                style={{
-                    padding: isExpanded ? '0.5rem 0.75rem' : 0,
-                    borderRadius: '9999px',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                }}
-            >
-                <div className="flex items-center gap-3">
-                    <div>
-                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
-                            Configurações de Entrega
-                        </h3>
-                        <div className="flex flex-col gap-0.5 mt-0.5">
-                            <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
-                                <span>{acceptsDelivery ? 'Entrega ativa' : 'Entrega desativada'}</span>
-                                <span>•</span>
-                                <span>{acceptsPickup ? 'Retirada ativa' : 'Retirada desativada'}</span>
-                            </div>
-                            {acceptsDelivery && (
-                                <div className="text-[10px] font-medium" style={{ color: '#f97316' }}>
-                                    {getDeliverySummary()}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {isExpanded ? (
-                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
-                    ) : (
-                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
-                    )}
-                </div>
-            </button>
-
-            {isExpanded && (
-                body
-            )}
-        </div>
-    )
 }

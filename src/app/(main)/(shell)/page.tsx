@@ -1,4 +1,4 @@
-// app/(main)/(shell)/v3/page.tsx — página inicial da 3.0 (o endereço público é `/`; o proxy faz o rewrite para `/v3`)
+// app/(main)/(shell)/page.tsx — a página inicial do iUser (Explorar)
 //
 // MODELO INICIAL — proposta de página inicial pensada em quem usa: o que ela pode
 // FAZER aqui e o que existe pra ela VER. Mesmos dados reais da home, outra organização:
@@ -23,7 +23,7 @@ import StoreImageCard, { type StoreCardItem } from '@/components/StoreImageCard'
 import { fetchStoreCards } from '@/lib/storeCards'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { getAvatarUrl } from '@/lib/avatar'
-import { loadProductCards, type ProductCard } from '../../inicio/sections/ProductShowcase'
+import { loadProductCards, type ProductCard } from '@/app/(main)/inicio/sections/ProductShowcase'
 import { fetchOpenBoardItems, askedAgo, shortAddress, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED, type BoardItem } from '@/lib/serviceBoard'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { getRequestTitle, getServiceIcon } from '@/lib/serviceTypes'
@@ -43,8 +43,8 @@ import PromoStrip from '@/components/v3/PromoStrip'
 import SearchSuggestions from '@/components/search/SearchSuggestions'
 import { recordSearch, isRecordable } from '@/modules/search'
 import { loadServiceCards } from '@/lib/serviceCards'
-import SearchResultsSection from '../../inicio/SearchResultsSection'
-import CareerPlans from '../../inicio/sections/CareerPlans'
+import SearchResultsSection from '@/app/(main)/inicio/SearchResultsSection'
+import CareerPlans from '@/app/(main)/inicio/sections/CareerPlans'
 import { rankStyle } from '@/components/social/SocialProfileCard'
 import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
