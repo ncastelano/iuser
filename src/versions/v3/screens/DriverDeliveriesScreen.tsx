@@ -22,6 +22,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { isLocalDevOnly } from '@/lib/devOnly'
 import { fetchOptimizedRoute, fetchRoadPath } from '@/lib/mapboxRoute'
 import DriverDues from '@/components/deliveries/DriverDues'
+import CashTrustCard from '@/components/deliveries/CashTrustCard'
 import DeliveryNavMap, { type NavStop, type NavTarget } from '@/components/deliveries/DeliveryNavMap'
 import {
     acceptOffer, arriveAtDestination, arriveAtStore, brl, DRIVER_QUICK, sendDeliveryMessage, capacityState, completeDelivery, earnings, etaMinutes, fetchActive, fetchDriverState, fetchDoneToday, fetchMyReviews, fetchOffers, haversineKm, itemsList,
@@ -536,6 +537,9 @@ export default function DriverDeliveriesScreen() {
                     })()}
                 </section>
             )}
+
+            {/* ===== Dinheiro e maquininha: liberação por etapas (quem está começando leva só pedidos por Pix) ===== */}
+            <CashTrustCard />
 
             {/* ===== Caixa: dinheiro da porta a repassar, maquininha a devolver e entregas contestadas ===== */}
             <DriverDues />

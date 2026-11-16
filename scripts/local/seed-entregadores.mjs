@@ -60,6 +60,8 @@ for (const d of DRIVERS) {
     const motoPath = await put('driver-car-photos', `${id}/moto.png`, moto(d))
     await upsert('driver_vehicles', [{ driver_id: id, vehicle_kind: 'moto', car_model: d.model, car_color: d.color, car_plate: d.plate, services: ['objeto', 'pessoa'], passenger_capacity: 1, delivery_capacity: d.cap, delivery_capacity_units: d.units, vehicle_slug: `moto-${d.key}-pizza`, car_photo_url: motoPath, driver_photo_url: selfiePath }], 'driver_id,vehicle_kind')
     await upsert('driver_pricing', [{ driver_id: id, pricing_mode: 'platform', driver_mode_active: true, live_location_sync: true, live_lat: PIZZARIA.lat + d.dx, live_lng: PIZZARIA.lng + d.dy, live_updated_at: new Date().toISOString(), alert_sound_enabled: true, voice_navigation_enabled: true, delivery_radius_km: 12 }], 'driver_id')
+    // chave Pix própria: requisito para levar entregas em dinheiro ou maquininha (liberação por etapas, migration ...69)
+    await upsert('driver_payout_keys', [{ driver_id: id, pix_key_type: 'email', pix_key: email, consent_at: new Date().toISOString(), updated_at: new Date().toISOString() }], 'driver_id')
     const has = await api('GET', `/rest/v1/subscriptions?select=id&user_id=eq.${id}&limit=1`)
     if (!has.length) await api('POST', '/rest/v1/subscriptions', [{ user_id: id, plan_id: planId, status: 'active', source: 'free_trial', starts_at: new Date().toISOString(), current_period_end: new Date(Date.now() + 365 * 86400000).toISOString() }], { Prefer: 'return=minimal' })
 }

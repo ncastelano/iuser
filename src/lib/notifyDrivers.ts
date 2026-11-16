@@ -70,9 +70,19 @@ export async function notifyDriversOfRide(ride: {
         if (ride.innerRadiusKm != null && km <= ride.innerRadiusKm) return false
         return km <= limit
     }
-    const ids = (drivers || []).filter(withinRadius).map((d) => d.driver_id as string)
+    let ids = (drivers || []).filter(withinRadius).map((d) => d.driver_id as string)
         .filter((id) => !favoriteIds || (exclusiveUntil ? favoriteIds.has(id) : !favoriteIds.has(id)))
     if (ids.length === 0) return 0
+    // Entrega em DINHEIRO ou MAQUININHA: só quem já foi liberado para levá-la (migration ...69; o banco também esconde a oferta e
+    // recusa a candidatura). Corrida de passageiro e pedido por Pix passam inteiros. Sem a função no banco, avisa como antes.
+    if (win?.store_id) {
+        const { data: allowed, error: trustErr } = await supabaseAdmin.rpc('cash_trust_filter', { p_ride: ride.id, p_drivers: ids })
+        if (!trustErr && Array.isArray(allowed)) {
+            const ok = new Set(allowed as string[])
+            ids = ids.filter((id) => ok.has(id))
+            if (ids.length === 0) return 0
+        }
+    }
 
     const [{ data: vehicles }, { data: charges }] = await Promise.all([
         supabaseAdmin.from('driver_vehicles').select('driver_id, vehicle_kind').in('driver_id', ids),
