@@ -18,7 +18,6 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import ListingRowCard from '@/components/ListingRowCard'
 import { Spinner } from '@/components/Spinner'
-import { useInsideShell } from '@/components/InsideShell'
 import ListFilters, { type SortOption } from '@/components/ListFilters'
 import PageTabs, { type Tab } from '@/components/PageTabs'
 import { loadServiceCards, type ServiceCard } from '@/lib/serviceCards'
@@ -51,7 +50,6 @@ function ServicosDisponiveis() {
     const router = useRouter()
     const tipoParam = useSearchParams().get('tipo')
     const tipo = tipoParam === 'profissionais' || tipoParam === 'agendar' ? TIPOS[tipoParam] : null
-    const v3 = useInsideShell()
     const { colors } = useTheme()
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
 
@@ -116,9 +114,6 @@ function ServicosDisponiveis() {
                     title={tipo?.title || 'Serviços'}
                     showBack
                     onBack={() => (tipo && window.history.length > 1 ? router.back() : router.push('/'))}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                     showSearch
                     searchPlaceholder={tipo?.placeholder || 'Procurar serviços'}
                     searchValue={search}
@@ -155,7 +150,7 @@ function ServicosDisponiveis() {
                             <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
                                 {filtered.length} {tipo?.kind === 'Pessoa' ? (filtered.length === 1 ? 'atendimento' : 'atendimentos') : filtered.length === 1 ? 'serviço' : 'serviços'}{search ? ` para “${search}”` : ''}
                             </p>
-                            <div className={v3 ? 'flex flex-col' : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3'}>
+                            <div className={'flex flex-col'}>
                                 {filtered.slice(0, shown).map((s) => (
                                     <ListingRowCard
                                         key={s.id}
@@ -187,7 +182,7 @@ function ServicosDisponiveis() {
                                     <button
                                         onClick={() => setShown((n) => n + PAGE_SIZE)}
                                         className="px-6 py-3 rounded-full font-black text-sm text-white transition-transform hover:scale-105 active:scale-95"
-                                        style={v3 ? { background: '#f97316' } : { background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
+                                        style={{ background: '#f97316' }}
                                     >
                                         Mostrar mais
                                     </button>

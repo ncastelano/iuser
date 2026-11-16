@@ -8,8 +8,6 @@ import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
 import {
-    ChevronDown,
-    ChevronUp,
     Plus,
     ImageIcon,
     Send,
@@ -22,7 +20,6 @@ import {
     } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
-import { useInsideShell } from '@/components/InsideShell'
 import V3Section, { V3_GRADIENT } from './V3Section'
 
 interface Publication {
@@ -61,7 +58,6 @@ const pillButtonStyle = {
 
 export default function StorePublication({ storeId }: PublicationProps) {
     const { colors } = useTheme()
-    const v3 = useInsideShell()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -99,7 +95,7 @@ export default function StorePublication({ storeId }: PublicationProps) {
 
                 if (!error && data && isMounted) {
                     setPublications(data as Publication[])
-                    if (v3) loadStats(data as Publication[]).then((st) => { if (isMounted) setStats(st) })
+                    loadStats(data as Publication[]).then((st) => { if (isMounted) setStats(st) })
                 }
 
                 const { data: storeData } = await supabase
@@ -237,8 +233,6 @@ export default function StorePublication({ storeId }: PublicationProps) {
         if (path.startsWith('http')) return path
         return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl
     }
-
-    const accentColor = colors.accent
     const textPrimary = colors.textPrimary
     const textSecondary = colors.textSecondary
 
@@ -289,7 +283,7 @@ export default function StorePublication({ storeId }: PublicationProps) {
                             </div>
                         ) : (
                             <>
-                                {v3 && Object.keys(stats).length > 0 && (() => {
+                                {Object.keys(stats).length > 0 && (() => {
                                     const t = Object.values(stats).reduce((a, x) => ({ views: a.views + x.views, likes: a.likes + x.likes, comments: a.comments + x.comments, shares: a.shares + x.shares }), { views: 0, likes: 0, comments: 0, shares: 0 })
                                     return (
                                         <div className="grid grid-cols-4 gap-2">
@@ -329,7 +323,7 @@ export default function StorePublication({ storeId }: PublicationProps) {
                                                 <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
                                                     {pub.name}
                                                 </p>
-                                                {v3 && stats[pub.id] && (
+                                                {stats[pub.id] && (
                                                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10.5px] font-bold" style={{ color: textSecondary }}>
                                                         <span className="inline-flex items-center gap-0.5"><Eye size={11} />{stats[pub.id].views}</span>
                                                         <span className="inline-flex items-center gap-0.5"><Heart size={11} />{stats[pub.id].likes}</span>
@@ -455,8 +449,7 @@ export default function StorePublication({ storeId }: PublicationProps) {
                                     />
                                 </div>
 
-                                {v3 && (
-                                    <div className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-2">
                                         <p className="text-[10px] font-bold uppercase text-right -mt-1" style={{ color: textSecondary }}>{name.length}/60 · {description.length}/500</p>
                                         <p className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Como vai aparecer</p>
                                         <div className="flex gap-3 items-start">
@@ -473,7 +466,6 @@ export default function StorePublication({ storeId }: PublicationProps) {
                                             </div>
                                         </div>
                                     </div>
-                                )}
 
                                 {storeWhatsapp && (
                                     <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-full">
@@ -530,8 +522,8 @@ export default function StorePublication({ storeId }: PublicationProps) {
     )
 
     // 3.0: o mesmo cartão de seção das outras partes do painel
-    if (v3) {
-        return (
+    return (
+        <>
             <V3Section
                 title="Publicações"
                 subtitle={'Divulgue sua loja, produtos ou serviços'}
@@ -542,61 +534,6 @@ export default function StorePublication({ storeId }: PublicationProps) {
             >
                 {body}
             </V3Section>
-        )
-    }
-
-    return (
-        <div className="mb-6 mt-4">
-            <div
-                className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
-                {/* Cabeçalho com toggle - PILL */}
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between text-left"
-                    style={{
-                        padding: isExpanded ? '0.5rem 0.75rem' : 0,
-                        borderRadius: '9999px',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                    }}
-                >
-                    <div className="flex items-center gap-3">
-                        <div>
-                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
-                                Publicações
-                            </h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                Divulgue sua loja, produtos ou serviços
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {publications.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                {publications.length}
-                            </span>
-                        )}
-                        {isExpanded ? (
-                            <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                        ) : (
-                            <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                        )}
-                    </div>
-                </button>
-
-                {isExpanded && (
-                    body
-                )}
-            </div>
 
             {confirmDeleteId && (
                 <div
@@ -632,6 +569,6 @@ export default function StorePublication({ storeId }: PublicationProps) {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     )
 }

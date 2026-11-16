@@ -12,13 +12,12 @@ import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition } from '@/lib/nativeGeolocation'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
-import { useInsideShell } from '@/components/InsideShell'
 import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import LocationPicker from '@/components/LocationPicker'
 import { toast } from '@/lib/toast'
-import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, Map as MapIcon, LocateFixed } from 'lucide-react'
+import { MapPin, Car, CheckCircle2, Navigation, Ban, Flag, Share2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { shortAddress } from '@/lib/serviceBoard'
@@ -30,7 +29,7 @@ import { computeSuggestedPrice, computeConditionExtras, computeRideExtras, compu
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
-import { VehicleType, VehicleKind, VEHICLE_TYPE_LABELS, ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, kindForRideType } from '@/lib/rideVehicle'
+import { VehicleType, VehicleKind, ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, kindForRideType } from '@/lib/rideVehicle'
 
 // Ícone do marcador "Você" no mapa: o veículo cadastrado que serve essa
 // corrida (moto/bicicleta são exclusivos; "qualquer" usa o que o motorista
@@ -42,7 +41,7 @@ function vehicleIconForRide(rideVehicleType: VehicleType, myKinds: VehicleKind[]
     }
     return 'carro'
 }
-import { buildRideSpecRows, type RideSpecFields } from '@/lib/rideSpecs'
+import { type RideSpecFields } from '@/lib/rideSpecs'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { handleShareLink } from '@/lib/share'
 import { computeExtraTaskFee, EXTRA_TASK_FEE_TIERS } from '@/lib/extraTaskFees'
@@ -63,10 +62,7 @@ import { submitRideApplication } from '@/lib/rideApplication'
 import { loadEarningGoal, type EarningGoal } from '@/modules/negotiation'
 import DriverNegotiation from '@/components/negotiation/DriverNegotiation'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
-import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
-
-const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
 
 // Ícone da aba "Me candidatei": sempre no verde-limão do botão "Candidatar-se"
@@ -74,10 +70,6 @@ const REFRESH_INTERVAL_MS = 15000
 // ficar idêntico ao ícone de avatar sem foto.
 export function CandidateiTabIcon({ size }: { size?: number }) {
     return <CheckCircle2 size={size} color="#a3e635" />
-}
-
-function formatScheduledFor(iso: string): string {
-    return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 function formatAddress(address: string, addressNumber?: string): string {
@@ -134,15 +126,6 @@ async function reverseGeocodeLiveLocation(lat: number, lng: number): Promise<str
     } catch {
         return null
     }
-}
-
-function relativeTime(iso: string): string {
-    const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-    if (minutes < 1) return 'agora'
-    if (minutes < 60) return `há ${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `há ${hours}h`
-    return `há ${Math.floor(hours / 24)}d`
 }
 
 interface RideRow {
@@ -323,13 +306,11 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const focusedRef = useRef(false)
     const { userId: contextUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
-    // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
-    const v3 = useInsideShell()
-    const GRADIENT = v3 ? '#f97316' : GRADIENT_V2
+    const GRADIENT = '#f97316'
     const soft = `${colors.border}30`
-    const bd = v3 ? 'none' : `1px solid ${colors.border}`
-    const sh = v3 ? 'none' : colors.shadow
-    const surf = v3 ? soft : colors.surface
+    const bd = 'none'
+    const sh = 'none'
+    const surf = soft
     const { loading: plansLoading, hasDriver } = useActivePlans(contextUserId)
 
     const [loading, setLoading] = useState(true)
@@ -373,8 +354,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const [earningGoal, setEarningGoal] = useState<EarningGoal>({ minHourly: null, protection: 'warn' })
     useEffect(() => { if (contextUserId) void loadEarningGoal(contextUserId).then(setEarningGoal).catch(() => {}) }, [contextUserId])
     const [applyingId, setApplyingId] = useState<string | null>(null)
-    const [customPriceFor, setCustomPriceFor] = useState<string | null>(null)
-    const [customPriceValue, setCustomPriceValue] = useState('')
+    const [, setCustomPriceFor] = useState<string | null>(null)
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
     const [myDeliveryRadius, setMyDeliveryRadius] = useState<number | null>(null)
     const [liveLocationSync, setLiveLocationSync] = useState(false)
@@ -1497,9 +1477,6 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         title="Aceitar corrida"
                         showBack={true}
                         onBack={() => router.back()}
-                        greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                        avatarUrl={avatarUrl}
-                        loading={profileLoading}
                         tabs={headerTabs}
                         locationElement={locationButton}
                     />
@@ -1539,7 +1516,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     <>
                     {hasDriver && <DriverDebtBanner userId={contextUserId} />}
 
-                    {activeTab === 'servicos' && visibleRides.length === 0 && (v3 ? (
+                    {activeTab === 'servicos' && visibleRides.length === 0 && ((
                         <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: surf }}>
                             <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textSecondary }}>
                                 <Car size={20} />
@@ -1548,15 +1525,6 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Nenhuma corrida disponível no momento</span>
                                 <span className="block text-xs mt-0.5" style={{ color: colors.textSecondary }}>Assim que alguém pedir, a solicitação aparece aqui.</span>
                             </span>
-                        </div>
-                    ) : (
-                        <div
-                            className="rounded-2xl p-6 text-center"
-                            style={{ background: surf, border: bd, boxShadow: sh }}
-                        >
-                            <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhuma corrida disponível no momento.
-                            </p>
                         </div>
                     ))}
 

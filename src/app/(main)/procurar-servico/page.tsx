@@ -1,10 +1,8 @@
 // app/(main)/procurar-servico/page.tsx
 'use client'
 
-import { useInsideShell } from '@/components/InsideShell'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { getRequestTitle } from '@/lib/serviceTypes'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
@@ -12,7 +10,7 @@ import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from '@/lib/toast'
-import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, History, HeartCrack } from 'lucide-react'
+import { Gift, Briefcase, MapPin, Building2, Eye, Trash2, Pencil, ClipboardCheck, CheckCircle2, Clock, History, HeartCrack } from 'lucide-react'
 import { useMyOrigin } from '@/hooks/useMyOrigin'
 import ListFilters, { type SortOption, type CategoryOption } from '@/components/ListFilters'
 import PhotoCollage from '@/components/PhotoCollage'
@@ -34,7 +32,6 @@ import {
     BoardItem,
     fetchOpenBoardItems,
     getItemAddress,
-    getItemDetail,
     getItemIcon,
     getItemLabel,
     getItemSearchHaystack,
@@ -55,7 +52,6 @@ export default function SerParceiroPage() {
 }
 
 function SerParceiroContent() {
-    const v3 = useInsideShell()   // v3: lista corrida (sem cartões), foto/ícone pequenos e botão laranja sólido
     const router = useRouter()
     const searchParams = useSearchParams()
     // Vem de "Quero fazer esse serviço" na home: foca o card desse pedido e
@@ -74,10 +70,6 @@ function SerParceiroContent() {
     const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
     const [autoApplyingId, setAutoApplyingId] = useState<string | null>(null)
     const [detailsId, setDetailsId] = useState<string | null>(null)
-    const [editDescription, setEditDescription] = useState('')
-    const [editNeedsAccess, setEditNeedsAccess] = useState(false)
-    const [editAccessNotes, setEditAccessNotes] = useState('')
-    const [savingEdit, setSavingEdit] = useState(false)
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const origin = useMyOrigin(userId)   // onde a pessoa está: serve para mostrar a distância de cada pedido
     const { colors } = useTheme()
@@ -369,9 +361,6 @@ function SerParceiroContent() {
                     title="Serviços disponíveis"
                     showBack={true}
                     onBack={() => router.push('/')}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                     showSearch={!loading && !showLogin}
                     searchPlaceholder="Procurar serviço, motorista, pintor..."
                     searchValue={searchQuery}
@@ -429,7 +418,6 @@ function SerParceiroContent() {
                             {filteredJobs.map((job) => {
                                 const Icon = getItemIcon(job)
                                 const label = getItemLabel(job)
-                                const detail = getItemDetail(job)
                                 const key = itemKey(job)
                                 const applied = appliedKeys.has(key)
                                 const isMine = job.requester_id === userId
@@ -442,14 +430,10 @@ function SerParceiroContent() {
                                         id={`job-card-${job.id}`}
                                         // Tocar no card (fora dos botões) abre o pedido em tamanho grande e já conta a visita
                                         onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a, input, textarea')) setViewJob(job) }}
-                                        className={v3 ? 'py-4 scroll-mt-32 flex cursor-pointer' : 'rounded-3xl p-4 scroll-mt-32 flex cursor-pointer'}
-                                        style={v3 ? {
+                                        className={'py-4 scroll-mt-32 flex cursor-pointer'}
+                                        style={{
                                             borderBottom: `1px solid ${colors.border}50`,
                                             background: focusId === job.id ? `${colors.accent}10` : undefined,
-                                        } : {
-                                            background: colors.surface,
-                                            border: `1px solid ${focusId === job.id ? colors.accent : colors.border}`,
-                                            boxShadow: focusId === job.id ? `0 0 0 3px ${colors.accent}40` : colors.shadow,
                                         }}
                                     >
                                         {/* O foco é o que a pessoa ESCREVEU (inteiro, em letra grande); em volta: quem pediu, as etiquetas e o botão. Sem foto nem ícone ao lado. */}
@@ -538,17 +522,15 @@ function SerParceiroContent() {
                                                     </button>
                                                 </div>
                                             ) : (
-                                                <div className={v3 ? 'mt-1 flex items-center gap-2' : 'mt-auto flex items-center gap-2'}>
+                                                <div className={'mt-1 flex items-center gap-2'}>
                                                 <button
                                                     onClick={() => handleApply(job)}
                                                     disabled={applied || applyingKey === key || autoApplyingId === job.id}
-                                                    className={v3
-                                                        ? 'h-9 px-6 rounded-full text-[13px] font-black transition active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2'
-                                                        : 'flex-1 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2'}
+                                                    className={'h-9 px-6 rounded-full text-[13px] font-black transition active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2'}
                                                     style={
                                                         applied
-                                                            ? { background: `${colors.border}30`, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }
-                                                            : v3 ? { background: '#f97316', color: '#fff' } : { background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }
+                                                            ? { background: `${colors.border}30`, color: colors.textSecondary, border: 'none' }
+                                                            : { background: '#f97316', color: '#fff' }
                                                     }
                                                 >
                                                     {autoApplyingId === job.id && !applied ? (
@@ -558,10 +540,10 @@ function SerParceiroContent() {
                                                     ) : applied ? (
                                                         'Inscrição enviada'
                                                     ) : (
-                                                        <>{!v3 && <Briefcase size={14} />}Inscrever-se</>
+                                                        <>Inscrever-se</>
                                                     )}
                                                 </button>
-                                                <ServiceRequestShareButton item={job} size={v3 ? 36 : 40} />
+                                                <ServiceRequestShareButton item={job} size={36} />
                                                 </div>
                                             )}
                                         </div>

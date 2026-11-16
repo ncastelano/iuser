@@ -4,14 +4,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, MapPin, MessageCircle, Star, Store as StoreIcon, UserPlus } from 'lucide-react'
+import { MessageCircle, Star } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'
 import { lastSeenLabel, type PresenceInfo } from '@/lib/lastSeen'
 import { trackProfileVisit } from '@/lib/trackProfileVisit'
-import { useInsideShell } from '@/components/InsideShell'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -59,11 +58,9 @@ interface Props {
 
 export default function SocialProfileCard({ profile, store, rank, isMe, userId, following, followers = 0, onFollowChange, seenAt, colors, cardBg, onOpen }: Props) {
     const router = useRouter()
-    const v3 = useInsideShell()
     const [followBusy, setFollowBusy] = useState(false)
     const [chatBusy, setChatBusy] = useState(false)
     const seen = lastSeenLabel(seenAt)
-    const about = profile.bio || profile.description
     const showAddress = !!profile.address && profile.show_location !== false && profile.show_in_social !== false
 
     const goLogin = () => router.push('/login?redirect=/social')
@@ -91,8 +88,7 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
     }
 
     // v3: linha compacta (sem cartão): foto, @ e nome, números e o Seguir à direita; tocar na linha abre o perfil
-    if (v3) {
-        const place = showAddress ? (profile.address?.split(',')[0]?.trim() || profile.address) : null
+    const place = showAddress ? (profile.address?.split(',')[0]?.trim() || profile.address) : null
         const flat: Record<number, React.CSSProperties> = {
             0: { background: '#fde047', color: '#000' },
             1: { background: '#e5e7eb', color: '#000' },
@@ -157,128 +153,4 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
                 )}
             </div>
         )
-    }
-
-    return (
-        <div
-            onClick={onOpen}
-            // Passar o mouse por cima do cartão conta como visita no perfil
-            onMouseEnter={() => { if (!isMe) trackProfileVisit(profile.id, userId) }}
-            className="group relative rounded-3xl p-4 border cursor-pointer flex flex-col items-center text-center gap-3 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
-            style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}
-        >
-            {/* Foto com borda e, do lado, nome e @; a bolinha no canto da foto mostra online (verde) ou visto (cinza) */}
-            <div className="flex items-center justify-center gap-3 w-full">
-                <div className="relative flex-shrink-0">
-                    <PlanAvatarRing userId={profile.id} width={3}>
-                        <div className="w-16 h-16 rounded-full overflow-hidden" style={{ background: colors.surface }}>
-                            {profile.avatar_url ? (
-                                <img src={profile.avatar_url} alt={profile.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-                            ) : (
-                                <span className="w-full h-full flex items-center justify-center text-2xl font-black" style={{ color: colors.textSecondary }}>
-                                    {profile.name?.charAt(0).toUpperCase() || '?'}
-                                </span>
-                            )}
-                        </div>
-                    </PlanAvatarRing>
-                    {seen && (
-                        <span
-                            className="absolute bottom-0 right-0 z-10 w-4 h-4 rounded-full"
-                            style={{ background: seen.online ? '#16a34a' : '#64748b', border: '2.5px solid #ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.35)' }}
-                            title={seen.text}
-                        />
-                    )}
-                </div>
-                <div className="min-w-0 text-left">
-                    {/* O @ identifica a pessoa (nome pode ser enorme): @ em cima, nome embaixo */}
-                    <h3 className="text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>@{profile.profileSlug}</h3>
-                    {profile.name && <p className="text-xs font-semibold truncate" style={{ color: colors.textSecondary }}>{profile.name}</p>}
-                </div>
-            </div>
-
-            {/* Colocação e pontuação, um do lado do outro */}
-            {(rank !== undefined || (profile.points ?? 0) > 0 || followers > 0) && (
-                <div className="flex items-center justify-center gap-2 flex-wrap">
-                    {rank !== undefined && (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black" style={rankStyle(rank)} title={`${rank + 1}º lugar em Melhores perfis`}>
-                            #{rank + 1}
-                        </span>
-                    )}
-                    {(profile.points ?? 0) > 0 && (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black" style={{ background: '#f9731620', color: '#ea580c' }} title="Pontuação do perfil">
-                            ⭐ {profile.points} pts
-                        </span>
-                    )}
-                    {followers > 0 && (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black" style={{ background: `${colors.border}55`, color: colors.textPrimary }} title="Seguidores">
-                            👥 {followers} {followers === 1 ? 'seguidor' : 'seguidores'}
-                        </span>
-                    )}
-                </div>
-            )}
-
-            {seen && (
-                <p className="text-[11px] font-bold -mt-1" style={{ color: seen.online ? '#16a34a' : colors.textSecondary }}>{seen.text}</p>
-            )}
-
-            {about && <p className="text-xs leading-snug line-clamp-2 max-w-full" style={{ color: colors.textSecondary }}>{about}</p>}
-
-            <div className="flex items-center justify-center gap-2 flex-wrap text-[11px]" style={{ color: colors.textSecondary }}>
-                {showAddress && (
-                    <span className="flex items-center gap-1 min-w-0 max-w-full">
-                        <MapPin size={12} className="flex-shrink-0" />
-                        <span className="truncate">{profile.address?.split(',')[0]?.trim() || profile.address}</span>
-                    </span>
-                )}
-                {profile.category && (
-                    <span className="px-2 py-0.5 rounded-full font-bold" style={{ background: '#f9731618', color: '#ea580c' }}>{profile.category}</span>
-                )}
-                {!!profile.ratings_avg && profile.ratings_avg > 0 && (
-                    <span className="flex items-center gap-0.5 font-bold" style={{ color: colors.textPrimary }}>
-                        <Star size={12} className="text-yellow-400 fill-yellow-400" />
-                        {Number(profile.ratings_avg).toFixed(1)} <span style={{ color: colors.textSecondary, fontWeight: 400 }}>({profile.ratings_count || 0})</span>
-                    </span>
-                )}
-            </div>
-
-            {store && (
-                <button
-                    onClick={(e) => { e.stopPropagation(); router.push(`/${store.storeSlug}`) }}
-                    className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-2xl max-w-full transition-colors hover:bg-black/5"
-                    style={{ border: `1px solid ${colors.border}` }}
-                >
-                    <span className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
-                        {store.logoUrl ? <img src={store.logoUrl} alt="" className="w-full h-full object-cover" loading="lazy" /> : <StoreIcon size={12} color="#fff" />}
-                    </span>
-                    <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>Loja {store.name}</span>
-                </button>
-            )}
-
-            {!isMe && (!!userId || profile.chat_enabled) && (
-                <div className="flex items-center gap-2 mt-auto pt-1 w-full">
-                    {/* Visitante (sem conta) não vê o Seguir */}
-                    {!!userId && <button
-                        onClick={toggleFollow}
-                        disabled={followBusy}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-black transition-all active:scale-95 disabled:opacity-70"
-                        style={following
-                            ? { background: 'transparent', color: colors.textPrimary, border: `2px solid ${colors.border}` }
-                            : { background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640', border: '2px solid transparent' }}
-                    >
-                        {followBusy ? <Spinner size={14} color={following ? colors.accent : '#fff'} /> : following ? <><Check size={15} /> Seguindo</> : <><UserPlus size={15} /> Seguir</>}
-                    </button>}
-                    {profile.chat_enabled && (
-                        <button
-                            onClick={openChat}
-                            disabled={chatBusy}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-black transition-all active:scale-95 disabled:opacity-70"
-                            style={{ background: 'transparent', color: colors.accent, border: `2px solid ${colors.accent}` }}
-                        >
-                            {chatBusy ? <Spinner size={14} color={colors.accent} /> : <><MessageCircle size={15} /> Conversar</>}
-                        </button>
-                    )}
-                </div>
-            )}
-        </div>
-    )
 }

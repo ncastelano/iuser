@@ -2,44 +2,22 @@
 
 'use client'
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import { useParams, useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Spinner } from '@/components/Spinner'
 import OwnerSkeleton, { rememberOwnerType } from '@/components/v3/OwnerSkeleton'
 import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
-import { useMerchantStore } from '@/store/useMerchantStore'
-import { User, Store as StoreIcon, LayoutDashboard, Home } from 'lucide-react'
-import type { Tab } from '@/components/Header'
-import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
-import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
 import { Profile } from './Profile'
 import { Store } from './Store'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 import { PublicationsListView } from './PublicationsListView'
-import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
-import { isProfileOpenNow } from '@/lib/profileHours'
 import { captureReferral } from '@/lib/referralCapture'
-import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
-import { useAdminHeaderTab } from '@/lib/adminHeaderTab'
-import { useInsideShell } from '@/components/InsideShell'
 import { useMaintenance } from '@/components/MaintenanceNotice'
 
 type OwnerType = 'profile' | 'store'
-
-// GRADIENTE FIXO
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-
-export interface StoreInfo {
-    id: string
-    slug: string
-    logoUrl: string | null
-    name: string
-    business_hours?: BusinessHours | null
-}
 
 // Falha de consulta (cota/queda do Supabase) — diferente de "o perfil não existe"
 const LOAD_FAILED = 'LOAD_FAILED'
@@ -47,7 +25,6 @@ const LOAD_FAILED = 'LOAD_FAILED'
 export default function OwnerClientPage() {
     const params = useParams()
     const router = useRouter()
-    const pathname = usePathname()
     const searchParams = useSearchParams()
     const { colors } = useTheme()
     const {
@@ -58,17 +35,13 @@ export default function OwnerClientPage() {
         avatarUrl: loggedUserAvatarUrl,
         loading: profileLoading
     } = useProfile()
-    const adminTab = useAdminHeaderTab(userId)
-    // Dentro da casca da 3.0 o painel do perfil, o das lojas e os veículos moram no menu lateral: aqui as abas saem e entra o voltar
-    const insideShell = useInsideShell()
-    const { vehicles: myVehicles } = useMyVehicles(userId)
     const publicationsStore = usePublicationsStore()
 
     const ownerSlug = Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug
 
     const [loading, setLoading] = useState(true)
     const [ownerType, setOwnerType] = useState<OwnerType | null>(null)
-    const [ownerId, setOwnerId] = useState<string | null>(null)
+    const [, setOwnerId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [loadFailed, setLoadFailed] = useState(false)
     const maintenance = useMaintenance()
@@ -78,18 +51,7 @@ export default function OwnerClientPage() {
         if (maintenance) wasMaintenance.current = true
         else if (wasMaintenance.current && loadFailed) window.location.reload()
     }, [maintenance, loadFailed])
-    const [mounted, setMounted] = useState(false)
-    const [stores, setStores] = useState<StoreInfo[]>([])
-    const [loadingStores, setLoadingStores] = useState(true)
-    const storeOrderCounts = useMerchantStore(s => s.storeOrderCounts)
-    const setMerchantStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
-    const [showProfile, setShowProfile] = useState(false)
-    const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
     const [showPublications, setShowPublications] = useState(false)
-    const [storeDialogOpen, setStoreDialogOpen] = useState(false)
-
-    const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
-    const [profileOpenNow, setProfileOpenNow] = useState(false)
 
     // ========== FUNÇÃO PARA ABRIR PUBLICAÇÕES ==========
     const handleOpenPublications = useCallback((publications: any[], initialIndex: number, storeSlug: string) => {
@@ -98,14 +60,7 @@ export default function OwnerClientPage() {
 
         // Abrir o overlay de publicações
         setShowPublications(true)
-        setShowProfile(false)
-        setShowStoreDashboard(null)
     }, [publicationsStore])
-
-    // ========== FUNÇÃO PARA ABRIR CATÁLOGO ==========
-    const handleOpenCatalogo = useCallback(() => {
-        router.push(`/${ownerSlug}/catalogo`)
-    }, [ownerSlug, router])
 
     // ========== DETECTAR OWNER ==========
     const detectOwnerType = async (slug: string) => {
@@ -139,159 +94,11 @@ export default function OwnerClientPage() {
         return null
     }
 
-    // ========== CARREGAR LOJAS DO USUÁRIO LOGADO ==========
-    useEffect(() => {
-        async function loadStores() {
-            setLoadingStores(true)
-            if (!userId || !loggedUserSlug) {
-                setStores([])
-                setLoadingStores(false)
-                return
-            }
 
-            const { data: fetchedStores } = await supabase
-                .from('stores')
-                .select('id, name, storeSlug, logo_url, business_hours')
-                .eq('owner_id', userId)
-                .order('created_at', { ascending: true })
-
-            if (fetchedStores) {
-                const storesData = fetchedStores.map((s: any) => {
-                    let logoUrl: string | null = null
-                    if (s.logo_url) {
-                        const { data: publicUrlData } = supabase.storage
-                            .from('store-logos')
-                            .getPublicUrl(s.logo_url)
-                        logoUrl = publicUrlData.publicUrl
-                    }
-                    return {
-                        id: s.id,
-                        slug: s.storeSlug,
-                        logoUrl,
-                        name: s.name,
-                        business_hours: s.business_hours || null,
-                    }
-                })
-                setStores(storesData)
-            } else {
-                setStores([])
-            }
-            setLoadingStores(false)
-        }
-        loadStores()
-    }, [loggedUserSlug, userId])
-
-    // As contagens de pedidos por loja vêm do OrderNotification (montado globalmente em
-    // providers.tsx), que mantém uma assinatura realtime confiável em useMerchantStore.
-
-    // Convites de compromisso pendentes (badge da aba de perfil) vêm de
-    // useMerchantStore.pendingInvitesCount — uma única subscrição global em
-    // OrderNotification.tsx (evita duplicar canais realtime por página).
-
-    // ========== STATUS ABERTO/FECHADO DO PERFIL LOGADO (cor da aba de perfil) ==========
-    useEffect(() => {
-        if (!loggedUserSlug || !userId) {
-            setProfileOpenNow(false)
-            return
-        }
-
-        supabase
-            .from('profiles')
-            .select('business_hours')
-            .eq('id', userId)
-            .single()
-            .then(({ data }) => {
-                setProfileOpenNow(isProfileOpenNow(data?.business_hours))
-            })
-    }, [loggedUserSlug, userId])
-
-    // ========== TABS DO HEADER ==========
-    const handleProfileClick = () => {
-        setShowProfile(true)
-        setShowStoreDashboard(null)
+    const closePublications = () => {
         setShowPublications(false)
-    }
-
-    const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
-        setShowStoreDashboard({ slug: storeSlug, name: storeName })
-        setShowProfile(false)
-        setShowPublications(false)
-    }
-
-    const showMainContent = () => {
-        setShowProfile(false)
-        setShowStoreDashboard(null)
-        setShowPublications(false)
-        // Voltar para a URL base quando fechar
         router.replace(`/${ownerSlug}`, { scroll: false })
     }
-
-    const tabs = useMemo(() => {
-        const isLoggedIn = !!loggedUserSlug && !profileLoading
-        const allTabs: Tab[] = [
-            {
-                id: 'perfil',
-                label: isLoggedIn ? `@${loggedUserSlug}` : 'Entrar',
-                icon: User as any,
-                imageUrl: isLoggedIn ? loggedUserAvatarUrl : null,
-                onClick: () => {
-                    if (isLoggedIn) {
-                        handleProfileClick()
-                    } else {
-                        router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
-                    }
-                },
-                isActive: showProfile || (!isLoggedIn && !loggedUserSlug),
-                badge: isLoggedIn && pendingInvitesCount > 0 ? { count: pendingInvitesCount, color: '#22c55e' } : null,
-                statusColor: isLoggedIn ? (profileOpenNow ? '#22c55e' : '#ef4444') : undefined,
-            },
-        ]
-
-        // Administrador geral: a aba logo depois do perfil, antes das lojas
-        if (adminTab) allTabs.push(adminTab as Tab)
-
-        if (loadingStores) {
-            return allTabs
-        }
-
-        if (stores.length > 0) {
-            stores.forEach((s) => {
-                const counts = storeOrderCounts[s.id] || { pending: 0, preparing: 0, ready: 0 }
-                const hasActive = counts.pending + counts.preparing + counts.ready > 0
-
-                const openNow = isStoreOpenNow(s.business_hours)
-                const statusColor = openNow ? '#22c55e' : '#ef4444'
-
-                allTabs.push({
-                    id: `loja-${s.slug}`,
-                    label: s.name,
-                    icon: LayoutDashboard as any,
-                    imageUrl: s.logoUrl,
-                    onClick: () => handleStoreDashboardClick(s.slug, s.name),
-                    isActive: showStoreDashboard?.slug === s.slug,
-                    indicator: hasActive ? counts : null,
-                    statusColor,
-                })
-            })
-        }
-
-        // "Criar loja" fica sempre à mão — mesmo quem já tem loja pode criar outra.
-        allTabs.push({
-            id: 'criar-loja',
-            label: !isLoggedIn ? 'Criar loja' : stores.length > 0 ? 'Nova loja' : 'Quer criar uma loja?',
-            icon: StoreIcon as any,
-            imageUrl: null,
-            onClick: () => router.push(isLoggedIn ? '/criar-loja' : '/criar-loja-com-cadastro'),
-            isActive: false,
-        })
-
-        // Veículos (um por tipo cadastrado) + "Cadastrar veículo" enquanto faltar algum tipo.
-        if (isLoggedIn) {
-            allTabs.push(...(buildVehicleTabs(myVehicles, (url) => router.push(url)) as any[]))
-        }
-
-        return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, adminTab, myVehicles, router])
 
     // ========== CARREGAR DADOS ==========
     const [referralOwnerProfileId, setReferralOwnerProfileId] = useState<string | null>(null)
@@ -339,27 +146,10 @@ export default function OwnerClientPage() {
         captureReferral(supabase, { ownerId: referralOwnerProfileId })
     }, [referralOwnerProfileId, userId, profileLoading])
 
+    // ========== LINK ANTIGO DO PAINEL (ex.: aviso de pedido novo: /<loja>?dashboard=pedidos) → a página de pedidos da loja ==========
     useEffect(() => {
-        setMounted(true)
-    }, [])
-
-    // ========== ABRIR DASHBOARD DA LOJA VIA LINK (ex: notificação de novo pedido) ==========
-    const openedFromDashboardParamRef = useRef(false)
-    useEffect(() => {
-        if (openedFromDashboardParamRef.current) return
-        if (ownerType !== 'store' || loadingStores) return
-
-        const wantsDashboard = searchParams.get('dashboard') === 'pedidos'
-        if (!wantsDashboard) return
-
-        const store = stores.find((s) => s.slug === ownerSlug)
-        if (!store) return
-
-        openedFromDashboardParamRef.current = true
-        handleStoreDashboardClick(store.slug, store.name)
-        router.replace(`/${ownerSlug}`, { scroll: false })
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ownerType, loadingStores, stores, ownerSlug, searchParams])
+        if (ownerType === 'store' && searchParams.get('dashboard') === 'pedidos') router.replace(`/painel-loja/${ownerSlug}/pedidos`)
+    }, [ownerType, ownerSlug, searchParams, router])
 
     // ========== RENDER ==========
     if (loading) {
@@ -418,8 +208,6 @@ export default function OwnerClientPage() {
         )
     }
 
-    const greeting = `Olá, ${profileLoading ? '...' : loggedUserSlug ? `@${loggedUserSlug}` : 'Visitante'}`
-
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             {/* Background animado */}
@@ -431,115 +219,39 @@ export default function OwnerClientPage() {
             <main className="relative z-10 min-h-dvh pb-28" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
-                    // na página de uma loja (3.0) o voltar fica na mesma linha do logo e do nome, dentro do cabeçalho da loja
-                    showBack={insideShell && !(ownerType === 'store' && !showProfile && !showStoreDashboard && !showPublications)}
-                    onBack={insideShell
-                        ? ((showProfile || showStoreDashboard || showPublications) ? showMainContent : () => (window.history.length > 1 ? router.back() : router.push('/')))
-                        : undefined}
-                    greeting={greeting}
-                    avatarUrl={loggedUserAvatarUrl || null}
-                    loading={loading || profileLoading || loadingStores}
-                    tabs={insideShell ? [] : tabs}
+                    // na página de uma loja o voltar fica na mesma linha do logo e do nome, dentro do cabeçalho da loja
+                    showBack={!(ownerType === 'store' && !showPublications)}
+                    onBack={showPublications ? closePublications : () => (window.history.length > 1 ? router.back() : router.push('/'))}
+                    tabs={[]}
                     showSearch={false}
                     searchPlaceholder="Buscar..."
                     onSearch={() => { }}
-                    profileSlug={loggedUserSlug}
                 />
 
                 {/* ===== RENDERIZAR CONTEÚDO ===== */}
-                {showProfile ? (
-                    <div className="w-full px-4 md:px-6 py-6">
-                        <ProfileDashboard
-                            profileSlug={loggedUserSlug || ''}
-                            avatarUrl={loggedUserAvatarUrl || undefined}
-                        />
-                    </div>
-                ) : showStoreDashboard ? (
-                    <div className="w-full px-4 md:px-6 py-6">
-                        <StoreDashboard
-                            profileSlug={loggedUserSlug || ''}
-                            storeSlug={showStoreDashboard.slug}
-                            onBack={showMainContent}
-                            onDialogOpenChange={setStoreDialogOpen}
-                            onOrderCountsChange={(counts) => {
-                                const store = stores.find(s => s.slug === showStoreDashboard.slug)
-                                if (store) {
-                                    setMerchantStoreOrderCounts({ ...storeOrderCounts, [store.id]: counts })
-                                }
-                            }}
-                        />
-                    </div>
-                ) : showPublications ? (
+                {showPublications ? (
                     <PublicationsListView
                         ownerSlug={ownerSlug}
                         storeSlug={ownerType === 'store' ? ownerSlug : undefined}
-                        onClose={showMainContent}
+                        onClose={closePublications}
+                    />
+                ) : ownerType === 'profile' ? (
+                    <Profile
+                        ownerSlug={ownerSlug}
+                        colors={colors}
+                        bgMode={bgMode}
+                        customBgUrl={customBgUrl}
+                        loggedUserSlug={loggedUserSlug}
                     />
                 ) : (
-                    <>
-                        {ownerType === 'profile' ? (
-                            <Profile
-                                ownerSlug={ownerSlug}
-                                colors={colors}
-                                bgMode={bgMode}
-                                customBgUrl={customBgUrl}
-                                loggedUserSlug={loggedUserSlug}
-                            />
-                        ) : (
-                            <Store
-                                ownerSlug={ownerSlug}
-                                colors={colors}
-                                bgMode={bgMode}
-                                customBgUrl={customBgUrl}
-                                loggedUserSlug={loggedUserSlug}
-                                onOpenPublications={handleOpenPublications}
-                                onDialogOpenChange={setStoreDialogOpen}
-                            />
-                        )}
-                    </>
-                )}
-
-                {/* ===== BOTÕES FLUTUANTES ===== */}
-                {/* Escondidos com algum dialog do Store aberto (ex: Agendar,
-                    horários, produto) — senão ficam flutuando por cima dele. */}
-                {/* Botão "Ver Catálogo" - lado esquerdo (apenas fora do dashboard) */}
-                {!showProfile && !showStoreDashboard && !showPublications && !storeDialogOpen && ownerType === 'store' && !insideShell && (
-                    <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
-                        <button
-                            onClick={handleOpenCatalogo}
-                            className="px-6 py-3 rounded-full font-bold text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-[0_0_30px_rgba(249,115,22,0.5)] active:scale-95"
-                            style={{
-                                background: GRADIENT,
-                                boxShadow: '0 8px 24px rgba(220, 38, 38, 0.5)',
-                                border: '2px solid rgba(249, 115, 22, 0.3)',
-                            }}
-                            aria-label="Ver Catálogo"
-                        >
-                            <span className="text-sm font-bold tracking-wide">Ver Catálogo</span>
-                        </button>
-                    </div>
-                )}
-
-                {/* Botão de voltar/Home */}
-                {!storeDialogOpen && !insideShell && (
-                    <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                        <button
-                            onClick={(showProfile || showStoreDashboard || showPublications) ? showMainContent : () => router.push('/')}
-                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                borderTop: '2px solid #f97316',
-                                borderRight: '2px solid #f97316',
-                                borderBottom: '2px solid #f97316',
-                                borderLeft: '2px solid #f97316',
-                                boxShadow: `0 8px 24px #f9731660`,
-                            }}
-                            aria-label={(showProfile || showStoreDashboard || showPublications) ? 'Voltar ao conteúdo' : 'Voltar ao início'}
-                        >
-                            <Home size={24} />
-                        </button>
-                    </div>
+                    <Store
+                        ownerSlug={ownerSlug}
+                        colors={colors}
+                        bgMode={bgMode}
+                        customBgUrl={customBgUrl}
+                        loggedUserSlug={loggedUserSlug}
+                        onOpenPublications={handleOpenPublications}
+                    />
                 )}
             </main>
         </div>

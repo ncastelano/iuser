@@ -1,12 +1,12 @@
 'use client'
 
-// AVALIAÇÃO RÁPIDA da 3.0 (decisão do dono, 10/11/2026): no lugar do cartão grande "Corrida finalizada! · Avaliar agora" + um segundo
+// AVALIAÇÃO RÁPIDA (decisão do dono, 10/11/2026): no lugar do cartão grande "Corrida finalizada! · Avaliar agora" + um segundo
 // diálogo, UMA folha que sobe de baixo e já resolve tudo: as ESTRELAS para tocar, o comentário e — na COMPRA e no SERVIÇO — uma foto
 // opcional (corrida de motorista não tem foto). SEM ACÚMULO (11/11/2026): pergunta só sobre a ÚLTIMA coisa finalizada dos últimos 2 dias
 // (corrida, compra ou serviço) e, avaliando OU fechando, tudo o que é mais antigo nunca mais é perguntado (`lib/reviewPrompt`).
 // Onde grava: corrida → ride_reviews; compra → product_reviews (uma linha por produto do pedido, até 5); serviço → submit_appointment_review.
 // A foto vai para o bucket público `posts`, na pasta da própria pessoa (`<id>/avaliacao-<hora>.<ext>`); o banco confere (migration 20261130000063).
-// A 2.0 continua com os avisos de sempre (FinishedRideTrigger / FinishedOrderTrigger).
+// É o ÚNICO pedido de avaliação do app (os avisos grandes da 2.0, FinishedRideTrigger/FinishedOrderTrigger, saíram com ela em 16/11/2026).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
@@ -15,7 +15,6 @@ import { supabase } from '@/lib/supabase/client'
 import { toast } from '@/lib/toast'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { useIsV3 } from '@/components/MaintenanceNotice'
 import { submitReview } from '@/lib/appointmentReviews'
 import { closeAllReviews, latestToReview, reviewsSeenUntil, REVIEW_WINDOW_MS } from '@/lib/reviewPrompt'
 
@@ -142,7 +141,6 @@ function useOtherOverlay(active: boolean) {
 }
 
 export function QuickReviewHost() {
-    const isV3 = useIsV3()
     const { userId, loading } = useProfile()
     const pathname = usePathname()
     const quiet = !!pathname?.startsWith('/administrador') || !!pathname?.startsWith('/tres-telas')
@@ -156,16 +154,16 @@ export function QuickReviewHost() {
         try { const one = latestToReview(await loadPending(userId), reviewsSeenUntil(userId)); setFila(one ? [one] : []) } catch { /* fica como estava */ } finally { busy.current = false }
     }, [userId])
     useEffect(() => {
-        if (!isV3 || loading || !userId) return
+        if (loading || !userId) return
         load()
         const again = () => { if (!document.hidden) load() }
         window.addEventListener('iuser-orders-changed', again)
         window.addEventListener('focus', again)
         return () => { window.removeEventListener('iuser-orders-changed', again); window.removeEventListener('focus', again) }
-    }, [isV3, loading, userId, load])
+    }, [loading, userId, load])
 
-    const blocked = useOtherOverlay(isV3 && !quiet && fila.length > 0)
-    if (!isV3 || quiet || !userId || fila.length === 0 || blocked) return null
+    const blocked = useOtherOverlay(!quiet && fila.length > 0)
+    if (quiet || !userId || fila.length === 0 || blocked) return null
     const atual = fila[0]
     return <QuickReviewCard key={atual.key} item={atual} userId={userId} posicao={null}
         onDone={() => { closeAllReviews(userId); setFila([]) }}

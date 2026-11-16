@@ -176,9 +176,6 @@ export function CriarProdutoClient() {
                     title={productType === 'service' ? 'Criar Serviço' : 'Criar Produto'}
                     showBack={true}
                     onBack={() => router.back()}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl || null}
-                    loading={profileLoading}
                 />
 
                 <div className="w-full px-4 md:px-6 py-6">

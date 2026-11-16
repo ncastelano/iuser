@@ -1,7 +1,7 @@
 // Pedido de AVALIAÇÃO sem acúmulo (11/11/2026, regra do dono: "não deixa acumular avaliações"): o app só pergunta sobre a ÚLTIMA coisa
 // finalizada (corrida, compra ou serviço) dos últimos 2 dias e, quando a pessoa avalia OU fecha, tudo o que é mais antigo deixa de ser
-// perguntado para sempre (a "linha do tempo" sobe para agora). Nunca há fila nem "mais N para avaliar". Vale na 3.0 (QuickReviewHost) e na
-// 2.0 (FinishedOrderTrigger/FinishedRideTrigger), com a MESMA marca por pessoa neste aparelho. Regra pura testada: npm run test:review-prompt.
+// perguntado para sempre (a "linha do tempo" sobe para agora). Nunca há fila nem "mais N para avaliar". Quem pergunta é o QuickReviewHost,
+// com a marca por pessoa neste aparelho. Regra pura testada: npm run test:review-prompt.
 
 /** só o que terminou nos últimos 2 dias vira pergunta */
 export const REVIEW_WINDOW_MS = 2 * 86400000

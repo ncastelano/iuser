@@ -379,11 +379,8 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                     title={step === 'search' ? 'Convidar pessoa' : step === 'datetime' ? 'Data e horário' : 'Confirmar'}
                     showBack={true}
                     onBack={goBack}
-                    greeting={step === 'search' ? 'Busque por alguém' : step === 'datetime' ? target?.name || '' : 'Revise os detalhes'}
-                    avatarUrl={getPublicUrl(userAvatarUrl, 'avatars')}
                     tabs={tabs}
                     showSearch={false}
-                    onHomeClick={() => onBack()}
                 />
 
                 <div className="px-5 pt-0">

@@ -10,8 +10,6 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
 import {
-    ChevronDown,
-    ChevronUp,
     Plus,
     ImageIcon,
     Send,
@@ -23,7 +21,6 @@ import {
     Eye,
     ArrowUpDown,
 } from 'lucide-react'
-import { useInsideShell } from '@/components/InsideShell'
 import V3Section, { V3_GRADIENT } from '@/components/StoreDashboard/V3Section'
 import { useRouter } from 'next/navigation'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
@@ -75,7 +72,6 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
-    const v3 = useInsideShell()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [sortBy, setSortBy] = useState<'recent' | 'mostViewed' | 'mostLiked' | 'mostCommented' | 'mostShared'>('recent')
 
@@ -101,7 +97,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const [preview, setPreview] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
 
-    const [profileWhatsapp, setProfileWhatsapp] = useState<string | null>(null)
+    const [, setProfileWhatsapp] = useState<string | null>(null)
     const [ownerName, setOwnerName] = useState<string>('')
     const [ownerAvatar, setOwnerAvatar] = useState<string | null>(null)
     const { userId: currentUserId } = useProfile()
@@ -489,35 +485,6 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
         )
     }
 
-    // ===== Prévia (cartão fechado): o card da publicação SEM botões — foto, título, trecho e os números em texto =====
-    const renderPreviewCard = (pub: Publication) => {
-        const imgUrl = getImageUrl(pub.image_url)
-        return (
-            <div
-                key={pub.id}
-                onClick={() => router.push(`/publicacoes/${pub.slug}`)}
-                className="rounded-2xl overflow-hidden flex-shrink-0 w-52 cursor-pointer transition-transform hover:scale-[1.02]"
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`,
-                    border: `1px solid ${colors.border}`,
-                }}
-            >
-                {imgUrl && <img src={imgUrl} alt={pub.name} className="w-full h-24 object-cover" />}
-                <div className="p-2.5">
-                    <p className="text-xs font-black truncate" style={{ color: textPrimary }}>{pub.name || 'Sem título'}</p>
-                    {pub.description && (
-                        <p className="text-[11px] mt-0.5 line-clamp-2" style={{ color: textSecondary }}>{pub.description}</p>
-                    )}
-                    <p className="flex items-center gap-2.5 text-[10px] mt-1.5" style={{ color: textSecondary }}>
-                        <span className="flex items-center gap-1"><Heart size={10} /> {pub.like_count || 0}</span>
-                        <span className="flex items-center gap-1"><MessageCircle size={10} /> {pub.comment_count || 0}</span>
-                        <span className="flex items-center gap-1"><Eye size={10} /> {pub.view_count || 0}</span>
-                    </p>
-                </div>
-            </div>
-        )
-    }
-
     // Se não for o dono, mostra apenas as publicações
     if (!isOwner) {
         return (
@@ -816,8 +783,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
 
     return (
         <div className="mb-6 mt-4">
-            {v3 ? (
-                <div data-add-target="publication">
+            <div data-add-target="publication">
                     <V3Section
                         title="Minhas Publicações"
                         subtitle={subtitle}
@@ -829,37 +795,6 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                         {body}
                     </V3Section>
                 </div>
-            ) : (
-                <div
-                    data-add-target="publication"
-                    className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="w-full flex items-center justify-between text-left"
-                        style={{ padding: isExpanded ? '0.5rem 0.75rem' : 0, borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                    >
-                        <div>
-                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>Minhas Publicações</h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>{subtitle}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {publications.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>{publications.length}</span>
-                            )}
-                            {isExpanded ? <ChevronUp size={22} style={{ color: textSecondary }} /> : <ChevronDown size={18} style={{ color: textSecondary }} />}
-                        </div>
-                    </button>
-                    {isExpanded && body}
-                </div>
-            )}
 
             {confirmDeleteId && (
                 <div

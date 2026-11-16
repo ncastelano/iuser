@@ -9,8 +9,8 @@
 import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
-    Store as StoreIcon, Car, User, ChevronRight, ChevronDown, X, RotateCcw, ShoppingBag, LayoutDashboard, Check, Plus, Pencil, Bike,
-    Search, MapPin, Users, MessagesSquare, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart,
+    Store as StoreIcon, Car, User, ChevronRight, X, ShoppingBag, LayoutDashboard, Check, Plus, Pencil, Bike,
+    Search, MapPin, Users, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -18,7 +18,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import { useChatUnread } from '@/hooks/useChatUnread'
-import { useOrderStatusCounts, type OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
+import { useOrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 import { useShellLive } from '@/hooks/useShellLive'
 import { useMyActiveOrders } from '@/hooks/useMyActiveOrders'
@@ -266,16 +266,10 @@ function VisitorDrawerContent({ onGo, onClose }: { onGo: (path: string) => void;
         </div>
     )
 }
-
-// A ilha flutua no topo; o conteúdo da página começa abaixo dela (NAV_H, a mesma altura de antes: telas cheias usam --shell-top)
-const ISLAND_H = 56
-const BAR_BOTTOM_VAR = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'   // o menu sobe a partir de onde fica a barra
-const NAV_H = 'calc(74px + env(safe-area-inset-top))'
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 // Espaço que a barra de baixo ocupa (var --shell-bottom): quem tem algo fixo embaixo se afasta dele
 const SHELL_BOTTOM = BAR_SPACE
 const LOGO_RING = { border: '2px solid #fff', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
-const LOGO_IMG_SCALE = 1.15
 // Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
 // Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
 const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos']
@@ -689,7 +683,7 @@ export default function ModeShell({ children }: {
                 background: colors.background,
                 marginTop: navH,
                 minHeight: `calc(100dvh - ${navH})`,
-                ['--shell-top' as string]: navH,
+                ['--shell-top' as string]: `calc(${navH} + var(--maintenance-h, 0px))`,   // + a faixa de manutenção, quando aparece (MaintenanceNotice)
                 paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : 40,
                 ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : '0px',
                 animation: rising ? 'shellRise 700ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,

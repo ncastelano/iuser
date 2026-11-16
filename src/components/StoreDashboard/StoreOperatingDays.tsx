@@ -5,11 +5,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
-import { X, Clock, ChevronDown, ChevronUp, AlertCircle, RefreshCw } from 'lucide-react'
+import { X, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
 import { hexToRgb } from '@/lib/color'
-import { useInsideShell } from '@/components/InsideShell'
 
 interface StoreOperatingDaysProps {
     storeId: string
@@ -63,7 +62,6 @@ const DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 
 export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingDaysProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
-    const v3 = useInsideShell()
     // 3.0: cada dia mostra só o resumo do horário; toque no dia pra editar (um por vez)
     const [editingDay, setEditingDay] = useState<string | null>(null)
 
@@ -73,7 +71,6 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [isExpanded, setIsExpanded] = usePersistedExpanded('storeOperatingDays', true)
-    const [isRefreshing, setIsRefreshing] = useState(false)
 
     // ===== ESTADO PARA STATUS ATUAL =====
     const [isOpen, setIsOpen] = useState(false)
@@ -136,7 +133,6 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
 
         // Pega a configuração de hoje
         const todayConfig = weeklyData[todayKey]
-        const isOpenToday = todayConfig?.isOpen && !isBlocked
 
         // Verifica se está aberto agora
         const isOpenNow = isStoreOpenNow({ weekly: weeklyData, blocked_dates: blocked })
@@ -168,14 +164,6 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
     useEffect(() => {
         loadConfig()
     }, [loadConfig])
-
-    // ===== REFRESH MANUAL =====
-    const handleRefresh = () => {
-        setIsRefreshing(true)
-        loadConfig().finally(() => {
-            setTimeout(() => setIsRefreshing(false), 500)
-        })
-    }
 
     const updateDaySetting = (dayId: string, field: string, value: any) => {
         setWeekly((prev: any) => {
@@ -270,22 +258,14 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
 
     return (
         <div
-            className={v3 ? 'rounded-3xl relative flex flex-col p-4 gap-4' : `rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
-            style={v3 ? {
+            className={'rounded-3xl relative flex flex-col p-4 gap-4'}
+            style={{
                 // 3.0: cartão limpo; o estado (aberto/fechado) aparece no selo, sem brilho nem borda animada
                 background: colors.surface,
                 border: `1px solid ${colors.border}`,
-            } : {
-                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: statusColor.border || `1px solid ${colors.border}`,
-                boxShadow: statusColor.glow || colors.shadow,
-                animation: statusColor.primary !== 'transparent' ? 'borderPulse 2s ease-in-out infinite' : 'none',
-                transition: 'all 0.5s ease',
             }}
         >
-            {statusColor.primary !== 'transparent' && !v3 && (
+            {statusColor.primary !== 'transparent' && false && (
                 <>
                     <style>{`
                         @keyframes borderPulse {
@@ -359,8 +339,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                         cursor: 'pointer',
                     }}
                 >
-                    {v3 ? (
-                        <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
                             <div className="min-w-0">
                                 <h3 className="text-base font-black leading-tight" style={{ color: textPrimary }}>Dias de funcionamento</h3>
                                 <p className="flex items-center gap-1.5 text-[11px] font-black mt-0.5 min-w-0" style={{ color: statusColor.text }}>
@@ -372,27 +351,6 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                                 </p>
                             </div>
                         </div>
-                    ) : (
-                    <div className="flex items-center gap-3">
-                        <div>
-                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
-                                Dias de Funcionamento
-                            </h3>
-                            {/* ===== INFORMAÇÕES EM COLUNA (UM EMBAIXO DO OUTRO) ===== */}
-                            <div className="flex flex-col gap-0.5 text-xs mt-1" style={{ color: textSecondary }}>
-                                <span>
-                                    <span className="font-bold" style={{ color: statusColor.text }}>
-                                        {isOpen ? '🟢 Aberto' : '🔴 Fechado'}
-                                    </span>
-                                    {' • '}{statusText}
-                                </span>
-                                <span>
-                                    {openDaysCount} dias abertos • {blockedDates.length} datas bloqueadas
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    )}
                     <div className="flex items-center gap-2">
                         {isExpanded ? (
                             <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
@@ -403,27 +361,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                 </button>
 
                 {/* Botão de refresh (só na 2.0) */}
-                {!v3 && (
-                    <button
-                        onClick={handleRefresh}
-                        className="ml-2 p-1 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
-                        title="Atualizar"
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <RefreshCw
-                            size={16}
-                            className={isRefreshing ? 'animate-spin-smooth' : ''}
-                            style={{
-                                color: isRefreshing ? statusColor.text : textSecondary,
-                                transition: 'color 0.3s ease'
-                            }}
-                        />
-                    </button>
-                )}
+                
             </div>
 
             {isExpanded && (
@@ -437,7 +375,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                                 border: `1px solid ${statusColor.text}30`,
                             }}
                         >
-                            {!v3 && <Clock size={16} style={{ color: statusColor.text }} />}
+                            
                             <div className="flex flex-col">
                                 <span className="text-xs font-bold" style={{ color: statusColor.text }}>
                                     {todayName} • {todaySchedule.start.slice(0, 5)} - {todaySchedule.end.slice(0, 5)}
@@ -458,7 +396,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                                 border: '1px solid #ef444430',
                             }}
                         >
-                            {!v3 && <AlertCircle size={16} style={{ color: '#ef4444' }} />}
+                            
                             <div className="flex flex-col">
                                 <span className="text-xs font-bold" style={{ color: '#ef4444' }}>
                                     Fechado hoje
@@ -471,7 +409,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                     )}
 
                     {/* Dias da semana */}
-                    <div className={`${v3 ? 'space-y-2' : 'space-y-3'} relative z-10`}>
+                    <div className={`${'space-y-2'} relative z-10`}>
                         {WEEKDAYS.map((day) => {
                             const dayConfig = weekly[day.id] || {
                                 isOpen: false,
@@ -484,8 +422,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                             const isToday = day.id === String(new Date().getDay())
 
                             // ===== 3.0: linha compacta (resumo do horário); toque pra editar =====
-                            if (v3) {
-                                const editing = editingDay === day.id && dayConfig.isOpen
+                            const editing = editingDay === day.id && dayConfig.isOpen
                                 const timeInput = (value: string, field: string) => (
                                     <input
                                         type="time"
@@ -583,154 +520,6 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                                         )}
                                     </div>
                                 )
-                            }
-
-                            return (
-                                <div
-                                    key={day.id}
-                                    className="p-4 rounded-2xl border"
-                                    style={{
-                                        borderColor: isToday ? statusColor.text : colors.border,
-                                        background: isToday
-                                            ? `${statusColor.text}15`
-                                            : `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                    }}
-                                >
-                                    <div className="flex items-center justify-between mb-3">
-                                        <span
-                                            className="font-bold text-sm"
-                                            style={{
-                                                color: isToday ? statusColor.text : (dayConfig.isOpen ? textPrimary : textSecondary),
-                                            }}
-                                        >
-                                            {day.name} {isToday && <span className="text-[10px] font-normal">(hoje)</span>}
-                                        </span>
-                                        <label className="relative inline-flex cursor-pointer" style={{ width: 40, height: 22 }}>
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={dayConfig.isOpen}
-                                                onChange={(e) => updateDaySetting(day.id, 'isOpen', e.target.checked)}
-                                            />
-                                            <span
-                                                className="absolute inset-0 rounded-full transition-colors duration-200"
-                                                style={{ background: dayConfig.isOpen ? '#f97316' : colors.border }}
-                                            />
-                                            <span
-                                                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${dayConfig.isOpen ? 'translate-x-[18px]' : 'translate-x-0'
-                                                    }`}
-                                            />
-                                        </label>
-                                    </div>
-
-                                    {dayConfig.isOpen && (
-                                        <div className="space-y-3">
-                                            <div className="flex gap-3">
-                                                <div className="flex-1">
-                                                    <span className="text-[10px] font-semibold" style={{ color: textSecondary }}>
-                                                        Entrada
-                                                    </span>
-                                                    <input
-                                                        type="time"
-                                                        value={dayConfig.start}
-                                                        onChange={(e) => updateDaySetting(day.id, 'start', e.target.value)}
-                                                        className="w-full p-2 rounded-xl border text-sm"
-                                                        style={{
-                                                            borderColor: colors.border,
-                                                            background: colors.surface,
-                                                            color: textPrimary,
-                                                            borderRadius: '9999px',
-                                                        }}
-                                                    />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <span className="text-[10px] font-semibold" style={{ color: textSecondary }}>
-                                                        Saída
-                                                    </span>
-                                                    <input
-                                                        type="time"
-                                                        value={dayConfig.end}
-                                                        onChange={(e) => updateDaySetting(day.id, 'end', e.target.value)}
-                                                        className="w-full p-2 rounded-xl border text-sm"
-                                                        style={{
-                                                            borderColor: colors.border,
-                                                            background: colors.surface,
-                                                            color: textPrimary,
-                                                            borderRadius: '9999px',
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Toggle almoço */}
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="checkbox"
-                                                    id={`lunch-config-${day.id}`}
-                                                    checked={hasLunch}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            updateDaySetting(day.id, 'lunchStart', '12:00')
-                                                            updateDaySetting(day.id, 'lunchEnd', '13:00')
-                                                        } else {
-                                                            updateDaySetting(day.id, 'lunchStart', '')
-                                                            updateDaySetting(day.id, 'lunchEnd', '')
-                                                        }
-                                                    }}
-                                                    className="rounded-full"
-                                                    style={{ accentColor: '#f97316' }}
-                                                />
-                                                <label
-                                                    htmlFor={`lunch-config-${day.id}`}
-                                                    className="text-xs font-semibold cursor-pointer"
-                                                    style={{ color: textSecondary }}
-                                                >
-                                                    Intervalo de Almoço
-                                                </label>
-                                            </div>
-
-                                            {hasLunch && (
-                                                <div className="flex gap-3">
-                                                    <div className="flex-1">
-                                                        <span className="text-[10px] font-semibold" style={{ color: textSecondary }}>
-                                                            Início Almoço
-                                                        </span>
-                                                        <input
-                                                            type="time"
-                                                            value={dayConfig.lunchStart}
-                                                            onChange={(e) => updateDaySetting(day.id, 'lunchStart', e.target.value)}
-                                                            className="w-full p-2 rounded-xl border text-sm"
-                                                            style={{
-                                                                borderColor: colors.border,
-                                                                background: colors.surface,
-                                                                color: textPrimary,
-                                                                borderRadius: '9999px',
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <span className="text-[10px] font-semibold" style={{ color: textSecondary }}>
-                                                            Fim Almoço
-                                                        </span>
-                                                        <input
-                                                            type="time"
-                                                            value={dayConfig.lunchEnd}
-                                                            onChange={(e) => updateDaySetting(day.id, 'lunchEnd', e.target.value)}
-                                                            className="w-full p-2 rounded-xl border text-sm"
-                                                            style={{
-                                                                borderColor: colors.border,
-                                                                background: colors.surface,
-                                                                color: textPrimary,
-                                                                borderRadius: '9999px',
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            )
                         })}
                     </div>
 

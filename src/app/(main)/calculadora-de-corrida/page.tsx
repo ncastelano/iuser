@@ -10,7 +10,6 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { hexToRgb } from '@/lib/color'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import {
-    ArrowLeft,
     MapPin,
     Navigation,
     X,
@@ -314,7 +313,7 @@ export default function CalculoDeCorridaPage() {
     const [destinations, setDestinations] = useState<DestinationStop[]>([
         { id: 'dest-1', address: '', coords: null },
     ])
-    const [activeStopIndex, setActiveStopIndex] = useState<number>(0)
+    const [, setActiveStopIndex] = useState<number>(0)
 
     // ===== DESTINOS SALVOS =====
     const [savedDestinations, setSavedDestinations] = useState<SavedDestination[]>([])
@@ -1054,9 +1053,6 @@ export default function CalculoDeCorridaPage() {
                     title="Calculadora de Corrida"
                     showBack={true}
                     onBack={() => router.push('/')}
-                    greeting="Calcule distância, rotas e valores"
-                    avatarUrl={null}
-                    loading={false}
                 />
 
                 <div className="px-4 pt-4 pb-24 max-w-2xl mx-auto">

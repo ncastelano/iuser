@@ -4,11 +4,9 @@
 
 import ReportButton from '@/components/moderation/ReportButton'
 import { profileLabel } from '@/lib/profileDisplay'
-import { useParams, useRouter } from 'next/navigation'
-import { useInsideShell } from '@/components/InsideShell'
+import { useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import {
     ArrowLeft,
@@ -107,8 +105,6 @@ export function PublicationClientPage({
     profileLoading = false
 }: PublicationClientPageProps) {
     const router = useRouter()
-    // v3 (dentro da casca): sem barra de título repetida, cartões sem moldura e laranja sólido (só apresentação)
-    const v3 = useInsideShell()
     const { userId: currentUserId } = useProfile()
 
     const [loading, setLoading] = useState(true)
@@ -189,7 +185,7 @@ export function PublicationClientPage({
     const [likeCount, setLikeCount] = useState(0)
     const [liked, setLiked_] = useState(false)
 
-    const GRADIENT = v3 ? '#f97316' : 'linear-gradient(135deg, #f97316, #dc2626)'
+    const GRADIENT = '#f97316'
 
     // ========== CARREGAR PUBLICAÇÃO ==========
     useEffect(() => {
@@ -569,12 +565,7 @@ export function PublicationClientPage({
                     className={isReply ? (depth <= 2 ? 'ml-6' : '') : ''}
                     style={highlightId === comment.id ? { borderRadius: 16, background: '#f9731622', boxShadow: '0 0 0 2px #f97316, 0 0 22px #f9731666', transition: 'all .4s ease' } : { transition: 'all .6s ease' }}
                 >
-                    <div className={v3 ? 'flex gap-2.5 py-2 rounded-xl' : 'flex gap-3 p-3 rounded-xl'} style={v3 ? (isBeingReplied ? { background: '#f9731612' } : undefined) : {
-                        background: isReply ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
-                        border: `1px solid ${isBeingReplied ? '#f97316' : colors.border}`,
-                        boxShadow: isBeingReplied ? '0 0 0 2px rgba(249, 115, 22, 0.2)' : 'none',
-                        transition: 'all 0.2s ease',
-                    }}>
+                    <div className={'flex gap-2.5 py-2 rounded-xl'} style={(isBeingReplied ? { background: '#f9731612' } : undefined)}>
                         <a
                             href={comment.profiles?.profileSlug ? `/${comment.profiles.profileSlug}` : undefined}
                             aria-label={`Ver perfil de ${profileLabel(comment.profiles)}`}
@@ -751,10 +742,10 @@ export function PublicationClientPage({
                                     }
                                     setExpandedComments(new Set(expandedComments))
                                 }}
-                                className={`text-xs font-bold transition hover:opacity-70 ${v3 ? 'ml-[42px] py-1' : 'ml-3'}`}
+                                className={`text-xs font-bold transition hover:opacity-70 ${'ml-[42px] py-1'}`}
                                 style={{ color: colors.textSecondary }}
                             >
-                                {expandedComments.has(comment.id) ? 'Ocultar' : (v3 ? 'Ver' : 'Mostrar')} {comment.replies.length} {comment.replies.length === 1 ? 'resposta' : 'respostas'}
+                                {expandedComments.has(comment.id) ? 'Ocultar' : ('Ver')} {comment.replies.length} {comment.replies.length === 1 ? 'resposta' : 'respostas'}
                             </button>
 
                             {expandedComments.has(comment.id) && (
@@ -837,13 +828,8 @@ export function PublicationClientPage({
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             {/* Barra do topo (mobile): fica grudada no topo enquanto rola. */}
             <div
-                className={v3 ? 'md:hidden' : 'md:hidden sticky top-0 z-30'}
-                style={v3 ? undefined : {
-                    background: colors.background,
-                    borderBottom: `1px solid ${colors.border}`,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-                    paddingTop: 'env(safe-area-inset-top)',
-                }}
+                className={'md:hidden'}
+                style={undefined}
             >
                 <div className="flex items-center gap-2 px-4 py-3">
                     <button
@@ -854,11 +840,7 @@ export function PublicationClientPage({
                     >
                         <ArrowLeft size={20} />
                     </button>
-                    {!v3 && (
-                        <h1 className="flex-1 min-w-0 truncate text-base font-black" style={{ color: colors.textPrimary }}>
-                            {publication.name || 'Publicação'}
-                        </h1>
-                    )}
+                    
                 </div>
             </div>
 
@@ -908,8 +890,8 @@ export function PublicationClientPage({
                         <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
                             {/* Quem publicou: em cima do título, pra descrição longa não empurrar o perfil pra baixo */}
                             <div
-                                className={v3 ? 'w-full flex items-center gap-2 py-1' : 'w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl'}
-                                style={v3 ? undefined : { background: colors.surface, border: `1px solid ${colors.border}` }}
+                                className={'w-full flex items-center gap-2 py-1'}
+                                style={undefined}
                             >
                                 <button
                                     onClick={goToStore}
@@ -990,11 +972,11 @@ export function PublicationClientPage({
                                         href={getWhatsAppLink(publication.store.whatsapp, encodeURIComponent(`Olá! Vi "${publication.name}" no iUser e quero saber mais.`))}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className={v3 ? 'text-[13px] underline underline-offset-2 active:opacity-70' : 'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition hover:scale-105'}
-                                        style={v3 ? { color: colors.textSecondary } : { background: '#25D366', color: '#fff' }}
+                                        className={'text-[13px] underline underline-offset-2 active:opacity-70'}
+                                        style={{ color: colors.textSecondary }}
                                     >
-                                        {!v3 && <MessageCircle size={18} />}
-                                        {v3 ? 'WhatsApp' : 'Falar no WhatsApp'}
+                                        
+                                        {'WhatsApp'}
                                     </a>
                                 )}
                             </div>
@@ -1003,10 +985,7 @@ export function PublicationClientPage({
                 </div>
 
                 {/* ===== SEÇÃO DE COMENTÁRIOS ===== */}
-                <div id="comentarios-publicacao" className={v3 ? 'mx-5 md:mx-0 mt-6 scroll-mt-20' : 'mx-5 md:mx-0 mt-6 rounded-2xl border p-6 scroll-mt-20'} style={v3 ? undefined : {
-                    background: colors.surface,
-                    borderColor: colors.border,
-                }}>
+                <div id="comentarios-publicacao" className={'mx-5 md:mx-0 mt-6 scroll-mt-20'} style={undefined}>
                         <div className="flex items-center gap-2 mb-4">
                             <MessageCircle size={20} style={{ color: '#f97316' }} />
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
@@ -1103,7 +1082,7 @@ export function PublicationClientPage({
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>Seja o primeiro a comentar!</p>
                             </div>
                         ) : (
-                            v3 ? (() => {
+                            (() => {
                                 const sorted = commentSort === 'top'
                                     ? [...comments].sort((a, b) => (b.like_count || 0) - (a.like_count || 0) || new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                                     : comments
@@ -1133,10 +1112,7 @@ export function PublicationClientPage({
                                         )}
                                     </div>
                                 )
-                            })() : (
-                            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                                {renderCommentTree(comments)}
-                            </div>)
+                            })()
                         )}
                     </div>
 

@@ -230,9 +230,6 @@ export default function LojasScreen() {
                     title="Lojas"
                     showBack
                     onBack={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/'))}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                     showSearch
                     searchPlaceholder="Buscar loja ou categoria"
                     searchValue={query}

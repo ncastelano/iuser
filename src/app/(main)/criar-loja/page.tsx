@@ -8,34 +8,17 @@ import { getCurrentPosition as getNativeCurrentPosition } from "@/lib/nativeGeol
 import {
   Camera,
   MapPinned,
-  Edit3,
-  X,
-  Store,
-  Sparkles,
-  Zap,
   CheckCircle2,
   AlertCircle,
-  ArrowLeft,
-  Home,
-  Tag,
   Search,
-  Navigation,
-  MoveVertical,
-  Hash,
-  FileText,
-  MessageCircle,
-  Shield,
-  Info,
 } from "lucide-react";
 import { Spinner } from '@/components/Spinner'
 import { toast } from "@/lib/toast";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import { createSquareImage } from "@/lib/image";
 import { useProfile } from "@/app/contexts/ProfileContext";
 import Header from '@/components/Header';
 import { categorias } from "@/lib/categorias";
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from "@/lib/slugUtils";
-import { useInsideShell } from "@/components/InsideShell";
 import { useTheme } from "@/app/contexts/theme";
 import LinkListInput, { type LinkRow } from "@/components/v3/LinkListInput";
 import { linksFromRows } from "@/lib/storeLinks";
@@ -144,30 +127,10 @@ function extractStreetDisplay(fullAddress: string): string {
   return parts[0].trim();
 }
 
-// Função para validar número de WhatsApp
-function validateWhatsApp(number: string): boolean {
-  const clean = number.replace(/\D/g, '');
-  return clean.length >= 10 && clean.length <= 13;
-}
-
-// Função para formatar número de WhatsApp
-function formatWhatsApp(number: string): string {
-  const clean = number.replace(/\D/g, '');
-  if (clean.length === 11) {
-    return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
-  }
-  if (clean.length === 10) {
-    return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
-  }
-  return number;
-}
-
 export default function CriarLoja() {
   const router = useRouter();
-  // v3 (dentro da casca): formulário no desenho da 3.0 (campos neutros, categorias em fichas, botão fixo embaixo) — mesma lógica da v2
-  const v3 = useInsideShell();
   const { colors } = useTheme();
-  const { userId, bgMode, customBgUrl, loading: profileLoading, avatarUrl: contextAvatarUrl } = useProfile();
+  const { userId, loading: profileLoading, avatarUrl: contextAvatarUrl } = useProfile();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -175,7 +138,6 @@ export default function CriarLoja() {
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const movableMarkerRef = useRef<any>(null);
-  const polylineRef = useRef<any>(null);
   const isMovingRef = useRef(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const initializedRef = useRef(false);
@@ -196,8 +158,6 @@ export default function CriarLoja() {
   });
   const [whatsapp, setWhatsapp] = useState("");
   const [whatsappError, setWhatsappError] = useState("");
-  const [whatsappOrders, setWhatsappOrders] = useState(false);
-  const [showWhatsapp, setShowWhatsapp] = useState(false);
   // Links da loja (texto + endereço): aparecem embaixo da descrição na página da loja
   const [linkRows, setLinkRows] = useState<LinkRow[]>([]);
   // Modelo da loja (produtos / atendimento / mista): muda o botão central da página. A agenda liga junto nos modelos de atendimento.
@@ -216,7 +176,6 @@ export default function CriarLoja() {
   const [resolvingAddress, setResolvingAddress] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [mapReady, setMapReady] = useState(false);
-  const [usingGPS, setUsingGPS] = useState(false);
   const [hasPicked, setHasPicked] = useState(false);
   const [showAddressSearch, setShowAddressSearch] = useState(false);
   const gpsAskedRef = useRef(false);
@@ -424,51 +383,6 @@ export default function CriarLoja() {
     mapInstanceRef.current.flyTo([lat, lng], 16, { duration: 0.8 });
     movableMarkerRef.current.setLatLng([lat, lng]);
   }, []);
-
-  const handleGetCurrentLocation = () => {
-    setUsingGPS(true);
-    setLoadingLocation(true);
-    setLocationError('');
-
-    getNativeCurrentPosition(
-      async (pos) => {
-        const newPos = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude
-        };
-        setSelectedPosition(newPos);
-        flyTo(newPos.lat, newPos.lng);
-
-        setResolvingAddress(true);
-        try {
-          const result = await reverseGeocode(newPos.lat, newPos.lng);
-          setPendingAddress(result.fullAddress);
-          setPendingNumber(result.extractedNumber);
-          setShowLocationConfirm(true);
-        } catch (err) {
-          setPendingAddress(`Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`);
-          setPendingNumber('');
-          setShowLocationConfirm(true);
-        } finally {
-          setResolvingAddress(false);
-          setLoadingLocation(false);
-          setUsingGPS(false);
-        }
-      },
-      (err) => {
-        let msg = 'Erro ao obter localização. ';
-        switch (err.code) {
-          case err.PERMISSION_DENIED: msg += 'Permissão negada.'; break;
-          case err.POSITION_UNAVAILABLE: msg += 'Localização indisponível.'; break;
-          case err.TIMEOUT: msg += 'Tempo esgotado.'; break;
-        }
-        setLocationError(msg);
-        setLoadingLocation(false);
-        setUsingGPS(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-  };
 
   // Ao entrar, pede a permissão de localização e já coloca o pin onde a
   // pessoa está. Se negar, o mapa continua utilizável: ela arrasta o pin.
@@ -680,9 +594,7 @@ export default function CriarLoja() {
     // Os links da loja entram aqui. v2: grava explicitamente a escolha da pessoa nos interruptores.
     await supabase
       .from("stores")
-      .update(v3
-        ? { links: parsedLinks.links, whatsapp_orders_enabled: false, show_whatsapp: !!whatsappClean, store_model: storeModel, allow_scheduling: storeModel !== 'products' && agendaOn }
-        : { whatsapp_orders_enabled: whatsappOrders, show_whatsapp: showWhatsapp })
+      .update({ links: parsedLinks.links, whatsapp_orders_enabled: false, show_whatsapp: !!whatsappClean, store_model: storeModel, allow_scheduling: storeModel !== 'products' && agendaOn })
       .eq("storeSlug", storeSlug);
 
     setLoading(false);
@@ -700,19 +612,8 @@ export default function CriarLoja() {
     }
   };
 
-  const tabs = [
-    {
-      id: "criando",
-      label: "Criando loja",
-      icon: Sparkles,
-      onClick: () => { },
-      isActive: true,
-    },
-  ];
-
   // ===== v3 =====
-  if (v3) {
-    const soft = `${colors.border}30`;
+  const soft = `${colors.border}30`;
     const field = "w-full h-12 rounded-2xl px-4 text-sm outline-none transition focus:ring-2";
     const fieldStyle = { background: soft, color: colors.textPrimary, ['--tw-ring-color' as any]: '#f97316' } as React.CSSProperties;
     const label = (text: string, hint?: string) => (
@@ -738,11 +639,7 @@ export default function CriarLoja() {
           title="Criar loja"
           showBack
           onBack={() => router.back()}
-          greeting={`Olá, ${currentUserSlug ? `@${currentUserSlug}` : "Visitante"}`}
-          avatarUrl={currentUserAvatar}
-          loading={profileLoading}
           showSearch={false}
-          profileSlug={currentUserSlug}
         />
 
         <div className="space-y-6">
@@ -913,512 +810,4 @@ export default function CriarLoja() {
         </div>
       </div>
     );
-  }
-
-  return (
-    <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-      <div className="fixed inset-0 z-0">
-        <AnimatedBackground bgMode={bgMode} customBgUrl={customBgUrl} />
-      </div>
-
-      <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: "none" }}>
-        <Header
-          title="iUser"
-          showBack={false}
-          greeting={`Olá, ${currentUserSlug ? `@${currentUserSlug}` : "Visitante"}`}
-          avatarUrl={currentUserAvatar}
-          loading={profileLoading}
-          tabs={tabs}
-          showSearch={false}
-          profileSlug={currentUserSlug}
-          onHomeClick={() => router.push("/")}
-        />
-
-        <div className="w-full px-4 md:px-6 py-6">
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
-            {/* LOGO */}
-            <div className="space-y-3">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 text-center">
-                Logo da Loja <span className="text-red-500">*</span>
-              </label>
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="w-28 h-28 mx-auto rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group shadow-sm"
-              >
-                {preview ? (
-                  <img src={preview} className="w-full h-full object-cover" />
-                ) : (
-                  <Camera className="text-orange-500 group-hover:scale-110 transition-transform" size={32} />
-                )}
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleImageChange(file);
-                }}
-              />
-            </div>
-
-            {/* NOME DA LOJA */}
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <Store className="w-3 h-3 text-orange-500" />
-                Nome da Loja *
-              </label>
-              <input
-                placeholder="Minha Super Loja"
-                value={name}
-                onChange={(e) => { nameTouchedRef.current = true; setName(e.target.value) }}
-                className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
-                required
-              />
-            </div>
-
-            {/* SLUG */}
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <Zap className="w-3 h-3 text-orange-500" />
-                Username da loja *
-              </label>
-              <div className="flex items-center bg-white border-2 border-orange-200 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all">
-                <span className="px-3 bg-orange-50 text-gray-600 border-r border-orange-200 text-xs font-bold py-3 whitespace-nowrap">
-                  @
-                </span>
-                <input
-                  placeholder="minha-loja"
-                  value={storeSlug}
-                  onChange={(e) =>
-                    setStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))
-                  }
-                  className="flex-1 px-3 py-3 bg-white text-gray-900 text-sm outline-none"
-                />
-              </div>
-              {storeSlug && slugStatus === "checking" && (
-                <div className="flex items-center gap-2 text-[9px] font-bold text-gray-500 mt-1">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-                  Verificando...
-                </div>
-              )}
-              {storeSlug && slugStatus === "available" && (
-                <div className="flex items-center gap-2 text-[9px] font-bold text-green-600 mt-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Link disponível
-                </div>
-              )}
-              {storeSlug && slugStatus === "taken" && (
-                <div className="flex items-center gap-2 text-[9px] font-bold text-red-500 mt-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Indisponível
-                </div>
-              )}
-              {storeSlugSuggestions.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {storeSlugSuggestions.map(sug => (
-                    <button
-                      key={sug}
-                      type="button"
-                      onClick={() => {
-                        setStoreSlug(sug);
-                        setStoreSlugSuggestions([]);
-                      }}
-                      className="px-3 py-1 bg-orange-50 border border-orange-200 rounded-full text-xs font-bold text-orange-700 hover:bg-orange-100 transition-colors"
-                    >
-                      @{sug}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* WHATSAPP */}
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <MessageCircle className="w-3 h-3 text-green-500" />
-                WhatsApp da Loja (opcional)
-              </label>
-              <div className="relative">
-                <div className="flex items-center bg-white border-2 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all"
-                  style={{
-                    borderColor: whatsappError ? '#ef4444' : '#fbd5a4',
-                  }}
-                >
-                  <span className="px-3 bg-green-50 text-gray-600 border-r border-green-200 text-xs font-bold py-3 whitespace-nowrap flex items-center gap-1">
-                    <MessageCircle className="w-3 h-3 text-green-500" />
-                    +55
-                  </span>
-                  <input
-                    placeholder="(11) 99999-9999"
-                    value={whatsapp}
-                    onChange={(e) => handleWhatsAppChange(e.target.value)}
-                    className="flex-1 px-3 py-3 bg-white text-gray-900 text-sm outline-none"
-                    maxLength={18}
-                  />
-                </div>
-                {whatsappError && (
-                  <div className="flex items-center gap-2 text-[9px] font-bold text-red-500 mt-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {whatsappError}
-                  </div>
-                )}
-                {!whatsappError && whatsapp.replace(/\D/g, '').length >= 10 && (
-                  <div className="flex items-center gap-2 text-[9px] font-bold text-green-600 mt-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Número válido!
-                    {whatsapp.replace(/\D/g, '').length >= 11 ? ' Celular' : ' Telefone'}
-                  </div>
-                )}
-                <div className="flex items-start gap-1.5 mt-1.5">
-                  <Shield className="w-3 h-3 text-orange-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-[8px] text-gray-400 leading-relaxed">
-                    Você escolhe abaixo se este número aparece na página da loja.
-                  </p>
-                </div>
-                <div className="mt-2 p-3 rounded-xl border" style={{ borderColor: '#fbd5a4', background: '#fff7ed' }}>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-700">
-                      Mostrar o WhatsApp na página da loja
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowWhatsapp(!showWhatsapp)}
-                      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${showWhatsapp ? 'bg-orange-500' : 'bg-gray-400'}`}
-                    >
-                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${showWhatsapp ? 'right-1' : 'left-1'}`} />
-                    </button>
-                  </div>
-                  <p className="text-[9px] text-gray-500 leading-relaxed mt-1.5">
-                    {showWhatsapp
-                      ? 'Os clientes veem o número e o botão de WhatsApp na página da loja.'
-                      : 'O número fica escondido: os clientes não veem o WhatsApp na página da loja.'}
-                  </p>
-                </div>
-                <div className="mt-2 p-3 rounded-xl border" style={{ borderColor: '#fbd5a4', background: '#fff7ed' }}>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-700">
-                      Receber pedidos também no WhatsApp (opcional)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setWhatsappOrders(!whatsappOrders)}
-                      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${whatsappOrders ? 'bg-orange-500' : 'bg-gray-400'}`}
-                    >
-                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${whatsappOrders ? 'right-1' : 'left-1'}`} />
-                    </button>
-                  </div>
-                  <p className="text-[9px] text-gray-500 leading-relaxed mt-1.5">
-                    {whatsappOrders
-                      ? 'Ao finalizar, o cliente é direcionado direto ao WhatsApp da loja para enviar o pedido. Quando a mensagem chegar no WhatsApp, o pedido já terá aparecido no iUser: verifique os pedidos na aba onde fica a sua loja.'
-                      : 'Os pedidos chegam só pelo iUser, na aba onde fica a sua loja. O cliente não será levado ao WhatsApp.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* CATEGORIA */}
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <Tag className="w-3 h-3 text-orange-500" />
-                Categoria *
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {CATEGORIAS_LOJAS.map((cat) => {
-                  const Icon = cat.icone;
-                  const isSelected = selectedCategorySlug === cat.slug;
-                  return (
-                    <button
-                      key={cat.slug}
-                      type="button"
-                      onClick={() => setSelectedCategorySlug(cat.slug)}
-                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${isSelected
-                        ? "border-orange-500 bg-orange-50 shadow-md"
-                        : "border-orange-200 bg-white/50 hover:bg-orange-50/50"
-                        }`}
-                    >
-                      <Icon
-                        className="w-5 h-5"
-                        style={{ color: isSelected ? "#f97316" : cat.color }}
-                      />
-                      <span className={`text-[9px] font-bold ${isSelected ? "text-orange-600" : "text-gray-700"
-                        }`}>
-                        {cat.nome}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedCategorySlug && (
-                <div className="flex items-center gap-2 text-[9px] font-bold text-green-600 mt-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Categoria selecionada: {CATEGORIAS_LOJAS.find(c => c.slug === selectedCategorySlug)?.nome}
-                </div>
-              )}
-            </div>
-
-            {/* DESCRIÇÃO */}
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
-                Descrição
-              </label>
-              <textarea
-                placeholder="O que você vende? (opcional)"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all min-h-[100px]"
-              />
-            </div>
-
-            {/* LOCALIZAÇÃO */}
-            <div className="space-y-3">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <MapPinned className="w-3 h-3 text-orange-500" />
-                Localização da Loja *
-              </label>
-
-              <div className="relative w-full h-64 sm:h-72 rounded-xl overflow-hidden"
-                style={{
-                  border: `2px solid #fbd5a4`,
-                  background: '#fff',
-                }}
-              >
-                <div ref={setMapEl} className="w-full h-full" />
-
-                {!mapReady && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/80">
-                    <Spinner size={24} color='#f97316' />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-start gap-2.5 px-4 py-3 rounded-2xl shadow-md"
-                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
-              >
-                <div className="flex-shrink-0 mt-0.5">
-                  <div className="w-7 h-7 rounded-full bg-white/25 flex items-center justify-center">
-                    <MapPinned size={15} color="#ffffff" />
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-white/80">
-                    Localização selecionada
-                  </span>
-                  {resolvingAddress ? (
-                    <p className="text-xs mt-0.5 text-white/80">Obtendo endereço...</p>
-                  ) : (
-                    <p className="text-sm font-bold mt-0.5 break-words leading-relaxed text-white">
-                      {address || 'Arraste o marcador ou mova o mapa'}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddressSearch(v => !v);
-                  setTimeout(() => searchInputRef.current?.focus(), 150);
-                }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-full text-sm font-bold text-white shadow-md hover:scale-[1.01] transition-transform"
-                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
-              >
-                <Search size={15} />
-                Escrever endereço...
-              </button>
-
-              {showAddressSearch && (
-                <div className="flex items-center px-2 py-1 rounded-full bg-white border-2 border-orange-200">
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Rua, número, bairro, cidade..."
-                    className="flex-1 bg-transparent outline-none ml-2 text-sm text-gray-700"
-                    disabled={loadingLocation}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSearchAddress(); }}
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={handleSearchAddress}
-                      disabled={loadingLocation}
-                      className="px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-orange-500 to-red-500 text-white"
-                    >
-                      {loadingLocation ? '...' : 'Ir'}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <p className="text-center text-xs font-semibold text-gray-500">
-                ou arraste o pin no mapa para selecionar a localização
-              </p>
-
-              {!resolvingAddress && address && (
-                <div className="space-y-2">
-                  <div className="px-3 py-2 rounded-xl"
-                    style={{
-                      background: `rgba(255,255,255,0.4)`,
-                      border: `1px solid #fbd5a4`,
-                    }}
-                  >
-                    <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 text-gray-600 mb-1">
-                      <Hash size={12} />
-                      Número da casa/apto *
-                    </label>
-                    <input
-                      type="text"
-                      value={addressNumber}
-                      onChange={(e) => setAddressNumber(e.target.value)}
-                      placeholder="Ex: 2836"
-                      className="w-full bg-transparent outline-none text-xs font-medium text-gray-700"
-                      required
-                    />
-                  </div>
-
-                  <div className="px-3 py-2 rounded-xl"
-                    style={{
-                      background: `rgba(255,255,255,0.4)`,
-                      border: `1px solid #fbd5a4`,
-                    }}
-                  >
-                    <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 text-gray-600 mb-1">
-                      <FileText size={12} />
-                      Complemento (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={addressComplement}
-                      onChange={(e) => setAddressComplement(e.target.value)}
-                      placeholder="Ex: Casa com parede de cerâmica, portão azul..."
-                      className="w-full bg-transparent outline-none text-xs font-medium text-gray-700"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {locationError && (
-                <p className="text-red-500 text-xs font-medium">{locationError}</p>
-              )}
-
-            </div>
-
-            {showLocationConfirm && (
-              <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-                <div className="w-full max-w-sm bg-white rounded-2xl p-6 space-y-4 shadow-xl">
-                  <div className="flex items-center gap-2">
-                    <MapPinned className="w-5 h-5 text-orange-500" />
-                    <h3 className="font-black text-sm uppercase tracking-wider text-gray-800">Confirmar localização</h3>
-                  </div>
-                  <p className="text-sm text-gray-600">Essa é a localização correta?</p>
-                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl">
-                    <p className="text-sm font-medium text-gray-800">{pendingAddress}</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={handleRejectLocation}
-                      className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
-                    >
-                      Não, digitar de novo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleConfirmLocation}
-                      className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider bg-gradient-to-r from-orange-500 to-red-500 text-white hover:shadow-lg transition-all"
-                    >
-                      Sim, está correta
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* BOTÃO CRIAR */}
-            <button
-              onClick={handleCreate}
-              disabled={loading}
-              className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Criar Loja
-                </>
-              )}
-            </button>
-
-            <div className="flex flex-wrap gap-3 justify-center text-[9px] text-gray-400">
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3 text-green-500" />
-                Nome
-              </span>
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3 text-green-500" />
-                Link
-              </span>
-              <span className="flex items-center gap-1">
-                {whatsapp.replace(/\D/g, '').length >= 10 ? (
-                  <CheckCircle2 className="w-3 h-3 text-green-500" />
-                ) : (
-                  <AlertCircle className="w-3 h-3 text-red-400" />
-                )}
-                WhatsApp
-              </span>
-              <span className="flex items-center gap-1">
-                {selectedCategorySlug ? (
-                  <CheckCircle2 className="w-3 h-3 text-green-500" />
-                ) : (
-                  <AlertCircle className="w-3 h-3 text-red-400" />
-                )}
-                Categoria
-              </span>
-              <span className="flex items-center gap-1">
-                {addressNumber ? (
-                  <CheckCircle2 className="w-3 h-3 text-green-500" />
-                ) : (
-                  <AlertCircle className="w-3 h-3 text-red-400" />
-                )}
-                Localização
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-          <button
-            onClick={() => router.back()}
-            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-            style={{
-              background: `linear-gradient(135deg, #f97316, #ef4444)`,
-              color: '#ffffff',
-              border: `2px solid #f97316`,
-              boxShadow: `0 8px 24px #f9731660`,
-            }}
-            aria-label="Voltar para a página anterior"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <button
-            onClick={() => router.push('/')}
-            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-            style={{
-              background: `linear-gradient(135deg, #f97316, #ef4444)`,
-              color: '#ffffff',
-              border: `2px solid #f97316`,
-              boxShadow: `0 8px 24px #f9731660`,
-            }}
-            aria-label="Ir para o início"
-          >
-            <Home size={24} />
-          </button>
-        </div>
-      </main>
-    </div>
-  );
 }

@@ -9,7 +9,6 @@
 import { useContext, useEffect, useState, type ReactNode } from 'react'
 import { Check, ChevronDown, Package, PawPrint, Star, CalendarClock, Pencil, X, Users, Car, Baby, ShoppingBag, AlertTriangle, Accessibility, Eye, Banknote, CreditCard, QrCode, MapPin, Building2, Truck, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
-import { useInsideShell } from '@/components/InsideShell'
 import { Spinner } from '@/components/Spinner'
 import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
@@ -21,7 +20,6 @@ import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { RideValuePickContext } from './rideValuePick'
 
 const TIME_GRADIENT = 'linear-gradient(135deg, #8b5cf6, #6d28d9)'
-const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 export const TO_PICKUP_COLOR = '#3b82f6'
 export const TRIP_COLOR = '#ef4444'
 
@@ -140,13 +138,8 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
 export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice: customTripPrice = null, customPickup = 0, timeRate = null, timeExtras = 0, valueFromOwn = false, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, minHourly = null, protection = 'warn', onEditTariff, minPerMinute = 0, compact = false, pickup, tripFareNote, viewOnly = false, after }: RideOfferCardProps) {
     const { colors } = useTheme()
-    // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
-    const v3 = useInsideShell()
-    const GRADIENT = v3 ? '#f97316' : GRADIENT_V2
-    const soft = `${colors.border}30`
-    const bd = v3 ? 'none' : `1px solid ${colors.border}`
-    const sh = v3 ? 'none' : colors.shadow
-    const surf = v3 ? soft : colors.surface
+    const GRADIENT = '#f97316'
+    const bd = 'none'
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
 
@@ -519,7 +512,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                     onClick={onCounter}
                                     disabled={applying}
                                     className="w-full rounded-2xl px-3 py-2 text-center transition-all active:scale-95 disabled:opacity-70"
-                                    style={{ background: 'transparent', border: v3 ? 'none' : `1.5px solid ${colors.border}` }}
+                                    style={{ background: 'transparent', border: 'none' }}
                                 >
                                     <span className="block text-[13px] font-black" style={{ color: colors.textPrimary }}>Propor a minha tarifa · {brl(customPrice)}</span>
                                     <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>O cliente decide se autoriza esse valor</span>
@@ -554,7 +547,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                     const counterErr = counterVal != null ? validateAmount(counterVal) : null
                     return (
                         <>
-                            <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: v3 ? `${colors.border}25` : `${colors.border}20`, border: bd }}>
+                            <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: `${colors.border}25`, border: bd }}>
                                 {row('Tarifa iUser', platformPrice, false, perHour(platformPrice))}
                                 {row('Oferta do passageiro', offer, true, perHour(offer), offerBelow)}
                                 {row(mineLabel, mine, false, perHour(mine), below(mine))}
@@ -589,7 +582,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                     Fazer contraproposta
                                 </button>
                                 {onSkip && (
-                                    <button onClick={onSkip} className="px-4 py-2.5 rounded-full text-[12px] font-black uppercase tracking-wide transition-all active:scale-95" style={{ background: 'transparent', color: '#dc2626', border: v3 ? 'none' : '1.5px solid #dc262655' }}>
+                                    <button onClick={onSkip} className="px-4 py-2.5 rounded-full text-[12px] font-black uppercase tracking-wide transition-all active:scale-95" style={{ background: 'transparent', color: '#dc2626', border: 'none' }}>
                                         Recusar
                                     </button>
                                 )}
@@ -616,8 +609,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                             value={value}
                                             onChange={(e) => setValue(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))}
                                             placeholder="Outro valor (R$)"
-                                            className={v3 ? 'flex-1 min-w-0 px-4 py-2.5 rounded-full text-sm font-semibold outline-none' : 'flex-1 min-w-0 px-3 py-2 rounded-full border text-sm'}
-                                            style={v3 ? { background: colors.background, color: colors.textPrimary } : { background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            className={'flex-1 min-w-0 px-4 py-2.5 rounded-full text-sm font-semibold outline-none'}
+                                            style={{ background: colors.background, color: colors.textPrimary }}
                                         />
                                         <button
                                             onClick={() => counterVal != null && !counterErr && onApply(counterVal)}
@@ -660,7 +653,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             }}
                             disabled={applying || (iuserSuggestion != null && myFare == null && blocked(iuserSuggestion)) || (iuserSuggestion == null && myFare == null && !onEditTariff)}
                             className="flex-1 min-w-0 rounded-xl px-2 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
-                            style={myFare != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
+                            style={myFare != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: 'none' }}
                         >
                             <span className="block text-[10px] font-semibold" style={{ color: myFare != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>{myFare != null ? 'Por km' : iuserSuggestion != null ? 'Sugestão iUser' : 'Por km'}</span>
                             <span className="block text-[14px] font-black leading-tight whitespace-nowrap" style={{ color: myFare != null ? '#fff' : colors.textSecondary }}>
@@ -680,7 +673,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             onClick={() => onEditTariff?.('tempo')}
                             disabled={applying || !onEditTariff}
                             className="flex-1 min-w-0 rounded-xl px-2 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
-                            style={myTime != null ? { background: TIME_GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
+                            style={myTime != null ? { background: TIME_GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: 'none' }}
                         >
                             <span className="block text-[10px] font-semibold" style={{ color: myTime != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>Por tempo</span>
                             <span className="block text-[14px] font-black leading-tight whitespace-nowrap" style={{ color: myTime != null ? '#fff' : colors.textSecondary }}>{myTime != null ? brl(myTime) : 'não definida'}</span>
@@ -732,8 +725,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                 value={value}
                                 onChange={(e) => setValue(e.target.value)}
                                 placeholder="Quanto você cobra? (R$)"
-                                className={v3 ? 'flex-1 min-w-0 px-4 py-2.5 rounded-full text-sm font-semibold outline-none' : 'flex-1 min-w-0 px-3 py-2 rounded-full border text-sm'}
-                                style={v3 ? { background: colors.background, color: colors.textPrimary } : { background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                className={'flex-1 min-w-0 px-4 py-2.5 rounded-full text-sm font-semibold outline-none'}
+                                style={{ background: colors.background, color: colors.textPrimary }}
                             />
                             <button
                                 onClick={() => onApply(parseFloat(value) || 0)}

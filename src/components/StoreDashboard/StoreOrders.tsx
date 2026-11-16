@@ -7,7 +7,6 @@ import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import StoreServiceOrders, { useStoreServiceAppointments } from './StoreServiceOrders'
 import StatChips from './StatChips'
 import { supabase } from '@/lib/supabase/client'
-import { useInsideShell } from '@/components/InsideShell'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
@@ -20,14 +19,9 @@ import {
     Store,
     ChevronDown,
     ChevronUp,
-    Clock,
-    RefreshCw,
-    CheckCircle,
-    Package,
     Truck,
     MessageCircle,
     KeyRound,
-    Check,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import CallIuserDriverDialog from './CallIuserDriverDialog'
@@ -157,11 +151,6 @@ const pillButtonStyle = {
     border: 'none',
 }
 
-const pillButtonFullStyle = {
-    ...pillButtonStyle,
-    flex: 1,
-}
-
 export default function StoreOrders({
     storeId,
     storeName = 'Loja',
@@ -172,7 +161,6 @@ export default function StoreOrders({
 }: StoreOrdersProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
-    const v3 = useInsideShell()
     const router = useRouter()
 
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
@@ -182,7 +170,7 @@ export default function StoreOrders({
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
     const [assigning, setAssigning] = useState(false)
     const [employees, setEmployees] = useState<any[]>([])
-    const [employeeRoutes, setEmployeeRoutes] = useState<EmployeeRoute[]>([])
+    const [, setEmployeeRoutes] = useState<EmployeeRoute[]>([])
     const [assignmentMap, setAssignmentMap] = useState<Map<string, { employeeName: string; status: string }>>(new Map())
     const [ownerProfile, setOwnerProfile] = useState<{ name: string; phone?: string } | null>(null)
     const [singleAssignOpen, setSingleAssignOpen] = useState<{ order: any } | null>(null)
@@ -307,7 +295,7 @@ export default function StoreOrders({
     const [movedId, setMovedId] = useState<string | null>(null)      // o pedido que acabou de mudar de etapa (vai para o topo da etapa nova)
     const isMountedRef = useRef(true)
     const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
-    const [isAutoRefreshing, setIsAutoRefreshing] = useState(false)
+    const [, setIsAutoRefreshing] = useState(false)
     const [initialLoading, setInitialLoading] = useState(true)
 
     // ===== LOAD ORDERS =====
@@ -708,14 +696,6 @@ export default function StoreOrders({
             fetchEmployeeRoutes()
         }
     }, [storeId])
-
-    // ===== HANDLE REFRESH (manual) =====
-    const handleRefresh = () => {
-        setIsAutoRefreshing(true)
-        Promise.all([loadOrders(), fetchEmployeeRoutes()]).finally(() => {
-            setIsAutoRefreshing(false)
-        })
-    }
 
     // ===== HANDLE ORDER ACTION =====
     const handleOrderAction = async (status: string, target: any = selectedOrder) => {
@@ -1245,20 +1225,12 @@ export default function StoreOrders({
         <>
             {variant === 'page' ? renderPage() : (
             <div
-                className={v3 ? 'rounded-3xl relative overflow-hidden flex flex-col p-4 gap-4' : `rounded-2xl relative overflow-hidden flex flex-col ${isOrdersExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                style={v3 ? {
+                className={'rounded-3xl relative overflow-hidden flex flex-col p-4 gap-4'}
+                style={{
                     // 3.0: cartão limpo (sem brilho nem borda animada); só ganha o realce laranja quando há pedido novo esperando
                     background: colors.surface,
                     border: newOrders.length + svc.pending.length > 0 ? '1.5px solid #f97316' : `1px solid ${colors.border}`,
                     boxShadow: newOrders.length + svc.pending.length > 0 ? '0 6px 20px #f9731626' : 'none',
-                } : {
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: cardState.border,
-                    boxShadow: cardState.shadow,
-                    transition: 'all 0.5s ease',
-                    animation: cardState.hasAnimation ? `${cardState.animationName} 2s ease-in-out infinite` : 'none',
                 }}
             >
                 <style>{`
@@ -1285,7 +1257,7 @@ export default function StoreOrders({
                 `}</style>
 
                 {/* ===== SHIMMER BORDER ===== */}
-                {cardState.hasAnimation && !v3 && (
+                {cardState.hasAnimation && false && (
                     <div className="absolute inset-[-2px] rounded-2xl overflow-hidden pointer-events-none shimmer-border">
                         <div className="absolute inset-[-2px] rounded-2xl" style={{
                             background: `linear-gradient(
@@ -1322,8 +1294,7 @@ export default function StoreOrders({
                             transition: 'all 0.2s ease',
                         }}
                     >
-                        {v3 ? (
-                            <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
                                 <div className="min-w-0">
                                     <h3 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>Pedidos na loja</h3>
                                     <p className="text-[11px] mt-0.5" style={{ color: newOrders.length + svc.pending.length > 0 ? '#16a34a' : colors.textSecondary }}>
@@ -1335,78 +1306,6 @@ export default function StoreOrders({
                                     </p>
                                 </div>
                             </div>
-                        ) : (
-                        <div className="flex items-center gap-3">
-                            <div>
-                                <h3 className={`${isOrdersExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
-                                    Pedidos na loja
-                                </h3>
-                                <div className="flex items-center gap-2 text-xs mt-0.5">
-                                    <span
-                                        className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
-                                        style={{
-                                            background: 'rgba(22, 163, 74, 0.15)',
-                                            backdropFilter: 'blur(8px)',
-                                            WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(22, 163, 74, 0.2)',
-                                            color: '#16a34a',
-                                        }}
-                                    >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
-                                        {newOrders.length}
-                                    </span>
-
-                                    <span style={{ color: colors.textSecondary }}>•</span>
-
-                                    <span
-                                        className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
-                                        style={{
-                                            background: 'rgba(217, 119, 6, 0.15)',
-                                            backdropFilter: 'blur(8px)',
-                                            WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(217, 119, 6, 0.2)',
-                                            color: '#d97706',
-                                        }}
-                                    >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-600" />
-                                        {preparing.length}
-                                    </span>
-
-                                    <span style={{ color: colors.textSecondary }}>•</span>
-
-                                    <span
-                                        className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
-                                        style={{
-                                            background: 'rgba(124, 58, 237, 0.15)',
-                                            backdropFilter: 'blur(8px)',
-                                            WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(124, 58, 237, 0.2)',
-                                            color: '#7c3aed',
-                                        }}
-                                    >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-700" />
-                                        {ready.length}
-                                    </span>
-
-                                    <span style={{ color: colors.textSecondary }}>•</span>
-
-                                    <span
-                                        className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
-                                        style={{
-                                            background: 'rgba(37, 99, 235, 0.15)',
-                                            backdropFilter: 'blur(8px)',
-                                            WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(37, 99, 235, 0.2)',
-                                            color: '#2563eb',
-                                        }}
-                                    >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                                        {finished.length}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        )}
                         <div className="flex items-center gap-2">
                             {isOrdersExpanded ? (
                                 <ChevronUp size={22} style={{ color: colors.textSecondary }} />
@@ -1433,7 +1332,7 @@ export default function StoreOrders({
                 </div>
 
                 {/* 3.0: serviços — os números em chips pequenos (o destaque são os pedidos) */}
-                {v3 && ordersTab === 'services' && (
+                {ordersTab === 'services' && (
                     <StatChips onClick={() => setIsOrdersExpanded(true)} items={[
                         { label: 'Novos', n: svc.pending.length, color: '#16a34a' },
                         { label: 'Na agenda', n: svc.confirmed.length, color: '#7c3aed' },
@@ -1447,14 +1346,6 @@ export default function StoreOrders({
                 {isOrdersExpanded && ordersTab === 'products' && (
                     <div className="flex flex-col gap-4 relative z-10">
                         {(() => {
-                            const Head = ({ color, title, n }: { color: string; title: string; n: number }) => (
-                                <div className="flex items-center gap-2 px-0.5">
-                                    <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-                                    <h4 className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{title}</h4>
-                                    <span className="text-[10px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-white" style={{ background: color }}>{n}</span>
-                                </div>
-                            )
-                            const SHOW = 6
                             const act = async (o: any, next: string) => { setQuickBusy(o.checkout_id); await handleOrderAction(next, o); setQuickBusy(null) }
                             // muda de etapa COM a animação: fotografa antes, o pedido desce quando a lista nova chega
                             const goStage = async (o: any, next: string, from: string, to: string) => {
@@ -1469,9 +1360,6 @@ export default function StoreOrders({
                                     <span data-troca className="inline-block">{quickBusy === o.checkout_id ? '…' : label}</span>
                                 </button>
                             )
-                            const more = (n: number) => n > SHOW && storeSlug ? (
-                                <button type="button" onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)} className="text-[11px] font-black self-start px-1 underline" style={{ color: colors.textSecondary }}>+ {n - SHOW} na página de pedidos</button>
-                            ) : null
                             // o funil do painel (igual ao laboratório /painel-teste): seções EMPILHADAS, nada atrás de aba; o pedido que muda de etapa
                             // DESCE até a seção seguinte (useFunnelFlip) e fica no topo dela; até 2 por seção ("Ver mais N" leva à página)
                             const day0 = new Date(); day0.setHours(0, 0, 0, 0)
@@ -1483,7 +1371,6 @@ export default function StoreOrders({
                                 { key: 'way', title: 'A caminho do cliente', short: 'Caminho', color: '#3b82f6', list: onTheWay },
                                 { key: 'done', title: 'Finalizados hoje', short: 'Feitos', color: '#2563eb', list: finishedToday },
                             ]
-                            const colorOf = (k: string) => sections.find((x) => x.key === k)!.color
                             const firstMoved = (list: any[]) => (movedId ? [...list].sort((a, b) => Number(b.checkout_id === movedId) - Number(a.checkout_id === movedId)) : list)
                             const PER = 2
                             const total = sections.slice(0, 4).reduce((n, x) => n + x.list.length, 0)
@@ -1706,7 +1593,6 @@ function OrderButton({
     compact = false,
     quick = null,
 }: any) {
-    const v3 = useInsideShell()
     const { colors: themeColors } = useTheme()
     const channelLabel = isInPerson ? 'Presencial' : 'Online'
     const statusColor = getStatusColor(order.status)
@@ -1747,8 +1633,7 @@ function OrderButton({
     }
 
     // ===== 3.0: cartão claro (nome, canal, valor e hora), com a cor do status só na barra da esquerda =====
-    if (v3) {
-        return (
+    return (
             <div
                 className={`w-full rounded-2xl relative overflow-hidden transition active:scale-[0.99] ${isPaid ? 'opacity-70' : 'cursor-pointer'}`}
                 style={{ background: themeColors.surface, border: `1px solid ${themeColors.border}`, borderLeft: `4px solid ${statusColor}` }}
@@ -1823,117 +1708,4 @@ function OrderButton({
                 </div>
             </div>
         )
-    }
-
-    return (
-        <div
-            data-keep-color
-            className={`w-full rounded-2xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-80' : 'cursor-pointer'}`}
-            style={{
-                background: getStatusGradient(order.status),
-                color: statusColor,
-                boxShadow: `0 4px 16px ${statusColor}40`,
-                border: `1px solid ${statusColor}55`,
-                borderLeft: `4px solid ${statusColor}`,
-            }}
-            onClick={() => {
-                // AGORA PERMITE CLICAR EM TODOS OS PEDIDOS, inclusive finalizados
-                setSelectedOrder(order)
-            }}
-        >
-            {!isPaid && (
-                <div className="absolute inset-0 pointer-events-none opacity-15">
-                    <div className="absolute inset-[-2px] rounded-2xl" style={{
-                        background: `linear-gradient(90deg, transparent, ${statusColor}33, transparent)`,
-                        animation: 'shimmer-order 4s ease-in-out infinite',
-                        transform: 'translateX(-100%)',
-                    }} />
-                </div>
-            )}
-
-            <div className="flex items-center justify-between gap-3 px-4 py-3.5 relative z-10">
-                <div className="flex flex-col items-start min-w-0 flex-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                        {isInPerson ? (
-                            <>
-                                <Store size={14} className="flex-shrink-0" style={{ color: `${statusColor}cc` }} />
-                                <span className="text-sm font-bold truncate" style={{ color: statusColor }}>
-                                    {order.buyer_name || 'Presencial'}
-                                </span>
-                            </>
-                        ) : (
-                            <span className="text-sm font-bold truncate" style={{ color: statusColor }}>
-                                @{order.buyer_profile_slug}
-                            </span>
-                        )}
-                        <span
-                            className="px-2 py-0.5 rounded-md text-[9px] font-bold flex-shrink-0 uppercase tracking-wide"
-                            style={{ background: `${statusColor}1a`, color: `${statusColor}b3` }}
-                        >
-                            {channelLabel}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs mt-1.5 flex-wrap">
-                        <span className="font-black text-sm" style={{ color: statusColor }}>
-                            R$ {order.totalPrice.toFixed(2)}
-                        </span>
-                        {order.deliveryFee > 0 && (
-                            <span style={{ color: `${statusColor}80` }}>
-                                frete R$ {order.deliveryFee.toFixed(2)}
-                            </span>
-                        )}
-                        {isAssigned && (
-                            <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: `${statusColor}99` }}>
-                                🚚 {assignment?.employeeName}
-                            </span>
-                        )}
-                    </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                    {orderTime && (
-                        <span className="text-[11px] font-medium flex-shrink-0 tabular-nums" style={{ color: `${statusColor}80` }}>
-                            {orderTime}
-                        </span>
-                    )}
-                    {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (iuserDelivery.dispatchedIds.has(order.id) || ['preparing', 'ready'].includes(order.status)) && (
-                        iuserDelivery.dispatchedIds.has(order.id) ? (
-                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: `${statusColor}1a`, color: `${statusColor}b3` }}>
-                                {driverText(iuserDelivery.info?.get(order.id), !!iuserDelivery.acceptedIds?.has(order.id))}
-                            </span>
-                        ) : (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); iuserDelivery.onCall(order) }}
-                                className="p-2 rounded-full transition-all duration-200 active:scale-90 flex-shrink-0"
-                                title="Chamar motorista iUser"
-                                type="button"
-                            >
-                                <Truck size={14} style={{ color: statusColor }} />
-                            </button>
-                        )
-                    )}
-                    {canChat && (
-                        <button
-                            onClick={handleChatClick}
-                            disabled={openingChat}
-                            className="p-2 rounded-full transition-all duration-200 active:scale-90 flex-shrink-0 disabled:opacity-50"
-                            title="Conversar com o cliente"
-                            type="button"
-                        >
-                            <MessageCircle size={14} style={{ color: statusColor }} />
-                        </button>
-                    )}
-                    {canAssign && (
-                        <button
-                            onClick={handleAssignClick}
-                            className="p-2 rounded-full transition-all duration-200 active:scale-90 flex-shrink-0"
-                            title="Atribuir entregador"
-                            type="button"
-                        >
-                            <Send size={14} style={{ color: `${statusColor}99` }} />
-                        </button>
-                    )}
-                </div>
-            </div>
-        </div>
-    )
 }

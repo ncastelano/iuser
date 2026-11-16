@@ -17,7 +17,7 @@ import FreeTrialGift from '@/components/FreeTrialGift'
 import { PostpaidFees, TYPE_INFO, type ChargeType } from '@/components/planos/PostpaidFees'
 import { Spinner } from '@/components/Spinner'
 import { usePostpaidLimit } from '@/lib/postpaid'
-import { Car, Wrench, ShoppingBag, Package, Megaphone, CalendarCheck, CalendarPlus, Wallet, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const MAX_ROWS = 1000
@@ -125,9 +125,6 @@ export default function PosPagoDetails() {
                     title="Pós-pago"
                     showBack={true}
                     onBack={() => router.push('/planos')}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-2xl mx-auto flex flex-col gap-5">

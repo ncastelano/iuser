@@ -212,11 +212,8 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                     title="Promover evento"
                     showBack={true}
                     onBack={goBack}
-                    greeting={activeFlow === 'evento-loja' ? 'Divulgue um evento da loja' : 'Crie um evento público ou privado'}
-                    avatarUrl={getPublicUrl(userAvatarUrl, 'avatars')}
                     tabs={tabs}
                     showSearch={false}
-                    onHomeClick={() => onBack()}
                 />
 
                 <div className="px-5 pt-0">

@@ -30,9 +30,6 @@ export default function AdministradorPage() {
                     title="Administrador"
                     showBack={true}
                     onBack={() => router.push('/')}
-                    greeting={`Olá, ${loading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={loading}
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-3xl mx-auto">

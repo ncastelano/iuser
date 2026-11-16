@@ -4,11 +4,10 @@
 // MaintenanceCard = cartão grande, no estilo do aviso da home, para as telas de login/cadastro/recuperar senha.
 'use client'
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { Layers, Palette, Server, Wrench } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { clearMaintenance, getMaintenance, probeSupabase, reportMaintenance, subscribeMaintenance } from '@/lib/maintenance'
-import { VERSION_COOKIE } from '@/versions/registry'
 
 const TITLE = 'O iUser está em manutenção'
 const SHORT = 'O iUser está em manutenção. Voltamos já, com novidades!'
@@ -21,11 +20,6 @@ const HIGHLIGHTS = [
     { icon: Server, label: 'Banco e servidor atualizados' },
     { icon: Palette, label: 'Novo design' },
 ]
-
-/** A interface 3.0 ainda não foi lançada: os avisos de manutenção/novidades valem só para a 2.0. Lê a escolha de versão (cookie). */
-export function useIsV3(): boolean {
-    return true   // desde 14/11/2026 a 3.0 é a única versão
-}
 
 export function useMaintenance(): boolean {
     return useSyncExternalStore(subscribeMaintenance, getMaintenance, () => false)
@@ -48,8 +42,7 @@ function useMaintenanceWatch(active: boolean) {
 }
 
 export function MaintenanceBanner() {
-    const v3 = useIsV3()
-    const active = useMaintenance() && !v3
+    const active = useMaintenance()
     useMaintenanceWatch(active)
     // Quem já está com o site aberto também descobre a queda sozinho: testa o Supabase quando a aba volta a ficar visível, quando a
     // internet volta e a cada 5 min enquanto a aba está visível (no máx. 1 teste por minuto; a rota de saúde do Auth é leve).
@@ -67,12 +60,15 @@ export function MaintenanceBanner() {
         const t = setInterval(run, 5 * 60_000)
         return () => { document.removeEventListener('visibilitychange', run); window.removeEventListener('online', run); clearInterval(t) }
     }, [])
-    // empurra a página para baixo da faixa fixa (sem isso ela cobre o topo das telas)
+    // empurra a página para baixo da faixa fixa (sem isso ela cobre o topo das telas) e avisa a altura dela em --maintenance-h:
+    // a casca da 3.0 soma isso ao --shell-top, para os cabeçalhos presos e os mapas em tela cheia começarem abaixo da faixa
     useEffect(() => {
         if (!active) return
+        const root = document.documentElement
         const prev = document.body.style.paddingTop
         document.body.style.paddingTop = 'calc(env(safe-area-inset-top, 0px) + 34px)'
-        return () => { document.body.style.paddingTop = prev }
+        root.style.setProperty('--maintenance-h', '34px')
+        return () => { document.body.style.paddingTop = prev; root.style.removeProperty('--maintenance-h') }
     }, [active])
     if (!active) return null
     return (
@@ -95,8 +91,7 @@ export function MaintenanceBanner() {
 
 export function MaintenanceCard({ className = '' }: { className?: string }) {
     const { colors } = useTheme()
-    const v3 = useIsV3()
-    const active = useMaintenance() && !v3
+    const active = useMaintenance()
     useMaintenanceWatch(active)
     // Ao abrir uma tela de login, já pergunta ao Supabase (nessas telas nenhuma outra chamada acontece até a pessoa tentar entrar).
     useEffect(() => { void probeSupabase() }, [])

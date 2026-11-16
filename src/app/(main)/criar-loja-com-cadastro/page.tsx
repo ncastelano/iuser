@@ -281,7 +281,7 @@ function CriarLojaComCadastroContent() {
     }, [])
 
     // Preenchido depois que a conta é criada, usado só na etapa 'access'
-    const [createdUserId, setCreatedUserId] = useState<string | null>(null)
+    const [, setCreatedUserId] = useState<string | null>(null)
     const [pendingStorePayload, setPendingStorePayload] = useState<PendingStorePayload | null>(null)
 
     const handleAccountAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1082,11 +1082,7 @@ function CriarLojaComCadastroContent() {
                 <Header
                     title="iUser"
                     showBack={false}
-                    greeting="Criar loja"
-                    avatarUrl={null}
-                    loading={false}
                     showSearch={false}
-                    onHomeClick={() => router.push('/')}
                 />
 
                 <div className="w-full px-4 md:px-6 py-6">

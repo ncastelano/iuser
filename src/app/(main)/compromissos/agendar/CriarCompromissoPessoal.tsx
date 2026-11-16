@@ -286,11 +286,8 @@ export default function CriarCompromissoPessoal({ onBack }: Props) {
                     title={step === 'datetime' ? 'Novo compromisso pessoal' : 'Confirmar'}
                     showBack={true}
                     onBack={goBack}
-                    greeting={step === 'datetime' ? 'Compromisso privado' : 'Revise os detalhes'}
-                    avatarUrl={getPublicUrl(userAvatarUrl, 'avatars')}
                     tabs={tabs}
                     showSearch={false}
-                    onHomeClick={() => onBack()}
                 />
 
                 <div className="px-5 pt-0">

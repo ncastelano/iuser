@@ -2,9 +2,7 @@
 'use client'
 
 import ReportButton from '@/components/moderation/ReportButton'
-import { useInsideShell } from '@/components/InsideShell'
-import LinkPreviewCard from '@/components/communities/LinkPreviewCard'
-import { extractFirstUrl, linkify } from '@/lib/linkify'
+import { linkify } from '@/lib/linkify'
 import { profileLabel } from '@/lib/profileDisplay'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -12,7 +10,6 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { Spinner } from '@/components/Spinner'
-import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/components/Header'
 import { getAvatarUrl } from '@/lib/avatar'
 import { formatDistanceToNow } from 'date-fns'
@@ -31,7 +28,6 @@ import {
     MoreHorizontal,
     Pencil,
     Trash2,
-    X,
 } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import ShareCardView from '@/components/chat/ShareCardView'
@@ -86,10 +82,8 @@ export default function CommunityRoomClient() {
     const params = useParams()
     const router = useRouter()
     const { colors } = useTheme()
-    const { userId: currentUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId: currentUserId, avatarUrl, profileSlug, loading: profileLoading } = useProfile()
     const bottomRef = useRef<HTMLDivElement>(null)
-    // v3: a sala ocupa a área abaixo da navbar e não rola; voltar, nome, cidade e info ficam parados e só as mensagens rolam
-    const v3 = useInsideShell()
 
     const communitySlug = Array.isArray(params.communitySlug) ? params.communitySlug[0] : params.communitySlug
 
@@ -521,23 +515,16 @@ export default function CommunityRoomClient() {
     }
 
     return (
-        <div className={v3 ? 'fixed inset-x-0 bottom-[var(--staging-banner-h,0px)] top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden flex flex-col' : 'relative min-h-dvh flex flex-col'} style={{ background: colors.background }}>
-            {!v3 && (
-                <div className="fixed inset-0 z-0">
-                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-                </div>
-            )}
+        <div className={'fixed inset-x-0 bottom-[var(--staging-banner-h,0px)] top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden flex flex-col'} style={{ background: colors.background }}>
+            
 
-            <div className={v3 ? 'relative z-10 flex flex-col h-full min-h-0 w-full max-w-3xl mx-auto' : 'relative z-10 flex flex-col min-h-dvh'}>
-                <div className={v3 ? 'flex-shrink-0 max-h-[55%] overflow-y-auto pt-4 px-0' : ''}>
-                <div className={v3 ? 'px-4' : ''}>
+            <div className={'relative z-10 flex flex-col h-full min-h-0 w-full max-w-3xl mx-auto'}>
+                <div className={'flex-shrink-0 max-h-[55%] overflow-y-auto pt-4 px-0'}>
+                <div className={'px-4'}>
                 <Header
                     title={community.name}
                     showBack={true}
                     onBack={() => router.push('/comunidade')}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
                 />
                 </div>
 
@@ -896,7 +883,7 @@ export default function CommunityRoomClient() {
                 </div>
 
                 {/* Composer */}
-                <div className={v3 ? 'px-4 pb-3 pt-2 flex-shrink-0' : 'px-4 md:px-6 pb-24 pt-2 sticky bottom-0'} style={{ background: `${colors.background}dd`, backdropFilter: 'blur(8px)' }}>
+                <div className={'px-4 pb-3 pt-2 flex-shrink-0'} style={{ background: `${colors.background}dd`, backdropFilter: 'blur(8px)' }}>
                     {!currentUserId ? (
                         /* Visitante lê a conversa à vontade; na hora de escrever é que pede o login (e volta pra cá) */
                         <div className="flex gap-2">

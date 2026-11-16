@@ -453,12 +453,7 @@ function ConviteShell({ children }: { children: React.ReactNode }) {
                 <Header
                     title="iUser"
                     showBack={false}
-                    greeting={`Olá, ${loading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={loading}
                     showSearch={false}
-                    profileSlug={profileSlug}
-                    onHomeClick={() => router.push('/')}
                 />
                 <div className="px-4 pt-6 flex justify-center">
                     <div className="w-full max-w-md flex flex-col gap-4">{children}</div>

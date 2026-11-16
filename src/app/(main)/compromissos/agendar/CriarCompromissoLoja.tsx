@@ -494,11 +494,8 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                     title={step === 'search' ? (activeFlow === 'convite-loja' ? 'Convidar perfis' : 'Agendar em loja') : step === 'datetime' ? 'Data e horário' : 'Confirmar'}
                     showBack={true}
                     onBack={goBack}
-                    greeting={step === 'search' ? (activeFlow === 'convite-loja' ? 'Busque os perfis...' : 'Busque a loja') : step === 'datetime' ? target?.name || '' : 'Revise os detalhes'}
-                    avatarUrl={getPublicUrl(userAvatarUrl, 'avatars')}
                     tabs={tabs}
                     showSearch={false}
-                    onHomeClick={() => onBack()}
                 />
 
                 <div className="px-5 pt-0">

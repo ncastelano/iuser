@@ -19,26 +19,18 @@ import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeol
 import { SERVICE_TYPES, ServiceType } from '@/lib/serviceTypes'
 import EditServiceDialog from '@/components/EditServiceDialog'
 import {
-    ChevronDown,
-    ChevronUp,
     Plus,
     ImageIcon,
     Send,
-    Trash2,
     Wrench,
     MapPin,
     MapPinPlus,
     Pencil,
-    ExternalLink,
-    Share2,
-    Eye,
     ArrowUpDown,
 } from 'lucide-react'
-import { handleShareLink } from '@/lib/share'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
-import { useInsideShell } from '@/components/InsideShell'
 import V3Section, { V3_GRADIENT } from '@/components/StoreDashboard/V3Section'
 import { startOfDay } from 'date-fns'
 
@@ -102,7 +94,6 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
-    const v3 = useInsideShell()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [sortBy, setSortBy] = useState<'recent' | 'mostViewed' | 'mostShared' | 'mostCommented'>('recent')
 
@@ -573,8 +564,7 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
 
     return (
         <div className="mb-6 mt-4">
-            {v3 ? (
-                <div data-add-target="service">
+            <div data-add-target="service">
                     <V3Section
                         title={title}
                         subtitle={subtitle}
@@ -586,54 +576,6 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
                         {body}
                     </V3Section>
                 </div>
-            ) : (
-                <div
-                    data-add-target="service"
-                    className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="w-full flex items-center justify-between text-left"
-                        style={{ padding: isExpanded ? '0.5rem 0.75rem' : 0, borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                    >
-                        {linkToProfile ? (
-                            <div
-                                className="flex items-center gap-3"
-                                onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}`) }}
-                                style={{ cursor: 'pointer' }}
-                                title="Ir para o meu perfil"
-                            >
-                                <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                    {owner?.avatarUrl ? <img src={owner.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-lg font-black">{(profileSlug || owner?.name || '?').charAt(0).toUpperCase()}</span>}
-                                </div>
-                                <div className="min-w-0">
-                                    <h3 className="text-lg font-black truncate" style={{ color: textPrimary }}>{owner?.name || `@${profileSlug}`}</h3>
-                                    <p className="text-xs mt-0.5" style={{ color: textSecondary }}>@{profileSlug} · {title.toLowerCase()} do perfil (sem valor)</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div>
-                                <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>{title}</h3>
-                                <p className="text-xs mt-0.5" style={{ color: textSecondary }}>{subtitle}</p>
-                            </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                            {listings.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>{listings.length}</span>
-                            )}
-                            {isExpanded ? <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} /> : <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />}
-                        </div>
-                    </button>
-                    {isExpanded && body}
-                </div>
-            )}
 
             {confirmDeleteId && (
                 <div

@@ -12,28 +12,22 @@ import { createStoreOrder, CreateStoreOrderError } from '@/lib/createStoreOrder'
 import { useCheckoutFlow } from '@/lib/useCheckoutFlow'
 import { isEstimateRejection } from '@/modules/delivery-estimate'
 import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
-import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
-import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
-import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, ChevronsUpDown, Trash2, GraduationCap, CalendarClock } from 'lucide-react'
+import { Plus, Minus, Flame, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera, ChevronDown, Trash2, GraduationCap, CalendarClock } from 'lucide-react'
 import { isDigitalCart } from '@/modules/digital'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, getTodayHoursText, type BusinessHours } from '@/lib/storeHours'
 import { toast } from '@/lib/toast'
-import HeaderSearchInput from './HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
 import CatalogoSkeleton from './CatalogoSkeleton'
-import { hexToRgb } from '@/lib/color'
 import AddToCartModal from '@/components/AddToCartModal'
-import FallbackImage from '@/components/FallbackImage'
 import DigitalCurriculum from '@/components/digital/DigitalCurriculum'
 import PromoRail from './PromoRail'
 import { promoInfoOf, isPromoProduct, fetchComboItems, type ComboItem } from '@/modules/promotions'
 import { captureReferral } from '@/lib/referralCapture'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
-import { useInsideShell } from '@/components/InsideShell'
 
 interface Product {
     id: string
@@ -73,14 +67,9 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 export default function CatalogoClientPage() {
     const params = useParams()
     const router = useRouter()
-    const insideShell = useInsideShell()   // v3: a página abre dentro da casca (navbar fixa) e ganha o botão voltar
     const { colors } = useTheme()
     const {
         userId,
-        bgMode,
-        customBgUrl,
-        profileSlug: loggedUserSlug,
-        avatarUrl: loggedUserAvatarUrl,
         loading: profileLoading
     } = useProfile()
     const { itemsByStore, addItem, removeItem, updateQuantity, clearStoreCart, syncToSupabase } = useCartStore()
@@ -90,7 +79,6 @@ export default function CatalogoClientPage() {
     const [loading, setLoading] = useState(true)
     const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null)
     const [products, setProducts] = useState<Product[]>([])
-    const [cartAnimating, setCartAnimating] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [mounted, setMounted] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
@@ -98,12 +86,10 @@ export default function CatalogoClientPage() {
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
     const [showProductModal, setShowProductModal] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
-    const [searchOpen, setSearchOpen] = useState(false)
     const [kindChoice, setKindChoice] = useState<'physical' | 'digital' | 'service' | null>(null)
     // "Você está aqui": a categoria da seção que está na tela enquanto a pessoa rola a lista (2.0 e 3.0: o topo é fixo nas duas)
     const [spyCat, setSpyCat] = useState<string | null>(null)
     const headerRef = useRef<HTMLDivElement>(null)
-    const [searchExpanded, setSearchExpanded] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
 
     // ===== STATES PARA O BUTTON SHOPPING BAG =====
@@ -142,8 +128,8 @@ export default function CatalogoClientPage() {
     const slugTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
-    const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
-    const [currentUserName, setCurrentUserName] = useState<string | null>(null)
+    const [, setCurrentUserAvatar] = useState<string | null>(null)
+    const [, setCurrentUserName] = useState<string | null>(null)
 
     // ===== DELIVERY =====
     const [deliveryOption, setDeliveryOption] = useState<'entrega' | 'retirada' | null>(null)
@@ -155,7 +141,7 @@ export default function CatalogoClientPage() {
     const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
     const [locationSearchQuery, setLocationSearchQuery] = useState('')
     const [isSearchingLocation, setIsSearchingLocation] = useState(false)
-    const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
+    const [, setSelectedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
     // Só mostra a busca de endereço quando ainda não tem um selecionado, ou
     // quando a pessoa pede pra trocar explicitamente - senão fica sempre
     // visível junto do endereço já escolhido, o que é redundante.
@@ -166,7 +152,7 @@ export default function CatalogoClientPage() {
     const [showAddressSearch, setShowAddressSearch] = useState(false)
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [userAddress, setUserAddress] = useState<string | null>(null)
-    const [addressInput, setAddressInput] = useState('')
+    const [, setAddressInput] = useState('')
 
     // ===== CONFIGS DA LOJA =====
     const [storeConfig, setStoreConfig] = useState<{
@@ -211,18 +197,6 @@ export default function CatalogoClientPage() {
             setDeliveryOption('entrega')
         }
     }, [storeConfig, deliveryOption])
-
-
-    // ========== CORES DO HEADER ==========
-    const surfaceRgb = hexToRgb(colors.surface)
-
-    const gradientBg = `linear-gradient(to bottom, 
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 1) 0%, 
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.95) 20%, 
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.8) 40%, 
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5) 60%,
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2) 80%,
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
 
     // ========== CARREGAR DADOS DA LOJA ==========
     useEffect(() => {
@@ -457,18 +431,6 @@ export default function CatalogoClientPage() {
     // "Agora na sua loja": catálogo → sacola → pagando (sem identidade; a dona olhando não conta)
     useReportStorePresence(storeInfo?.id, checkoutStep ? 'pagando' : totalCartQuantity > 0 ? 'sacola' : 'catalogo', null, !!currentUserId && currentUserId === storeInfo?.owner_id)
 
-    const totalCartValue = useMemo(() => {
-        let total = 0
-        Object.values(itemsByStore).forEach(items => {
-            items.forEach(item => {
-                const price = item.product?.price || 0
-                const quantity = item.quantity || 1
-                total += Number(price) * quantity
-            })
-        })
-        return total
-    }, [itemsByStore])
-
     const getProductQuantity = useCallback(
         (productId: string) => {
             if (!ownerSlug) return 0
@@ -533,7 +495,7 @@ export default function CatalogoClientPage() {
         addItem(ownerSlug, storeDetails, cartProduct as any, comment, addons.length > 0 ? addons : undefined)
 
         // 3.0: o aviso cobria a peça de baixo; o retorno visual já está no selo/quantidade do produto e na faixa da sacola
-        if (!insideShell) toast.success(`Produto adicionado${comment || addons.length > 0 ? ' com personalização!' : '!'}`)
+        
         void cartAddedFeedback()
         setShowAddCommentModal(false)
         setPendingProduct(null)
@@ -939,7 +901,6 @@ export default function CatalogoClientPage() {
                 // estimativa recusada (expirou, endereço mudou…): a revisão busca outra e MOSTRA o valor antes de confirmar de novo
                 return { estimateRejected: err instanceof CreateStoreOrderError && isEstimateRejection(err.hint) }
             }
-            const orderData = { id: created.orderId }
             itemsTotal = created.itemsTotal
             deliveryFee = created.deliveryFee
             finalTotal = created.totalAmount
@@ -1208,7 +1169,7 @@ export default function CatalogoClientPage() {
     // ========== RENDER ==========
     if (loading) {
         // esqueleto com a forma do catálogo (3.0: grade + peça de baixo; 2.0: lista em linhas)
-        return <div style={{ background: colors.background, minHeight: insideShell ? undefined : '100dvh' }}><CatalogoSkeleton v3={insideShell} /></div>
+        return <div style={{ background: colors.background, minHeight: undefined }}><CatalogoSkeleton v3={true} /></div>
     }
 
     if (error || !storeInfo || !ownerSlug) {
@@ -1237,25 +1198,15 @@ export default function CatalogoClientPage() {
     // Cor padrão para os textos
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
-    const storeStatusText = storeInfo
-        ? (isStoreOpen
-            ? `Aberta agora${(() => { const h = getTodayHoursText(storeInfo.business_hours); return h ? ` · ${h === '00:00 - 00:00' ? '24 horas' : h}` : '' })()}`
-            : nextAvailable ? `Fechada · abre ${nextAvailable.day} às ${nextAvailable.open}` : 'Fechada agora')
-        : ''
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            {!insideShell && (
-                <div className="fixed inset-0 z-0">
-                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-                </div>
-            )}
+            
 
-            <main className="relative z-10 min-h-dvh" style={{ paddingBottom: insideShell ? 'calc(150px + var(--staging-banner-h, 0px))' : '8rem' }}>
+            <main className="relative z-10 min-h-dvh" style={{ paddingBottom: 'calc(150px + var(--staging-banner-h, 0px))' }}>
 
                 {/* ===== 3.0: o topo é só o título da loja e as categorias (nada flutuante). Voltar, loja e busca ficam na peça de baixo, fundidos à sacola. ===== */}
-                {insideShell ? (
-                    <div
+                <div
                         ref={headerRef}
                         className="sticky z-20 px-4 pt-2.5 pb-2.5"
                         style={{
@@ -1287,56 +1238,10 @@ export default function CatalogoClientPage() {
                         {renderAmbientes('mt-2.5')}
                         {renderCategoryChips('mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-0.5')}
                     </div>
-                ) : (
-                /* 2.0: cabeçalho de UMA linha (logo · nome e status · lupa) + uma fileira de chips. A busca abre pela lupa. */
-                <div ref={headerRef} className="sticky top-0 z-20" style={{ background: `linear-gradient(180deg, ${accent}1f, ${accent}08 70%, transparent), ${colors.background}`, borderBottom: `2px solid ${accent}55`, transition: 'background 0.3s, border-color 0.3s' }}>
-                    <div className="max-w-7xl mx-auto px-3 pt-2.5 pb-2">
-                        {searchOpen || searchQuery ? (
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1 flex items-center gap-2 h-10 px-3.5 rounded-full" style={{ background: `${colors.border}30` }}>
-                                    <Search size={16} style={{ color: colors.textSecondary }} />
-                                    <input
-                                        ref={searchInputRef}
-                                        autoFocus
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder={`Buscar em ${storeInfo.name}`}
-                                        className="flex-1 min-w-0 bg-transparent outline-none text-sm"
-                                        style={{ color: colors.textPrimary }}
-                                    />
-                                </div>
-                                <button onClick={() => { setSearchQuery(''); setSearchOpen(false) }} className="h-10 px-3 rounded-full text-xs font-bold flex-shrink-0" style={{ color: colors.textSecondary }}>
-                                    Cancelar
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2.5">
-                                <button onClick={handleGoBack} aria-label="Voltar para a loja" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
-                                    <ArrowLeft size={18} />
-                                </button>
-                                <button onClick={() => router.push(`/${ownerSlug}`)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left" aria-label={`Ir para a página de ${storeInfo.name}`}>
-                                    <span className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT, boxShadow: `0 0 0 2px ${isStoreOpen ? '#16a34a' : '#ef4444'}` }}>
-                                        {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="" className="w-full h-full object-cover" /> : storeInfo.name.trim().charAt(0).toUpperCase()}
-                                    </span>
-                                    <span className="min-w-0">
-                                        <span className="block text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{storeInfo.name}</span>
-                                        <span className="block text-[11px] font-semibold truncate" style={{ color: isStoreOpen ? '#16a34a' : '#ef4444' }}>{storeStatusText}</span>
-                                    </span>
-                                </button>
-                                <button onClick={() => { setSelectedCategory('Todos'); setSearchOpen(true) }} aria-label="Buscar produtos" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
-                                    <Search size={18} />
-                                </button>
-                            </div>
-                        )}
-                        {renderAmbientes('mt-2.5')}
-                        {renderCategoryChips('mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3 pb-0.5')}
-                    </div>
-                </div>
-                )}
 
                 {/* Banner da loja */}
                 {storeInfo.banner_url && (
-                    <div className={insideShell ? 'mx-4 mt-2 h-36 rounded-3xl relative overflow-hidden' : 'w-full h-96 md:h-[32rem] relative overflow-hidden'}>
+                    <div className={'mx-4 mt-2 h-36 rounded-3xl relative overflow-hidden'}>
                         <Image
                             src={storeInfo.banner_url}
                             alt={storeInfo.name}
@@ -1414,25 +1319,23 @@ export default function CatalogoClientPage() {
                                     {/* 3.0: com uma categoria só, o título ("Geral") não diz nada */}
                                     {allGroups.length > 1 && (
                                         <button type="button" onClick={toggle} aria-expanded={!isCollapsed} className="w-full flex items-center gap-2 px-1 text-left transition active:opacity-70">
-                                            {insideShell && isPromoCategory(category) ? (
+                                            {isPromoCategory(category) ? (
                                                 <span className="flex-1 min-w-0 flex items-center gap-2 text-xl font-black leading-none" style={{ color: '#dc2626' }}>
                                                     <Flame size={22} /> {category}
                                                     <span className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(220,38,38,0.4), transparent)' }} />
                                                 </span>
-                                            ) : insideShell ? (
+                                            ) : (
                                                 <span className="flex-1 min-w-0 flex items-center gap-2 text-xl font-black leading-none" style={{ color: colors.textPrimary }}>
                                                     {category}
                                                     <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>{categoryProducts.length}</span>
                                                     <span className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${colors.border}, transparent)` }} />
                                                 </span>
-                                            ) : (
-                                                <span className="flex-1 min-w-0 text-[11px] font-black uppercase tracking-wider" style={{ color: accent }}>{category}</span>
                                             )}
-                                            <ChevronDown size={insideShell ? 20 : 14} className="flex-shrink-0 transition-transform" style={{ color: insideShell && isPromoCategory(category) ? '#dc2626' : accent, transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
+                                            <ChevronDown size={20} className="flex-shrink-0 transition-transform" style={{ color: isPromoCategory(category) ? '#dc2626' : accent, transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
                                         </button>
                                     )}
-                                    {!(isCollapsed && !(insideShell && allGroups.length <= 1)) && (
-                                    <div className={insideShell ? 'flex flex-col gap-2.5' : 'flex flex-col gap-4'}>
+                                    {!(isCollapsed && !(allGroups.length <= 1)) && (
+                                    <div className={'flex flex-col gap-2.5'}>
                                         {categoryProducts.map((product) => {
                                 const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                 const quantity = getProductQuantity(product.id)
@@ -1450,8 +1353,7 @@ export default function CatalogoClientPage() {
 
 
                                 // 3.0: cartão em grade (foto em cima, nome, preço e o botão de adicionar/quantidade), no desenho do /comprar
-                                if (insideShell) {
-                                    const soldOut = product.stock !== null && product.stock <= 0
+                                const soldOut = product.stock !== null && product.stock <= 0
                                     const promo = promoInfoOf(product)
                                     // Adicionar (+) ou seletor de quantidade (lixeira/− · n · +), o mesmo desenho da 2.0
                                     const controls = soldOut ? null : isSelected && !productIsDisabled ? (
@@ -1526,119 +1428,6 @@ export default function CatalogoClientPage() {
                                             </div>
                                         </div>
                                     )
-                                }
-
-                                return (
-                                    <div
-                                        key={product.id}
-                                        onClick={(e) => handleProductClick(product, e)}
-                                        className={`group rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl cursor-pointer border flex flex-row`}
-                                        style={{
-                                            // No carrinho: leve tom de laranja no fundo + selo com a quantidade na foto (o contorno verde saiu)
-                                            background: isSelected ? `linear-gradient(#f973161a, #f973161a), ${cardBackground}` : cardBackground,
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                            borderColor: isSelected ? '#f9731666' : `${colors.border}55`,
-                                        }}
-                                    >
-                                        <div className="w-32 sm:w-40 md:w-48 flex-shrink-0 relative bg-gray-100 overflow-hidden" style={{ minHeight: '140px', height: 'auto' }}>
-                                            {product.image_url || storeInfo?.logo_url ? (
-                                                <img
-                                                    src={product.image_url || storeInfo?.logo_url || ''}
-                                                    alt={product.name}
-                                                    className={`w-full h-full transition-transform duration-300 ${product.image_url ? 'object-cover group-hover:scale-110' : 'object-contain p-4 group-hover:scale-110'}`}
-                                                    style={{ minHeight: '140px' }}
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center font-black text-4xl" style={{ minHeight: '140px', background: GRADIENT, color: '#ffffff' }}>
-                                                    {storeInfo?.name?.trim() ? storeInfo.name.trim().charAt(0).toUpperCase() : '?'}
-                                                </div>
-                                            )}
-                                            {product.type && product.type !== 'physical' && (
-                                                <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase backdrop-blur-md"
-                                                    style={{ background: 'rgba(0,0,0,0.3)', color: '#ffffff' }}>
-                                                    {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
-                                                </span>
-                                            )}
-                                            {product.stock !== null && product.stock <= 0 && (
-                                                <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                                                    Esgotado
-                                                </div>
-                                            )}
-                                            {isSelected && quantity > 0 && !(product.stock !== null && product.stock <= 0) && (
-                                                <span className="absolute right-2 top-2 min-w-[26px] h-[26px] px-1.5 rounded-full text-xs font-black text-white flex items-center justify-center" style={{ background: '#f97316', boxShadow: '0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.25)' }} aria-label={`${quantity} no carrinho`}>{quantity}</span>
-                                            )}
-                                            {productIsDisabled && (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                                                    <span className="text-[8px] font-black uppercase px-2 py-1 rounded-full flex items-center gap-1" style={{ background: 'rgba(249, 115, 22, 0.9)', color: '#ffffff' }}>
-                                                        <Info size={10} /> Ver detalhes
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between min-w-0">
-                                            <div>
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div className="flex-1 min-w-0">
-                                                        <h3 className="font-semibold text-sm truncate" style={{ color: textColor }}>
-                                                            {product.name}
-                                                        </h3>
-                                                    </div>
-                                                    <div className="flex-shrink-0 text-right">
-                                                        <span className="text-base sm:text-lg font-bold" style={{ color: '#f97316' }}>
-                                                            {formatPrice(product.price)}
-                                                        </span>
-                                                        {isHourly && <span className="text-xs ml-0.5" style={{ color: textColor }}>/h</span>}
-                                                    </div>
-                                                </div>
-                                                {product.description && (
-                                                    <p className="text-xs mt-1 line-clamp-2" style={{ color: textColor }}>
-                                                        {product.description}
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            <div className="mt-2 flex justify-end items-center">
-                                                {isSelected ? (
-                                                    <div className="flex items-center gap-0.5 rounded-full p-1" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                if (quantity <= 1) removeAllOfProduct(product.id)
-                                                                else decreaseQuantity(product.id)
-                                                            }}
-                                                            aria-label={quantity <= 1 ? 'Tirar do carrinho' : 'Diminuir quantidade'}
-                                                            className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 product-action-button"
-                                                            style={quantity <= 1 ? { background: '#ef444418', color: '#ef4444' } : { background: colors.surface, color: textColor, border: `1px solid ${colors.border}` }}
-                                                        >
-                                                            {quantity <= 1 ? <Trash2 size={15} /> : <Minus size={16} />}
-                                                        </button>
-                                                        <span className="min-w-[30px] text-center text-sm font-black" style={{ color: textColor }} aria-live="polite">{quantity}</span>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                handleAddWithComment(product)
-                                                            }}
-                                                            aria-label="Aumentar quantidade"
-                                                            className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 product-action-button"
-                                                            style={{ background: GRADIENT, color: '#ffffff' }}
-                                                        >
-                                                            <Plus size={16} />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={handleProductInteraction}
-                                                        className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform product-action-button"
-                                                        style={{ background: GRADIENT }}
-                                                    >
-                                                        {productIsDisabled ? <Info size={14} /> : <Plus size={14} />}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )
                             })}
                                     </div>
                                     )}
@@ -1663,44 +1452,20 @@ export default function CatalogoClientPage() {
                 </div>
 
                 {/* ===== BOTÃO FLUTUANTE - INÍCIO (lado direito; some enquanto a sacola está aberta) ===== */}
-                {!insideShell && !isBagExpanded && !checkoutStep && (
-                    <div style={{ position: 'fixed', bottom: bagItems.length > 0 ? 'calc(104px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))' : 32, right: 24, zIndex: 997, transition: 'bottom 0.25s' }}>
-                        <button
-                            onClick={handleHome}
-                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                            style={{
-                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                color: '#ffffff',
-                                border: '2px solid #f97316',
-                                boxShadow: '0 8px 24px #f9731660',
-                            }}
-                            aria-label="Voltar ao início"
-                        >
-                            <Home size={24} />
-                        </button>
-                    </div>
-                )}
+                
 
                 {/* ===== BOTÃO FLUTUANTE - SACOLA (agora no lado esquerdo; busca vive no header, igual à home) ===== */}
-                <div style={insideShell
-                    ? {
+                <div style={{
                         // UMA peça só (como a barra de baixo do app): sacola em cima e, embaixo, voltar + loja + busca
                         position: 'fixed', bottom: 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 448, margin: '0 auto', zIndex: showProductModal ? 150 : 998,
                         background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 30, boxShadow: '0 12px 32px rgba(0,0,0,0.2)', overflow: 'hidden',
-                    }
-                    : bagItems.length > 0
-                        // 2.0: barra fixa embaixo (como o cabeçalho, mas na base): sacola, total e Finalizar sempre à mão
-                        ? {
-                            position: 'fixed', bottom: 'calc(12px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))', left: 12, right: 12, maxWidth: 720, margin: '0 auto', zIndex: showProductModal ? 150 : 998,
-                            background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 28, boxShadow: '0 12px 32px rgba(0,0,0,0.2)', overflow: 'hidden',
-                        }
-                        : { display: 'none' }}>
+                    }}>
                     {/* 3.0: a sacola só aparece com itens (compacta, como a faixa do carrinho da barra); sem itens, só a linha de baixo */}
-                    {(!insideShell || bagItems.length > 0) && (
+                    {(bagItems.length > 0) && (
                     <CatalogBag
                         dock
-                        v3={insideShell}
-                        bare={insideShell}
+                        v3={true}
+                        bare={true}
                         bagItems={bagItems}
                         isExpanded={isBagExpanded}
                         onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
@@ -2131,8 +1896,7 @@ export default function CatalogoClientPage() {
                         ) : null}
                     />
                     )}
-                    {insideShell && (
-                        <div className="flex items-center gap-2 px-2" style={{ height: 62, borderTop: bagItems.length > 0 ? `1px solid ${colors.border}` : 'none' }}>
+                    <div className="flex items-center gap-2 px-2" style={{ height: 62, borderTop: bagItems.length > 0 ? `1px solid ${colors.border}` : 'none' }}>
                             <button
                                 onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push(`/${ownerSlug}`))}
                                 aria-label="Voltar"
@@ -2154,7 +1918,6 @@ export default function CatalogoClientPage() {
                                 {searchQuery && <button onClick={() => setSearchQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={15} /></button>}
                             </div>
                         </div>
-                    )}
                 </div>
 
                 {/* ===== MODAL DE ADICIONAR (observação sempre; adicionais se a loja habilitar) ===== */}
