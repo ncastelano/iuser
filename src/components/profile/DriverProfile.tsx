@@ -2,13 +2,13 @@
 //
 // A PÁGINA DO PERFIL DO TIPO MOTORISTA (17/11/2026, decisão do dono: "uma página para o motorista, com os comentários das pessoas que pediram, o
 // mapa onde ela está se quiser mostrar e UM botão de solicitar corrida no valor que ele escolheu"). Ordem:
-//   1. Cartão do motorista: a foto do veículo de capa, a foto da pessoa, nome, situação (dirigindo agora / fora do ar), nota, corridas e desde quando
-//   2. Seguir e conversar (os mesmos botões do perfil)
-//   3. Onde está agora: mapa com a posição APROXIMADA (~330 m, a do Radar), só para quem está logado e se o motorista deixou o local visível
+//   1. Cartão do motorista: em CIMA o mapa de onde ele está (posição APROXIMADA, ~330 m, a do Radar; só para quem está logado e se ele deixou o
+//      local visível) ou, sem isso, a foto do veículo; a foto da pessoa, nome, situação, nota, corridas, desde quando, seguir e conversar
+//   2. UM botão só: "Solicitar corrida" (o dono vê "Editar a minha tarifa")
+//   3. Onde está agora: a situação em uma linha (o mapa fica no topo)
 //   4. O veículo: modelo, cor, lugares e o que tem (ar, Wi-Fi, carregador, som, pet — `CarAmenities`)
 //   5. Quanto custa: o modo que o motorista escolheu (Tarifa iUser, por km ou por tempo), a regra e três exemplos
 //   6. O que dizem os passageiros: a nota grande e as avaliações (as com comentário primeiro)
-//   7. UM botão fixo embaixo: "Solicitar corrida" (o dono vê "Editar minha tarifa")
 // Os dados vêm de funções públicas do banco (get_driver_public_quote, get_driver_public_stats, get_driver_reviews) — a tabela da tarifa é
 // privada; o valor é calculado em modules/driver-profile. Só apresentação: nenhuma regra de corrida mora aqui.
 'use client'
@@ -47,6 +47,8 @@ const ago = (iso: string) => {
     return d === 0 ? 'hoje' : d === 1 ? 'ontem' : d < 30 ? `há ${d} dias` : new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')
 }
 
+const ago2 = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m <= 1 ? 'agora há pouco' : `há ${m} min` }
+
 function Stars({ value, size = 13 }: { value: number; size?: number }) {
     return (
         <span className="inline-flex items-center gap-0.5" aria-label={`${value} de 5 estrelas`}>
@@ -61,7 +63,8 @@ function ApproxMap({ lat, lng, kind }: { lat: number; lng: number; kind: Kind })
     useEffect(() => {
         if (!ref.current || !process.env.NEXT_PUBLIC_MAPBOX_TOKEN) return
         mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
-        const map = new mapboxgl.Map({ container: ref.current, style: 'mapbox://styles/mapbox/streets-v12', center: [lng, lat], zoom: 14.2, interactive: false, attributionControl: false })
+        // logo à direita: à esquerda a foto da pessoa entra por cima do mapa
+        const map = new mapboxgl.Map({ container: ref.current, style: 'mapbox://styles/mapbox/streets-v12', center: [lng, lat], zoom: 14.2, interactive: false, attributionControl: false, logoPosition: 'bottom-right' })
         addMapboxCredits(mapboxgl, map)
         const el = document.createElement('div')
         el.innerHTML = vehicleMarkerHtml(kind, GREEN)
@@ -144,18 +147,29 @@ export default function DriverProfile(p: DriverProfileProps) {
             : null
 
     return (
-        <div className="pb-28">
-            {/* ===== 1. o motorista: a foto do veículo de capa ===== */}
+        <div className="pb-10">
+            {/* ===== 1. o motorista: em cima, o MAPA de onde ele está (se ele deixa o local visível) ou a foto do veículo ===== */}
             <section className="rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
-                <div className="relative h-36" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})` }}>
-                    {vehicle?.photo && <img src={vehicle.photo} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-                    <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.55))' }} />
-                    {!vehicle?.photo && <span className="absolute inset-0 flex items-center justify-center text-white/30"><Icon size={72} /></span>}
-                    <span className="absolute right-3 top-3 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1.5" style={{ background: active ? GREEN : 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}>
+                <div className={`relative ${quote?.live ? 'h-52' : 'h-40'}`} style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})` }}>
+                    {quote?.live ? (
+                        <>
+                            {/* o logo e os créditos do Mapbox ficam VISÍVEIS (termos): acima da faixa em que a foto e o degradê entram no mapa */}
+                            <style>{`.driver-hero-map .mapboxgl-ctrl-bottom-right, .driver-hero-map .mapboxgl-ctrl-bottom-left { bottom: 50px !important; }`}</style>
+                            <div className="driver-hero-map absolute inset-0"><ApproxMap lat={quote.live.lat} lng={quote.live.lng} kind={kind} /></div>
+                            <span aria-hidden className="absolute inset-x-0 bottom-0 h-12 pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent, ${colors.surface})` }} />
+                        </>
+                    ) : (
+                        <>
+                            {vehicle?.photo && <img src={vehicle.photo} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+                            <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.55))' }} />
+                            {!vehicle?.photo && <span className="absolute inset-0 flex items-center justify-center text-white/30"><Icon size={72} /></span>}
+                        </>
+                    )}
+                    <span className="absolute right-3 top-3 z-10 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1.5 shadow" style={{ background: active ? GREEN : 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}>
                         <span className={`w-1.5 h-1.5 rounded-full bg-white ${active ? 'animate-pulse' : 'opacity-60'}`} />{active ? 'Dirigindo agora' : 'Fora do ar agora'}
                     </span>
                     {vehicle && (
-                        <span className="absolute left-3 top-3 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}>
+                        <span className="absolute left-3 top-3 z-10 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1 shadow" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}>
                             <Icon size={13} />{KIND_LABEL[kind]}
                         </span>
                     )}
@@ -189,29 +203,33 @@ export default function DriverProfile(p: DriverProfileProps) {
                 </div>
             </section>
 
-            {/* ===== 2. onde está agora ===== */}
+            {/* ===== 2. UM botão só: Solicitar corrida (o dono: Editar a minha tarifa) ===== */}
+            {cta && (
+                <button onClick={cta.onClick} className="mt-4 w-full h-[62px] rounded-[22px] px-4 flex items-center gap-3 text-left text-white transition active:scale-[0.99]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})`, boxShadow: `0 12px 28px -12px ${GREEN}` }}>
+                    <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>{p.isOwner ? <Pencil size={18} /> : <Icon size={20} />}</span>
+                    <span className="min-w-0 flex-1">
+                        <span className="block text-[16px] font-black leading-tight">{cta.label}</span>
+                        <span className="block text-[12px] font-bold leading-tight opacity-90 truncate">{cta.sub}</span>
+                    </span>
+                    <ChevronRight size={20} className="flex-shrink-0" />
+                </button>
+            )}
+
+            {/* ===== 3. onde está agora: a situação (o mapa, quando há, fica no topo) ===== */}
             <section className="mt-5">
                 <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><MapPin size={16} style={{ color: GREEN }} /> Onde está agora</h2>
-                {quote?.live ? (
-                    <div className="relative mt-2.5 h-48 rounded-3xl overflow-hidden" style={{ background: soft }}>
-                        <ApproxMap lat={quote.live.lat} lng={quote.live.lng} kind={kind} />
-                        <span className="absolute left-2.5 top-2.5 z-10 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1.5 shadow" style={{ background: GREEN }}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />Por aqui · posição aproximada
-                        </span>
-                    </div>
-                ) : (
-                    <div className="mt-2.5 rounded-3xl p-4 flex items-center gap-3" style={{ background: soft }}>
-                        <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1f`, color: GREEN }}>{p.loggedIn || !active ? <MapPin size={19} /> : <Lock size={18} />}</span>
-                        <p className="text-[12.5px] leading-snug" style={{ color: colors.textSecondary }}>
-                            {!active ? 'Fora do ar agora. Peça mesmo assim: o aviso chega no celular na hora.'
+                <div className="mt-2.5 rounded-3xl p-4 flex items-center gap-3" style={{ background: quote?.live ? `${GREEN}12` : soft }}>
+                    <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1f`, color: GREEN }}>{quote?.live || p.loggedIn || !active ? <MapPin size={19} /> : <Lock size={18} />}</span>
+                    <p className="text-[12.5px] leading-snug" style={{ color: quote?.live ? colors.textPrimary : colors.textSecondary }}>
+                        {quote?.live ? <>No mapa lá em cima: <b>posição aproximada</b> (um círculo de uns 300 m), atualizada {ago2(quote.live.at)}.</>
+                            : !active ? 'Fora do ar agora. Peça mesmo assim: o aviso chega no celular na hora.'
                                 : !p.loggedIn ? 'Entre na sua conta para ver por onde o motorista está agora.'
                                     : 'Dirigindo, mas sem mostrar a localização. Peça mesmo assim: o aviso chega na hora.'}
-                        </p>
-                    </div>
-                )}
+                    </p>
+                </div>
             </section>
 
-            {/* ===== 3. o veículo ===== */}
+            {/* ===== 4. o veículo ===== */}
             {vehicle && (
                 <section className="mt-5">
                     <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Icon size={16} style={{ color: GREEN }} /> O veículo</h2>
@@ -230,7 +248,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                 </section>
             )}
 
-            {/* ===== 4. quanto custa ===== */}
+            {/* ===== 5. quanto custa ===== */}
             {quote && shape && (
                 <section className="mt-5 rounded-3xl p-4" style={{ background: `linear-gradient(150deg, ${GREEN}14, ${GREEN}05)`, border: `1px solid ${GREEN}40` }}>
                     <div className="flex items-start justify-between gap-2">
@@ -252,7 +270,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                 </section>
             )}
 
-            {/* ===== 5. o que dizem os passageiros ===== */}
+            {/* ===== 6. o que dizem os passageiros ===== */}
             <section className="mt-5">
                 <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><MessageSquareQuote size={16} style={{ color: GREEN }} /> O que dizem os passageiros</h2>
                 {reviews === null ? (
@@ -296,19 +314,6 @@ export default function DriverProfile(p: DriverProfileProps) {
                 )}
             </section>
 
-            {/* ===== UM botão, fixo embaixo ===== */}
-            {cta && (
-                <div className="fixed inset-x-0 z-40 px-4 flex justify-center pointer-events-none" style={{ bottom: 'calc(var(--shell-bottom, 0px) + 14px + env(safe-area-inset-bottom, 0px))' }}>
-                    <button onClick={cta.onClick} className="pointer-events-auto w-full max-w-[560px] h-[60px] rounded-[22px] px-4 flex items-center gap-3 text-left text-white transition active:scale-[0.99]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})`, boxShadow: `0 12px 28px -10px ${GREEN}` }}>
-                        <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>{p.isOwner ? <Pencil size={18} /> : <Icon size={20} />}</span>
-                        <span className="min-w-0 flex-1">
-                            <span className="block text-[16px] font-black leading-tight">{cta.label}</span>
-                            <span className="block text-[12px] font-bold leading-tight opacity-90 truncate">{cta.sub}</span>
-                        </span>
-                        <ChevronRight size={20} className="flex-shrink-0" />
-                    </button>
-                </div>
-            )}
         </div>
     )
 }
