@@ -20,7 +20,7 @@ interface PixData {
 // Mostra o saldo devedor do pós-pago (um valor por serviço, ajustável pelo
 // admin em service_pricing) e, ao atingir o limite (hoje R$ 100), vira um aviso bloqueante com
 // botão de pagar via Pix.
-// Montado em painel-motorista e aceitar-corridas — só faz sentido pra quem
+// Montado em canal-do-motorista e aceitar-corridas — só faz sentido pra quem
 // já tem o modo motorista disponível.
 export default function DriverDebtBanner({ userId }: { userId: string | null }) {
     const DEBT_LIMIT = usePostpaidLimit()

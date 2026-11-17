@@ -1,6 +1,6 @@
 // src/lib/tariffSummary.ts
 //
-// Texto curto da tarifa pro motorista (aba Tarifa do /painel-motorista): UMA linha com o valor inicial, os km incluídos,
+// Texto curto da tarifa pro motorista (aba Tarifa do /canal-do-motorista): UMA linha com o valor inicial, os km incluídos,
 // o preço por km excedente e um exemplo, e UMA linha com a estimativa por hora. Tudo sai dos números da tarifa (e da
 // velocidade média de fareCalculator), então mudar base, km incluídos, preço por km ou velocidade atualiza os textos.
 // Conta: valor da corrida = valor base + (km acima dos km incluídos × valor por km excedente).

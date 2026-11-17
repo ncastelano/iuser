@@ -400,7 +400,7 @@ export default function VehicleScreen() {
                             <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{driverActive ? 'Você está disponível para corridas' : 'Você está indisponível'}</span>
                             <span className="block text-xs" style={{ color: colors.textSecondary }}>Ligue ou desligue no painel do motorista</span>
                         </span>
-                        <button onClick={() => router.push('/painel-motorista')} className="h-9 px-4 rounded-full text-xs font-black flex-shrink-0" style={{ background: `${colors.border}60`, color: colors.textPrimary }}>Abrir</button>
+                        <button onClick={() => router.push('/canal-do-motorista?aba=painel')} className="h-9 px-4 rounded-full text-xs font-black flex-shrink-0" style={{ background: `${colors.border}60`, color: colors.textPrimary }}>Abrir</button>
                     </div>
                     <div className="grid grid-cols-2 gap-2.5">
                         <button onClick={() => router.push('/aceitar-corridas')} className="h-12 rounded-2xl text-xs font-black flex items-center justify-center gap-2" style={{ ...soft, color: colors.textPrimary }}>

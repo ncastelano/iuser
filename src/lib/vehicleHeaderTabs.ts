@@ -3,7 +3,7 @@
 // Abas de veículo da barra do Header — uma por veículo cadastrado (carro,
 // moto, bicicleta; a foto do veículo vira a imagem da aba, igual o logo da
 // loja) e, enquanto faltar algum tipo, uma "Cadastrar veículo". Por enquanto
-// todas levam ao /painel-motorista (aba "Meu veículo", já no tipo certo).
+// todas levam ao /canal-do-motorista (aba "Meu veículo", já no tipo certo).
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -59,7 +59,7 @@ export function buildVehicleTabs(vehicles: MyVehicle[], navigate: (url: string) 
         label: v.model || VEHICLE_KIND_LABELS[v.kind],
         icon: KIND_ICON[v.kind],
         imageUrl: v.photoUrl,
-        onClick: () => navigate(`/painel-motorista?aba=veiculo&veiculo=${v.kind}`),
+        onClick: () => navigate(`/canal-do-motorista?aba=veiculo&veiculo=${v.kind}`),
         isActive: false,
     }))
 
@@ -70,7 +70,7 @@ export function buildVehicleTabs(vehicles: MyVehicle[], navigate: (url: string) 
             label: vehicles.length > 0 ? 'Novo veículo' : 'Cadastrar veículo',
             icon: vehicles.length > 0 ? Plus : Car,
             imageUrl: null,
-            onClick: () => navigate(`/painel-motorista?aba=veiculo&veiculo=${missing[0]}`),
+            onClick: () => navigate(`/canal-do-motorista?aba=veiculo&veiculo=${missing[0]}`),
             isActive: false,
         })
     }

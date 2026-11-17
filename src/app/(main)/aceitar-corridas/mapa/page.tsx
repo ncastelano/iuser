@@ -412,7 +412,7 @@ function AceitarCorridasMapaContent() {
             }
             await submitRideApplication(userId, previewRideId, price)
             toast.success('Candidatura enviada!')
-            router.push('/painel-motorista?aba=candidaturas')
+            router.push('/canal-do-motorista?aba=candidaturas')
         } catch (err: any) {
             if (err?.code === '23505') toast.error('Você já se candidatou a essa corrida.')
             else if (err?.code === '42501' || err?.code === 'PGRST301') toast.error('Essa corrida já atingiu o limite de candidatos (ou você não tem o plano de motorista).')
@@ -1085,7 +1085,7 @@ function AceitarCorridasMapaContent() {
             {showVehicleDialog && (
                 <VehicleRequiredDialog
                     onClose={() => setShowVehicleDialog(false)}
-                    onRegister={() => router.push('/painel-motorista?aba=veiculo&veiculo=carro')}
+                    onRegister={() => router.push('/canal-do-motorista?aba=veiculo&veiculo=carro')}
                 />
             )}
         </div>

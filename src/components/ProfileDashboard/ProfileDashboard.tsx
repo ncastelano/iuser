@@ -39,6 +39,7 @@ import {
     Palette,
     ChevronUp,
     ChevronDown,
+    UserPlus,
 } from 'lucide-react'
 import AtalhoCompromissosPessoal from '@/app/(main)/compromissos/AtalhoCompromissosPessoal'
 import { ProfileInfo } from './ProfileInfo'
@@ -47,7 +48,6 @@ import DashboardSection from './DashboardSection'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import ProfileServiceListing from './ProfileServiceListing'
-import Commission from './Commission'
 import LastSeenSettings from './LastSeenSettings'
 import ProfileNotification from './ProfileNotification'
 import MyComments from './MyComments'
@@ -147,7 +147,6 @@ export default function ProfileDashboard({
     }, [])
     const onAgendaUpdate = useMemo(() => markSectionUpdated('agenda'), [markSectionUpdated])
     const onPublicacoesUpdate = useMemo(() => markSectionUpdated('publicacoes'), [markSectionUpdated])
-    const onIndicacoesUpdate = useMemo(() => markSectionUpdated('indicacoes'), [markSectionUpdated])
     const onVisitantesUpdate = useMemo(() => markSectionUpdated('visitantes'), [markSectionUpdated])
 
     // Estado para o aviso de WhatsApp
@@ -1375,11 +1374,17 @@ export default function ProfileDashboard({
             <ProfileServiceListing profileId={profile.id} profileSlug={profileSlug || ''} />
         </>
     )
+    // Comissões, graduação e rede moram na página Convidados iUser (/convidados) desde 16/11/2026: aqui fica só o atalho
     const indicacoesNode = (
-        <div className="mb-6 flex flex-col gap-4">
-            <Commission userId={profile.id} view="graduacao" />
-            <Commission userId={profile.id} view="rede" onLatestUpdate={onIndicacoesUpdate} />
-        </div>
+        <button onClick={() => router.push('/convidados')} className="mb-6 w-full rounded-2xl p-4 flex items-center gap-3 text-left transition active:scale-[0.99]"
+            style={{ background: 'linear-gradient(140deg, #7c3aed, #db2777)', boxShadow: '0 10px 26px -12px #7c3aed99' }}>
+            <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: 'rgba(255,255,255,0.18)' }}><UserPlus size={20} /></span>
+            <span className="min-w-0 flex-1 text-white">
+                <span className="block text-[15px] font-black leading-tight">Convidados iUser</span>
+                <span className="block text-[12px] leading-snug text-white/85">Seu link de convite, a sua rede, comissões e saque</span>
+            </span>
+            <ChevronRight size={20} className="text-white flex-shrink-0" />
+        </button>
     )
     const visitantesNode = <ProfileVisitors key={profile.id} profileId={profile.id} onLatestUpdate={onVisitantesUpdate} />
 

@@ -1,6 +1,6 @@
 // src/components/v3/DriverPanelHome.tsx
 //
-// A aba "Painel" de /painel-motorista na interface 3.0, separada por tema: (1) o modo motorista (liga/desliga e o que falta),
+// A aba "Painel" de /canal-do-motorista na interface 3.0, separada por tema: (1) o modo motorista (liga/desliga e o que falta),
 // (2) o que está acontecendo agora (corrida aceita, solicitações, candidaturas), (3) o seu cadastro de motorista (veículo, tarifa,
 // avaliações, corridas feitas) e (4) as preferências (som, voz, raio das entregas). Só apresentação: o estado e as ações vêm da página.
 'use client'

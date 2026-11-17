@@ -1,7 +1,7 @@
 // app/(main)/aceitar-corridas/page.tsx
 //
 // O conteúdo mora em components/AceitarCorridas (também usado, embutido,
-// nas abas Solicitações/Me candidatei do /painel-motorista).
+// nas abas Solicitações/Me candidatei do /canal-do-motorista).
 'use client'
 
 import { Suspense } from 'react'

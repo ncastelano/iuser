@@ -1,7 +1,7 @@
 // src/modules/flash/load.ts — o Flash falando com o banco (feed, postar, curtir, comentar, seguir). As regras de quem pode o quê moram no banco (RLS).
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { FlashItem, FlashMode, FLASH_MAX_BYTES, isR2Key, mediaKindOf, mediaPath, r2FallbackAllowed, rowToItem, validateComment, validateFlash } from './domain'
+import { FlashItem, FlashMode, FlashPlace, FLASH_MAX_BYTES, isR2Key, mediaKindOf, mediaPath, placeLabelOf, r2FallbackAllowed, rowToItem, validateComment, validateFlash } from './domain'
 import { r2Availability, removeFromR2, uploadToR2 } from '@/lib/r2Upload'
 
 export const PAGE_SIZE = 12
@@ -27,7 +27,7 @@ export function mediaSrc(item: Pick<FlashItem, 'kind' | 'mediaUrl' | 'mediaType'
 
 export const authorAvatarUrl = (path: string | null): string | null => getAvatarUrl(supabase, path) ?? null
 
-export async function postFlash(userId: string, content: string, file: File | null, opts: { onProgress?: (percent: number) => void } = {}): Promise<void> {
+export async function postFlash(userId: string, content: string, file: File | null, opts: { onProgress?: (percent: number) => void; place?: FlashPlace | null } = {}): Promise<void> {
     // vídeo: se o R2 está pronto, o limite é o dele; senão, os 15 MB do Supabase
     const isVideo = !!file && mediaKindOf(file.type) === 'video'
     const r2 = isVideo ? await r2Availability('media_r2') : ({ available: false } as const)
@@ -48,7 +48,8 @@ export async function postFlash(userId: string, content: string, file: File | nu
             if (up.error) throw new Error('Não foi possível enviar o arquivo.')
         }
     }
-    const { error } = await supabase.from('flashes').insert({ author_id: userId, content: content.trim(), media_url, media_type })
+    const place = opts.place ? { place_lat: opts.place.lat, place_lng: opts.place.lng, place_label: placeLabelOf(opts.place.label) || null } : {}
+    const { error } = await supabase.from('flashes').insert({ author_id: userId, content: content.trim(), media_url, media_type, ...place })
     if (error) {
         if (isR2Key(media_url)) void removeFromR2(media_url!)   // o flash não entrou: não deixa o vídeo sobrando no R2
         throw new Error(error.message || 'Não foi possível postar.')
@@ -112,4 +113,23 @@ export async function deleteComment(id: string): Promise<void> {
 
 export async function countShare(item: Pick<FlashItem, 'kind' | 'id'>): Promise<void> {
     if (item.kind === 'flash') await supabase.rpc('increment_flash_share_count', { p_flash: item.id })
+}
+
+/** Um flash com local no Radar (get_radar_flashes: só os recentes, perto, de autor ativo, sem os ocultados) */
+export interface RadarFlash {
+    id: string; createdAt: string; authorId: string; authorName: string; authorSlug: string; authorAvatar: string | null
+    content: string; mediaUrl: string | null; mediaType: 'image' | 'video' | null; likeCount: number; commentCount: number
+    placeLabel: string | null; lat: number; lng: number; distanceKm: number | null
+}
+
+export async function fetchRadarFlashes(lat: number, lng: number, radiusKm = 15, hours = 72): Promise<RadarFlash[]> {
+    const { data, error } = await supabase.rpc('get_radar_flashes', { p_lat: lat, p_lng: lng, p_radius_km: radiusKm, p_hours: hours, p_limit: 150 })
+    if (error) throw error
+    return ((data as any[]) || []).map((r) => ({
+        id: String(r.id), createdAt: String(r.created_at), authorId: String(r.author_id), authorName: r.author_name || 'Pessoa',
+        authorSlug: r.author_slug || '', authorAvatar: r.author_avatar || null, content: r.content || '', mediaUrl: r.media_url || null,
+        mediaType: r.media_type === 'video' ? 'video' : r.media_type === 'image' ? 'image' : null,
+        likeCount: Number(r.like_count) || 0, commentCount: Number(r.comment_count) || 0, placeLabel: r.place_label || null,
+        lat: Number(r.lat), lng: Number(r.lng), distanceKm: r.distance_km != null ? Number(r.distance_km) : null,
+    }))
 }

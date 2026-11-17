@@ -495,9 +495,9 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
         cursor: 'pointer',
     }
 
-    const goToPainel = () => { startNavProgress(); router.push('/painel-motorista') }
+    const goToPainel = () => { startNavProgress(); router.push('/canal-do-motorista?aba=painel') }
     // Abre direto a aba "Meu veículo" do painel do motorista
-    const goToAddVehicle = () => { startNavProgress(); router.push('/painel-motorista?aba=veiculo') }
+    const goToAddVehicle = () => { startNavProgress(); router.push('/canal-do-motorista?aba=veiculo') }
     // Só entra direto na corrida com o modo motorista ativado — senão manda
     // pro painel pra ativar primeiro (mesmo card, mesmo destino do botão).
     // Clicou numa corrida específica: vai pra /aceitar-corridas e cai no card dela.
@@ -507,7 +507,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
     }
     const goToCorridas = () => {
         startNavProgress()
-        router.push(driverModeActive ? '/aceitar-corridas' : '/painel-motorista')
+        router.push(driverModeActive ? '/aceitar-corridas' : '/canal-do-motorista?aba=painel')
     }
 
     return (
@@ -731,7 +731,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
                                     onApply={() => goToRide(ride.id)}
                                     minHourly={ride.offered_price != null ? null : minHourly}
                                     minPerMinute={ride.offered_price != null ? 0 : minPerMinute}
-                                    onEditTariff={ride.offered_price != null ? undefined : (section) => { startNavProgress(); router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}&modo=personalizada&secao=${section ?? 'km'}`) }}
+                                    onEditTariff={ride.offered_price != null ? undefined : (section) => { startNavProgress(); router.push(`/canal-do-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}&modo=personalizada&secao=${section ?? 'km'}`) }}
                                     toPickup={{ km: route?.km ?? null, min: route?.min ?? null, hasGps: pos != null }}
                                     trip={{ km: q.tripKm, min: trip?.min ?? ride.duration_min }}
                                     miniMap={hasCoords ? (

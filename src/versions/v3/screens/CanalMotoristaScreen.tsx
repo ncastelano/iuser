@@ -1,42 +1,1831 @@
 'use client'
+// versions/v3/screens/CanalMotoristaScreen.tsx — o CANAL DO MOTORISTA (/canal-do-motorista). Desde 16/11/2026 é UMA página só:
+// a aba **Canal** (a primeira; abre também para visitante) mostra o Outdoor dos motoristas, ativar o modo, as corridas e entregas
+// abertas com quanto cada uma paga (`AcceptARider embedded`) e as demais abas são o antigo painel do motorista (Painel, Corrida aceita,
+// Entregas → /entregas, Solicitações, Me candidatei, Veículo, Tarifa, Avaliações). O endereço antigo /painel-motorista só redireciona
+// para cá com a mesma aba (sem aba → "Painel").
 
-// CANAL DO MOTORISTA (3.0, /canal-do-motorista) — uma PÁGINA, como Comprar e Social: tudo o que antes ficava solto na home para quem
-// dirige (ou pensa em dirigir) mora aqui — os atalhos do motorista, o Outdoor dos motoristas, ativar o modo motorista, as corridas abertas
-// com quanto cada uma paga, as candidaturas e a corrida aceita (a mesma seção `AcceptARider` de sempre). Na home fica só o cartão compacto
-// (`components/v3/DriverChannelCard`). Página só da 3.0 (V3_ONLY_ROUTES); a 2.0 segue com o Canal dentro da própria home.
-import { useRouter } from 'next/navigation'
-import { Car, LayoutDashboard, Package, Wallet } from 'lucide-react'
+import { useEffect, useState, useMemo, useCallback, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
+import { toast } from '@/lib/toast'
+import { sendFirstDriverPosition } from '@/lib/driverLocationSync'
+import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2, Bike, Radio } from 'lucide-react'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
+import { Spinner } from '@/components/Spinner'
+import { hourlyLine, tariffLine } from '@/lib/tariffSummary'
+import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
+import { createSquareImage } from '@/lib/image'
+import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
+import { getAvatarUrl } from '@/lib/avatar'
+import { shortAddress } from '@/lib/serviceBoard'
+import { useActivePlans } from '@/hooks/useActivePlans'
+import DriverDebtBanner from '@/components/DriverDebtBanner'
+import InviteButton from '@/components/InviteButton'
+import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab, type DriverRequestsSummary } from '@/components/AceitarCorridas/AceitarCorridas'
+import { callAdminApi } from '@/lib/callAdminApi'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
+import DriverPanelHome from '@/components/v3/DriverPanelHome'
 import AcceptARider from '@/app/(main)/inicio/sections/AcceptARider'
+import { announceDriverMode } from '@/lib/driverMode'
+import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
+import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
+import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
+const ORANGE_V3 = '#f97316'
+
+function formatDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+interface VehicleRow {
+    vehicle_kind: VehicleKind
+    car_model: string | null
+    car_color: string | null
+    car_plate: string | null
+    car_photo_url: string | null
+    driver_photo_url: string | null
+    services: string[] | null
+    passenger_capacity: number | null
+    has_baby_seat: boolean | null
+    trunk_bags_pequena: number | null
+    trunk_bags_media: number | null
+    trunk_bags_grande: number | null
+    trunk_suitcases_pequena: number | null
+    trunk_suitcases_media: number | null
+    trunk_suitcases_grande: number | null
+}
+
+const VEHICLE_SELECT = 'vehicle_kind, car_model, car_color, car_plate, car_photo_url, driver_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande'
+
+// Um veículo só conta como completo com modelo, foto do veículo e selfie do
+// motorista (placa não vale pra bicicleta). Só o admin pode ficar sem foto.
+function isVehicleRowComplete(v: VehicleRow | null | undefined, admin: boolean): boolean {
+    if (!v) return false
+    return !!(
+        v.car_model?.trim()
+        && (v.vehicle_kind === 'bicicleta' || v.car_plate?.trim())
+        && (admin || (v.car_photo_url && v.driver_photo_url))
+    )
+}
+
+function PainelMotoristaContent() {
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const nextUrl = searchParams.get('next')
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { colors } = useTheme()
+    const { hasDriver } = useActivePlans(userId)
+    // 3.0: laranja sólido, cartões macios sem moldura, campos e botões em cápsula (mesma linguagem da aba Painel).
+    // As regras e ações são as mesmas da 2.0; só muda a apresentação.
+    const GRADIENT = ORANGE_V3
+    const soft = `${colors.border}30`
+    const bd = 'none'
+    const cardCls = 'p-4 rounded-3xl'
+    const cardStyle = { background: soft }
+    const fieldStyle = { background: colors.background, color: colors.textPrimary }
+    const inputCls = 'w-full px-4 py-2.5 rounded-full text-sm font-semibold outline-none'
+    const inputClsXs = 'w-full px-3 py-2.5 rounded-full text-xs font-semibold outline-none'
+    const labelCls = 'text-[11px] font-bold block mb-1'
+    const iconBadgeCls = 'w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0'
+    const iconBadgeStyle = { background: soft, color: ORANGE_V3 }
+
+    const [loading, setLoading] = useState(true)
+    const [showLogin, setShowLogin] = useState(false)
+    const [saving, setSaving] = useState(false)
+
+    const [pricingMode, setPricingMode] = useState<PricingMode>('platform')
+    // "Minha tarifa" só é gravada depois que o motorista mexeu nela — senão os
+    // valores iniciais de tela virariam uma tarifa própria que ele nunca definiu.
+    const [customTouched, setCustomTouched] = useState(false)
+    const [baseDistanceKm, setBaseDistanceKm] = useState('5')
+    const [baseFee, setBaseFee] = useState('7')
+    const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
+    // "Minha tarifa por tempo": R$ por minuto de trabalho (ir buscar + corrida). Vazio = não definida.
+    const [pricePerMinute, setPricePerMinute] = useState('')
+    // A tarifa da plataforma vem do banco (Admin → Tarifas); isso força o redesenho quando ela chega
+    const [tariffsVersion, setTariffsVersion] = useState(0)
+    const [extraFeePessoa, setExtraFeePessoa] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.pessoa))
+    const [extraFeeAnimal, setExtraFeeAnimal] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.animal))
+    const [extraFeeObjeto, setExtraFeeObjeto] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.objeto))
+    const [extraFeeCondominio, setExtraFeeCondominio] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.condominio))
+    const [extraFeeCompras, setExtraFeeCompras] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.compras))
+    const [extraFeeNecessidadeEspecial, setExtraFeeNecessidadeEspecial] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.necessidade_especial))
+    const [extraFeePetSemCaixa, setExtraFeePetSemCaixa] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.pet_sem_caixa))
+    const [extraFeeEntregaInterna, setExtraFeeEntregaInterna] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.entrega_interna))
+    const [extraFeeArCondicionado, setExtraFeeArCondicionado] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.ar_condicionado))
+
+    // ===== MODO MOTORISTA (liga/desliga) =====
+    const [driverModeActive, setDriverModeActive] = useState(false)
+    const [alertSoundEnabled, setAlertSoundEnabled] = useState(true)
+    const [deliveryRadius, setDeliveryRadius] = useState<number | null>(null)
+    const [voiceNavEnabled, setVoiceNavEnabled] = useState(true)
+    const [togglingMode, setTogglingMode] = useState(false)
+
+    // ===== MEU VEÍCULO =====
+    const [vehicleKind, setVehicleKind] = useState<VehicleKind>('carro')
+    const [vehiclesByKind, setVehiclesByKind] = useState<Partial<Record<VehicleKind, VehicleRow>>>({})
+    const [isAdmin, setIsAdmin] = useState(false)
+    const [carModel, setCarModel] = useState('')
+    const [carColor, setCarColor] = useState('')
+    const [carPlate, setCarPlate] = useState('')
+    const [carPhotoFile, setCarPhotoFile] = useState<File | null>(null)
+    const [carPhotoPreview, setCarPhotoPreview] = useState<string | null>(null)
+    const [carPhotoPath, setCarPhotoPath] = useState<string | null>(null)
+    const [driverPhotoFile, setDriverPhotoFile] = useState<File | null>(null)
+    const [driverPhotoPreview, setDriverPhotoPreview] = useState<string | null>(null)
+    const [driverPhotoPath, setDriverPhotoPath] = useState<string | null>(null)
+    const [services, setServices] = useState<string[]>([])
+    const [passengerCapacity, setPassengerCapacity] = useState('')
+    const [hasBabySeat, setHasBabySeat] = useState<boolean | null>(null)
+    const [trunkBagsPequena, setTrunkBagsPequena] = useState('')
+    const [trunkBagsMedia, setTrunkBagsMedia] = useState('')
+    const [trunkBagsGrande, setTrunkBagsGrande] = useState('')
+    const [trunkSuitcasesPequena, setTrunkSuitcasesPequena] = useState('')
+    const [trunkSuitcasesMedia, setTrunkSuitcasesMedia] = useState('')
+    const [trunkSuitcasesGrande, setTrunkSuitcasesGrande] = useState('')
+    const [savingVehicle, setSavingVehicle] = useState(false)
+    const [confirmDeleteVehicle, setConfirmDeleteVehicle] = useState(false)
+    const [deletingVehicle, setDeletingVehicle] = useState(false)
+    const [isFirstVehicleSetup, setIsFirstVehicleSetup] = useState(false)
+    const [showFirstVehicleDialog, setShowFirstVehicleDialog] = useState(false)
+    const [showActivationWizard, setShowActivationWizard] = useState(false)
+    // ===== ABA ATIVA (header em abas, mesmo modelo de /carrinho) =====
+    type PainelTab = 'canal' | 'painel' | 'veiculo' | 'plano' | 'avaliacoes' | 'solicitacoes' | 'candidaturas' | 'aceita'
+    const [activeTab, setActiveTab] = useState<PainelTab>(() => {
+        const aba = searchParams.get('aba')
+        // sem aba: a aba Canal (as corridas abertas). ?aba=veiculo/plano são resolvidas depois de carregar o veículo
+        return aba === 'solicitacoes' || aba === 'candidaturas' || aba === 'plano' || aba === 'painel' || aba === 'avaliacoes' ? aba : 'canal'
+    })
+
+    // Já nesta página e um link muda a aba (ex.: o botão "Painel" do menu de modos, /canal-do-motorista?aba=painel): troca a aba
+    const abaParam = searchParams.get('aba')
+    const firstAba = useRef(true)
+    useEffect(() => {
+        if (firstAba.current) { firstAba.current = false; return }
+        if (abaParam === 'painel' || abaParam === 'veiculo' || abaParam === 'plano' || abaParam === 'avaliacoes' || abaParam === 'solicitacoes' || abaParam === 'candidaturas' || abaParam === 'canal') setActiveTab(abaParam)
+        else if (!abaParam) setActiveTab('canal')
+    }, [abaParam])
+
+    // Abas que eram do /aceitar-corridas (Solicitações de motorista / Me candidatei /
+    // Corrida aceita) — o conteúdo vem do mesmo componente, embutido aqui.
+    const [rideSummary, setRideSummary] = useState<DriverRequestsSummary>({ rides: 0, deliveries: 0, candidacies: 0, hasAccepted: false, acceptedIsDelivery: false, incoming: [] })
+    const [rideSummaryLoaded, setRideSummaryLoaded] = useState(false)
+    const rideTabFromPanel: Record<string, AceitarCorridasTab> = { solicitacoes: 'servicos', candidaturas: 'candidatos', aceita: 'aceita' }
+    const handleRideTabChange = useCallback((t: AceitarCorridasTab) => {
+        setActiveTab(t === 'servicos' ? 'solicitacoes' : t === 'candidatos' ? 'candidaturas' : 'aceita')
+    }, [])
+
+    // O componente embutido só avisa as contagens enquanto está aberto; aqui
+    // busca o essencial (candidaturas pendentes e corrida aceita) pra a aba
+    // "Me candidatei"/"Corrida aceita" aparecer já ao entrar no painel.
+    useEffect(() => {
+        if (!userId) return
+        let cancelled = false
+        const refresh = async () => {
+            const [{ count: pendingCount }, { data: accepted }] = await Promise.all([
+                supabase.from('ride_applications').select('id', { count: 'exact', head: true }).eq('applicant_id', userId).eq('status', 'pending'),
+                supabase.from('ride_requests').select('id').eq('driver_id', userId).eq('status', 'accepted').limit(1),
+            ])
+            if (cancelled) return
+            setRideSummary((prev) => ({ ...prev, candidacies: pendingCount || 0, hasAccepted: (accepted || []).length > 0 }))
+            setRideSummaryLoaded(true)
+        }
+        refresh()
+        const poll = setInterval(refresh, 15000)
+        return () => { cancelled = true; clearInterval(poll) }
+    }, [userId])
+
+    // A aba "Me candidatei" some quando fica vazia — não deixa a pessoa parada nela.
+    useEffect(() => {
+        if (rideSummaryLoaded && activeTab === 'candidaturas' && rideSummary.candidacies === 0 && !rideSummary.hasAccepted) {
+            setActiveTab('solicitacoes')
+        }
+    }, [rideSummaryLoaded, activeTab, rideSummary])
+
+    // ===== AVALIAÇÕES E HISTÓRICO =====
+    const [reviews, setReviews] = useState<{ rating: number; comment: string | null; created_at: string; reviewerId?: string; reviewerName: string | null; reviewerAvatarUrl: string | undefined }[]>([])
+    const [rideHistory, setRideHistory] = useState<{ id: string; origin_address: string; destination_address: string; created_at: string; distance_km: number | null }[]>([])
+
+    useEffect(() => {
+        if (!userId) return
+        callAdminApi<{ isSuperAdmin: boolean }>('/api/admin/whoami')
+            .then((r) => setIsAdmin(!!r.isSuperAdmin))
+            .catch(() => setIsAdmin(false))
+    }, [userId])
+
+    useEffect(() => {
+        if (!carPhotoFile) return
+        const url = URL.createObjectURL(carPhotoFile)
+        setCarPhotoPreview(url)
+        return () => URL.revokeObjectURL(url)
+    }, [carPhotoFile])
+
+    useEffect(() => {
+        if (!driverPhotoFile) return
+        const url = URL.createObjectURL(driverPhotoFile)
+        setDriverPhotoPreview(url)
+        return () => URL.revokeObjectURL(url)
+    }, [driverPhotoFile])
+
+    const toggleService = (id: string) => {
+        setServices((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]))
+    }
+
+    // Preenche o formulário com o veículo salvo desse tipo (ou em branco). A
+    // selfie é da pessoa, não do veículo: se esse tipo ainda não tem, herda a
+    // de outro veículo já cadastrado.
+    const applyVehicleToForm = (v: VehicleRow | null, all: Partial<Record<VehicleKind, VehicleRow>>) => {
+        const anySelfie = Object.values(all).find((x) => x?.driver_photo_url)?.driver_photo_url || null
+        setCarModel(v?.car_model || '')
+        setCarColor(v?.car_color || '')
+        setCarPlate(v?.car_plate || '')
+        setCarPhotoPath(v?.car_photo_url || null)
+        setCarPhotoFile(null)
+        setCarPhotoPreview(null)
+        setDriverPhotoPath(v?.driver_photo_url || anySelfie)
+        setDriverPhotoFile(null)
+        setDriverPhotoPreview(null)
+        setServices(v?.services || [])
+        setPassengerCapacity(v?.passenger_capacity != null ? String(v.passenger_capacity) : '')
+        setHasBabySeat(v?.has_baby_seat ?? null)
+        setTrunkBagsPequena(v?.trunk_bags_pequena != null ? String(v.trunk_bags_pequena) : '')
+        setTrunkBagsMedia(v?.trunk_bags_media != null ? String(v.trunk_bags_media) : '')
+        setTrunkBagsGrande(v?.trunk_bags_grande != null ? String(v.trunk_bags_grande) : '')
+        setTrunkSuitcasesPequena(v?.trunk_suitcases_pequena != null ? String(v.trunk_suitcases_pequena) : '')
+        setTrunkSuitcasesMedia(v?.trunk_suitcases_media != null ? String(v.trunk_suitcases_media) : '')
+        setTrunkSuitcasesGrande(v?.trunk_suitcases_grande != null ? String(v.trunk_suitcases_grande) : '')
+    }
+
+    const switchVehicleKind = (kind: VehicleKind) => {
+        setVehicleKind(kind)
+        applyVehicleToForm(vehiclesByKind[kind] || null, vehiclesByKind)
+    }
+
+    const load = async () => {
+        setLoading(true)
+        if (!userId) {
+            setShowLogin(true)
+            setLoading(false)
+            return
+        }
+        setShowLogin(false)
+
+        await loadPlatformTariffs(supabase)
+        setTariffsVersion((v) => v + 1)
+
+        const { data } = await supabase
+            .from('driver_pricing')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
+            .eq('driver_id', userId)
+            .maybeSingle()
+
+        if (data) {
+            setPricingMode(data.pricing_mode)
+            if (data.base_fee != null) setCustomTouched(true)
+            if (data.base_distance_km != null) setBaseDistanceKm(String(data.base_distance_km))
+            if (data.base_fee != null) setBaseFee(String(data.base_fee))
+            if (data.price_per_km_after_base != null) setPricePerKmAfterBase(String(data.price_per_km_after_base))
+            if (data.price_per_minute != null) setPricePerMinute(String(data.price_per_minute))
+            if (data.extra_fee_pessoa != null) setExtraFeePessoa(String(data.extra_fee_pessoa))
+            if (data.extra_fee_animal != null) setExtraFeeAnimal(String(data.extra_fee_animal))
+            if (data.extra_fee_objeto != null) setExtraFeeObjeto(String(data.extra_fee_objeto))
+            if (data.extra_fee_condominio != null) setExtraFeeCondominio(String(data.extra_fee_condominio))
+            if (data.extra_fee_compras != null) setExtraFeeCompras(String(data.extra_fee_compras))
+            if (data.extra_fee_necessidade_especial != null) setExtraFeeNecessidadeEspecial(String(data.extra_fee_necessidade_especial))
+            if (data.extra_fee_pet_sem_caixa != null) setExtraFeePetSemCaixa(String(data.extra_fee_pet_sem_caixa))
+            if (data.extra_fee_entrega_interna != null) setExtraFeeEntregaInterna(String(data.extra_fee_entrega_interna))
+            if (data.extra_fee_ar_condicionado != null) setExtraFeeArCondicionado(String(data.extra_fee_ar_condicionado))
+            setDriverModeActive(!!data.driver_mode_active)
+            setAlertSoundEnabled(data.alert_sound_enabled !== false)
+            setDeliveryRadius(data.delivery_radius_km != null ? Number(data.delivery_radius_km) : null)
+            setVoiceNavEnabled(data.voice_navigation_enabled !== false)
+        }
+
+        const { data: vehicleRows } = await supabase
+            .from('driver_vehicles')
+            .select(VEHICLE_SELECT)
+            .eq('driver_id', userId)
+
+        const byKind: Partial<Record<VehicleKind, VehicleRow>> = {}
+        for (const v of (vehicleRows as VehicleRow[]) || []) byKind[v.vehicle_kind] = v
+        setVehiclesByKind(byKind)
+        const kinds = Object.keys(byKind) as VehicleKind[]
+        // ?veiculo=<tipo> (vindo da aba do Header) abre direto nesse tipo, mesmo que
+        // ainda não esteja cadastrado (formulário em branco = "Cadastrar veículo").
+        const requestedKind = searchParams.get('veiculo')
+        const initialKind: VehicleKind = requestedKind === 'carro' || requestedKind === 'moto' || requestedKind === 'bicicleta'
+            ? requestedKind
+            : byKind.carro ? 'carro' : (kinds[0] || 'carro')
+        setVehicleKind(initialKind)
+        applyVehicleToForm(byKind[initialKind] || null, byKind)
+        setIsFirstVehicleSetup(kinds.length === 0)
+
+        // Retoma o wizard sozinho se a página carregar com o modo já ligado
+        // mas nenhum veículo completo (ex: motorista ativou antes dessa
+        // mudança, ou recarregou no meio do preenchimento).
+        const hasRequiredFieldsFromDb = kinds.some((k) => isVehicleRowComplete(byKind[k], false))
+        if (data?.driver_mode_active && !hasRequiredFieldsFromDb) {
+            setShowActivationWizard(true)
+            setActiveTab('veiculo')
+        } else if (searchParams.get('aba') === 'veiculo') {
+            setActiveTab('veiculo')
+        } else if (searchParams.get('aba') === 'plano') {
+            setActiveTab('plano')   // /canal-do-motorista?aba=plano&veiculo=carro: a aba da tarifa daquele veículo
+            // &modo=personalizada (vindo de "Por km / Por tempo: definir" nos cards da corrida): abre já na TARIFA PERSONALIZADA, não na da plataforma
+            if (searchParams.get('modo') === 'personalizada') { setPricingMode('custom'); setCustomTouched(true) }
+        }
+
+        const { data: reviewRows } = await supabase
+            .from('ride_reviews')
+            .select('rating, comment, created_at, reviewer_id')
+            .eq('reviewee_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(20)
+
+        const reviewerIds = Array.from(new Set((reviewRows || []).map((r) => r.reviewer_id)))
+        let reviewersById = new Map<string, { name: string | null; avatar_url: string | null; profileSlug?: string | null }>()
+        if (reviewerIds.length > 0) {
+            const { data: reviewers } = await supabase.from('profiles').select('id, name, avatar_url, "profileSlug"').in('id', reviewerIds)
+            reviewersById = new Map((reviewers || []).map((p) => [p.id, p]))
+        }
+        setReviews((reviewRows || []).map((r) => ({
+            rating: r.rating,
+            comment: r.comment,
+            created_at: r.created_at,
+            reviewerId: r.reviewer_id,
+            reviewerName: reviewersById.get(r.reviewer_id)?.profileSlug ? `@${reviewersById.get(r.reviewer_id)?.profileSlug}` : reviewersById.get(r.reviewer_id)?.name || null,
+            reviewerAvatarUrl: getAvatarUrl(supabase, reviewersById.get(r.reviewer_id)?.avatar_url),
+        })))
+
+        const { data: historyRows } = await supabase
+            .from('ride_requests')
+            .select('id, origin_address, destination_address, created_at, distance_km')
+            .eq('driver_id', userId)
+            .eq('status', 'completed')
+            .order('created_at', { ascending: false })
+            .limit(20)
+        setRideHistory(historyRows || [])
+
+        setLoading(false)
+    }
+
+    // Exclui o veículo do tipo que está aberto na aba "Meu veículo".
+    const handleDeleteVehicle = async () => {
+        const saved = vehiclesByKind[vehicleKind]
+        if (!saved) return
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            setShowLogin(true)
+            return
+        }
+
+        setDeletingVehicle(true)
+        try {
+            const { data: activeRide } = await supabase
+                .from('ride_requests')
+                .select('id')
+                .eq('driver_id', user.id)
+                .eq('status', 'accepted')
+                .limit(1)
+            if (activeRide && activeRide.length > 0) {
+                toast.error('Você tem uma corrida em andamento. Conclua ou cancele antes de excluir o veículo.')
+                return
+            }
+
+            const { data: deleted, error } = await supabase
+                .from('driver_vehicles')
+                .delete()
+                .eq('driver_id', user.id)
+                .eq('vehicle_kind', vehicleKind)
+                .select('vehicle_kind')
+            if (error) throw error
+            if (!deleted || deleted.length === 0) throw new Error('não foi possível remover (sem permissão ou já excluído)')
+
+            if (saved.car_photo_url) {
+                supabase.storage.from('driver-car-photos').remove([saved.car_photo_url]).then(() => {})
+            }
+
+            const remaining = { ...vehiclesByKind }
+            delete remaining[vehicleKind]
+            setVehiclesByKind(remaining)
+            const remainingKinds = Object.keys(remaining) as VehicleKind[]
+            setIsFirstVehicleSetup(remainingKinds.length === 0)
+
+            // Sem nenhum veículo não dá pra rodar: desliga o modo motorista.
+            if (remainingKinds.length === 0 && driverModeActive) {
+                await supabase.from('driver_pricing').update({ driver_mode_active: false, live_location_sync: false }).eq('driver_id', user.id)
+                setDriverModeActive(false)
+            }
+
+            const nextKind: VehicleKind = remainingKinds[0] || vehicleKind
+            setVehicleKind(nextKind)
+            applyVehicleToForm(remaining[nextKind] || null, remaining)
+            toast.success(`Veículo (${VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}) excluído.`)
+            setConfirmDeleteVehicle(false)
+        } catch (err: any) {
+            toast.error('Erro ao excluir o veículo: ' + (err.message || 'tente novamente'))
+        } finally {
+            setDeletingVehicle(false)
+        }
+    }
+
+    /** Salva o veículo. Devolve true se salvou (o assistente só segue para as corridas depois de salvar de verdade). */
+    const handleSaveVehicle = async (): Promise<boolean> => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            setShowLogin(true)
+            return false
+        }
+
+        if (!isAdmin && ((!carPhotoFile && !carPhotoPath) || (!driverPhotoFile && !driverPhotoPath))) {
+            toast.error('A foto do veículo e a sua foto são obrigatórias')
+            return false
+        }
+
+        setSavingVehicle(true)
+        try {
+            let photoPath = carPhotoPath
+            if (carPhotoFile) {
+                const fileExt = carPhotoFile.name.split('.').pop()
+                const fileName = `${user.id}/${Date.now()}.${fileExt}`
+                const { data, error: uploadError } = await supabase.storage.from('driver-car-photos').upload(fileName, carPhotoFile)
+                if (uploadError) throw uploadError
+                photoPath = data?.path || null
+            }
+
+            let driverPhotoPathToSave = driverPhotoPath
+            if (driverPhotoFile) {
+                const fileExt = driverPhotoFile.name.split('.').pop()
+                const fileName = `${user.id}/${Date.now()}.${fileExt}`
+                const { data, error: uploadError } = await supabase.storage.from('driver-selfie-photos').upload(fileName, driverPhotoFile)
+                if (uploadError) throw uploadError
+                driverPhotoPathToSave = data?.path || null
+            }
+
+            const { error } = await supabase.from('driver_vehicles').upsert(
+                {
+                    driver_id: user.id,
+                    vehicle_kind: vehicleKind,
+                    car_model: carModel.trim() || null,
+                    car_color: carColor.trim() || null,
+                    car_plate: carPlate.trim() || null,
+                    car_photo_url: photoPath,
+                    driver_photo_url: driverPhotoPathToSave,
+                    services: vehicleKind === 'carro' ? services : [],
+                    passenger_capacity: passengerCapacity.trim() ? parseInt(passengerCapacity, 10) || null : null,
+                    has_baby_seat: hasBabySeat,
+                    trunk_bags_pequena: trunkBagsPequena.trim() ? parseInt(trunkBagsPequena, 10) || null : null,
+                    trunk_bags_media: trunkBagsMedia.trim() ? parseInt(trunkBagsMedia, 10) || null : null,
+                    trunk_bags_grande: trunkBagsGrande.trim() ? parseInt(trunkBagsGrande, 10) || null : null,
+                    trunk_suitcases_pequena: trunkSuitcasesPequena.trim() ? parseInt(trunkSuitcasesPequena, 10) || null : null,
+                    trunk_suitcases_media: trunkSuitcasesMedia.trim() ? parseInt(trunkSuitcasesMedia, 10) || null : null,
+                    trunk_suitcases_grande: trunkSuitcasesGrande.trim() ? parseInt(trunkSuitcasesGrande, 10) || null : null,
+                },
+                { onConflict: 'driver_id,vehicle_kind' }
+            )
+            if (error) throw error
+
+            setVehiclesByKind((prev) => ({
+                ...prev,
+                [vehicleKind]: {
+                    vehicle_kind: vehicleKind,
+                    car_model: carModel.trim() || null,
+                    car_color: carColor.trim() || null,
+                    car_plate: carPlate.trim() || null,
+                    car_photo_url: photoPath,
+                    driver_photo_url: driverPhotoPathToSave,
+                    services: vehicleKind === 'carro' ? services : [],
+                    passenger_capacity: passengerCapacity.trim() ? parseInt(passengerCapacity, 10) || null : null,
+                    has_baby_seat: hasBabySeat,
+                    trunk_bags_pequena: trunkBagsPequena.trim() ? parseInt(trunkBagsPequena, 10) || null : null,
+                    trunk_bags_media: trunkBagsMedia.trim() ? parseInt(trunkBagsMedia, 10) || null : null,
+                    trunk_bags_grande: trunkBagsGrande.trim() ? parseInt(trunkBagsGrande, 10) || null : null,
+                    trunk_suitcases_pequena: trunkSuitcasesPequena.trim() ? parseInt(trunkSuitcasesPequena, 10) || null : null,
+                    trunk_suitcases_media: trunkSuitcasesMedia.trim() ? parseInt(trunkSuitcasesMedia, 10) || null : null,
+                    trunk_suitcases_grande: trunkSuitcasesGrande.trim() ? parseInt(trunkSuitcasesGrande, 10) || null : null,
+                },
+            }))
+            setCarPhotoPath(photoPath)
+            setCarPhotoFile(null)
+            setDriverPhotoPath(driverPhotoPathToSave)
+            setDriverPhotoFile(null)
+            toast.success(`As informações do seu veículo (${VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}) foram salvas!`)
+
+            if (isFirstVehicleSetup) {
+                setIsFirstVehicleSetup(false)
+                setShowFirstVehicleDialog(true)
+            }
+            return true
+        } catch (err: any) {
+            toast.error('Erro ao salvar o veículo: ' + (err.message || 'tente novamente'))
+            return false
+        } finally {
+            setSavingVehicle(false)
+        }
+    }
+
+    const carPhotoUrl = carPhotoPreview || (carPhotoPath ? supabase.storage.from('driver-car-photos').getPublicUrl(carPhotoPath).data.publicUrl : null)
+    const driverPhotoUrl = driverPhotoPreview || (driverPhotoPath ? supabase.storage.from('driver-selfie-photos').getPublicUrl(driverPhotoPath).data.publicUrl : null)
+    const reviewsAvg = reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null
+
+    // ===== COMPLETUDE DO CADASTRO (define se o botão fica amarelo ou verde) =====
+    const missingFields: string[] = []
+    if (!carModel.trim()) missingFields.push('modelo do veículo')
+    if (vehicleKind !== 'bicicleta' && !carPlate.trim()) missingFields.push('placa')
+    if (!isAdmin && !carPhotoFile && !carPhotoPath) missingFields.push('foto do veículo')
+    if (!isAdmin && !driverPhotoFile && !driverPhotoPath) missingFields.push('sua foto')
+    const isVehicleComplete = missingFields.length === 0
+    const hasCompleteVehicle = isVehicleComplete || (Object.values(vehiclesByKind) as VehicleRow[]).some((v) => isVehicleRowComplete(v, isAdmin))
+    const driverStatus: 'inactive' | 'incomplete' | 'active' = !driverModeActive
+        ? 'inactive'
+        : (hasCompleteVehicle ? 'active' : 'incomplete')
+
+    // Botão "Continuar" da etapa do veículo (1ª etapa do wizard, sempre
+    // antes da tarifa): só segue se os dados obrigatórios estiverem
+    // completos, salva o veículo e avança pra etapa da tarifa.
+    const handleWizardVehicleContinue = async () => {
+        if (missingFields.length > 0) {
+            toast.error(`Falta completar: ${missingFields.join(', ')}`)
+            return
+        }
+        const saved = await handleSaveVehicle()
+        if (!saved) return
+        // Veículo cadastrado: a pessoa vai direto para as corridas (é lá que aparece quanto ela ganha); a tarifa da plataforma já vale
+        setShowFirstVehicleDialog(false)
+        router.push(nextUrl || '/aceitar-corridas')
+    }
+
+    useEffect(() => {
+        if (profileLoading) return
+        load()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profileLoading, userId])
+
+    const handleLoginSuccess = () => {
+        setShowLogin(false)
+        load()
+    }
+
+    // Campos de tarifa compartilhados pelos dois upserts em driver_pricing
+    // (salvar tarifa e ligar/desligar modo motorista, que precisa reenviar
+    // a tarifa atual pra não zerar ela no upsert).
+    const buildPricingFields = (driverId: string) => ({
+        driver_id: driverId,
+        pricing_mode: pricingMode,
+        base_distance_km: customTouched ? (parseFloat(baseDistanceKm) || 0) : null,
+        base_fee: customTouched ? (parseFloat(baseFee) || 0) : null,
+        price_per_km_after_base: customTouched ? (parseFloat(pricePerKmAfterBase) || 0) : null,
+        price_per_minute: customTouched && (parseFloat(pricePerMinute) || 0) > 0 ? Math.min(20, Math.round(parseFloat(pricePerMinute) * 10000) / 10000) : null,
+        extra_fee_pessoa: customTouched ? (parseFloat(extraFeePessoa) || 0) : null,
+        extra_fee_animal: customTouched ? (parseFloat(extraFeeAnimal) || 0) : null,
+        extra_fee_objeto: customTouched ? (parseFloat(extraFeeObjeto) || 0) : null,
+        extra_fee_condominio: customTouched ? (parseFloat(extraFeeCondominio) || 0) : null,
+        extra_fee_compras: customTouched ? (parseFloat(extraFeeCompras) || 0) : null,
+        extra_fee_necessidade_especial: customTouched ? (parseFloat(extraFeeNecessidadeEspecial) || 0) : null,
+        extra_fee_pet_sem_caixa: customTouched ? (parseFloat(extraFeePetSemCaixa) || 0) : null,
+        extra_fee_entrega_interna: customTouched ? (parseFloat(extraFeeEntregaInterna) || 0) : null,
+        extra_fee_ar_condicionado: customTouched ? (parseFloat(extraFeeArCondicionado) || 0) : null,
+    })
+
+    // "Minha tarifa por tempo": nunca menor que o ganho mínimo por hora do iUser ÷ 60 (R$ 40/h → R$ 0,67/min) e só muda para CIMA; vazio = vale o padrão
+    const defaultHourly = useDefaultMinHourly()
+    const timeFloor = timeRateFloor(defaultHourly)
+    const timeEntered = parseFloat(String(pricePerMinute).replace(',', '.')) || 0
+    const timeBelowFloor = pricingMode === 'custom' && timeEntered > 0 && timeEntered < timeFloor
+    // a lista em R$ POR HORA (do mínimo para cima); "Outro valor" abre um campo, também com o mínimo
+    const [timeOther, setTimeOther] = useState(false)
+    const [timeOtherText, setTimeOtherText] = useState('')
+    const hourlyList = hourlyOptions(defaultHourly)
+    const hourlyNow = timeEntered > 0 ? rateToHourly(timeEntered) : defaultHourly
+    const hourlySelect = timeOther || !hourlyList.includes(hourlyNow) ? 'outro' : String(hourlyNow)
+    const pickHourly = (hourly: number) => { setCustomTouched(true); setPricePerMinute(hourly <= defaultHourly ? '' : String(hourlyToRate(hourly))) }
+    const handleSave = async () => {
+        if (timeBelowFloor) {
+            toast.error(`A tarifa por tempo não pode ser menor que R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o mínimo do iUser). Só dá para aumentar.`)
+            setActiveTab('plano')
+            return
+        }
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            setShowLogin(true)
+            return
+        }
+
+        setSaving(true)
+        try {
+            const { error } = await supabase.from('driver_pricing').upsert(
+                buildPricingFields(user.id),
+                { onConflict: 'driver_id' }
+            )
+            if (error) throw error
+
+            toast.success('Sua tarifa foi salva!')
+            if (nextUrl) {
+                router.push(nextUrl)
+            }
+        } catch (err: any) {
+            toast.error('Erro ao salvar tarifa: ' + (err.message || 'tente novamente'))
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleToggleAlertSound = async () => {
+        const next = !alertSoundEnabled
+        setAlertSoundEnabled(next)
+        try { localStorage.setItem('iuser_ride_alert_sound', next ? '1' : '0') } catch {}
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        await supabase.from('driver_pricing').update({ alert_sound_enabled: next }).eq('driver_id', user.id)
+        toast.success(next ? 'Som do alerta ligado' : 'Som do alerta desligado')
+    }
+
+    // Raio das entregas de loja: o motorista só vê/recebe entregas dentro dele (vale o menor entre este e o da oferta)
+    const handleDeliveryRadius = async (km: number | null) => {
+        setDeliveryRadius(km)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { error } = await supabase.from('driver_pricing').update({ delivery_radius_km: km }).eq('driver_id', user.id)
+        if (error) toast.error('Não foi possível salvar o raio')
+        else toast.success(km == null ? 'Sem limite de raio' : `Raio de ${km} km salvo`)
+    }
+
+    const handleToggleVoiceNav = async () => {
+        const next = !voiceNavEnabled
+        setVoiceNavEnabled(next)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        await supabase.from('driver_pricing').update({ voice_navigation_enabled: next }).eq('driver_id', user.id)
+        toast.success(next ? 'Orientação por voz ligada' : 'Orientação por voz desligada')
+    }
+
+    const handleToggleDriverMode = async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            setShowLogin(true)
+            return
+        }
+
+        const next = !driverModeActive
+        if (next && !hasDriver) {
+            toast.error('Assine o plano Motorista pra ativar esse modo.')
+            router.push('/planos?plan=motorista')
+            return
+        }
+
+        setTogglingMode(true)
+        try {
+            const { error } = await supabase.from('driver_pricing').upsert(
+                { ...buildPricingFields(user.id), driver_mode_active: next, live_location_sync: next },
+                { onConflict: 'driver_id' }
+            )
+            if (error) throw error
+
+            setDriverModeActive(next)
+            announceDriverMode(next)   // o aviso de corrida nova liga/desliga na hora (e os cartões abertos saem ao desligar)
+            if (next) {
+                toast.success('Modo motorista ligado!')
+                sendFirstDriverPosition(user.id)
+                // Ativando com cadastro incompleto: abre o wizard guiado em
+                // vez de deixar a pessoa perdida numa página cheia de campos.
+                if (!hasCompleteVehicle) {
+                    setShowActivationWizard(true)
+                    setActiveTab('veiculo')
+                }
+            } else {
+                toast.success('Modo motorista desligado.')
+                setShowActivationWizard(false)
+                setActiveTab('painel')
+            }
+        } catch (err: any) {
+            toast.error('Erro ao atualizar modo motorista: ' + (err.message || 'tente novamente'))
+        } finally {
+            setTogglingMode(false)
+        }
+    }
+
+    // Botão "Concluir cadastro" da etapa da tarifa (2ª e última etapa do
+    // wizard): salva a tarifa e fecha o wizard (a menos que handleSave já
+    // esteja redirecionando pra outra página via ?next=).
+    const handleWizardPricingContinue = async () => {
+        await handleSave()
+        if (!nextUrl) {
+            setShowActivationWizard(false)
+            setActiveTab('painel')
+        }
+    }
+
+    // Enquanto o motorista nunca mexeu na Tarifa Personalizada, os campos acompanham a tarifa da
+    // plataforma do veículo escolhido (carro, moto e bicicleta têm tarifas diferentes) — em vez de
+    // ficarem num 5 / 7 / 2 fixo que parece salvo mas não tem nada a ver com o veículo.
+    useEffect(() => {
+        if (customTouched) return
+        const t = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
+        setBaseDistanceKm(String(t.baseDistanceKm))
+        setBaseFee(String(t.baseFee))
+        setPricePerKmAfterBase(String(t.pricePerKmAfterBase))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [customTouched, vehicleKind, tariffsVersion])
+
+    // &secao=km|tempo: rola até essa parte da tarifa (uma vez)
+    const scrolledToSection = useRef(false)
+    useEffect(() => {
+        const sec = searchParams.get('secao')
+        if (activeTab !== 'plano' || !sec || scrolledToSection.current) return
+        const t = setTimeout(() => {
+            const el = document.getElementById(`tarifa-${sec}`)
+            if (el) { scrolledToSection.current = true; el.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+        }, 700)
+        return () => clearTimeout(t)
+    }, [activeTab, pricingMode, searchParams])
+
+    const previewDistance = 10
+    const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
+    const activePricing = pricingMode === 'platform'
+        ? platformPricingForVehicle
+        : {
+            baseDistanceKm: parseFloat(baseDistanceKm) || 0,
+            baseFee: parseFloat(baseFee) || 0,
+            pricePerKmAfterBase: parseFloat(pricePerKmAfterBase) || 0,
+            extraFees: {
+                pessoa: parseFloat(extraFeePessoa) || 0,
+                animal: parseFloat(extraFeeAnimal) || 0,
+                objeto: parseFloat(extraFeeObjeto) || 0,
+            },
+            conditionExtraFees: {
+                condominio: parseFloat(extraFeeCondominio) || 0,
+                compras: parseFloat(extraFeeCompras) || 0,
+                necessidade_especial: parseFloat(extraFeeNecessidadeEspecial) || 0,
+                pet_sem_caixa: parseFloat(extraFeePetSemCaixa) || 0,
+                entrega_interna: parseFloat(extraFeeEntregaInterna) || 0,
+                ar_condicionado: parseFloat(extraFeeArCondicionado) || 0,
+            },
+        }
+    // Resumo em linguagem simples: tudo sai dos números da tarifa (e da velocidade média), então muda sozinho com eles
+    const fareTariff = { baseDistanceKm: activePricing.baseDistanceKm, baseFee: activePricing.baseFee, pricePerKm: activePricing.pricePerKmAfterBase }
+    const summaryHourly = hourlyLine(fareTariff, previewDistance)
+    const tariffSummary = (
+        <div className="flex flex-col gap-1.5">
+            <p className={`${'text-sm'} font-black leading-snug`} style={{ color: colors.textPrimary }}>
+                {/* quebra de linha só entre as partes (nunca no meio de "10 km = R$ 17") */}
+                {tariffLine(fareTariff, previewDistance).split(' • ').map((part, i) => (
+                    <span key={i}>{i > 0 && ' • '}<span className="whitespace-nowrap">{part}</span></span>
+                ))}
+            </p>
+            {summaryHourly && <p className={`${'text-sm'} font-bold leading-snug`} style={{ color: '#16a34a' }}>{summaryHourly}</p>}
+        </div>
+    )
+
+    const conditionExtraFeeFields = [
+        { key: 'condominio', label: 'Condomínio', value: extraFeeCondominio, setValue: setExtraFeeCondominio, platformDefault: platformPricingForVehicle.conditionExtraFees.condominio },
+        { key: 'compras', label: 'Compras no mercado', value: extraFeeCompras, setValue: setExtraFeeCompras, platformDefault: platformPricingForVehicle.conditionExtraFees.compras },
+        { key: 'necessidade_especial', label: 'Pessoa com deficiência', value: extraFeeNecessidadeEspecial, setValue: setExtraFeeNecessidadeEspecial, platformDefault: platformPricingForVehicle.conditionExtraFees.necessidade_especial },
+        { key: 'pet_sem_caixa', label: 'Pet sem caixa de transporte', value: extraFeePetSemCaixa, setValue: setExtraFeePetSemCaixa, platformDefault: platformPricingForVehicle.conditionExtraFees.pet_sem_caixa },
+        { key: 'entrega_interna', label: 'Entrega em área interna', value: extraFeeEntregaInterna, setValue: setExtraFeeEntregaInterna, platformDefault: platformPricingForVehicle.conditionExtraFees.entrega_interna },
+        { key: 'ar_condicionado', label: 'Ar condicionado', value: extraFeeArCondicionado, setValue: setExtraFeeArCondicionado, platformDefault: platformPricingForVehicle.conditionExtraFees.ar_condicionado },
+    ]
+
+    const planButtonStyle = (active: boolean) => ({
+        flex: 1,
+        padding: '0.85rem 1rem',
+        borderRadius: '1.5rem',
+        fontSize: '0.8rem',
+        fontWeight: 800,
+        transition: 'all 0.2s',
+        cursor: 'pointer',
+        textAlign: 'left' as const,
+        background: active ? GRADIENT : (soft),
+        color: active ? '#ffffff' : colors.textPrimary,
+        border: active ? 'none' : bd,
+    })
+
+    const statusStyle = {
+        inactive: { bg: colors.surface, border: colors.border, dot: GRADIENT },
+        incomplete: { bg: '#eab30820', border: '#eab30860', dot: '#eab308' },
+        active: { bg: '#22c55e20', border: '#22c55e60', dot: '#22c55e' },
+    }[driverStatus]
+
+    // ===== ABAS DO HEADER (mesmo modelo de /carrinho) — durante o wizard
+    // de ativação só Meu veículo/Minha tarifa ficam disponíveis, pra
+    // não deixar a pessoa se perder no meio do cadastro guiado. =====
+    const tabs = useMemo(() => {
+        const canalTab = { id: 'canal', label: 'Canal', icon: Radio, isActive: activeTab === 'canal', onClick: () => setActiveTab('canal'), badge: null }
+        // visitante (ou ainda carregando): só a aba Canal — as corridas abertas e quanto pagam aparecem para todo mundo
+        if (!userId || loading || showLogin) return [canalTab]
+
+        const allTabs = [
+            canalTab,
+            { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
+            ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
+            { id: 'entregas', label: 'Entregas', icon: Bike, isActive: false, onClick: () => router.push('/entregas'), badge: null },
+            { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides + rideSummary.deliveries > 0 ? { count: rideSummary.rides + rideSummary.deliveries } : null },
+            // "Me candidatei" só aparece quando tem algo nela (candidatura pendente) ou há corrida aceita.
+            ...(rideSummary.candidacies > 0 || rideSummary.hasAccepted ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null }] : []),
+            {
+                id: 'veiculo', label: 'Veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'),
+                badge: driverStatus === 'incomplete' ? { count: missingFields.length || 1, color: '#eab308' } : null,
+            },
+            { id: 'plano', label: 'Tarifa', icon: TrendingUp, isActive: activeTab === 'plano', onClick: () => setActiveTab('plano'), badge: null },
+            { id: 'avaliacoes', label: 'Avaliações', icon: Star, isActive: activeTab === 'avaliacoes', onClick: () => setActiveTab('avaliacoes'), badge: null },
+        ]
+
+        return showActivationWizard ? allTabs.filter((t) => t.id === 'veiculo' || t.id === 'plano') : allTabs
+    }, [userId, loading, showLogin, activeTab, showActivationWizard, driverStatus, missingFields.length, rideSummary])
+
+    return (
+        <div className="relative min-h-dvh" style={{ background: colors.background }}>
+            <div className="fixed inset-0 z-0">
+                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+            </div>
+
+            <main className="relative z-10 min-h-dvh">
+                <Header
+                    title="Canal do Motorista"
+                    showBack={true}
+                    tabs={tabs}
+                />
+
+                <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
+                    {/* ===== Aba Canal: Outdoor dos motoristas, ativar o modo, corridas e entregas abertas com quanto pagam (vale para visitante) ===== */}
+                    {activeTab === 'canal' && !showActivationWizard && (
+                        <>
+                            <p className="text-[12.5px] mb-3 leading-snug" style={{ color: colors.textSecondary }}>Corridas e entregas abertas agora, quanto cada uma paga e tudo para dirigir pelo iUser.</p>
+                            <AcceptARider embedded />
+                        </>
+                    )}
+
+                    {loading && activeTab !== 'canal' && (
+                        <div className="flex justify-center py-10">
+                            <Spinner size={24} color={colors.textSecondary} />
+                        </div>
+                    )}
+
+                    {!loading && showLogin && activeTab !== 'canal' && (
+                        <LoginAndRegister onLoginSuccess={handleLoginSuccess} initialMode="register" />
+                    )}
+
+                    {!loading && !showLogin && !showActivationWizard && (activeTab === 'solicitacoes' || activeTab === 'candidaturas' || activeTab === 'aceita') && (
+                        <AceitarCorridas
+                            embedded
+                            tab={rideTabFromPanel[activeTab]}
+                            onTabChange={handleRideTabChange}
+                            onSummaryChange={setRideSummary}
+                            onRegisterVehicle={() => setActiveTab('veiculo')}
+                        />
+                    )}
+
+                    {/* Na aba Painel (3.0) o mesmo carregador roda ESCONDIDO só para alimentar os números de "Agora" (corridas, entregas de lojas, candidaturas) e a lista "Chegando agora" */}
+                    {!loading && !showLogin && !showActivationWizard && activeTab === 'painel' && true && (
+                        <div hidden aria-hidden>
+                            <AceitarCorridas embedded tab="servicos" onTabChange={() => {}} onSummaryChange={setRideSummary} onRegisterVehicle={() => {}} />
+                        </div>
+                    )}
+
+                    {!loading && !showLogin && (
+                        <div className="flex flex-col gap-5">
+                            {activeTab === 'painel' && true && (
+                                <DriverPanelHome
+                                    colors={colors}
+                                    driverStatus={driverStatus}
+                                    driverModeActive={driverModeActive}
+                                    togglingMode={togglingMode}
+                                    onToggleMode={handleToggleDriverMode}
+                                    missingCount={missingFields.length}
+                                    onContinueSignup={() => { setShowActivationWizard(true); setActiveTab('veiculo') }}
+                                    rides={rideSummary.rides}
+                                    deliveries={rideSummary.deliveries}
+                                    acceptedIsDelivery={rideSummary.acceptedIsDelivery}
+                                    incoming={rideSummary.incoming}
+                                    candidacies={rideSummary.candidacies}
+                                    hasAccepted={rideSummary.hasAccepted}
+                                    goTab={setActiveTab}
+                                    onDeliveries={() => router.push('/entregas')}
+                                    onEarnings={() => router.push('/ganhos')}
+                                    vehicleLabel={carModel.trim() ? `${VEHICLE_KIND_LABELS[vehicleKind]} · ${carModel.trim()}${carPlate.trim() ? ` · ${carPlate.trim().toUpperCase()}` : ''}` : null}
+                                    vehicles={(Object.entries(vehiclesByKind) as [VehicleKind, VehicleRow][])
+                                        .filter(([, v]) => v?.car_model?.trim())
+                                        .map(([kind, v]) => ({
+                                            id: kind,
+                                            label: `${VEHICLE_KIND_LABELS[kind]} · ${v.car_model!.trim()}${v.car_plate?.trim() ? ` · ${v.car_plate.trim().toUpperCase()}` : ''}`,
+                                            photoUrl: v.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(v.car_photo_url).data.publicUrl : null,
+                                        }))}
+                                    pricingLabel={pricingMode === 'platform' ? 'Tarifa iUser' : 'Minha tarifa própria'}
+                                    tariffLines={[tariffLine(fareTariff, previewDistance), summaryHourly].filter((l): l is string => !!l)}
+                                    reviewsAvg={reviewsAvg}
+                                    reviewsCount={reviews.length}
+                                    ridesDone={rideHistory.length}
+                                    alertSound={alertSoundEnabled}
+                                    onToggleAlert={handleToggleAlertSound}
+                                    voiceNav={voiceNavEnabled}
+                                    onToggleVoice={handleToggleVoiceNav}
+                                    deliveryRadius={deliveryRadius}
+                                    onDeliveryRadius={handleDeliveryRadius}
+                                    debt={hasDriver ? <DriverDebtBanner userId={userId} /> : null}
+                                    invite={<InviteButton label="Convide amigos e ganhe" showCount />}
+                                />
+                            )}
+                            {activeTab === 'painel' && false && (
+                            <>
+                            {hasDriver && <DriverDebtBanner userId={userId} />}
+                            <InviteButton label="Convide amigos e ganhe" showCount />
+                            <button
+                                onClick={handleToggleAlertSound}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all"
+                                style={{ background: colors.surface, border: bd }}
+                            >
+                                <span
+                                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={alertSoundEnabled ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}40`, color: colors.textSecondary }}
+                                >
+                                    {alertSoundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                                </span>
+                                <span className="flex-1 text-left">
+                                    <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>
+                                        Som do alerta de corridas
+                                    </span>
+                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
+                                        {alertSoundEnabled ? 'Toca quando chegar uma corrida nova — toque pra silenciar' : 'Silenciado — toque pra ligar'}
+                                    </span>
+                                </span>
+                            </button>
+                            <div className="w-full px-4 py-3 rounded-2xl flex flex-col gap-2" style={{ background: colors.surface, border: bd }}>
+                                <span>
+                                    <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Raio das entregas de loja</span>
+                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
+                                        Você só vê e recebe aviso de entregas até essa distância de você. Assim ninguém te chama fora da sua cidade.
+                                    </span>
+                                </span>
+                                <div className="flex gap-1.5 flex-wrap">
+                                    {([null, 3, 5, 10, 20] as (number | null)[]).map((km) => {
+                                        const on = deliveryRadius === km
+                                        return (
+                                            <button
+                                                key={km ?? 'none'}
+                                                onClick={() => handleDeliveryRadius(km)}
+                                                className="px-3.5 py-1.5 rounded-full text-xs font-black transition-all"
+                                                style={on ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}40`, color: colors.textSecondary }}
+                                            >
+                                                {km == null ? 'Sem limite' : `${km} km`}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleToggleVoiceNav}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all"
+                                style={{ background: colors.surface, border: bd }}
+                            >
+                                <span
+                                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={voiceNavEnabled ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}40`, color: colors.textSecondary }}
+                                >
+                                    <Navigation2 size={18} />
+                                </span>
+                                <span className="flex-1 text-left">
+                                    <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>
+                                        Orientação por voz na corrida
+                                    </span>
+                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
+                                        {voiceNavEnabled ? 'Fala as manobras a caminho da partida e da chegada — toque pra desligar' : 'Desligada — toque pra ligar'}
+                                    </span>
+                                </span>
+                            </button>
+                            <button
+                                onClick={handleToggleDriverMode}
+                                disabled={togglingMode}
+                                className="w-full flex items-center gap-3 p-4 rounded-2xl transition-all hover:scale-[1.01] disabled:opacity-60"
+                                style={{
+                                    background: statusStyle.bg,
+                                    border: `1px solid ${statusStyle.border}`,
+                                }}
+                            >
+                                <div
+                                    className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: statusStyle.dot, color: '#ffffff' }}
+                                >
+                                    {togglingMode ? <Spinner size={18} color="#ffffff" /> : <Car size={24} />}
+                                </div>
+                                <div className="flex-1 min-w-0 text-left">
+                                    <span className="text-sm font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
+                                        {driverModeActive ? 'Modo motorista ativado' : 'Ativar modo motorista'}
+                                        {driverStatus === 'incomplete' && (
+                                            <span
+                                                className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                                                style={{ background: '#eab30820', color: '#ca8a04' }}
+                                            >
+                                                Incompleto
+                                            </span>
+                                        )}
+                                    </span>
+                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                        {driverStatus === 'active' && 'Ativado — você já pode aceitar corridas: vê os pedidos em tempo real e aparece no mapa do passageiro assim que se candidatar'}
+                                        {driverStatus === 'incomplete' && 'Quase lá! Você poderá aceitar as corridas quando completar o cadastro'}
+                                        {driverStatus === 'inactive' && 'Você poderá aceitar as corridas quando tiver o cadastro completo (veículo, fotos e tarifa). Ative pra ver os pedidos em tempo real'}
+                                    </p>
+                                </div>
+                                <div
+                                    className="flex-shrink-0 w-11 h-6 rounded-full relative transition-all"
+                                    style={{ background: driverModeActive ? statusStyle.dot : colors.border }}
+                                >
+                                    <div
+                                        className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
+                                        style={{ left: driverModeActive ? 20 : 2 }}
+                                    />
+                                </div>
+                            </button>
+
+                            {driverStatus === 'incomplete' && !showActivationWizard && (
+                                <button
+                                    onClick={() => { setShowActivationWizard(true); setActiveTab('veiculo') }}
+                                    className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider"
+                                    style={{ background: '#eab30820', color: '#ca8a04', border: '1px solid #eab30860' }}
+                                >
+                                    Continuar cadastro
+                                </button>
+                            )}
+                            </>
+                            )}
+
+                            {activeTab === 'plano' && (
+                            <>
+                            {showActivationWizard && (
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-1.5 justify-center">
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 8, background: colors.border }} />
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 26, background: GRADIENT }} />
+                                    </div>
+                                    <p className={`${'text-xs'} font-black uppercase tracking-wider text-center`} style={{ color: colors.textSecondary }}>
+                                        Etapa 2 de 2 · Sua tarifa
+                                    </p>
+                                    <p className="text-xs text-center" style={{ color: colors.textSecondary }}>
+                                        Só mais um passo! Vamos deixar tudo prontinho pra você começar a receber corridas.
+                                    </p>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-3">
+                                <div
+                                    className={iconBadgeCls}
+                                    style={iconBadgeStyle}
+                                >
+                                    <Car size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                        Tarifa
+                                    </h3>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        Como o preço de cada corrida é calculado: pela tarifa da plataforma ou pela sua
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p className="text-[11px] font-bold px-3 py-1.5 rounded-full inline-block w-fit" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                                Tarifa para: {VEHICLE_KIND_LABELS[vehicleKind]}
+                            </p>
+
+                            <div className="flex gap-2">
+                                <button onClick={() => setPricingMode('platform')} style={planButtonStyle(pricingMode === 'platform')}>
+                                    Tarifa da plataforma
+                                    <div className={`${'text-xs'} font-normal mt-0.5 opacity-80`}>Valor padrão, sem configurar nada</div>
+                                </button>
+                                <button onClick={() => { setPricingMode('custom'); setCustomTouched(true) }} style={planButtonStyle(pricingMode === 'custom')}>
+                                    Tarifa Personalizada
+                                    <div className={`${'text-xs'} font-normal mt-0.5 opacity-80`}>Seus próprios valores, sempre salvos — ao se candidatar você escolhe qual usar</div>
+                                </button>
+                            </div>
+
+                            <div id="tarifa-km" className="flex items-center gap-2 mt-1 scroll-mt-24">
+                                <span className={`${'text-xs'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por distância (km)</span>
+                                <span className="flex-1 h-px" style={{ background: colors.border }} />
+                            </div>
+                            {pricingMode === 'platform' ? (
+                                <div className={cardCls} style={cardStyle}>
+                                    {tariffSummary}
+                                </div>
+                            ) : (
+                                <div className={cardCls} style={cardStyle}>
+                                    <div className="grid grid-cols-3 gap-2 mb-3">
+                                        <div>
+                                            <label className={labelCls}>Km incluídos</label>
+                                            <input
+                                                type="number"
+                                                value={baseDistanceKm}
+                                                onChange={(e) => setBaseDistanceKm(e.target.value)}
+                                                placeholder="5"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Inicial (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={baseFee}
+                                                onChange={(e) => setBaseFee(e.target.value)}
+                                                placeholder="7"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>Por km (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={pricePerKmAfterBase}
+                                                onChange={(e) => setPricePerKmAfterBase(e.target.value)}
+                                                placeholder="2"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                    </div>
+                                    {tariffSummary}
+                                </div>
+                            )}
+
+                            <div id="tarifa-tempo" className="flex items-center gap-2 mt-1 scroll-mt-24">
+                                <span className={`${'text-xs'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Por tempo</span>
+                                <span className="flex-1 h-px" style={{ background: colors.border }} />
+                            </div>
+                            {pricingMode === 'custom' ? (
+                                <div className={cardCls} style={cardStyle}>
+                                    <label className={labelCls}>Minha tarifa por tempo (R$ por hora)</label>
+                                    <select
+                                        value={hourlySelect}
+                                        onChange={(e) => {
+                                            if (e.target.value === 'outro') { setTimeOther(true); setTimeOtherText(String(hourlyNow)); return }
+                                            setTimeOther(false)
+                                            pickHourly(Number(e.target.value))
+                                        }}
+                                        className={inputCls}
+                                        style={{ ...fieldStyle, ...(timeBelowFloor ? { border: '1.5px solid #ef4444' } : {}) }}
+                                        aria-label="Minha tarifa por tempo, em reais por hora"
+                                    >
+                                        {hourlyList.map((h) => (
+                                            <option key={h} value={String(h)}>R$ {h.toLocaleString('pt-BR')} por hora{h === defaultHourly ? ' · padrão do iUser' : ''}</option>
+                                        ))}
+                                        <option value="outro">Outro valor…</option>
+                                    </select>
+                                    {hourlySelect === 'outro' && (
+                                        <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            min={defaultHourly}
+                                            step="1"
+                                            value={timeOtherText}
+                                            onChange={(e) => {
+                                                setTimeOtherText(e.target.value)
+                                                const h = parseFloat(e.target.value.replace(',', '.'))
+                                                setCustomTouched(true)
+                                                setPricePerMinute(h > 0 ? String(hourlyToRate(h)) : '')
+                                            }}
+                                            placeholder={`R$ por hora (mínimo ${defaultHourly.toLocaleString('pt-BR')})`}
+                                            className={`${inputCls} mt-2`}
+                                            style={{ ...fieldStyle, ...(timeBelowFloor ? { border: '1.5px solid #ef4444' } : {}) }}
+                                        />
+                                    )}
+                                    <p className={`${'text-xs'} font-bold mt-1.5`} style={{ color: timeBelowFloor ? '#ef4444' : colors.textSecondary }}>
+                                        {timeBelowFloor
+                                            ? `Abaixo do mínimo: R$ ${rateToHourly(timeEntered).toLocaleString('pt-BR')} por hora. Use pelo menos R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o mínimo do iUser).`
+                                            : `Mínimo R$ ${defaultHourly.toLocaleString('pt-BR')} por hora (o padrão do iUser): só dá para aumentar. R$ ${hourlyNow.toLocaleString('pt-BR')} por hora = R$ ${hourlyToRate(hourlyNow).toFixed(2).replace('.', ',')} por minuto.`}
+                                    </p>
+                                    <p className={`${'text-xs'} mt-1.5`} style={{ color: colors.textSecondary }}>
+                                        Cobra os minutos de trabalho (ir buscar + a corrida). É o seu 3º valor, ao lado da Tarifa iUser e da tarifa por km: em cada corrida você escolhe qual propor. O mínimo do iUser por minuto e o seu ganho mínimo por hora (abaixo) também valem para ele.
+                                    </p>
+                                    {!timeBelowFloor && (
+                                        <p className={`${'text-xs'} font-bold mt-1`} style={{ color: '#16a34a' }}>
+                                            Ex.: uma corrida de 20 min de trabalho = R$ {(20 * hourlyToRate(hourlyNow)).toFixed(2).replace('.', ',')}
+                                        </p>
+                                    )}
+                                    <p className={`${'text-xs'} mt-1`} style={{ color: colors.textSecondary }}>A espera na parada não entra aqui: é regra do iUser.</p>
+                                </div>
+                            ) : (
+                                <p className={`${'text-xs'} px-1`} style={{ color: colors.textSecondary }}>
+                                    Na tarifa da plataforma o tempo vale o mínimo do iUser por minuto. Para ter o seu valor por minuto, escolha a Tarifa Personalizada acima.
+                                </p>
+                            )}
+
+                            <DriverEarningGoalCard driverId={userId} />
+
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className={`${'text-xs'} font-black uppercase tracking-wider`} style={{ color: colors.textSecondary }}>Extras</span>
+                                <span className="flex-1 h-px" style={{ background: colors.border }} />
+                            </div>
+                            <div
+                                className={cardCls}
+                                style={cardStyle}
+                            >
+                                <div className="flex items-center gap-2 mb-1">
+                                    <TrendingUp size={16} style={{ color: '#f97316' }} />
+                                    <p className={`${'text-xs'} font-black`} style={{ color: '#f97316' }}>
+                                        Valor extra por tipo de corrida
+                                    </p>
+                                </div>
+                                <p className={`${'text-xs'} mb-3`} style={{ color: colors.textSecondary }}>
+                                    Somado à tarifa base, conforme o tipo do pedido
+                                </p>
+                                {pricingMode === 'platform' ? (
+                                    <div className="grid grid-cols-3 gap-2 text-center">
+                                        <div>
+                                            <p className={`${'text-xs'} font-bold`} style={{ color: colors.textSecondary }}>Pessoa</p>
+                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {platformPricingForVehicle.extraFees.pessoa.toFixed(2)}</p>
+                                        </div>
+                                        <div>
+                                            <p className={`${'text-xs'} font-bold`} style={{ color: colors.textSecondary }}>Animal</p>
+                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {platformPricingForVehicle.extraFees.animal.toFixed(2)}</p>
+                                        </div>
+                                        <div>
+                                            <p className={`${'text-xs'} font-bold`} style={{ color: colors.textSecondary }}>Objeto</p>
+                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {platformPricingForVehicle.extraFees.objeto.toFixed(2)}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className={labelCls} style={{ color: colors.textSecondary }}>Pessoa (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={extraFeePessoa}
+                                                onChange={(e) => setExtraFeePessoa(e.target.value)}
+                                                placeholder="0"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls} style={{ color: colors.textSecondary }}>Animal (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={extraFeeAnimal}
+                                                onChange={(e) => setExtraFeeAnimal(e.target.value)}
+                                                placeholder="0"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls} style={{ color: colors.textSecondary }}>Objeto (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={extraFeeObjeto}
+                                                onChange={(e) => setExtraFeeObjeto(e.target.value)}
+                                                placeholder="0"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div
+                                className={cardCls}
+                                style={cardStyle}
+                            >
+                                <div className="flex items-center gap-2 mb-1">
+                                    <TrendingUp size={16} style={{ color: '#f97316' }} />
+                                    <p className={`${'text-xs'} font-black`} style={{ color: '#f97316' }}>
+                                        Valor extra por condição da corrida
+                                    </p>
+                                </div>
+                                <p className={`${'text-xs'} mb-3`} style={{ color: colors.textSecondary }}>
+                                    Somado à tarifa base, conforme o que o pedido precisar (condomínio conta em dobro se for na origem e no destino)
+                                </p>
+                                {pricingMode === 'platform' ? (
+                                    <div className="grid grid-cols-2 gap-3 text-center">
+                                        {conditionExtraFeeFields.map((field) => (
+                                            <div key={field.key}>
+                                                <p className={`${'text-xs'} font-bold`} style={{ color: colors.textSecondary }}>{field.label}</p>
+                                                <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {field.platformDefault.toFixed(2)}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {conditionExtraFeeFields.map((field) => (
+                                            <div key={field.key}>
+                                                <label className={labelCls} style={{ color: colors.textSecondary }}>{field.label} (R$)</label>
+                                                <input
+                                                    type="number"
+                                                    value={field.value}
+                                                    onChange={(e) => field.setValue(e.target.value)}
+                                                    placeholder={String(field.platformDefault)}
+                                                    className={inputCls}
+                                                    style={fieldStyle}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                onClick={showActivationWizard ? handleWizardPricingContinue : handleSave}
+                                disabled={saving}
+                                className="w-full py-3.5 rounded-full text-sm font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                style={{ background: GRADIENT, color: '#ffffff' }}
+                            >
+                                {saving ? <Spinner size={16} /> : (showActivationWizard ? 'Concluir cadastro' : 'Salvar tarifa')}
+                            </button>
+                            </>
+                            )}
+
+                            {activeTab === 'veiculo' && (
+                            <>
+                            {showActivationWizard && (
+                                <div className="flex flex-col gap-2 mt-2">
+                                    <div className="flex items-center gap-1.5 justify-center">
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 26, background: GRADIENT }} />
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 8, background: colors.border }} />
+                                    </div>
+                                    <p className={`${'text-xs'} font-black uppercase tracking-wider text-center`} style={{ color: colors.textSecondary }}>
+                                        Etapa 1 de 2 · Seu carro
+                                    </p>
+                                </div>
+                            )}
+                            {/* ===== MEU CARRO ===== */}
+                            <div className="flex items-center gap-3 mt-2">
+                                <div
+                                    className={iconBadgeCls}
+                                    style={iconBadgeStyle}
+                                >
+                                    <Car size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Meu Veículo</h3>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        Aparece pros passageiros escolherem entre os candidatos
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className={`${cardCls} flex flex-col gap-3`} style={cardStyle}>
+                                <p className={`${'text-xs'}`} style={{ color: colors.textSecondary }}>
+                                    Cadastre quantos veículos quiser — cada tipo é independente (✓ = já cadastrado).
+                                </p>
+                                <div className="flex items-center gap-1.5">
+                                    {(Object.keys(VEHICLE_KIND_LABELS) as VehicleKind[]).map((kind) => (
+                                        <button
+                                            key={kind}
+                                            onClick={() => switchVehicleKind(kind)}
+                                            className="flex-1 py-2 rounded-full text-[11px] font-black transition-all"
+                                            style={vehicleKind === kind
+                                                ? { background: GRADIENT, color: '#fff' }
+                                                : { background: `${colors.border}30`, color: colors.textSecondary, border: bd }}
+                                        >
+                                            {VEHICLE_KIND_LABELS[kind]}{vehiclesByKind[kind] ? ' ✓' : ''}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        onClick={() => document.getElementById('car-photo-input')?.click()}
+                                        className="w-20 h-20 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0"
+                                        style={{ background: `${colors.border}30`, border: 'none' }}
+                                    >
+                                        {carPhotoUrl ? (
+                                            <img src={carPhotoUrl} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <Camera size={22} style={{ color: colors.textSecondary }} />
+                                        )}
+                                    </div>
+                                    <input
+                                        id="car-photo-input"
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0]
+                                            if (!file) return
+                                            try {
+                                                setCarPhotoFile(await createSquareImage(file, 500))
+                                            } catch {
+                                                toast.error('Erro ao processar imagem')
+                                            }
+                                        }}
+                                    />
+                                    <div className="flex-1 grid grid-cols-2 gap-2">
+                                        <input
+                                            type="text"
+                                            value={carModel}
+                                            onChange={(e) => setCarModel(e.target.value)}
+                                            placeholder={vehicleKind === 'carro' ? 'Modelo (ex: Onix)' : vehicleKind === 'moto' ? 'Modelo (ex: CG 160)' : 'Modelo (ex: Caloi 10)'}
+                                            className={inputClsXs}
+                                            style={fieldStyle}
+                                        />
+                                        <input
+                                            type="text"
+                                            value={carColor}
+                                            onChange={(e) => setCarColor(e.target.value)}
+                                            placeholder="Cor (ex: Prata)"
+                                            className={inputClsXs}
+                                            style={fieldStyle}
+                                        />
+                                        {vehicleKind !== 'bicicleta' && (
+                                            <input
+                                                type="text"
+                                                value={carPlate}
+                                                onChange={(e) => setCarPlate(e.target.value.toUpperCase())}
+                                                placeholder="Placa"
+                                                className={`col-span-2 ${inputClsXs}`}
+                                                style={fieldStyle}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 pt-1 border-t" style={{ borderColor: 'transparent' }}>
+                                    <div
+                                        onClick={() => document.getElementById('driver-photo-input')?.click()}
+                                        className="w-20 h-20 rounded-full flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0"
+                                        style={{ background: `${colors.border}30`, border: 'none' }}
+                                    >
+                                        {driverPhotoUrl ? (
+                                            <img src={driverPhotoUrl} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <Camera size={22} style={{ color: colors.textSecondary }} />
+                                        )}
+                                    </div>
+                                    <input
+                                        id="driver-photo-input"
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0]
+                                            if (!file) return
+                                            try {
+                                                setDriverPhotoFile(await createSquareImage(file, 500))
+                                            } catch {
+                                                toast.error('Erro ao processar imagem')
+                                            }
+                                        }}
+                                    />
+                                    <div>
+                                        <p className="text-xs font-black" style={{ color: colors.textPrimary }}>Sua foto</p>
+                                        <p className={`${'text-xs'}`} style={{ color: colors.textSecondary }}>
+                                            Uma foto sua de rosto, pro passageiro reconhecer quem vai dirigir
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {vehicleKind === 'carro' && (
+                                <div>
+                                    <p className={`${'text-xs'} font-black mb-2`} style={{ color: colors.textSecondary }}>Capacidade do carro</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className={labelCls} style={{ color: colors.textSecondary }}>Quantos passageiros cabem?</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={passengerCapacity}
+                                                onChange={(e) => setPassengerCapacity(e.target.value)}
+                                                placeholder="4"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls} style={{ color: colors.textSecondary }}>Tem banco para bebê?</label>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    onClick={() => setHasBabySeat(true)}
+                                                    className="flex-1 py-2 rounded-full text-[11px] font-black transition-all"
+                                                    style={hasBabySeat === true ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: bd }}
+                                                >
+                                                    SIM
+                                                </button>
+                                                <button
+                                                    onClick={() => setHasBabySeat(false)}
+                                                    className="flex-1 py-2 rounded-full text-[11px] font-black transition-all"
+                                                    style={hasBabySeat === false ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: bd }}
+                                                >
+                                                    NÃO
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <p className={`${'text-xs'} font-bold mt-3 mb-1.5`} style={{ color: colors.textSecondary }}>
+                                        Sacolas de compras que cabem no porta-malas
+                                    </p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className={labelCls} style={{ color: colors.textSecondary }}>Pequena</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkBagsPequena}
+                                                onChange={(e) => setTrunkBagsPequena(e.target.value)}
+                                                placeholder="0"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls} style={{ color: colors.textSecondary }}>Média</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkBagsMedia}
+                                                onChange={(e) => setTrunkBagsMedia(e.target.value)}
+                                                placeholder="0"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls} style={{ color: colors.textSecondary }}>Grande</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkBagsGrande}
+                                                onChange={(e) => setTrunkBagsGrande(e.target.value)}
+                                                placeholder="0"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <p className={`${'text-xs'} font-bold mt-3 mb-1.5`} style={{ color: colors.textSecondary }}>
+                                        Malas de viagem que cabem no porta-malas
+                                    </p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className={`${'text-xs'} font-bold block`} style={{ color: colors.textSecondary }}>Pequena</label>
+                                            <span className={`${'text-[10px]'} block mb-1`} style={{ color: colors.textSecondary, opacity: 0.7 }}>até 55cm</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkSuitcasesPequena}
+                                                onChange={(e) => setTrunkSuitcasesPequena(e.target.value)}
+                                                placeholder="0"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={`${'text-xs'} font-bold block`} style={{ color: colors.textSecondary }}>Média</label>
+                                            <span className={`${'text-[10px]'} block mb-1`} style={{ color: colors.textSecondary, opacity: 0.7 }}>até 65cm</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkSuitcasesMedia}
+                                                onChange={(e) => setTrunkSuitcasesMedia(e.target.value)}
+                                                placeholder="0"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={`${'text-xs'} font-bold block`} style={{ color: colors.textSecondary }}>Grande</label>
+                                            <span className={`${'text-[10px]'} block mb-1`} style={{ color: colors.textSecondary, opacity: 0.7 }}>até 75cm</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkSuitcasesGrande}
+                                                onChange={(e) => setTrunkSuitcasesGrande(e.target.value)}
+                                                placeholder="0"
+                                                className={inputCls}
+                                                style={fieldStyle}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                )}
+
+                                {vehicleKind === 'carro' ? (
+                                <div>
+                                    <p className={`${'text-xs'} font-black mb-2`} style={{ color: colors.textSecondary }}>Serviços oferecidos</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {DRIVER_SERVICE_OPTIONS.map((opt) => {
+                                            const Icon = opt.icon
+                                            const active = services.includes(opt.id)
+                                            return (
+                                                <button
+                                                    key={opt.id}
+                                                    onClick={() => toggleService(opt.id)}
+                                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
+                                                    style={
+                                                        active
+                                                            ? { background: GRADIENT, color: '#fff' }
+                                                            : { background: `${colors.border}30`, color: colors.textSecondary, border: bd }
+                                                    }
+                                                >
+                                                    <Icon size={15} />
+                                                    {opt.label}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                                ) : (
+                                    <p className="text-[11px] font-semibold px-3 py-2 rounded-lg" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: bd }}>
+                                        {vehicleKind === 'moto' ? 'Moto' : 'Bicicleta'} só leva uma coisa por vez — uma pessoa, um animal ou um objeto. Por isso não tem serviços extras (ar-condicionado, wi-fi etc.) pra oferecer.
+                                    </p>
+                                )}
+
+                                <button
+                                    onClick={showActivationWizard ? handleWizardVehicleContinue : handleSaveVehicle}
+                                    disabled={savingVehicle}
+                                    className="w-full py-3 rounded-full text-sm font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                    style={{ background: GRADIENT, color: '#ffffff' }}
+                                >
+                                    {savingVehicle ? <Spinner size={16} /> : (showActivationWizard ? 'Continuar' : `Salvar ${VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}`)}
+                                </button>
+
+                                {!showActivationWizard && vehiclesByKind[vehicleKind] && (
+                                    <button
+                                        onClick={() => setConfirmDeleteVehicle(true)}
+                                        disabled={savingVehicle || deletingVehicle}
+                                        className="w-full py-3 rounded-full text-sm font-black uppercase tracking-wider transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                                        style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef444460' }}
+                                    >
+                                        <Trash2 size={16} />
+                                        Excluir {VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}
+                                    </button>
+                                )}
+                            </div>
+                            </>
+                            )}
+
+                            {!showActivationWizard && activeTab === 'avaliacoes' && (
+                            <>
+                            {/* ===== AVALIAÇÕES RECEBIDAS ===== */}
+                            <div className="flex items-center gap-3 mt-2">
+                                <div
+                                    className={iconBadgeCls}
+                                    style={iconBadgeStyle}
+                                >
+                                    <Star size={22} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                        Avaliações recebidas {reviewsAvg != null && `· ${reviewsAvg.toFixed(1)} ★`}
+                                    </h3>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        {reviews.length === 0 ? 'Ainda sem avaliações' : `${reviews.length} avaliação${reviews.length > 1 ? 'ões' : ''} de passageiros`}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {reviews.length > 0 && (
+                                <div className="flex flex-col gap-2">
+                                    {reviews.map((r, i) => (
+                                        <div key={i} className="p-3 rounded-xl flex items-start gap-2.5" style={{ background: `${colors.border}30`, border: bd }}>
+                                            <PlanAvatarRing userId={r.reviewerId}>
+                                            {r.reviewerAvatarUrl ? (
+                                                <img src={r.reviewerAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
+                                            ) : (
+                                                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                                    <MessageSquare size={13} />
+                                                </div>
+                                            )}
+                                            </PlanAvatarRing>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                        {r.reviewerName || 'Passageiro'}
+                                                    </span>
+                                                    <span className="text-[11px] font-black flex-shrink-0" style={{ color: '#f97316' }}>
+                                                        {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
+                                                    </span>
+                                                </div>
+                                                {r.comment && (
+                                                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>{r.comment}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* ===== HISTÓRICO DE CORRIDAS ===== */}
+                            <div className="flex items-center gap-3 mt-2">
+                                <div
+                                    className={iconBadgeCls}
+                                    style={iconBadgeStyle}
+                                >
+                                    <Clock size={22} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Histórico de corridas</h3>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        {rideHistory.length === 0 ? 'Nenhuma corrida concluída ainda' : `${rideHistory.length} corrida${rideHistory.length > 1 ? 's' : ''} concluída${rideHistory.length > 1 ? 's' : ''}`}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {rideHistory.length > 0 && (
+                                <div className="flex flex-col gap-2">
+                                    {rideHistory.map((h) => (
+                                        <div key={h.id} className="p-3 rounded-xl" style={{ background: `${colors.border}30`, border: bd }}>
+                                            <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                                {shortAddress(h.origin_address)} → {shortAddress(h.destination_address)}
+                                            </p>
+                                            <p className={`${'text-xs'} mt-0.5`} style={{ color: colors.textSecondary }}>
+                                                {formatDate(h.created_at)}{h.distance_km != null ? ` · ${h.distance_km.toFixed(1)} km` : ''}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            </>
+                            )}
+                        </div>
+                    )}
+                </section>
+            </main>
+
+            {showFirstVehicleDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                    <div
+                        className="w-full max-w-sm rounded-2xl p-8 flex flex-col items-center gap-3 text-center"
+                        style={{ background: colors.surface, boxShadow: colors.shadow }}
+                    >
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                            <CheckCircle2 size={32} />
+                        </div>
+                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Carro cadastrado!</h2>
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>
+                            Agora ligue o <strong>Modo motorista</strong> no painel pra ficar disponível: sua localização é compartilhada, você vê as solicitações em tempo real e pode se candidatar.
+                        </p>
+                        <button
+                            onClick={() => { setShowFirstVehicleDialog(false); router.push(nextUrl || '/aceitar-corridas') }}
+                            className="mt-2 w-full py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2"
+                            style={{ background: GRADIENT, color: '#fff' }}
+                        >
+                            <Car size={18} />
+                            Ver corridas e valores
+                        </button>
+                        <button
+                            onClick={() => { setShowFirstVehicleDialog(false); setActiveTab('painel') }}
+                            className="w-full py-2.5 rounded-full font-bold text-sm"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            Ir para o painel
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {confirmDeleteVehicle && (
+                <div
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+                    style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+                    onClick={() => (deletingVehicle ? null : setConfirmDeleteVehicle(false))}
+                >
+                    <div
+                        className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+                        style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>
+                            Excluir {VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}?
+                        </h3>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                            {Object.keys(vehiclesByKind).length <= 1
+                                ? 'Esse é o seu único veículo: o modo motorista será desligado até você cadastrar outro. Essa ação não pode ser desfeita.'
+                                : 'Os dados e a foto desse veículo serão apagados. Essa ação não pode ser desfeita.'}
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setConfirmDeleteVehicle(false)}
+                                disabled={deletingVehicle}
+                                className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider disabled:opacity-50"
+                                style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDeleteVehicle}
+                                disabled={deletingVehicle}
+                                className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider flex items-center justify-center disabled:opacity-70"
+                                style={{ background: '#ef4444', color: '#fff' }}
+                            >
+                                {deletingVehicle ? <Spinner size={14} /> : 'Excluir'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
 
 export default function CanalMotoristaScreen() {
-    const router = useRouter()
-    const { colors } = useTheme()
-    const goBack = () => { if (typeof window !== 'undefined' && window.history.length > 1) router.back(); else router.push('/') }
-    const atalhos = [
-        { t: 'Corridas', sub: 'Todas as abertas', ic: Car, cor: '#16a34a', to: '/aceitar-corridas' },
-        { t: 'Entregas', sub: 'Pedidos de lojas', ic: Package, cor: '#7c3aed', to: '/entregas' },
-        { t: 'Ganhos', sub: 'Hoje, semana e mês', ic: Wallet, cor: '#ea580c', to: '/ganhos' },
-        { t: 'Painel', sub: 'Veículo e tarifa', ic: LayoutDashboard, cor: '#2563eb', to: '/painel-motorista' },
-    ]
     return (
-        <div className="pb-10">
-            <Header title="Canal do Motorista" showBack onBack={goBack} />
-            <p className="text-[12.5px] mt-1 mb-3 leading-snug" style={{ color: colors.textSecondary }}>Corridas e entregas abertas agora, quanto cada uma paga e tudo para dirigir pelo iUser.</p>
-            <div className="grid grid-cols-4 gap-2 mb-5">
-                {atalhos.map((a) => {
-                    const Icon = a.ic
-                    return (
-                        <button key={a.t} onClick={() => router.push(a.to)} className="rounded-2xl p-2 flex flex-col items-center gap-1 text-center active:scale-95 transition" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                            <span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${a.cor}1f`, color: a.cor }}><Icon size={18} /></span>
-                            <span className="text-[12px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.t}</span>
-                            <span className="text-[9.5px] leading-tight" style={{ color: colors.textSecondary }}>{a.sub}</span>
-                        </button>
-                    )
-                })}
-            </div>
-            <AcceptARider embedded />
-        </div>
+        <Suspense fallback={null}>
+            <PainelMotoristaContent />
+        </Suspense>
     )
 }

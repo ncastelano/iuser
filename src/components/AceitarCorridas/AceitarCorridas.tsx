@@ -2,7 +2,7 @@
 //
 // Conteúdo de /aceitar-corridas (corridas disponíveis, "Me candidatei" e
 // corrida aceita). Usado pela página /aceitar-corridas (completa, com
-// Header e fundo) e embutido no /painel-motorista (embedded: sem Header,
+// Header e fundo) e embutido no /canal-do-motorista (embedded: sem Header,
 // com a aba controlada pelo painel).
 'use client'
 
@@ -281,7 +281,7 @@ interface AcceptedRideDetail extends RideSpecFields {
 export type AceitarCorridasTab = 'servicos' | 'candidatos' | 'aceita'
 
 export interface AceitarCorridasProps {
-    // Embutido no /painel-motorista: sem Header/fundo, aba controlada de fora.
+    // Embutido no /canal-do-motorista: sem Header/fundo, aba controlada de fora.
     embedded?: boolean
     tab?: AceitarCorridasTab
     onTabChange?: (tab: AceitarCorridasTab) => void
@@ -759,7 +759,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             }
         })
 
-        // Corrida nova desde a última leitura: toca o som (se o motorista não silenciou em /painel-motorista). A primeira leitura só marca o
+        // Corrida nova desde a última leitura: toca o som (se o motorista não silenciou em /canal-do-motorista). A primeira leitura só marca o
         // que já existia, sem tocar. SEM aviso escrito: a corrida nova aparece na própria lista, que a pessoa está vendo (e, fora dela, o
         // aviso global `DriverRideAlertListener` cuida — ver lib/alertSuppression).
         const newIds = cards.filter((c) => !knownRideIdsRef.current.has(c.id))
@@ -1597,7 +1597,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         minHourly={ride.order_id ? null : earningGoal.minHourly}
                                         protection={earningGoal.protection}
                                         minPerMinute={ride.order_id ? 0 : minPerMinute}
-                                        onEditTariff={ride.order_id ? undefined : (section) => router.push(`/painel-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}&modo=personalizada&secao=${section ?? 'km'}`)}
+                                        onEditTariff={ride.order_id ? undefined : (section) => router.push(`/canal-do-motorista?aba=plano&veiculo=${kindForRideType(ride.vehicle_type)}&modo=personalizada&secao=${section ?? 'km'}`)}
                                         toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
                                         trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
                                         onSkip={() => skipRide(ride.id)}
@@ -2056,7 +2056,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     onRegister={() => {
                         setShowVehicleDialog(false)
                         if (onRegisterVehicle) onRegisterVehicle()
-                        else router.push('/painel-motorista?aba=veiculo&veiculo=carro')
+                        else router.push('/canal-do-motorista?aba=veiculo&veiculo=carro')
                     }}
                 />
             )}

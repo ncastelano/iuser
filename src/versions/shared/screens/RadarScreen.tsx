@@ -12,7 +12,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { loadOutdoor, pointsById, pointsLabel } from '@/modules/outdoor'
-import { ArrowLeft, Search, Store, ShoppingCart, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera, ChevronDown, Check, Car } from 'lucide-react'
+import { ArrowLeft, Search, Store, ShoppingCart, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera, ChevronDown, Check, Car, Zap } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from '@/lib/toast'
 import { Spinner } from '@/components/Spinner'
@@ -20,6 +20,7 @@ import RadarSonar from '@/components/radar/RadarSonar'
 import RadarItemDetails from '@/components/radar/RadarItemDetails'
 import RadarDriverDetails from '@/components/radar/RadarDriverDetails'
 import { fetchRadarDrivers } from '@/lib/radarDrivers'
+import { authorAvatarUrl, fetchRadarFlashes, mediaSrc } from '@/modules/flash'
 import { mountMapAvatarMarker } from '@/components/MapAvatarMarker'
 import { cachedStoreLevels, levelOf, loadStoreLevels } from '@/modules/store-levels'
 import { vehicleGlyphSvg } from '@/lib/vehicleMarkerIcon'
@@ -37,7 +38,7 @@ import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
-type Mode = 'lojas' | 'servicos' | 'produtos' | 'pessoas' | 'motoristas'
+type Mode = 'lojas' | 'servicos' | 'produtos' | 'pessoas' | 'motoristas' | 'flash'
 
 // Coordenadas de um item de loja/produto/serviço: primeiro tenta o campo
 // geográfico `location`, depois `lat`/`lng` soltos (é o que fica preenchido
@@ -48,7 +49,7 @@ type Mode = 'lojas' | 'servicos' | 'produtos' | 'pessoas' | 'motoristas'
 // loja dona do item. (Number.isFinite, não isFinite: isFinite(null) é true e gerava
 // [null, null], que quebrava o mapa com "Cannot read properties of null (toFixed)".)
 function resolveItemCoords(item: any, mode: Mode, stores: any[]): [number, number] | null {
-    if (mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas') return parseCoords(item.location)
+    if (mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas' || mode === 'flash') return parseCoords(item.location)
     const ownCoords = parseCoords(item.location)
         || (Number.isFinite(item.lat) && Number.isFinite(item.lng) ? [item.lng, item.lat] as [number, number] : null)
     if (ownCoords) return ownCoords
@@ -92,7 +93,7 @@ const RANK_GROUPS: { id: string; title: string; storesOnly?: boolean; desc: { ke
     { id: 'recent', title: 'Novidade', desc: { key: 'recent_desc', label: 'Mais recentes' }, asc: { key: 'recent_asc', label: 'Mais antigos' } },
 ]
 
-const OUTDOOR_NOUN: Record<string, string> = { lojas: 'lojas', servicos: 'serviços', produtos: 'produtos', pessoas: 'pessoas', motoristas: 'motoristas' }
+const OUTDOOR_NOUN: Record<string, string> = { lojas: 'lojas', servicos: 'serviços', produtos: 'produtos', pessoas: 'pessoas', motoristas: 'motoristas', flash: 'flashes' }
 /** "Outdoor de lojas" no lugar de só "Outdoor", conforme o que está sendo visto */
 function outdoorLabel(mode: string): string { return `Outdoor de ${OUTDOOR_NOUN[mode] || 'lojas'}` }
 
@@ -176,6 +177,7 @@ export default function RadarScreen() {
     const [people, setPeople] = useState<any[]>([])
     // Motoristas disponíveis agora (só para quem está logado): vêm de get_radar_drivers, com a posição aproximada
     const [drivers, setDrivers] = useState<any[]>([])
+    const [flashes, setFlashes] = useState<any[]>([])   // modo Flash: flashes com local, recentes e perto (get_radar_flashes)
     const [metrics, setMetrics] = useState<RadarMetrics | null>(null)
     const [rankKey, setRankKey] = useState<RankKey>('outdoor_desc')
     // pontos do Outdoor do tipo que está na tela (id → pontos); vazio enquanto carrega ou em motoristas
@@ -390,7 +392,7 @@ export default function RadarScreen() {
     // Atualiza a cada 30 s enquanto o filtro está aberto, porque eles se mexem.
     const driversRef = referenceLocation ? `${referenceLocation.lat.toFixed(3)},${referenceLocation.lng.toFixed(3)}` : ''
     useEffect(() => {
-        if (mode !== 'motoristas' || !isLoggedIn) return
+        if (mode !== 'motoristas' && mode !== 'flash' || !isLoggedIn) return
         const center = referenceLocation || PORTO_VELHO
         let cancelled = false
         const loadDrivers = async () => {
@@ -411,6 +413,30 @@ export default function RadarScreen() {
         return () => { cancelled = true; clearInterval(id) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mode, isLoggedIn, driversRef])
+
+    // FLASH: os flashes que marcaram o local (posição aproximada, só rua e bairro), das últimas 72 h, num raio de 30 km. Vale para todos
+    // (também visitante); atualiza a cada minuto enquanto o modo está aberto. Tocar num flash abre o feed nele (/flash?de=<id>).
+    useEffect(() => {
+        if (mode !== 'flash') return
+        const center = referenceLocation || PORTO_VELHO
+        let cancelled = false
+        const loadFlashes = async () => {
+            try {
+                const list = await fetchRadarFlashes(center.lat, center.lng, 30, 72)
+                if (cancelled) return
+                setFlashes(list.map((f) => ({
+                    id: f.id, isFlash: true, name: f.authorName, profileSlug: f.authorSlug,
+                    logo_url: (f.mediaType === 'image' ? mediaSrc({ kind: 'flash', mediaUrl: f.mediaUrl, mediaType: f.mediaType }) : null) || authorAvatarUrl(f.authorAvatar),
+                    location: { type: 'Point', coordinates: [f.lng, f.lat] },
+                    searchText: `${f.authorName} ${f.authorSlug} ${f.content} ${f.placeLabel || ''}`.toLowerCase(),
+                })))
+            } catch { /* falha da consulta: mantém o que já havia */ }
+        }
+        loadFlashes()
+        const id = setInterval(loadFlashes, 60000)
+        return () => { cancelled = true; clearInterval(id) }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mode, driversRef])
 
     // INIT MAP - CORRIGIDO COM FALLBACK
     useEffect(() => {
@@ -519,7 +545,7 @@ export default function RadarScreen() {
 
     // Pontos do Outdoor do tipo que está na tela (a pontuação mora no banco; aqui só ordena)
     useEffect(() => {
-        if (mode === 'motoristas') { setOutdoorPts({}); return }
+        if (mode === 'motoristas' || mode === 'flash') { setOutdoorPts({}); return }
         let alive = true
         void loadOutdoor(mode, 200).then((items) => { if (alive) setOutdoorPts(items ? pointsById(items) : {}) })
         return () => { alive = false }
@@ -542,15 +568,17 @@ export default function RadarScreen() {
             items = people
         } else if (mode === 'motoristas') {
             items = drivers
+        } else if (mode === 'flash') {
+            items = flashes
         }
 
         const q = search.toLowerCase()
         const matched = q ? items.filter(i => i.name?.toLowerCase().includes(q) || i.searchText?.includes(q)) : items
         // Ordena pelo filtro escolhido (padrão: mais vistos → menos vistos). Motoristas ficam do mais perto pro mais longe (ordem do banco), sem ranking.
-        const result = mode === 'motoristas' ? matched : sortByRank(matched, rankKey, mode === 'lojas', metrics, outdoorPts)
+        const result = mode === 'motoristas' || mode === 'flash' ? matched : sortByRank(matched, rankKey, mode === 'lojas', metrics, outdoorPts)
         setFiltered(result)
         console.log('[MapPage] 🎯 Filtrados:', { mode, count: result.length, search: q })
-    }, [search, mode, stores, products, people, drivers, overrideList, rankKey, metrics, outdoorPts])
+    }, [search, mode, stores, products, people, drivers, flashes, overrideList, rankKey, metrics, outdoorPts])
 
     // Buscar detalhes extras da loja selecionada (seguidores, whatsapp, instagram,
     // se já sigo, produtos mais vistos, comentários)
@@ -815,7 +843,7 @@ export default function RadarScreen() {
             return
         }
 
-        const rankOf = new Map<string, number>(mode === 'motoristas' ? [] : filtered.slice(0, 3).map((it, i) => [it.id, i + 1] as [string, number]))
+        const rankOf = new Map<string, number>(mode === 'motoristas' || mode === 'flash' ? [] : filtered.slice(0, 3).map((it, i) => [it.id, i + 1] as [string, number]))
         const coordGroups: Record<string, any[]> = {}
 
         filtered.forEach(item => {
@@ -853,6 +881,8 @@ export default function RadarScreen() {
                     borderColor = item.is_open ? '#22c55e' : '#ef4444'
                 } else if (mode === 'motoristas') {
                     borderColor = '#22c55e' // disponível agora
+                } else if (mode === 'flash') {
+                    borderColor = '#ec4899' // flash: rosa (a cor do feed)
                 }
                 // Top 3: marcador maior, com a cor da coroa e uma coroa numerada em cima.
                 const rank = rankOf.get(item.id)
@@ -963,7 +993,7 @@ export default function RadarScreen() {
                         setClusterLocation({
                             lng,
                             lat,
-                            name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : `${group.length} estabelecimentos nesta localização`
+                            name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : mode === 'flash' ? `${group.length} flashes neste lugar` : `${group.length} estabelecimentos nesta localização`
                         })
                         map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
                     }
@@ -976,6 +1006,7 @@ export default function RadarScreen() {
                 }
 
                 el.onclick = async () => {
+                    if (item.isFlash) { router.push(`/flash?de=${item.id}`); return }   // flash: abre o feed já nele
                     setSelectedItem(item)
                     map.flyTo({ center: [lng, lat], zoom: 16, duration: 600 })
                 }
@@ -1208,7 +1239,7 @@ export default function RadarScreen() {
         return distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`
     }
 
-    const distanceValue = selectedItem ? calcDistanceKm((mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas' ? selectedItem : selectedStore)?.location) : null
+    const distanceValue = selectedItem ? calcDistanceKm((mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas' || mode === 'flash' ? selectedItem : selectedStore)?.location) : null
     const distanceFormatted = formatDistance(distanceValue)
 
     const toggleMapStyle = () => {
@@ -1302,6 +1333,7 @@ export default function RadarScreen() {
         { id: 'produtos', label: 'Produtos', icon: ShoppingCart, onClick: () => selectMode('produtos'), isActive: mode === 'produtos' },
         { id: 'pessoas', label: 'Pessoas', icon: Users, onClick: () => selectMode('pessoas'), isActive: mode === 'pessoas' },
         { id: 'motoristas', label: 'Motoristas', icon: Car, onClick: () => selectMode('motoristas'), isActive: mode === 'motoristas' },
+        { id: 'flash', label: 'Flash', icon: Zap, onClick: () => selectMode('flash'), isActive: mode === 'flash' },
     ]
 
     return (
@@ -1311,11 +1343,6 @@ export default function RadarScreen() {
                 .radar-v3 .mapboxgl-ctrl-bottom-right,
                 .radar-v3 .mapboxgl-ctrl-bottom-left {
                     margin-bottom: 136px !important;
-                }
-                /* 2.0: o Outdoor e o filtro ficam no rodapé; os controles do mapa e a logo sobem acima deles */
-                .mapboxgl-ctrl-bottom-right,
-                .mapboxgl-ctrl-bottom-left {
-                    margin-bottom: calc(178px + var(--staging-banner-h, 0px)) !important;
                 }
                 .mapboxgl-ctrl-group button {
                     background: white !important;
@@ -1414,7 +1441,7 @@ export default function RadarScreen() {
                             <input
                                 value={search}
                                 onChange={(e) => { setSearch(e.target.value); setOverrideList(null) }}
-                                placeholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : mode === 'pessoas' ? 'Procurar pessoas' : mode === 'motoristas' ? 'Procurar motoristas' : 'Procurar produtos'}
+                                placeholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : mode === 'pessoas' ? 'Procurar pessoas' : mode === 'motoristas' ? 'Procurar motoristas' : mode === 'flash' ? 'Procurar flashes' : 'Procurar produtos'}
                                 className="flex-1 min-w-0 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
                             />
                             {search && <button onClick={() => setSearch('')} aria-label="Limpar busca" className="text-gray-400"><X size={16} /></button>}
@@ -1493,11 +1520,12 @@ export default function RadarScreen() {
                             <button
                                 key={idx}
                                 onClick={() => {
+                                    if (item.isFlash) { router.push(`/flash?de=${item.id}`); return }
                                     setSelectedItem(item)
                                     setClusterItems(null)
                                     setClusterLocation(null)
                                     let loc = null
-                                    if (mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas') {
+                                    if (mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas' || mode === 'flash') {
                                         loc = item.location
                                     } else {
                                         const store = stores.find(s => s.id === item.store_id)
@@ -1537,16 +1565,17 @@ export default function RadarScreen() {
                 <div className={`absolute ${('top-1 z-[55]')} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(({})), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
                     <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
-                            const rank = idx < 3 && mode !== 'motoristas' ? idx + 1 : 0
+                            const rank = idx < 3 && mode !== 'motoristas' && mode !== 'flash' ? idx + 1 : 0
                             const size = rank ? 62 : 52
                             const img = item.logo_url || item.image_url
                             return (
                                 <button
                                     key={item.id}
                                     onClick={() => {
+                                        if (item.isFlash) { router.push(`/flash?de=${item.id}`); return }
                                         setSelectedItem(item)
                                         let loc = null
-                                        if (mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas') loc = item.location
+                                        if (mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas' || mode === 'flash') loc = item.location
                                         else {
                                             const store = stores.find(s => s.id === item.store_id)
                                             loc = store?.location
@@ -1567,7 +1596,7 @@ export default function RadarScreen() {
                                             <CrownBadge rank={rank} size={30} />
                                         </span>
                                     )}
-                                    {rankKey.startsWith('outdoor') && mode !== 'motoristas' && (
+                                    {rankKey.startsWith('outdoor') && mode !== 'motoristas' && mode !== 'flash' && (
                                         <span className="absolute z-10 left-1/2 -translate-x-1/2 -bottom-2.5 rounded-full px-1.5 py-px text-[9px] font-black text-white whitespace-nowrap leading-tight" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
                                             {pointsLabel(outdoorPts[item.id] || 0)}
                                         </span>
@@ -1597,7 +1626,7 @@ export default function RadarScreen() {
                     </div>
 
                     {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos. Motoristas ficam do mais perto pro mais longe, sem filtro. */}
-                    {mode !== 'motoristas' && <div className={`flex justify-end relative ${('-mt-1')}`}>
+                    {mode !== 'motoristas' && mode !== 'flash' && <div className={`flex justify-end relative ${('-mt-1')}`}>
                         <button
                             onClick={() => setShowRankMenu(v => !v)}
                             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow-lg"
@@ -1825,7 +1854,7 @@ export default function RadarScreen() {
                             {mode === 'motoristas' && (
                                 <RadarDriverDetails item={selectedItem} go={(path) => router.push(path)} />
                             )}
-                            {mode !== 'lojas' && mode !== 'motoristas' && (
+                            {mode !== 'lojas' && mode !== 'motoristas' && mode !== 'flash' && (
                                 <RadarItemDetails
                                     mode={mode}
                                     item={selectedItem}
@@ -1916,15 +1945,18 @@ export default function RadarScreen() {
                 </div>
             )}
 
-            {/* Totals Badge */}
-            <div className="absolute bottom-24 left-6 z-10 pointer-events-none sm:block hidden">
-                <div className="bg-white/95 backdrop-blur-xl rounded-2xl px-4 py-2 shadow-2xl flex items-center gap-2 border border-orange-200">
-                    <Flame className="w-4 h-4 text-orange-500" />
-                    <span className="text-xs font-black text-gray-700">
-                        {filtered.length} {mode === 'lojas' ? 'Lojas' : mode === 'servicos' ? 'Serviços' : mode === 'pessoas' ? 'Pessoas' : mode === 'motoristas' ? 'Motoristas' : 'Produtos'}
-                    </span>
+            {/* Quantos há no mapa ("12 lojas"): na MESMA linha do logo do Mapbox, logo à frente dele (celular e computador). Não cobre o
+                logo: os termos do Mapbox pedem que ele fique visível. A altura acompanha a margem dos controles do mapa (136 px + 10 px). */}
+            {mapReady && (
+                <div className="absolute z-[2001] pointer-events-none" style={{ left: 102, bottom: 140 }}>
+                    <div className="rounded-full pl-2 pr-3 h-[28px] flex items-center gap-1.5 shadow-[0_4px_15px_rgba(0,0,0,0.2)]" style={{ background: 'rgba(255,255,255,0.96)', border: '1px solid #fed7aa' }}>
+                        <Flame className="w-3.5 h-3.5 text-orange-500" />
+                        <span className="text-[11.5px] font-black text-gray-700 whitespace-nowrap">
+                            {filtered.length} {mode === 'lojas' ? (filtered.length === 1 ? 'loja' : 'lojas') : mode === 'servicos' ? (filtered.length === 1 ? 'serviço' : 'serviços') : mode === 'pessoas' ? (filtered.length === 1 ? 'pessoa' : 'pessoas') : mode === 'motoristas' ? (filtered.length === 1 ? 'motorista' : 'motoristas') : mode === 'flash' ? (filtered.length === 1 ? 'flash' : 'flashes') : (filtered.length === 1 ? 'produto' : 'produtos')}
+                        </span>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Map Style Toggle - mesmo visual dos controles nativos do Mapbox
                 (grupo branco arredondado com sombra), posicionado logo acima

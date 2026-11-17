@@ -52,3 +52,12 @@ test('linha do banco → item', () => {
     const it = rowToItem({ kind: 'publication', id: 'x', created_at: '2026-01-01T00:00:00Z', author_id: 'a', author_name: null, like_count: '3', liked: 1 })
     assert.equal(it.kind, 'publication'); assert.equal(it.authorName, 'Pessoa'); assert.equal(it.likeCount, 3); assert.equal(it.liked, true); assert.equal(it.mediaType, null)
 })
+
+// Flash com local (migration ...70): o texto do lugar é só rua e bairro, sem número
+import { placeLabelOf } from '../src/modules/flash/domain.ts'
+test('o lugar do flash: rua e bairro, sem número, sem cidade/UF, CEP ou país', () => {
+    assert.equal(placeLabelOf('Rua Açaí, 1234, Jardim Eldorado, Porto Velho - RO, 76811-000, Brasil'), 'Rua Açaí, Jardim Eldorado')
+    assert.equal(placeLabelOf('Av. Calama, nº 88, Centro'), 'Av. Calama, Centro')
+    assert.equal(placeLabelOf('Porto Velho Shopping, Av. Rio Madeira, 3288'), 'Porto Velho Shopping, Av. Rio Madeira')
+    assert.equal(placeLabelOf(''), '')
+})

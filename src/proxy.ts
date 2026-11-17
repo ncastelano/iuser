@@ -37,7 +37,8 @@ const IGNORED_ROUTES = [
     '/solicitar-servico',
     '/procurar-servico',
     '/aceitar-corridas',
-    '/painel-motorista',
+    '/painel-motorista', // só redireciona para /canal-do-motorista (o painel mora dentro do Canal desde 16/11/2026)
+    '/convidados', // Convidados iUser: convidar, graduação, rede, saldo e saque
     '/painel-prestador',
     '/minhas-corridas',
     '/planos',
@@ -149,7 +150,7 @@ function legacyViewTarget(view: string, params: URLSearchParams): string | null 
     switch (view) {
         case 'login': return '/login'
         case 'cadastro': case 'cadastrar': return '/cadastrar'
-        case 'perfil': return '/painel-perfil' + (secao ? `?secao=${encodeURIComponent(secao)}` : '')
+        case 'perfil': return secao === 'rede' ? '/convidados' : '/painel-perfil' + (secao ? `?secao=${encodeURIComponent(secao)}` : '')
         case 'loja': { const st = params.get('store'); return st ? `/painel-loja/${encodeURIComponent(st)}` : '/' }
         case 'criar-loja': return '/criar-loja'
         default: return '/'

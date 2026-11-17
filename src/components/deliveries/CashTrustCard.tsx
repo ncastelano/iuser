@@ -61,7 +61,7 @@ export default function CashTrustCard() {
                 </ul>
             )}
             {trust.missing.includes('selfie') && (
-                <Link href="/painel-motorista?aba=veiculo" className="h-10 rounded-full flex items-center justify-center text-[13px] font-black text-white" style={{ background: color }}>
+                <Link href="/canal-do-motorista?aba=veiculo" className="h-10 rounded-full flex items-center justify-center text-[13px] font-black text-white" style={{ background: color }}>
                     Pôr a minha foto no cadastro
                 </Link>
             )}
