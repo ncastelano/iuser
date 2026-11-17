@@ -1,11 +1,14 @@
 // src/components/StoreImageCard.tsx
 //
-// Card de loja da 3.0: a imagem da loja ocupa o card todo; por cima, à esquerda o tipo (ex.: Eletrônicos e Tecnologia)
-// e à direita se está aberta ou fechada; embaixo, a foto do dono ao lado do nome. Usado na home e em /lojas.
+// Cartão de loja da 3.0 (home "Lojas para conhecer", /lojas e /comprar — um desenho só). Decisão do dono (17/11/2026): o logo é
+// REDONDO, como a foto dos perfis, e os detalhes ficam EMBAIXO dele (antes a imagem ocupava o cartão todo e o texto ia por cima).
+// Em volta do logo: o anel verde/vermelho de aberta/fechada (o mesmo do cabeçalho da loja) e, por fora, a moldura do NÍVEL da loja
+// (`StoreFrame` redondo; o nível 0 não desenha nada). Embaixo: nome, categoria, nota, faixa de preço, entrega e tempo.
 'use client'
 
 import { Clock, Star, Store as StoreIcon, Tag, Truck } from 'lucide-react'
 import { resolveCategoria } from '@/lib/categorias'
+import { useTheme } from '@/app/contexts/theme'
 import StoreFrame from '@/components/store/StoreFrame'
 
 export interface StoreCardItem {
@@ -14,7 +17,7 @@ export interface StoreCardItem {
     slug: string
     logo: string | null
     category: string | null
-    /** Nível da loja (0 = sem moldura): a moldura do nível vai em volta do cartão */
+    /** Nível da loja (0 = sem moldura): a moldura do nível vai em volta do logo */
     level?: number
     /** Só existe quando a loja já foi avaliada */
     rating: number | null
@@ -28,61 +31,60 @@ export interface StoreCardItem {
     price?: string | null
 }
 
+const LOGO = 84
+
 export default function StoreImageCard({ s, onClick, fluid = false }: {
     s: StoreCardItem
     onClick: () => void
     /** Ocupa a coluna inteira (grade) em vez da largura fixa de carrossel */
     fluid?: boolean
 }) {
+    const { colors } = useTheme()
     const cat = resolveCategoria(s.category)
     const catLabel = cat?.nome || s.category
     const catColor = cat?.color || '#2563eb'
+    const status = s.open ? '#16a34a' : '#dc2626'
     return (
-        <StoreFrame level={s.level} ring={3} innerRadius={24} fluid={fluid} clip={false} bg="#ffffff" className={fluid ? '' : 'snap-start flex-shrink-0'}>
         <button
             onClick={onClick}
-            className={`${fluid ? 'w-full h-[270px]' : 'snap-start flex-shrink-0 w-[208px] sm:w-[232px] h-[280px]'} relative text-left rounded-3xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]`}
-            style={{ background: `linear-gradient(135deg, ${catColor}, ${catColor}99)` }}
+            className={`${fluid ? 'w-full' : 'snap-start flex-shrink-0 w-[168px] sm:w-[188px]'} h-[290px] text-left rounded-3xl border flex flex-col items-center px-3 pt-4 pb-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]`}
+            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
-            {s.logo ? (
-                <img src={s.logo} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-            ) : (
-                <span className="absolute inset-0 flex items-center justify-center text-white/90"><StoreIcon size={56} /></span>
-            )}
-            {/* escurece em cima e embaixo pra os selos e o nome ficarem legíveis em qualquer imagem */}
-            <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 32%, rgba(0,0,0,0) 48%, rgba(0,0,0,0.82) 100%)' }} />
-
-            <span className="absolute left-2.5 right-2.5 top-2.5 flex items-start justify-between gap-2">
-                {catLabel ? (
-                    <span className="max-w-[64%] text-[10px] font-black leading-tight px-2 py-1 rounded-xl text-white" style={{ background: catColor }}>
-                        {catLabel}
+            {/* logo redondo: anel de aberta/fechada + moldura do nível por fora */}
+            <span className="relative flex-shrink-0">
+                <StoreFrame level={s.level} size={LOGO + 6} innerRadius={(LOGO + 6) / 2} ring={3} bg={colors.surface}>
+                    <span className="block rounded-full p-[3px]" style={{ background: status }}>
+                        <span className="block rounded-full overflow-hidden" style={{ width: LOGO, height: LOGO, background: `linear-gradient(135deg, ${catColor}, ${catColor}99)`, boxShadow: `0 0 0 2px ${colors.surface}` }}>
+                            {s.logo
+                                ? <img src={s.logo} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                : <span className="w-full h-full flex items-center justify-center text-white/90"><StoreIcon size={34} /></span>}
+                        </span>
                     </span>
-                ) : <span />}
-                <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-full text-white" style={{ background: s.open ? '#16a34a' : '#dc2626' }}>
+                </StoreFrame>
+                <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 text-[9.5px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white whitespace-nowrap" style={{ background: status, boxShadow: `0 0 0 2px ${colors.surface}` }}>
                     {s.open ? 'Aberto' : 'Fechado'}
                 </span>
             </span>
 
-            <span className="absolute left-3 right-3 bottom-3 flex flex-col gap-1.5">
-                <span className="flex items-start justify-between gap-2">
-                    <span className="text-sm font-black leading-tight text-white line-clamp-2">{s.name}</span>
-                    {s.rating != null && (
-                        <span className="flex items-center gap-0.5 flex-shrink-0 text-[11px] font-black text-white">
-                            <Star size={11} className="text-yellow-400 fill-yellow-400" />{s.rating.toFixed(1)}
-                        </span>
-                    )}
+            <span className="mt-4 w-full flex-shrink-0 flex flex-col items-center text-center gap-1">
+                <span className="text-[14px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{s.name}</span>
+                {catLabel && <span className="max-w-full truncate text-[10.5px] font-black" style={{ color: catColor }}>{catLabel}</span>}
+                <span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
+                    {s.rating != null
+                        ? <><Star size={11} className="text-yellow-400 fill-yellow-400" /><span style={{ color: colors.textPrimary }}>{s.rating.toFixed(1)}</span>{s.ratingsCount ? <span>({s.ratingsCount})</span> : null}</>
+                        : <span>Nova no iUser</span>}
                 </span>
-                {s.price && (
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-white/90"><Tag size={11} className="flex-shrink-0" /><span className="truncate">{s.price}</span></span>
-                )}
+            </span>
+
+            <span className="mt-auto w-full flex flex-col gap-0.5 pt-2 text-[10.5px] font-bold" style={{ color: colors.textSecondary }}>
+                {s.price && <span className="flex items-center justify-center gap-1 min-w-0"><Tag size={10} className="flex-shrink-0" /><span className="truncate">{s.price}</span></span>}
                 {(s.delivery || s.time) && (
-                    <span className="flex items-center gap-x-2.5 gap-y-0.5 flex-wrap text-[11px] font-bold text-white/90">
-                        {s.delivery && <span className="flex items-center gap-1"><Truck size={11} className="flex-shrink-0" />{s.delivery}</span>}
-                        {s.time && <span className="flex items-center gap-1"><Clock size={11} className="flex-shrink-0" />{s.time}</span>}
+                    <span className="flex items-center justify-center gap-x-2 flex-wrap">
+                        {s.delivery && <span className="flex items-center gap-1 min-w-0"><Truck size={10} className="flex-shrink-0" /><span className="truncate">{s.delivery}</span></span>}
+                        {s.time && <span className="flex items-center gap-1"><Clock size={10} className="flex-shrink-0" />{s.time}</span>}
                     </span>
                 )}
             </span>
         </button>
-        </StoreFrame>
     )
 }

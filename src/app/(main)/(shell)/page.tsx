@@ -36,6 +36,7 @@ import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
 import HomeLocationChip from '@/components/location/HomeLocationChip'
 import Outdoor from '@/components/outdoor/Outdoor'
 import SocialAroundCard from '@/components/v3/SocialAroundCard'
+import { FlashSection, PublicationsSection, StorePublicationsSection } from '@/components/social/SocialFeedSections'
 import DriverChannelCard from '@/components/v3/DriverChannelCard'
 import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 import DigitalStrip from '@/components/v3/DigitalStrip'
@@ -248,7 +249,9 @@ function SectionHeader({ type, title, subtitle, onSeeAll, colors }: { type: Type
 // Faixa que rola de lado; os cartões encaixam (snap) pra ficar fácil de passar com o dedo
 function Strip({ children }: { children: ReactNode }) {
     return (
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-pl-4 scroll-pr-4 pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+        // folga em cima e embaixo (pt/pb com margem negativa): a rolagem de lado corta tudo que passa da caixa, e sem ela a sombra
+        // dos cartões e a coroa da moldura do nível ficavam com um corte seco
+        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-pl-4 scroll-pr-4 pt-3 pb-5 -mt-3 -mb-3 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
             {children}
         </div>
     )
@@ -987,6 +990,11 @@ export default function ModeloInicialPage() {
                                 </Strip>
                             )}
                         </section>
+
+                        {/* Flash e publicações (17/11/2026: no lugar dos planos, que foram para o "Meu plano" do painel do perfil) — as MESMAS seções do /social */}
+                        <FlashSection colors={colors} onOpen={(f) => go(`/flash?de=${f.id}`)} onNew={() => go(userId ? '/flash?novo=1' : '/login?redirect=/flash')} onAll={() => go('/flash')} />
+                        <PublicationsSection colors={colors} onOpen={(f) => go(f.kind === 'publication' && f.link ? `/${f.authorSlug}/${f.link}` : `/flash?de=${f.id}`)} />
+                        <StorePublicationsSection colors={colors} />
 
                         {/* ===== 4. CONVITE FINAL ===== */}
                         <SellCta

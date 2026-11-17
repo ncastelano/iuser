@@ -1,6 +1,6 @@
 -- Cenários da liberação por etapas para dinheiro/maquininha (migration 20261130000069). Transação DESFEITA: só LOCAL/staging.
 -- Usa uma entrega de loja pendente qualquer e uma pessoa sem entregas de loja e sem Pix como "motorista novo".
--- Rodar: docker exec -i -e PGPASSWORD=postgres supabase_db_iuser-local psql -h 127.0.0.1 -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/delivery_cash_trust_scenarios.sql
+-- Rodar (com PGPASSWORD = a senha do banco LOCAL no seu terminal): docker exec -i -e PGPASSWORD supabase_db_iuser-local psql -h 127.0.0.1 -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/delivery_cash_trust_scenarios.sql
 BEGIN;
 
 DO $$

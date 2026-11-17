@@ -1,5 +1,5 @@
 -- Cenários do flash com local (migration 20261130000070). Transação DESFEITA: só LOCAL/staging.
--- Rodar: docker exec -i -e PGPASSWORD=postgres supabase_db_iuser-local psql -h 127.0.0.1 -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/flash_location_scenarios.sql
+-- Rodar (com PGPASSWORD = a senha do banco LOCAL no seu terminal): docker exec -i -e PGPASSWORD supabase_db_iuser-local psql -h 127.0.0.1 -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/flash_location_scenarios.sql
 BEGIN;
 DO $$
 DECLARE v_author uuid; v_id uuid; f record; v_n int;
