@@ -43,7 +43,7 @@ const lockdown = read(path.join(repo, 'supabase/migrations/20261105000000_exposu
 // colunas liberadas por migrations posteriores à trava (redes sociais): entram nas duas listas
 const social = read(path.join(repo, 'supabase/migrations/20261109000000_social_links_columns.sql'))
 const socialCols = arrayFrom(social, 'social_cols')
-const dbProfilePublic = [...arrayFrom(lockdown, 'profile_public'), ...socialCols]
+const dbProfilePublic = [...arrayFrom(lockdown, 'profile_public'), ...socialCols, ...arrayFrom(read(path.join(repo, 'supabase/migrations/20261130000071_profile_type.sql')), 'type_cols')]
 const linksMig = read(path.join(repo, 'supabase/migrations/20261113000000_store_links.sql'))
 const dbStorePublic = [...arrayFrom(lockdown, 'store_public'), ...socialCols, ...arrayFrom(linksMig, 'links_cols'), ...arrayFrom(read(path.join(repo, 'supabase/migrations/20261114000000_store_model.sql')), 'model_cols'), ...arrayFrom(read(path.join(repo, 'supabase/migrations/20261116000000_appointment_deposit.sql')), 'deposit_cols'), ...arrayFrom(read(path.join(repo, 'supabase/migrations/20261130000056_store_levels.sql')), 'level_cols'), ...arrayFrom(read(path.join(repo, 'supabase/migrations/20261130000061_store_category_order.sql')), 'order_cols')]
 

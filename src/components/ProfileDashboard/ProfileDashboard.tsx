@@ -52,6 +52,7 @@ import LastSeenSettings from './LastSeenSettings'
 import ProfileNotification from './ProfileNotification'
 import MyComments from './MyComments'
 import ProfileLocationSettings from './ProfileLocationSettings'
+import ProfileTypeEditor from '@/components/profile/ProfileTypeEditor'
 import ProfileRadarVisibility from './ProfileRadarVisibility'
 import ProfileLinkButtons from './ProfileLinkButtons'
 import MyTasks from './MyTasks'
@@ -109,8 +110,10 @@ export default function ProfileDashboard({
 
     // ?secao=notificacoes (o sininho da barra da 3.0): rola até as notificações assim que o perfil carrega e de novo quando o conteúdo de cima termina de abrir (a altura muda)
     useEffect(() => {
-        if (!profile?.id || new URLSearchParams(window.location.search).get('secao') !== 'notificacoes') return
-        const go = () => document.getElementById('notificacoes-do-perfil')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+        const secao = new URLSearchParams(window.location.search).get('secao')
+        const target = secao === 'notificacoes' ? 'notificacoes-do-perfil' : secao === 'tipo' ? 'tipo-do-perfil' : null   // ?secao=tipo: o "Mudar" da página do perfil
+        if (!profile?.id || !target) return
+        const go = () => document.getElementById(target)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
         const timers = [setTimeout(go, 400), setTimeout(go, 1600)]
         return () => timers.forEach(clearTimeout)
     }, [profile?.id])
@@ -1409,6 +1412,11 @@ export default function ProfileDashboard({
                     }}
                     onProfileUpdate={(updates) => setProfile((prev: any) => ({ ...prev, ...updates }))}
                 />
+            </div>
+
+            {/* ===== TIPO DO PERFIL (17/11/2026): Pessoal, Serviços, Agendamentos ou Motorista — o botão principal da página pública ===== */}
+            <div id="tipo-do-perfil" className="mb-6" style={{ scrollMarginTop: 'calc(var(--shell-top, 0px) + 12px)' }}>
+                <ProfileTypeEditor userId={profile.id} profileSlug={profile.profileSlug || profileSlug} />
             </div>
 
             {/* ===== ATALHOS DO PERFIL — logo abaixo das informações ===== */}

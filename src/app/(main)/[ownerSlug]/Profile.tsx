@@ -50,7 +50,10 @@ import {
     Send,
     LogIn,
     Calendar,
+    Car,
 } from 'lucide-react'
+import { defaultProfileTab, parseProfileType, profileMainAction, profileTabOrder, profileTypeInfo, profileTypeMissing } from '@/lib/profileType'
+import ProfileDriverCard, { useDriverVehicle } from '@/components/profile/ProfileDriverCard'
 import { Spinner } from '@/components/Spinner'
 import ProfileSkeleton from '@/components/v3/ProfileSkeleton'
 import ProfileScheduleModal from '@/components/ProfileScheduleModal'
@@ -98,6 +101,8 @@ interface OwnerData {
     location?: any
     allow_scheduling?: boolean
     chat_enabled?: boolean
+    /** tipo do perfil (pessoal, servicos, agendamentos, motorista): só muda a apresentação da página */
+    profile_type?: string
 }
 
 type RatingRow = {
@@ -281,6 +286,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [uploadingAvatar, setUploadingAvatar] = useState(false)
     const [stores, setStores] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<ProfileTab>('publications')
+    // tipo do perfil (pessoal, servicos, agendamentos, motorista) e, no de motorista, o veículo com a tarifa dele
+    const ptype = parseProfileType(owner?.profile_type)
+    const driverVehicle = useDriverVehicle(ptype === 'motorista' ? owner?.id : null)
     const [mounted, setMounted] = useState(false)
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 100
@@ -403,6 +411,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 location: viewerIsOwner ? (privateRow?.location ?? null) : null,
                 allow_scheduling: profile.allow_scheduling === true,
                 chat_enabled: profile.chat_enabled === true,
+                profile_type: (profile as any).profile_type,
             }
 
             setOwner(ownerData)
@@ -472,6 +481,12 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     ? supabase.storage.from('product-images').getPublicUrl(svc.image_url).data.publicUrl
                     : null,
             })))
+            // A aba que abre segue o TIPO do perfil (serviços/agendamentos abrem em Serviços), a não ser que o link já diga qual (?aba=)
+            try {
+                if (!new URLSearchParams(window.location.search).get('aba')) {
+                    setActiveTab(defaultProfileTab(parseProfileType((profile as any).profile_type), { publications: mappedPublications.length, services: (servicesData || []).length }))
+                }
+            } catch { /* sem window */ }
 
             // Carregar curtidas do usuário para cada publicação
             if (currentUserId) {
@@ -1420,6 +1435,37 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
         )
     }
 
+    // ===== TIPO DO PERFIL (17/11/2026): o botão principal para quem visita e o aviso ao dono do que falta =====
+    const typeFacts = { allowScheduling: !!owner.allow_scheduling, hasVehicle: !!driverVehicle, chatEnabled: !!owner.chat_enabled, services: services.length }
+    const mainKind = profileMainAction(ptype, typeFacts)
+    const firstName = (owner.name || '').split(' ')[0]
+    const goTabs = (tab: ProfileTab) => { setActiveTab(tab); setTimeout(() => document.getElementById('abas-do-perfil')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }
+    const hire = async () => {
+        if (services.length > 0) { goTabs('services'); return }
+        if (!currentUserId) { router.push(`/login?redirect=${encodeURIComponent(`/${owner.slug}`)}`); return }
+        const { data, error } = await supabase.rpc('start_conversation', { p_owner_profile: owner.id, p_store: null })
+        if (error || !data) { toast.error(error?.message || 'Não foi possível abrir a conversa'); return }
+        router.push(`/conversas?c=${data}`)
+    }
+    const mainActionProps = mainKind === 'schedule'
+        ? { label: `Agendar com ${firstName}`, sub: 'Escolha o serviço, o dia e o horário', icon: <Calendar size={19} />, color: profileTypeInfo('agendamentos').color, onClick: () => setShowScheduleModal(true) }
+        : mainKind === 'ride'
+            ? { label: 'Solicitar corrida', sub: driverVehicle?.fromPrice != null ? `Com ${firstName} · já no valor da ${driverVehicle.customTariff ? 'tarifa própria' : 'Tarifa iUser'} · a partir de R$ ${driverVehicle.fromPrice.toFixed(2).replace('.', ',')}` : `Com ${firstName}`, icon: <Car size={19} />, color: profileTypeInfo('motorista').color, onClick: () => router.push(`/pedir-motorista?motorista=${owner.id}`) }
+            : mainKind === 'hire'
+                ? { label: `Contratar ${firstName}`, sub: services.length > 0 ? `${services.length} ${services.length === 1 ? 'serviço' : 'serviços'} · veja e combine` : 'Conte o que você precisa na conversa', icon: <Wrench size={19} />, color: profileTypeInfo('servicos').color, onClick: () => { void hire() } }
+                : null
+    const typeMissing = profileTypeMissing(ptype, typeFacts)
+    const ownerTypeNode = (
+        <button onClick={() => router.push('/painel-perfil?secao=tipo')} className="w-full rounded-2xl px-3 py-2.5 flex items-center gap-2 text-left" style={typeMissing ? { background: '#f59e0b1a', border: '1px solid #f59e0b66' } : { background: `${colors.border}30` }}>
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: profileTypeInfo(ptype).color }} />
+            <span className="min-w-0 flex-1 text-[12px] font-bold leading-snug" style={{ color: colors.textPrimary }}>
+                Perfil do tipo <b>{profileTypeInfo(ptype).title}</b>
+                {typeMissing === 'agenda' ? ' · ligue a agenda para receberem agendamentos' : typeMissing === 'vehicle' ? ' · cadastre o veículo para aparecer "Solicitar corrida"' : typeMissing === 'service' ? ' · publique um serviço' : ''}
+            </span>
+            <span className="text-[11px] font-black flex-shrink-0" style={{ color: '#f97316' }}>Mudar</span>
+        </button>
+    )
+
     // Pedaços do cabeçalho reaproveitados pela v2 (cartão grande) e pela v3 (ProfileHeaderV3): mesma lógica, só muda quem os posiciona
     const renderAvatar = (sizeCls: string, textCls: string) => (
                     <div className="relative">
@@ -1632,16 +1678,19 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         logoUrl: st.logo_url ? supabase.storage.from('store-logos').getPublicUrl(st.logo_url).data.publicUrl : null,
                     }))}
                     onOpenStore={(slug) => router.push(`/${slug}`)}
+                    mainAction={isOwner ? null : mainActionProps}
+                    typeSlot={ptype === 'motorista' && driverVehicle ? <ProfileDriverCard info={driverVehicle} colors={colors} onOpen={() => router.push(`/${driverVehicle.slug}`)} /> : undefined}
+                    ownerTypeSlot={isOwner ? ownerTypeNode : undefined}
                 />
             ))}
 
             {/* ===== TABS ===== */}
-            <div className={('flex gap-1.5')} style={(undefined)}>
+            <div id="abas-do-perfil" className={('flex gap-1.5')} style={{ scrollMarginTop: 'calc(var(--shell-top, 0px) + 12px)' }}>
                 {[
                     { id: 'publications', label: 'Publicações', icon: Megaphone, count: publications.length },
                     { id: 'services', label: 'Serviços', icon: Wrench, count: services.length },
                     { id: 'profile_comments', label: 'Comentários', icon: MessageCircle, count: profileComments.length },
-                ].map(tab => {
+                ].sort((a, b) => profileTabOrder(ptype).indexOf(a.id as ProfileTab) - profileTabOrder(ptype).indexOf(b.id as ProfileTab)).map(tab => {
                     const Icon = tab.icon
                     const isActive = activeTab === tab.id
                     return (

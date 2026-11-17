@@ -49,6 +49,12 @@ export interface ProfileHeaderV3Props {
     ownerFirstName: string
     stores: ProfileHeaderV3Store[]
     onOpenStore: (slug: string) => void
+    /** TIPO DO PERFIL (17/11/2026): o botão principal para quem visita (Agendar, Solicitar corrida, Contratar); o perfil Pessoal não tem */
+    mainAction?: { label: string; sub?: string; icon: ReactNode; color: string; onClick: () => void } | null
+    /** cartão próprio do tipo (o veículo do motorista), logo abaixo do botão principal */
+    typeSlot?: ReactNode
+    /** só o dono: o tipo do perfil e o que falta para ele funcionar, com o atalho para trocar */
+    ownerTypeSlot?: ReactNode
 }
 
 export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
@@ -105,6 +111,19 @@ export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
                     </button>
                 </div>
 
+                {/* botão principal do TIPO do perfil (Agendar, Solicitar corrida, Contratar) — o perfil Pessoal não tem */}
+                {p.mainAction && (
+                    <button onClick={p.mainAction.onClick} className="mt-3 w-full h-14 rounded-2xl px-4 flex items-center gap-3 text-left text-white transition active:scale-[0.99]" style={{ background: p.mainAction.color, boxShadow: `0 8px 20px -10px ${p.mainAction.color}` }}>
+                        <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>{p.mainAction.icon}</span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-[15px] font-black leading-tight truncate">{p.mainAction.label}</span>
+                            {p.mainAction.sub && <span className="block text-[11.5px] font-bold leading-tight truncate opacity-90">{p.mainAction.sub}</span>}
+                        </span>
+                    </button>
+                )}
+                {p.typeSlot && <div className="mt-2">{p.typeSlot}</div>}
+                {p.ownerTypeSlot && <div className="mt-3">{p.ownerTypeSlot}</div>}
+
                 {/* ações */}
                 <div className="mt-3 flex items-center gap-2">
                     {p.canFollow && (
@@ -139,7 +158,7 @@ export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
                 )}
                 <SocialLinksV3 links={p.socialLinks} colors={colors} />
 
-                {!p.isOwner && p.allowScheduling && (
+                {!p.isOwner && p.allowScheduling && !p.mainAction?.label.startsWith('Agendar') && (
                     <button onClick={p.onOpenSchedule} className="mt-2 w-full h-11 rounded-2xl px-3 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: soft }}>
                         <Calendar size={17} style={{ color: ORANGE }} className="flex-shrink-0" />
                         <span className="text-[13px] font-black flex-1 truncate" style={{ color: colors.textPrimary }}>Agendar com {p.ownerFirstName}</span>
