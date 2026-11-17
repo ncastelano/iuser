@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Bike, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, MessageCircle, MessageSquareQuote, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
+import { Bike, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -120,6 +120,8 @@ export default function DriverProfile(p: DriverProfileProps) {
     const [reviews, setReviews] = useState<Review[] | null>(null)
     const [tariffsReady, setTariffsReady] = useState(false)
     const [showAll, setShowAll] = useState(false)
+    // a aba aberta embaixo do botão: as avaliações primeiro
+    const [tab, setTab] = useState<'avaliacoes' | 'servicos' | 'info'>('avaliacoes')
     // onde está quem vê a página: o GPS (só se o navegador já deixou, sem perguntar) ou o local salvo; sem nenhum, não mostra o tempo
     const [viewerPos, setViewerPos] = useState<{ lat: number; lng: number } | null>(null)
 
@@ -209,16 +211,17 @@ export default function DriverProfile(p: DriverProfileProps) {
                     )}
                 </div>
                 <div className="px-4 pb-4 -mt-11 relative">
-                    <div className="flex items-end justify-between gap-3">
+                    {/* a foto da pessoa no centro, em cima do nome (entra um pouco no mapa / na foto do veículo) */}
+                    <div className="flex flex-col items-center text-center">
                         <div className="rounded-full p-1" style={{ background: colors.surface }}>{p.avatarSlot}</div>
+                        <h1 className="mt-1 text-[21px] font-black leading-tight" style={{ color: colors.textPrimary }}>{p.name}</h1>
+                        <div className="flex items-center justify-center gap-2 mt-0.5">
+                            <span className="text-[12px]" style={{ color: colors.textSecondary }}>@{p.slug}</span>
+                            {p.levelSlot}
+                        </div>
                         {p.isOwner && (
-                            <button onClick={p.onEdit} className="mb-1 h-9 px-3.5 rounded-full text-[12px] font-black flex items-center gap-1.5" style={{ background: soft, color: colors.textPrimary }}><Pencil size={13} /> Editar perfil</button>
+                            <button onClick={p.onEdit} className="mt-2 h-9 px-3.5 rounded-full text-[12px] font-black flex items-center gap-1.5" style={{ background: soft, color: colors.textPrimary }}><Pencil size={13} /> Editar perfil</button>
                         )}
-                    </div>
-                    <h1 className="mt-1 text-[21px] font-black leading-tight" style={{ color: colors.textPrimary }}>{p.name}</h1>
-                    <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[12px]" style={{ color: colors.textSecondary }}>@{p.slug}</span>
-                        {p.levelSlot}
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2">
                         {[
@@ -249,101 +252,26 @@ export default function DriverProfile(p: DriverProfileProps) {
                 </button>
             )}
 
-            {/* ===== 3. onde está agora: a situação (o mapa, quando há, fica no topo) ===== */}
-            <section className="mt-5">
-                <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><MapPin size={16} style={{ color: GREEN }} /> Onde está agora</h2>
-                <div className="mt-2.5 rounded-3xl p-4 flex items-center gap-3" style={{ background: quote?.live ? `${GREEN}12` : soft }}>
-                    <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1f`, color: GREEN }}>{quote?.live || p.loggedIn || !active ? <MapPin size={19} /> : <Lock size={18} />}</span>
-                    <p className="text-[12.5px] leading-snug flex flex-col" style={{ color: quote?.live ? colors.textPrimary : colors.textSecondary }}>
-                        {quote?.live ? <>{eta && <span className="flex items-center gap-1 text-[14px] font-black mb-0.5" style={{ color: GREEN }}><Navigation size={14} />{etaText(eta)}</span>}<span>No mapa lá em cima: <b>posição aproximada</b> (um círculo de uns 300 m), atualizada {ago2(quote.live.at)}.</span></>
-                            : !active ? 'Fora do ar agora. Peça mesmo assim: o aviso chega no celular na hora.'
-                                : !p.loggedIn ? 'Entre na sua conta para ver por onde o motorista está agora.'
-                                    : 'Dirigindo, mas sem mostrar a localização. Peça mesmo assim: o aviso chega na hora.'}
-                    </p>
-                </div>
-            </section>
+            {/* ===== 3. as ABAS: Avaliações (primeiro) · Serviços · Informações (onde está, o veículo, quanto custa) ===== */}
+            <div role="tablist" aria-label="Sobre o motorista" className="mt-5 p-1 rounded-[20px] flex gap-1" style={{ background: `${colors.border}45` }}>
+                {([
+                    { id: 'avaliacoes', label: 'Avaliações', icon: <Star size={15} />, n: stats?.ratingCount || 0 },
+                    { id: 'servicos', label: 'Serviços', icon: <Wrench size={15} />, n: p.services.length },
+                    { id: 'info', label: 'Informações', icon: <Info size={15} />, n: 0 },
+                ] as const).map((t) => {
+                    const on = tab === t.id
+                    return (
+                        <button key={t.id} role="tab" aria-selected={on} onClick={() => setTab(t.id)} className="flex-1 min-w-0 h-11 rounded-2xl flex items-center justify-center gap-1.5 text-[12.5px] transition active:scale-95"
+                            style={on ? { background: colors.background, color: GREEN, fontWeight: 900, boxShadow: '0 2px 10px rgba(0,0,0,0.12)' } : { color: colors.textSecondary, fontWeight: 700 }}>
+                            {t.icon}<span className="truncate">{t.label}</span>{t.n > 0 && <span className="text-[10px] opacity-70">({t.n})</span>}
+                        </button>
+                    )
+                })}
+            </div>
 
-            {/* ===== serviços (motorista que também atende com hora marcada): conversar sobre o serviço e agendar na agenda dele (e na sua) ===== */}
-            {(p.services.length > 0 || (p.allowScheduling && !p.isOwner)) && (
-                <section className="mt-5">
-                    <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Wrench size={16} style={{ color: GREEN }} /> {p.allowScheduling ? 'Serviços com hora marcada' : 'Serviços'}</h2>
-                    <p className="text-[12px] mt-0.5" style={{ color: colors.textSecondary }}>{p.allowScheduling ? 'Converse sobre o serviço ou marque um horário: o agendamento entra na agenda dele e na sua.' : 'Converse sobre o serviço para combinar.'}</p>
-                    <div className="mt-2.5 flex flex-col gap-2.5">
-                        {p.services.map((sv) => (
-                            <article key={sv.id} className="rounded-3xl p-3 flex flex-col gap-2.5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                                <div className="flex items-center gap-3">
-                                    <span className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1a`, color: GREEN }}>
-                                        {sv.image_url ? <img src={sv.image_url} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Wrench size={22} />}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                        {sv.service_type && <span className="block text-[10px] font-black uppercase tracking-wide truncate" style={{ color: GREEN }}>{sv.service_type}</span>}
-                                        <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{sv.name}</span>
-                                        {sv.description && <span className="block text-[11.5px] leading-snug line-clamp-2 mt-0.5" style={{ color: colors.textSecondary }}>{sv.description}</span>}
-                                    </span>
-                                </div>
-                                {!p.isOwner && (
-                                    <div className="flex gap-2">
-                                        {p.chatEnabled
-                                            ? <div className="flex-1 min-w-0 flex"><ChatContactButton productId={sv.id} colors={colors} variant="v3quiet" label="Conversar" /></div>
-                                            : <button onClick={noChat} className="flex-1 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ background: soft, color: colors.textSecondary }}><MessageCircle size={15} /> Conversar</button>}
-                                        {p.allowScheduling && (
-                                            <button onClick={() => p.onSchedule(sv.name)} className="flex-1 h-10 rounded-full text-[12.5px] font-black text-white flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: GREEN }}><CalendarCheck size={15} /> Agendar</button>
-                                        )}
-                                    </div>
-                                )}
-                            </article>
-                        ))}
-                        {p.allowScheduling && !p.isOwner && p.services.length === 0 && (
-                            <button onClick={() => p.onSchedule(null)} className="h-11 rounded-full text-[13px] font-black text-white flex items-center justify-center gap-1.5" style={{ background: GREEN }}><CalendarCheck size={16} /> Marcar um horário</button>
-                        )}
-                    </div>
-                </section>
-            )}
-
-            {/* ===== 4. o veículo ===== */}
-            {vehicle && (
-                <section className="mt-5">
-                    <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Icon size={16} style={{ color: GREEN }} /> O veículo</h2>
-                    <button onClick={() => router.push(`/${vehicle.slug}`)} className="mt-2.5 w-full rounded-3xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                        <span className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1a`, color: GREEN }}>
-                            {vehicle.photo ? <img src={vehicle.photo} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Icon size={30} />}
-                        </span>
-                        <span className="min-w-0 flex-1 flex flex-col gap-1.5">
-                            <span className="text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{vehicle.model || KIND_LABEL[kind]}{vehicle.color ? <span className="font-bold" style={{ color: colors.textSecondary }}> · {vehicle.color}</span> : null}</span>
-                            {kind === 'carro'
-                                ? <CarAmenities services={vehicle.services} seats={vehicle.seats} babySeat={vehicle.babySeat} compact />
-                                : <span className="text-[11.5px] flex items-center gap-1" style={{ color: colors.textSecondary }}><Users size={12} /> leva 1 pessoa ou 1 objeto</span>}
-                        </span>
-                        <ChevronRight size={18} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
-                    </button>
-                </section>
-            )}
-
-            {/* ===== 5. quanto custa ===== */}
-            {quote && shape && (
-                <section className="mt-5 rounded-3xl p-4" style={{ background: `linear-gradient(150deg, ${GREEN}14, ${GREEN}05)`, border: `1px solid ${GREEN}40` }}>
-                    <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                            <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>Quanto custa</h2>
-                            <p className="text-[12px] leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{quoteRule(quote, shape, hourly)}</p>
-                        </div>
-                        <span className="flex-shrink-0 h-7 px-2.5 rounded-full text-[11px] font-black flex items-center text-white" style={{ background: GREEN }}>{quoteModeLabel(quote.mode)}</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                        {examples.map((e) => (
-                            <div key={e.label} className="rounded-2xl py-2.5 text-center" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                                <span className="block text-[11px] font-bold" style={{ color: colors.textSecondary }}>{e.label}</span>
-                                <span className="block text-[16px] font-black" style={{ color: GREEN }}>{brl(e.price)}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <p className="text-[10.5px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>O valor da sua corrida aparece antes de confirmar e já vai como a sua oferta. Extras (pet, compras, condomínio) somam quando você marca.</p>
-                </section>
-            )}
-
-            {/* ===== 6. o que dizem os passageiros ===== */}
-            <section className="mt-5">
-                <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><MessageSquareQuote size={16} style={{ color: GREEN }} /> O que dizem os passageiros</h2>
+            <div className="mt-4">
+                {tab === 'avaliacoes' && (
+            <section>
                 {reviews === null ? (
                     <div className="mt-2.5 h-24 rounded-3xl animate-pulse" style={{ background: soft }} />
                 ) : reviews.length === 0 ? (
@@ -385,6 +313,112 @@ export default function DriverProfile(p: DriverProfileProps) {
                 )}
             </section>
 
+                )}
+
+                {tab === 'servicos' && (
+                    p.services.length > 0 || (p.allowScheduling && !p.isOwner) ? (
+<section>
+                    <p className="text-[12px]" style={{ color: colors.textSecondary }}>{p.allowScheduling ? 'Converse sobre o serviço ou marque um horário: o agendamento entra na agenda dele e na sua.' : 'Converse sobre o serviço para combinar.'}</p>
+                    <div className="mt-2.5 flex flex-col gap-2.5">
+                        {p.services.map((sv) => (
+                            <article key={sv.id} className="rounded-3xl p-3 flex flex-col gap-2.5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center gap-3">
+                                    <span className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1a`, color: GREEN }}>
+                                        {sv.image_url ? <img src={sv.image_url} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Wrench size={22} />}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        {sv.service_type && <span className="block text-[10px] font-black uppercase tracking-wide truncate" style={{ color: GREEN }}>{sv.service_type}</span>}
+                                        <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{sv.name}</span>
+                                        {sv.description && <span className="block text-[11.5px] leading-snug line-clamp-2 mt-0.5" style={{ color: colors.textSecondary }}>{sv.description}</span>}
+                                    </span>
+                                </div>
+                                {!p.isOwner && (
+                                    <div className="flex gap-2">
+                                        {p.chatEnabled
+                                            ? <div className="flex-1 min-w-0 flex"><ChatContactButton productId={sv.id} colors={colors} variant="v3quiet" label="Conversar" /></div>
+                                            : <button onClick={noChat} className="flex-1 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ background: soft, color: colors.textSecondary }}><MessageCircle size={15} /> Conversar</button>}
+                                        {p.allowScheduling && (
+                                            <button onClick={() => p.onSchedule(sv.name)} className="flex-1 h-10 rounded-full text-[12.5px] font-black text-white flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: GREEN }}><CalendarCheck size={15} /> Agendar</button>
+                                        )}
+                                    </div>
+                                )}
+                            </article>
+                        ))}
+                        {p.allowScheduling && !p.isOwner && p.services.length === 0 && (
+                            <button onClick={() => p.onSchedule(null)} className="h-11 rounded-full text-[13px] font-black text-white flex items-center justify-center gap-1.5" style={{ background: GREEN }}><CalendarCheck size={16} /> Marcar um horário</button>
+                        )}
+                    </div>
+                </section>
+                    ) : (
+                        <div className="rounded-3xl p-5 text-center" style={{ background: soft }}>
+                            <Wrench size={22} className="mx-auto" style={{ color: GREEN }} />
+                            <p className="mt-2 text-[13px] font-black" style={{ color: colors.textPrimary }}>{p.isOwner ? 'Você ainda não publicou serviços' : 'Sem serviços publicados'}</p>
+                            <p className="mt-0.5 text-[12px]" style={{ color: colors.textSecondary }}>{p.isOwner ? 'Transfer, motorista por hora, frete... publique e ligue a agenda para marcarem horário com você.' : 'Por enquanto, peça a corrida pelo botão acima.'}</p>
+                            {p.isOwner && <button onClick={() => router.push('/meus-servicos')} className="mt-3 h-10 px-5 rounded-full text-[12.5px] font-black text-white" style={{ background: GREEN }}>Publicar serviço</button>}
+                        </div>
+                    )
+                )}
+
+                {tab === 'info' && (
+                    <div className="flex flex-col gap-5">
+            {/* ===== 3. onde está agora: a situação (o mapa, quando há, fica no topo) ===== */}
+            <section>
+                <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><MapPin size={16} style={{ color: GREEN }} /> Onde está agora</h2>
+                <div className="mt-2.5 rounded-3xl p-4 flex items-center gap-3" style={{ background: quote?.live ? `${GREEN}12` : soft }}>
+                    <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1f`, color: GREEN }}>{quote?.live || p.loggedIn || !active ? <MapPin size={19} /> : <Lock size={18} />}</span>
+                    <p className="text-[12.5px] leading-snug flex flex-col" style={{ color: quote?.live ? colors.textPrimary : colors.textSecondary }}>
+                        {quote?.live ? <>{eta && <span className="flex items-center gap-1 text-[14px] font-black mb-0.5" style={{ color: GREEN }}><Navigation size={14} />{etaText(eta)}</span>}<span>No mapa lá em cima: <b>posição aproximada</b> (um círculo de uns 300 m), atualizada {ago2(quote.live.at)}.</span></>
+                            : !active ? 'Fora do ar agora. Peça mesmo assim: o aviso chega no celular na hora.'
+                                : !p.loggedIn ? 'Entre na sua conta para ver por onde o motorista está agora.'
+                                    : 'Dirigindo, mas sem mostrar a localização. Peça mesmo assim: o aviso chega na hora.'}
+                    </p>
+                </div>
+            </section>
+
+            {/* ===== 4. o veículo ===== */}
+            {vehicle && (
+                <section>
+                    <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Icon size={16} style={{ color: GREEN }} /> O veículo</h2>
+                    <button onClick={() => router.push(`/${vehicle.slug}`)} className="mt-2.5 w-full rounded-3xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                        <span className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1a`, color: GREEN }}>
+                            {vehicle.photo ? <img src={vehicle.photo} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Icon size={30} />}
+                        </span>
+                        <span className="min-w-0 flex-1 flex flex-col gap-1.5">
+                            <span className="text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{vehicle.model || KIND_LABEL[kind]}{vehicle.color ? <span className="font-bold" style={{ color: colors.textSecondary }}> · {vehicle.color}</span> : null}</span>
+                            {kind === 'carro'
+                                ? <CarAmenities services={vehicle.services} seats={vehicle.seats} babySeat={vehicle.babySeat} compact />
+                                : <span className="text-[11.5px] flex items-center gap-1" style={{ color: colors.textSecondary }}><Users size={12} /> leva 1 pessoa ou 1 objeto</span>}
+                        </span>
+                        <ChevronRight size={18} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                    </button>
+                </section>
+            )}
+
+            {/* ===== 5. quanto custa ===== */}
+            {quote && shape && (
+                <section className="rounded-3xl p-4" style={{ background: `linear-gradient(150deg, ${GREEN}14, ${GREEN}05)`, border: `1px solid ${GREEN}40` }}>
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                            <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>Quanto custa</h2>
+                            <p className="text-[12px] leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{quoteRule(quote, shape, hourly)}</p>
+                        </div>
+                        <span className="flex-shrink-0 h-7 px-2.5 rounded-full text-[11px] font-black flex items-center text-white" style={{ background: GREEN }}>{quoteModeLabel(quote.mode)}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                        {examples.map((e) => (
+                            <div key={e.label} className="rounded-2xl py-2.5 text-center" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <span className="block text-[11px] font-bold" style={{ color: colors.textSecondary }}>{e.label}</span>
+                                <span className="block text-[16px] font-black" style={{ color: GREEN }}>{brl(e.price)}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-[10.5px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>O valor da sua corrida aparece antes de confirmar e já vai como a sua oferta. Extras (pet, compras, condomínio) somam quando você marca.</p>
+                </section>
+            )}
+
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
