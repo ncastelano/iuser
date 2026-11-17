@@ -1,29 +1,25 @@
 // src/versions/v3/screens/AtividadeTabs.tsx
 //
-// A fileira de subabas da ATIVIDADE (aba da barra da 3.0): Conversas · Pedidos · Carrinho · Biblioteca (as notificações do perfil ficam no painel do perfil, pelo sininho da barra). É um CONTROLE SEGMENTADO (uma trilha só, a aba atual
+// A fileira de subabas da ATIVIDADE (aba da barra da 3.0): Pedidos · Carrinho · Biblioteca (as conversas são aba própria da barra desde 17/11/2026; as notificações do perfil ficam no painel do perfil, pelo sininho da barra). É um CONTROLE SEGMENTADO (uma trilha só, a aba atual
 // "levanta" nela, ícone em cima e nome embaixo), de propósito diferente das pílulas das salas de conversa logo abaixo, para não parecerem duas fileiras iguais.
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { GraduationCap, MessageCircle, Package, ShoppingCart } from 'lucide-react'
+import { GraduationCap, Package, ShoppingCart } from 'lucide-react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
-import { useChatUnread } from '@/hooks/useChatUnread'
 import { useOrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 import { useCartStore } from '@/store/useCartStore'
 import { ATIVIDADE_ABAS, pathOfAba, type AtividadeAba } from '../atividade'
-import { useBarKind } from '../bar/kind'
 
 export const LAST_ABA_KEY = 'iuser_atividade_last'
-const ICONS = { conversas: MessageCircle, pedidos: Package, carrinho: ShoppingCart, biblioteca: GraduationCap } as const
+const ICONS = { pedidos: Package, carrinho: ShoppingCart, biblioteca: GraduationCap } as const
 
 export default function AtividadeTabs({ aba }: { aba: AtividadeAba }) {
     const router = useRouter()
     const { colors } = useTheme()
-    const barKind = useBarKind()
     const { userId } = useProfile()
-    const unread = useChatUnread(userId)
     const orders = useOrderStatusCounts(userId)
     const cartMap = useCartStore((st) => st.itemsByStore)
     const [ready, setReady] = useState(false)
@@ -35,14 +31,10 @@ export default function AtividadeTabs({ aba }: { aba: AtividadeAba }) {
     useEffect(() => { try { localStorage.setItem(LAST_ABA_KEY, aba) } catch { /* sem armazenamento */ } }, [aba])
 
     const badgeFor = (k: AtividadeAba): { n: number; color: string } | null => {
-        if (k === 'conversas') return unread > 0 ? { n: unread, color: '#16a34a' } : null
         if (k === 'pedidos') return ordersActive > 0 ? { n: ordersActive, color: orders.ready > 0 ? '#a855f7' : '#16a34a' } : null
         if (k === 'carrinho') return cart > 0 ? { n: cart, color: '#f97316' } : null
         return null
     }
-    // No modo loja ou motorista, as conversas são o trabalho daquele modo (aba Conversas da barra): sem a fileira das compras pessoais em cima
-    if (aba === 'conversas' && barKind !== 'pessoa') return null
-
     return (
         <div role="tablist" aria-label="Atividade" className="mt-1 p-1 rounded-[20px] flex gap-0.5" style={{ background: `${colors.border}45` }}>
             {ATIVIDADE_ABAS.map((a) => {

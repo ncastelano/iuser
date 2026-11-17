@@ -13,9 +13,9 @@ test('o modo vira o tipo da barra; loja que não existe cai na barra de pessoa',
     assert.deepEqual(barKindOf(''), { kind: 'pessoa', storeSlug: null })
 })
 
-test('quatro abas que mudam: Explorar sempre primeiro, três do meio por modo', () => {
+test('as abas que mudam: Explorar sempre primeiro; pessoa = Atividade e Conversas (sem Perto nem Social, 17/11/2026)', () => {
     const names = (k) => barTabsFor(k).map((t) => t.label)
-    assert.deepEqual(names('pessoa'), ['Explorar', 'Perto', 'Social', 'Atividade'])
+    assert.deepEqual(names('pessoa'), ['Explorar', 'Atividade', 'Conversas'])
     assert.deepEqual(names('loja'), ['Explorar', 'Painel', 'Pedidos', 'Conversas'])
     assert.deepEqual(names('motorista'), ['Explorar', 'Corridas', 'Entregas', 'Ganhos'])
     for (const k of ['pessoa', 'loja', 'motorista']) assert.equal(barTabsFor(k)[0].key, 'home')
@@ -23,12 +23,10 @@ test('quatro abas que mudam: Explorar sempre primeiro, três do meio por modo', 
 
 test('para onde cada aba leva', () => {
     assert.equal(barPathOf('home', null), '/')
-    assert.equal(barPathOf('radar', null), '/radar')
-    assert.equal(barPathOf('people', null), '/social')
     assert.equal(barPathOf('panel', 'pizzaria'), '/painel-loja/pizzaria')
     assert.equal(barPathOf('orders', 'pizzaria'), '/painel-loja/pizzaria/pedidos')
-    assert.equal(barPathOf('chat', 'pizzaria'), '/atividade?aba=conversas&sala=pizzaria')
-    assert.equal(barPathOf('chat', null), '/atividade?aba=conversas')
+    assert.equal(barPathOf('chat', 'pizzaria'), '/conversas?sala=pizzaria')
+    assert.equal(barPathOf('chat', null), '/conversas')
     assert.equal(barPathOf('panel', null), null)
     assert.equal(barPathOf('rides', null), '/aceitar-corridas')
     assert.equal(barPathOf('deliveries', null), '/entregas')
@@ -38,10 +36,11 @@ test('para onde cada aba leva', () => {
 
 test('qual aba está marcada: pessoa', () => {
     assert.equal(activeBarKey('pessoa', '/', null), 'home')
-    assert.equal(activeBarKey('pessoa', '/radar', null), 'radar')
-    assert.equal(activeBarKey('pessoa', '/flash', null), 'people')
-    assert.equal(activeBarKey('pessoa', '/social', null), 'people')
-    for (const p of ['/atividade', '/carrinho', '/conversas']) assert.equal(activeBarKey('pessoa', p, null), 'activity', p)
+    for (const p of ['/radar', '/flash', '/social']) assert.equal(activeBarKey('pessoa', p, null), null, p)   // saíram da barra
+    for (const p of ['/atividade', '/carrinho']) assert.equal(activeBarKey('pessoa', p, null), 'activity', p)
+    assert.equal(activeBarKey('pessoa', '/conversas', null), 'chat')
+    assert.equal(activeBarKey('pessoa', '/conversas?sala=perfil', null), 'chat')
+    assert.equal(activeBarKey('pessoa', '/atividade', null, 'conversas'), 'chat')   // endereço antigo, antes de redirecionar
     assert.equal(activeBarKey('pessoa', '/comprar', null), null)
 })
 
@@ -50,7 +49,7 @@ test('qual aba está marcada: loja', () => {
     assert.equal(activeBarKey('loja', '/editar-loja/pizzaria', 'pizzaria'), 'panel')
     assert.equal(activeBarKey('loja', '/painel-loja/pizzaria/pedidos', 'pizzaria'), 'orders')
     assert.equal(activeBarKey('loja', '/conversas', 'pizzaria'), 'chat')
-    assert.equal(activeBarKey('loja', '/atividade', 'pizzaria', 'conversas'), 'chat')   // a Atividade nas conversas
+    assert.equal(activeBarKey('loja', '/atividade', 'pizzaria', 'conversas'), 'chat')   // endereço antigo das conversas
     assert.equal(activeBarKey('loja', '/atividade', 'pizzaria', 'avisos'), null)
     assert.equal(activeBarKey('loja', '/', 'pizzaria'), 'home')
     assert.equal(activeBarKey('loja', '/carrinho', 'pizzaria'), null)

@@ -61,7 +61,7 @@ const IGNORED_ROUTES = [
     '/entregas', // central de entregas do motorista (3.0)
     '/ganhos', // Ganhos do motorista (aba da barra do modo motorista, 3.0)
     '/canal-do-motorista', // Canal do Motorista: corridas abertas, quanto pagam e os atalhos de quem dirige (página só da 3.0)
-    '/atividade', // Atividade (aba da barra da 3.0): avisos; conversas, pedidos, carrinho e biblioteca ficam em /conversas e /carrinho
+    '/atividade', // Atividade (aba da barra da 3.0): pedidos, carrinho e biblioteca; as conversas são a página /conversas
     '/tres-telas', // ferramenta de desenvolvimento (só local): observação em 3 telas
     '/paginateste', // laboratório da navbar (página de teste, sem link no app)
     '/painel-teste', // laboratório do novo painel da loja (3.0; página de teste, sem link no app)
