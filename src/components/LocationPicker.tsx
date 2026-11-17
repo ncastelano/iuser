@@ -1,6 +1,7 @@
 // src/app/(main)/LocationPicker.tsx
 'use client'
 
+import { addLeafletCredits } from '@/lib/mapCredits'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/app/contexts/theme'
@@ -651,6 +652,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                 zoomControl: true,
                 attributionControl: false,
             })
+            addLeafletCredits(L, map)   // crédito do OpenStreetMap (lib/mapCredits)
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,

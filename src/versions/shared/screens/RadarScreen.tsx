@@ -8,6 +8,7 @@
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
+import { addMapboxCredits } from '@/lib/mapCredits'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -452,8 +453,10 @@ export default function RadarScreen() {
             style: mapStyle === 'streets' ? 'mapbox://styles/mapbox/streets-v12' : 'mapbox://styles/mapbox/satellite-streets-v12',
             center: [centerLocation.lng, centerLocation.lat],
             zoom: 14,
-            attributionControl: false
+            attributionControl: false,
+            logoPosition: 'top-right',   // o logo do Mapbox fica visível no alto à direita, acima da fileira de imagens (decisão do dono, 17/11/2026)
         })
+        addMapboxCredits(mapboxgl, map)   // logo do Mapbox visível + créditos compactos (lib/mapCredits)
 
         // Adiciona controles de navegação com opções completas
         map.addControl(new mapboxgl.NavigationControl({
@@ -1344,8 +1347,8 @@ export default function RadarScreen() {
                 .radar-v3 .mapboxgl-ctrl-bottom-left {
                     margin-bottom: 136px !important;
                 }
-                /* decisão do dono (17/11/2026): o logo do Mapbox não aparece no Radar; o contador ("23 lojas") fica no lugar dele */
-                .radar-v3 .mapboxgl-ctrl-logo { display: none !important; }
+                /* o logo do Mapbox (obrigatório pelos termos) fica no alto à direita, colado ao topo, acima da fileira de imagens */
+                .radar-v3 .mapboxgl-ctrl-top-right .mapboxgl-ctrl { margin: 4px 8px 0 0 !important; }
                 .mapboxgl-ctrl-group button {
                     background: white !important;
                     border-radius: 12px !important;
@@ -1564,7 +1567,7 @@ export default function RadarScreen() {
 
             {/* Horizontal List — do mais visto ao menos visto (esquerda → direita) */}
             {filtered.length > 0 && !clusterItems && !selectedItem && (
-                <div className={`absolute ${('top-1 z-[55]')} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(({})), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
+                <div className={`absolute ${('top-[22px] z-[55]')} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(({})), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
                     <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
                             const rank = idx < 3 && mode !== 'motoristas' && mode !== 'flash' ? idx + 1 : 0
@@ -1947,8 +1950,8 @@ export default function RadarScreen() {
                 </div>
             )}
 
-            {/* Quantos há no mapa ("12 lojas"): no LUGAR do logo do Mapbox, que fica escondido (decisão do dono, 17/11/2026), no canto de
-                baixo à esquerda (celular e computador). A altura acompanha a margem dos controles do mapa (136 px). */}
+            {/* Quantos há no mapa ("12 lojas"): no canto de baixo à esquerda (celular e computador); o logo do Mapbox foi para o alto à
+                direita. A altura acompanha a margem dos controles do mapa (136 px). */}
             {mapReady && (
                 <div className="absolute z-[2001] pointer-events-none" style={{ left: 8, bottom: 140 }}>
                     <div className="rounded-full pl-2 pr-3 h-[28px] flex items-center gap-1.5 shadow-[0_4px_15px_rgba(0,0,0,0.2)]" style={{ background: 'rgba(255,255,255,0.96)', border: '1px solid #fed7aa' }}>

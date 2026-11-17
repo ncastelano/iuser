@@ -22,6 +22,7 @@ import { RideWaitBox } from '@/components/ride/RideWaitBox'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
+import { addMapboxCredits } from '@/lib/mapCredits'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { ArrowLeft, MessageCircle, LocateFixed, Navigation, MapPin, Flag, Ban, Route } from 'lucide-react'
 import { toast } from '@/lib/toast'
@@ -560,6 +561,7 @@ function AceitarCorridasMapaContent() {
             zoom: 15,
             attributionControl: false,
         })
+        addMapboxCredits(mapboxgl, map)   // logo do Mapbox visível + créditos compactos (lib/mapCredits)
         // Sem botões por cima do mapa (zoom/bússola): o mapa fica limpo, o zoom é com os dedos e o "seguindo" fica no card de baixo.
 
         // Gesto do usuário (arrastar/zoom/rotacionar) desliga o modo

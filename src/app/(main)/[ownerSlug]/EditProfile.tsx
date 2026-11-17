@@ -1,6 +1,7 @@
 // src/components/owner/EditProfile.tsx
 'use client'
 
+import { addLeafletCredits } from '@/lib/mapCredits'
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
@@ -181,6 +182,7 @@ export function EditProfile({ owner, imageUrl, colors, onClose, onUpdate }: Edit
                 zoomControl: true,
                 attributionControl: false,
             })
+            addLeafletCredits(L, map)   // crédito do OpenStreetMap (lib/mapCredits)
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,

@@ -1,6 +1,7 @@
 // src/app/(app)/calculo-de-corrida/page.tsx
 'use client'
 
+import { addLeafletCredits } from '@/lib/mapCredits'
 import React, { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/app/contexts/theme'
@@ -661,6 +662,7 @@ export default function CalculoDeCorridaPage() {
                     zoomControl: true,
                     attributionControl: false,
                 })
+                addLeafletCredits(L, map)   // crédito do OpenStreetMap (lib/mapCredits)
 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19,

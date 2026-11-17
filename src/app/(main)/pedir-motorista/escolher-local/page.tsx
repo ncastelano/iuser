@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
+import { addMapboxCredits } from '@/lib/mapCredits'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { X } from 'lucide-react'
 import { saveRideDraft, loadRideDraft } from '@/lib/rideRequestDraft'
@@ -85,6 +86,7 @@ export default function EscolherLocalPage() {
             zoom: 16,
             attributionControl: false,
         })
+        addMapboxCredits(mapboxgl, map)   // logo do Mapbox visível + créditos compactos (lib/mapCredits)
         mapRef.current = map
 
         // Mostra junto o outro local já escolhido (ex: ao escolher a

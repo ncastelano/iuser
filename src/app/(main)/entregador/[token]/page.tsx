@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
+import { addMapboxCredits } from '@/lib/mapCredits'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
@@ -136,6 +137,7 @@ export default function EntregadorPage() {
             zoom: 13,
             attributionControl: false,
         })
+        addMapboxCredits(mapboxgl, map)   // logo do Mapbox visível + créditos compactos (lib/mapCredits)
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right')
         map.on('error', () => setMapState('error'))
 
