@@ -18,7 +18,9 @@ import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/l
 import { fetchSavedRidePlaces, saveRidePlace } from '@/lib/savedRidePlaces'
 import { saveRideDraft, loadRideDraft, clearRideDraft } from '@/lib/rideRequestDraft'
 import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS, kindForRideType, type VehicleType } from '@/lib/rideVehicle'
-import { computeSuggestedPrice, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricingRow, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeRideExtras, computeSuggestedPrice, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricingRow, type RideConditionFlags } from '@/lib/driverPricing'
+import { parseQuote, quotePrice, type QuoteMode } from '@/modules/driver-profile'
+import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import PassengerOfferBox from '@/components/negotiation/PassengerOfferBox'
 import { setPassengerOffer } from '@/modules/negotiation'
@@ -1563,6 +1565,8 @@ export default function PedirMotoristaScreen() {
     // Motorista CHAMADO (?motorista=<id>, ex.: o botão "Solicitar corrida" do perfil dele): o valor pela tarifa DELE, já posto como a oferta
     const [calledPrice, setCalledPrice] = useState<number | null>(null)
     const calledPresetFor = useRef<string | null>(null)
+    const [calledMode, setCalledMode] = useState<QuoteMode>('platform')
+    const defaultHourly = useDefaultMinHourly()
     const minPerMinute = useRideMinimum()
     // mínimo da plataforma para este trajeto (R$ por minuto × os minutos da rota): nem a referência nem a oferta ficam abaixo
     const tripFloor = platformFloor(route?.durationMin ?? null, minPerMinute)
@@ -1591,22 +1595,29 @@ export default function PedirMotoristaScreen() {
             // Chamando um motorista: a conta da corrida pela tarifa DELE (a própria, se usa; senão a Tarifa iUser do veículo dele), nunca abaixo
             // do mínimo da plataforma. Vai como a oferta do passageiro, para ele só aceitar (o deslocamento até a partida fica para ele propor, se quiser).
             if (calledDriver) {
-                const [{ data: pr }, { data: veh }] = await Promise.all([
-                    supabase.from('driver_pricing').select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado').eq('driver_id', calledDriver.id).maybeSingle(),
+                // a tarifa do motorista é privada: get_driver_public_quote entrega o modo que ELE escolheu para o botão do perfil
+                // (Tarifa iUser, por km ou por tempo) e os números dele; a conta é a de modules/driver-profile
+                const [{ data: qd }, { data: veh }] = await Promise.all([
+                    supabase.rpc('get_driver_public_quote', { p_driver: calledDriver.id }),
                     supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', calledDriver.id).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
                 ])
                 if (!alive) return
-                const row = (pr as DriverPricingRow | null) || { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }
+                const q = parseQuote(qd) || parseQuote({ mode: 'platform' })!
                 const kind = ((veh as any)?.vehicle_kind || kindForRideType(effectiveVehicleType)) as 'carro' | 'moto' | 'bicicleta'
-                const price = Math.max(Math.round(computeSuggestedPrice(route.distanceKm, getEffectivePricing(row, kind), requestFor, flags) * 100) / 100, floor)
+                const kmShape = getEffectivePricing(q.row as unknown as DriverPricingRow, kind)
+                const extras = computeRideExtras(requestFor, flags, kmShape)
+                const raw = quotePrice(q, kmShape, { km: route.distanceKm, minutes: route.durationMin ?? null }, defaultHourly, extras)
+                if (raw == null) { setCalledPrice(null); return }
+                const price = Math.max(raw, floor)
                 setCalledPrice(price)
+                setCalledMode(q.mode)
                 const key = `${calledDriver.id}:${price}`
                 if (calledPresetFor.current !== key) { calledPresetFor.current = key; setOfferMode('mine'); setOfferValue(price) }
             } else setCalledPrice(null)
         })()
         return () => { alive = false }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showPlateReminder, requestFor, route, effectiveVehicleType, wantsAirConditioning, minPerMinute, calledDriver])
+    }, [showPlateReminder, requestFor, route, effectiveVehicleType, wantsAirConditioning, minPerMinute, calledDriver, defaultHourly])
 
     const handleSubmit = async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -1966,7 +1977,7 @@ export default function PedirMotoristaScreen() {
 
                         {calledDriver && calledPrice != null && (
                             <div className="w-full rounded-xl px-3 py-2 text-left text-[12px] font-bold leading-snug" style={{ background: '#16a34a14', border: '1px solid #16a34a55', color: colors.textPrimary }}>
-                                Pela tarifa de {calledDriver.name?.split(' ')[0] || 'o motorista'}, esta corrida sai <b style={{ color: '#16a34a' }}>R$ {calledPrice.toFixed(2).replace('.', ',')}</b> — o valor já vai como a sua oferta, é só aceitar.
+                                {calledMode === 'platform' ? `Pela Tarifa iUser, que ${calledDriver.name?.split(' ')[0] || 'o motorista'} usa,` : `Pela tarifa ${calledMode === 'time' ? 'por tempo' : 'por km'} de ${calledDriver.name?.split(' ')[0] || 'o motorista'},`} esta corrida sai <b style={{ color: '#16a34a' }}>R$ {calledPrice.toFixed(2).replace('.', ',')}</b> — o valor já vai como a sua oferta, é só aceitar.
                             </div>
                         )}
                         <PassengerOfferBox reference={referencePrice} min={tripFloor} mode={offerMode} onMode={setOfferMode} value={offerValue} onValue={setOfferValue} />

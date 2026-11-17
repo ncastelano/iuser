@@ -1,0 +1,314 @@
+// src/components/profile/DriverProfile.tsx
+//
+// A PÁGINA DO PERFIL DO TIPO MOTORISTA (17/11/2026, decisão do dono: "uma página para o motorista, com os comentários das pessoas que pediram, o
+// mapa onde ela está se quiser mostrar e UM botão de solicitar corrida no valor que ele escolheu"). Ordem:
+//   1. Cartão do motorista: a foto do veículo de capa, a foto da pessoa, nome, situação (dirigindo agora / fora do ar), nota, corridas e desde quando
+//   2. Seguir e conversar (os mesmos botões do perfil)
+//   3. Onde está agora: mapa com a posição APROXIMADA (~330 m, a do Radar), só para quem está logado e se o motorista deixou o local visível
+//   4. O veículo: modelo, cor, lugares e o que tem (ar, Wi-Fi, carregador, som, pet — `CarAmenities`)
+//   5. Quanto custa: o modo que o motorista escolheu (Tarifa iUser, por km ou por tempo), a regra e três exemplos
+//   6. O que dizem os passageiros: a nota grande e as avaliações (as com comentário primeiro)
+//   7. UM botão fixo embaixo: "Solicitar corrida" (o dono vê "Editar minha tarifa")
+// Os dados vêm de funções públicas do banco (get_driver_public_quote, get_driver_public_stats, get_driver_reviews) — a tabela da tarifa é
+// privada; o valor é calculado em modules/driver-profile. Só apresentação: nenhuma regra de corrida mora aqui.
+'use client'
+
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import { Bike, Calendar, Car, ChevronRight, Lock, MapPin, MessageSquareQuote, Pencil, Route, Star, Users } from 'lucide-react'
+import { supabase } from '@/lib/supabase/client'
+import { getAvatarUrl } from '@/lib/avatar'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
+import { getEffectivePricing, type DriverPricingRow } from '@/lib/driverPricing'
+import { addMapboxCredits } from '@/lib/mapCredits'
+import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
+import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
+import { useRideMinimum } from '@/hooks/useRideMinimum'
+import { platformFloor } from '@/modules/negotiation'
+import { parseQuote, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote } from '@/modules/driver-profile'
+import CarAmenities from '@/components/ride/CarAmenities'
+
+const GREEN = '#16a34a'
+const GREEN_DARK = '#15803d'
+const KIND_LABEL = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' } as const
+type Kind = keyof typeof KIND_LABEL
+
+interface Vehicle { slug: string; kind: Kind; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null }
+interface Stats { rides: number; rating: number | null; ratingCount: number; since: string | null }
+interface Review { rating: number | null; comment: string | null; at: string; from: string; to: string; name: string | null; slug: string | null; avatar: string | null }
+
+const brl = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`
+const carPhoto = (p: string | null) => (p ? (p.startsWith('http') ? p : supabase.storage.from('driver-car-photos').getPublicUrl(p).data.publicUrl) : null)
+const monthYear = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '').replace(' de ', '/') : null)
+const ago = (iso: string) => {
+    const d = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000))
+    return d === 0 ? 'hoje' : d === 1 ? 'ontem' : d < 30 ? `há ${d} dias` : new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')
+}
+
+function Stars({ value, size = 13 }: { value: number; size?: number }) {
+    return (
+        <span className="inline-flex items-center gap-0.5" aria-label={`${value} de 5 estrelas`}>
+            {[1, 2, 3, 4, 5].map((i) => <Star key={i} size={size} className={i <= Math.round(value) ? 'fill-amber-400 text-amber-400' : 'text-gray-300'} />)}
+        </span>
+    )
+}
+
+// ===== o mapa: posição aproximada (círculo de ~330 m) com o ícone do veículo; sem interação, para não brigar com a rolagem =====
+function ApproxMap({ lat, lng, kind }: { lat: number; lng: number; kind: Kind }) {
+    const ref = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        if (!ref.current || !process.env.NEXT_PUBLIC_MAPBOX_TOKEN) return
+        mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+        const map = new mapboxgl.Map({ container: ref.current, style: 'mapbox://styles/mapbox/streets-v12', center: [lng, lat], zoom: 14.2, interactive: false, attributionControl: false })
+        addMapboxCredits(mapboxgl, map)
+        const el = document.createElement('div')
+        el.innerHTML = vehicleMarkerHtml(kind, GREEN)
+        const marker = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map)
+        map.on('load', () => {
+            map.addSource('approx', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lng, lat] } } })
+            // raio em pixels que corresponde a ~330 m nesse zoom e latitude
+            const px = 330 / (78271.517 * Math.cos((lat * Math.PI) / 180) / Math.pow(2, 14.2))
+            map.addLayer({ id: 'approx', type: 'circle', source: 'approx', paint: { 'circle-radius': px, 'circle-color': GREEN, 'circle-opacity': 0.14, 'circle-stroke-color': GREEN, 'circle-stroke-width': 1.5, 'circle-stroke-opacity': 0.5 } })
+        })
+        return () => { marker.remove(); map.remove() }
+    }, [lat, lng, kind])
+    // posição e tamanho INLINE: o CSS do mapbox-gl põe `position: relative` em .mapboxgl-map e, só com classe, a altura vira zero
+    return <div ref={ref} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+}
+
+export interface DriverProfileProps {
+    driverId: string
+    name: string
+    slug: string
+    avatarSlot: ReactNode
+    levelSlot?: ReactNode
+    colors: any
+    isOwner: boolean
+    loggedIn: boolean
+    /** Seguir / conversar (o perfil monta: as regras são as de sempre) */
+    socialSlot?: ReactNode
+    ownerTypeSlot?: ReactNode
+    onEdit: () => void
+}
+
+export default function DriverProfile(p: DriverProfileProps) {
+    const router = useRouter()
+    const { colors } = p
+    const hourly = useDefaultMinHourly()
+    const minPerMinute = useRideMinimum()
+    const [quote, setQuote] = useState<DriverQuote | null>(null)
+    const [vehicle, setVehicle] = useState<Vehicle | null | undefined>(undefined)
+    const [stats, setStats] = useState<Stats | null>(null)
+    const [reviews, setReviews] = useState<Review[] | null>(null)
+    const [tariffsReady, setTariffsReady] = useState(false)
+    const [showAll, setShowAll] = useState(false)
+
+    useEffect(() => {
+        let alive = true
+        void (async () => {
+            const [{ data: q }, { data: v }, { data: st }, { data: rv }] = await Promise.all([
+                supabase.rpc('get_driver_public_quote', { p_driver: p.driverId }),
+                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_model, car_color, car_photo_url, services, passenger_capacity, has_baby_seat').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+                supabase.rpc('get_driver_public_stats', { p_driver: p.driverId }),
+                supabase.rpc('get_driver_reviews', { p_driver: p.driverId, p_limit: 20 }),
+                loadPlatformTariffs(supabase).then(() => { if (alive) setTariffsReady(true) }),
+            ])
+            if (!alive) return
+            setQuote(parseQuote(q) || parseQuote({ mode: 'platform' }))
+            const vv = v as any
+            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat } : null)
+            const s = Array.isArray(st) ? st[0] : st
+            setStats(s ? { rides: Number(s.rides_completed) || 0, rating: s.rating_avg != null ? Number(s.rating_avg) : null, ratingCount: Number(s.rating_count) || 0, since: s.member_since || null } : { rides: 0, rating: null, ratingCount: 0, since: null })
+            setReviews(((rv as any[]) || []).map((r) => ({ rating: r.rating, comment: r.comment, at: r.rode_at, from: r.origin, to: r.destination, name: r.reviewer_name, slug: r.reviewer_slug, avatar: r.reviewer_avatar ? getAvatarUrl(supabase, r.reviewer_avatar) || null : null })))
+        })()
+        return () => { alive = false }
+    }, [p.driverId])
+
+    const kind: Kind = vehicle?.kind || 'carro'
+    const shape = useMemo(() => (quote && tariffsReady ? getEffectivePricing(quote.row as unknown as DriverPricingRow, kind) : null), [quote, tariffsReady, kind])
+    const floor = platformFloor(null, minPerMinute)   // o mínimo de uma corrida (R$ 8): nenhum exemplo abaixo dele
+    const examples = quote && shape ? quoteExamples(quote, shape, hourly).map((e) => ({ ...e, price: Math.max(e.price, floor) })) : []
+    const fromPrice = examples.length ? examples[0].price : null
+    const soft = `${colors.border}30`
+    const Icon = kind === 'carro' ? Car : Bike
+    const active = !!quote?.active
+    const withComment = (reviews || []).filter((r) => r.comment)
+    const list = showAll ? reviews || [] : (withComment.length ? withComment : reviews || []).slice(0, 4)
+
+    const cta = p.isOwner
+        ? { label: 'Editar a minha tarifa', sub: quote ? `O botão do seu perfil usa: ${quoteModeLabel(quote.mode)}` : 'Escolha como o seu perfil cobra', onClick: () => router.push('/canal-do-motorista?aba=plano') }
+        : vehicle
+            ? { label: 'Solicitar corrida', sub: quote ? `${quoteModeLabel(quote.mode)}${fromPrice != null ? ` · a partir de ${brl(fromPrice)}` : ''}` : 'O aviso chega na hora', onClick: () => router.push(`/pedir-motorista?motorista=${p.driverId}`) }
+            : null
+
+    return (
+        <div className="pb-28">
+            {/* ===== 1. o motorista: a foto do veículo de capa ===== */}
+            <section className="rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
+                <div className="relative h-36" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})` }}>
+                    {vehicle?.photo && <img src={vehicle.photo} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+                    <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.55))' }} />
+                    {!vehicle?.photo && <span className="absolute inset-0 flex items-center justify-center text-white/30"><Icon size={72} /></span>}
+                    <span className="absolute right-3 top-3 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1.5" style={{ background: active ? GREEN : 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}>
+                        <span className={`w-1.5 h-1.5 rounded-full bg-white ${active ? 'animate-pulse' : 'opacity-60'}`} />{active ? 'Dirigindo agora' : 'Fora do ar agora'}
+                    </span>
+                    {vehicle && (
+                        <span className="absolute left-3 top-3 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}>
+                            <Icon size={13} />{KIND_LABEL[kind]}
+                        </span>
+                    )}
+                </div>
+                <div className="px-4 pb-4 -mt-11 relative">
+                    <div className="flex items-end justify-between gap-3">
+                        <div className="rounded-full p-1" style={{ background: colors.surface }}>{p.avatarSlot}</div>
+                        {p.isOwner && (
+                            <button onClick={p.onEdit} className="mb-1 h-9 px-3.5 rounded-full text-[12px] font-black flex items-center gap-1.5" style={{ background: soft, color: colors.textPrimary }}><Pencil size={13} /> Editar perfil</button>
+                        )}
+                    </div>
+                    <h1 className="mt-1 text-[21px] font-black leading-tight" style={{ color: colors.textPrimary }}>{p.name}</h1>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[12px]" style={{ color: colors.textSecondary }}>@{p.slug}</span>
+                        {p.levelSlot}
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                        {[
+                            { icon: <Star size={14} className="fill-amber-400 text-amber-400" />, value: stats?.rating != null ? stats.rating.toFixed(1).replace('.', ',') : 'Novo', label: stats && stats.ratingCount > 0 ? `${stats.ratingCount} ${stats.ratingCount === 1 ? 'avaliação' : 'avaliações'}` : 'sem avaliações' },
+                            { icon: <Route size={14} style={{ color: GREEN }} />, value: String(stats?.rides ?? 0), label: (stats?.rides ?? 0) === 1 ? 'corrida' : 'corridas' },
+                            { icon: <Calendar size={14} style={{ color: GREEN }} />, value: monthYear(stats?.since ?? null) || '—', label: 'no iUser' },
+                        ].map((x, i) => (
+                            <div key={i} className="rounded-2xl px-2.5 py-2" style={{ background: soft }}>
+                                <span className="flex items-center gap-1 text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{x.icon}<span className="truncate">{x.value}</span></span>
+                                <span className="block text-[10.5px] leading-tight mt-0.5 truncate" style={{ color: colors.textSecondary }}>{x.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                    {p.socialSlot && <div className="mt-3">{p.socialSlot}</div>}
+                    {p.ownerTypeSlot && <div className="mt-3">{p.ownerTypeSlot}</div>}
+                </div>
+            </section>
+
+            {/* ===== 2. onde está agora ===== */}
+            <section className="mt-5">
+                <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><MapPin size={16} style={{ color: GREEN }} /> Onde está agora</h2>
+                {quote?.live ? (
+                    <div className="relative mt-2.5 h-48 rounded-3xl overflow-hidden" style={{ background: soft }}>
+                        <ApproxMap lat={quote.live.lat} lng={quote.live.lng} kind={kind} />
+                        <span className="absolute left-2.5 top-2.5 z-10 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1.5 shadow" style={{ background: GREEN }}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />Por aqui · posição aproximada
+                        </span>
+                    </div>
+                ) : (
+                    <div className="mt-2.5 rounded-3xl p-4 flex items-center gap-3" style={{ background: soft }}>
+                        <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1f`, color: GREEN }}>{p.loggedIn || !active ? <MapPin size={19} /> : <Lock size={18} />}</span>
+                        <p className="text-[12.5px] leading-snug" style={{ color: colors.textSecondary }}>
+                            {!active ? 'Fora do ar agora. Peça mesmo assim: o aviso chega no celular na hora.'
+                                : !p.loggedIn ? 'Entre na sua conta para ver por onde o motorista está agora.'
+                                    : 'Dirigindo, mas sem mostrar a localização. Peça mesmo assim: o aviso chega na hora.'}
+                        </p>
+                    </div>
+                )}
+            </section>
+
+            {/* ===== 3. o veículo ===== */}
+            {vehicle && (
+                <section className="mt-5">
+                    <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Icon size={16} style={{ color: GREEN }} /> O veículo</h2>
+                    <button onClick={() => router.push(`/${vehicle.slug}`)} className="mt-2.5 w-full rounded-3xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                        <span className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1a`, color: GREEN }}>
+                            {vehicle.photo ? <img src={vehicle.photo} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Icon size={30} />}
+                        </span>
+                        <span className="min-w-0 flex-1 flex flex-col gap-1.5">
+                            <span className="text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{vehicle.model || KIND_LABEL[kind]}{vehicle.color ? <span className="font-bold" style={{ color: colors.textSecondary }}> · {vehicle.color}</span> : null}</span>
+                            {kind === 'carro'
+                                ? <CarAmenities services={vehicle.services} seats={vehicle.seats} babySeat={vehicle.babySeat} compact />
+                                : <span className="text-[11.5px] flex items-center gap-1" style={{ color: colors.textSecondary }}><Users size={12} /> leva 1 pessoa ou 1 objeto</span>}
+                        </span>
+                        <ChevronRight size={18} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                    </button>
+                </section>
+            )}
+
+            {/* ===== 4. quanto custa ===== */}
+            {quote && shape && (
+                <section className="mt-5 rounded-3xl p-4" style={{ background: `linear-gradient(150deg, ${GREEN}14, ${GREEN}05)`, border: `1px solid ${GREEN}40` }}>
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                            <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>Quanto custa</h2>
+                            <p className="text-[12px] leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{quoteRule(quote, shape, hourly)}</p>
+                        </div>
+                        <span className="flex-shrink-0 h-7 px-2.5 rounded-full text-[11px] font-black flex items-center text-white" style={{ background: GREEN }}>{quoteModeLabel(quote.mode)}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                        {examples.map((e) => (
+                            <div key={e.label} className="rounded-2xl py-2.5 text-center" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <span className="block text-[11px] font-bold" style={{ color: colors.textSecondary }}>{e.label}</span>
+                                <span className="block text-[16px] font-black" style={{ color: GREEN }}>{brl(e.price)}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-[10.5px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>O valor da sua corrida aparece antes de confirmar e já vai como a sua oferta. Extras (pet, compras, condomínio) somam quando você marca.</p>
+                </section>
+            )}
+
+            {/* ===== 5. o que dizem os passageiros ===== */}
+            <section className="mt-5">
+                <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><MessageSquareQuote size={16} style={{ color: GREEN }} /> O que dizem os passageiros</h2>
+                {reviews === null ? (
+                    <div className="mt-2.5 h-24 rounded-3xl animate-pulse" style={{ background: soft }} />
+                ) : reviews.length === 0 ? (
+                    <div className="mt-2.5 rounded-3xl p-4 text-[12.5px]" style={{ background: soft, color: colors.textSecondary }}>Ainda sem avaliações. Depois de cada corrida o passageiro pode avaliar.</div>
+                ) : (
+                    <>
+                        {stats?.rating != null && (
+                            <div className="mt-2.5 rounded-3xl p-4 flex items-center gap-4" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <span className="text-[40px] font-black leading-none" style={{ color: colors.textPrimary }}>{stats.rating.toFixed(1).replace('.', ',')}</span>
+                                <span className="flex flex-col gap-1">
+                                    <Stars value={stats.rating} size={16} />
+                                    <span className="text-[12px]" style={{ color: colors.textSecondary }}>{stats.ratingCount} {stats.ratingCount === 1 ? 'avaliação' : 'avaliações'} · {stats.rides} {stats.rides === 1 ? 'corrida' : 'corridas'}</span>
+                                </span>
+                            </div>
+                        )}
+                        <div className="mt-2.5 flex flex-col gap-2.5">
+                            {list.map((r, i) => (
+                                <article key={i} className="rounded-3xl p-3.5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                    <div className="flex items-center gap-2.5">
+                                        <button onClick={() => r.slug && router.push(`/${r.slug}`)} disabled={!r.slug} className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 text-white text-[13px] font-black" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)' }}>
+                                            {r.avatar ? <img src={r.avatar} alt="" className="w-full h-full object-cover" /> : (r.name || '?').charAt(0).toUpperCase()}
+                                        </button>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{r.name || 'Passageiro'}</span>
+                                            <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{r.from} → {r.to} · {ago(r.at)}</span>
+                                        </span>
+                                        {r.rating != null && <Stars value={r.rating} size={12} />}
+                                    </div>
+                                    {r.comment && <p className="mt-2 text-[13px] leading-snug" style={{ color: colors.textPrimary }}>“{r.comment}”</p>}
+                                </article>
+                            ))}
+                        </div>
+                        {(reviews.length > list.length || showAll) && reviews.length > 4 && (
+                            <button onClick={() => setShowAll((v) => !v)} className="mt-2.5 w-full h-11 rounded-full text-[13px] font-black" style={{ background: soft, color: colors.textPrimary }}>
+                                {showAll ? 'Ver menos' : `Ver todas as ${reviews.length} avaliações`}
+                            </button>
+                        )}
+                    </>
+                )}
+            </section>
+
+            {/* ===== UM botão, fixo embaixo ===== */}
+            {cta && (
+                <div className="fixed inset-x-0 z-40 px-4 flex justify-center pointer-events-none" style={{ bottom: 'calc(var(--shell-bottom, 0px) + 14px + env(safe-area-inset-bottom, 0px))' }}>
+                    <button onClick={cta.onClick} className="pointer-events-auto w-full max-w-[560px] h-[60px] rounded-[22px] px-4 flex items-center gap-3 text-left text-white transition active:scale-[0.99]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})`, boxShadow: `0 12px 28px -10px ${GREEN}` }}>
+                        <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>{p.isOwner ? <Pencil size={18} /> : <Icon size={20} />}</span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-[16px] font-black leading-tight">{cta.label}</span>
+                            <span className="block text-[12px] font-bold leading-tight opacity-90 truncate">{cta.sub}</span>
+                        </span>
+                        <ChevronRight size={20} className="flex-shrink-0" />
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}

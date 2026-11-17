@@ -34,6 +34,7 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 import DriverPanelHome from '@/components/v3/DriverPanelHome'
 import AcceptARider from '@/app/(main)/inicio/sections/AcceptARider'
 import { announceDriverMode } from '@/lib/driverMode'
+import ProfileQuoteCard from '@/components/driver/ProfileQuoteCard'
 import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
@@ -1055,6 +1056,8 @@ function PainelMotoristaContent() {
 
                             {activeTab === 'plano' && (
                             <>
+                            {/* o valor que o botão "Solicitar corrida" do perfil manda (Tarifa iUser, por km ou por tempo) */}
+                            {userId && !showActivationWizard && <ProfileQuoteCard driverId={userId} profileSlug={profileSlug} />}
                             {showActivationWizard && (
                                 <div className="flex flex-col gap-2">
                                     <div className="flex items-center gap-1.5 justify-center">
