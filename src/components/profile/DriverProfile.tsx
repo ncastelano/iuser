@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Bike, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
+import { Bike, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -40,7 +40,7 @@ const GREEN_DARK = '#15803d'
 const KIND_LABEL = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' } as const
 type Kind = keyof typeof KIND_LABEL
 
-interface Vehicle { slug: string; kind: Kind; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null }
+interface Vehicle { slug: string; kind: Kind; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null; posX: number; posY: number }
 interface Stats { rides: number; rating: number | null; ratingCount: number; since: string | null }
 interface Review { rating: number | null; comment: string | null; at: string; from: string; to: string; name: string | null; slug: string | null; avatar: string | null }
 
@@ -122,6 +122,11 @@ export default function DriverProfile(p: DriverProfileProps) {
     const [showAll, setShowAll] = useState(false)
     // a aba aberta embaixo do botão: as avaliações primeiro
     const [tab, setTab] = useState<'avaliacoes' | 'servicos' | 'info'>('avaliacoes')
+    // ENQUADRAR A FOTO (só o dono): arrastar a foto do veículo até o ângulo certo; guarda o ponto que fica no centro (0 a 100, o object-position)
+    const [framing, setFraming] = useState(false)
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+    const [savingPos, setSavingPos] = useState(false)
+    const drag = useRef<{ px: number; py: number; x: number; y: number; w: number; h: number } | null>(null)
     // onde está quem vê a página: o GPS (só se o navegador já deixou, sem perguntar) ou o local salvo; sem nenhum, não mostra o tempo
     const [viewerPos, setViewerPos] = useState<{ lat: number; lng: number } | null>(null)
 
@@ -130,7 +135,7 @@ export default function DriverProfile(p: DriverProfileProps) {
         void (async () => {
             const [{ data: q }, { data: v }, { data: st }, { data: rv }] = await Promise.all([
                 supabase.rpc('get_driver_public_quote', { p_driver: p.driverId }),
-                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_model, car_color, car_photo_url, services, passenger_capacity, has_baby_seat').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_model, car_color, car_photo_url, services, passenger_capacity, has_baby_seat, car_photo_pos_x, car_photo_pos_y').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
                 supabase.rpc('get_driver_public_stats', { p_driver: p.driverId }),
                 supabase.rpc('get_driver_reviews', { p_driver: p.driverId, p_limit: 20 }),
                 loadPlatformTariffs(supabase).then(() => { if (alive) setTariffsReady(true) }),
@@ -138,7 +143,7 @@ export default function DriverProfile(p: DriverProfileProps) {
             if (!alive) return
             setQuote(parseQuote(q) || parseQuote({ mode: 'platform' }))
             const vv = v as any
-            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat } : null)
+            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
             const s = Array.isArray(st) ? st[0] : st
             setStats(s ? { rides: Number(s.rides_completed) || 0, rating: s.rating_avg != null ? Number(s.rating_avg) : null, ratingCount: Number(s.rating_count) || 0, since: s.member_since || null } : { rides: 0, rating: null, ratingCount: 0, since: null })
             setReviews(((rv as any[]) || []).map((r) => ({ rating: r.rating, comment: r.comment, at: r.rode_at, from: r.origin, to: r.destination, name: r.reviewer_name, slug: r.reviewer_slug, avatar: r.reviewer_avatar ? getAvatarUrl(supabase, r.reviewer_avatar) || null : null })))
@@ -176,11 +181,44 @@ export default function DriverProfile(p: DriverProfileProps) {
     const eta = etaFromViewer(viewerPos, quote?.live ?? null)
     const list = showAll ? reviews || [] : (withComment.length ? withComment : reviews || []).slice(0, 4)
 
+    const saveFraming = async () => {
+        if (!vehicle || !pos) return
+        setSavingPos(true)
+        const { error } = await supabase.from('driver_vehicles').update({ car_photo_pos_x: pos.x, car_photo_pos_y: pos.y }).eq('driver_id', p.driverId).eq('vehicle_slug', vehicle.slug)
+        setSavingPos(false)
+        if (error) { toast.error('Não deu para salvar o enquadramento: ' + error.message); return }
+        setVehicle({ ...vehicle, posX: pos.x, posY: pos.y })
+        setFraming(false); setPos(null)
+        toast.success('Foto enquadrada')
+    }
+
     const cta = p.isOwner
         ? { label: 'Editar a minha tarifa', sub: quote ? `O botão do seu perfil usa: ${quoteModeLabel(quote.mode)}` : 'Escolha como o seu perfil cobra', onClick: () => router.push('/canal-do-motorista?aba=plano') }
         : vehicle
             ? { label: 'Solicitar corrida', sub: quote ? `${quoteModeLabel(quote.mode)}${fromPrice != null ? ` · a partir de ${brl(fromPrice)}` : ''}` : 'O aviso chega na hora', onClick: () => router.push(`/pedir-motorista?motorista=${p.driverId}`) }
             : null
+
+    if (quote === null || vehicle === undefined || stats === null) {
+        const sk = { background: `${colors.border}55` }
+        return (
+            <div className="pb-10" aria-busy="true" aria-label="Carregando o perfil do motorista">
+                <section className="rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                    <div className="h-40 animate-pulse" style={sk} />
+                    <div className="px-4 pb-4 -mt-11 flex flex-col items-center">
+                        <div className="w-[92px] h-[92px] rounded-full animate-pulse" style={{ ...sk, boxShadow: `0 0 0 4px ${colors.surface}` }} />
+                        <div className="mt-3 h-5 w-44 rounded-full animate-pulse" style={sk} />
+                        <div className="mt-2 h-3 w-28 rounded-full animate-pulse" style={sk} />
+                        <div className="mt-3 flex gap-1.5">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-5 w-11 rounded-full animate-pulse" style={sk} />)}</div>
+                        <div className="mt-3 w-full grid grid-cols-3 gap-2">{[0, 1, 2].map((i) => <div key={i} className="h-14 rounded-2xl animate-pulse" style={sk} />)}</div>
+                        <div className="mt-3 w-full h-11 rounded-full animate-pulse" style={sk} />
+                    </div>
+                </section>
+                <div className="mt-4 h-[62px] rounded-[22px] animate-pulse" style={sk} />
+                <div className="mt-5 h-12 rounded-[20px] animate-pulse" style={sk} />
+                {[0, 1].map((i) => <div key={i} className="mt-3 h-24 rounded-3xl animate-pulse" style={sk} />)}
+            </div>
+        )
+    }
 
     return (
         <div className="pb-10">
@@ -196,8 +234,8 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </>
                     ) : (
                         <>
-                            {vehicle?.photo && <img src={vehicle.photo} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-                            <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.55))' }} />
+                            {vehicle?.photo && <img src={vehicle.photo} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }} />}
+                            {!framing && <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.55))' }} />}
                             {!vehicle?.photo && <span className="absolute inset-0 flex items-center justify-center text-white/30"><Icon size={72} /></span>}
                         </>
                     )}
@@ -208,6 +246,35 @@ export default function DriverProfile(p: DriverProfileProps) {
                         <span className="absolute left-3 top-3 z-10 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1 shadow" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}>
                             <Icon size={13} />{KIND_LABEL[kind]}
                         </span>
+                    )}
+                    {/* o dono enquadra a foto: o ícone de mover abre o modo de arrastar */}
+                    {p.isOwner && !quote?.live && vehicle?.photo && !framing && (
+                        <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setFraming(true) }} aria-label="Enquadrar a foto do veículo" className="absolute right-3 bottom-3 z-10 w-9 h-9 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}>
+                            <Move size={17} />
+                        </button>
+                    )}
+                    {framing && vehicle && (
+                        <div className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing" style={{ touchAction: 'none', boxShadow: `inset 0 0 0 3px ${GREEN}` }}
+                            onPointerDown={(e) => {
+                                const r = e.currentTarget.getBoundingClientRect(); const cur = pos ?? { x: vehicle.posX, y: vehicle.posY }
+                                drag.current = { px: e.clientX, py: e.clientY, x: cur.x, y: cur.y, w: r.width, h: r.height }
+                                e.currentTarget.setPointerCapture(e.pointerId)
+                            }}
+                            onPointerMove={(e) => {
+                                const d = drag.current; if (!d) return
+                                // arrastar para a direita mostra mais da esquerda da foto (o ponto do centro anda ao contrário do dedo)
+                                const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
+                                setPos({ x: clamp(d.x - ((e.clientX - d.px) / d.w) * 110), y: clamp(d.y - ((e.clientY - d.py) / d.h) * 110) })
+                            }}
+                            onPointerUp={() => { drag.current = null }}
+                            onPointerCancel={() => { drag.current = null }}
+                        >
+                            <span className="absolute left-1/2 -translate-x-1/2 top-3 h-7 px-3 rounded-full text-[11px] font-black text-white flex items-center gap-1.5 shadow pointer-events-none" style={{ background: 'rgba(0,0,0,0.6)' }}><Move size={13} /> Arraste a foto para enquadrar</span>
+                            <div className="absolute right-3 bottom-3 flex gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+                                <button onClick={() => { setFraming(false); setPos(null) }} className="h-9 px-3.5 rounded-full text-[12px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>Cancelar</button>
+                                <button onClick={saveFraming} disabled={savingPos} className="h-9 px-3.5 rounded-full text-[12px] font-black text-white shadow disabled:opacity-60" style={{ background: GREEN }}>{savingPos ? 'Salvando…' : 'Salvar'}</button>
+                            </div>
+                        </div>
                     )}
                 </div>
                 <div className="px-4 pb-4 -mt-11 relative">
