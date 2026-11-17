@@ -223,6 +223,8 @@ export default function DriverProfile(p: DriverProfileProps) {
                             <button onClick={p.onEdit} className="mt-2 h-9 px-3.5 rounded-full text-[12px] font-black flex items-center gap-1.5" style={{ background: soft, color: colors.textPrimary }}><Pencil size={13} /> Editar perfil</button>
                         )}
                     </div>
+                    {/* o que o veículo tem, em ícones, no centro, em cima dos números */}
+                    {vehicle && <div className="mt-3 flex justify-center"><CarAmenities services={vehicle.services} seats={kind === 'carro' ? vehicle.seats : null} babySeat={kind === 'carro' ? vehicle.babySeat : null} compact /></div>}
                     <div className="mt-3 grid grid-cols-3 gap-2">
                         {[
                             { icon: <Star size={14} className="fill-amber-400 text-amber-400" />, value: stats?.rating != null ? stats.rating.toFixed(1).replace('.', ',') : 'Novo', label: stats && stats.ratingCount > 0 ? `${stats.ratingCount} ${stats.ratingCount === 1 ? 'avaliação' : 'avaliações'}` : 'sem avaliações' },
@@ -379,18 +381,20 @@ export default function DriverProfile(p: DriverProfileProps) {
             {vehicle && (
                 <section>
                     <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Icon size={16} style={{ color: GREEN }} /> O veículo</h2>
-                    <button onClick={() => router.push(`/${vehicle.slug}`)} className="mt-2.5 w-full rounded-3xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                        <span className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1a`, color: GREEN }}>
-                            {vehicle.photo ? <img src={vehicle.photo} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Icon size={30} />}
-                        </span>
-                        <span className="min-w-0 flex-1 flex flex-col gap-1.5">
-                            <span className="text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{vehicle.model || KIND_LABEL[kind]}{vehicle.color ? <span className="font-bold" style={{ color: colors.textSecondary }}> · {vehicle.color}</span> : null}</span>
-                            {kind === 'carro'
-                                ? <CarAmenities services={vehicle.services} seats={vehicle.seats} babySeat={vehicle.babySeat} compact />
-                                : <span className="text-[11.5px] flex items-center gap-1" style={{ color: colors.textSecondary }}><Users size={12} /> leva 1 pessoa ou 1 objeto</span>}
-                        </span>
-                        <ChevronRight size={18} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
-                    </button>
+                    {/* o veículo e o que ele TEM (ar, Wi-Fi, carregador, som, pet, lugares, cadeirinha): é a ficha do serviço do motorista; não abre outra página */}
+                    <div className="mt-2.5 w-full rounded-3xl p-3 flex flex-col gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                        <div className="flex items-center gap-3">
+                            <span className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1a`, color: GREEN }}>
+                                {vehicle.photo ? <img src={vehicle.photo} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Icon size={30} />}
+                            </span>
+                            <span className="min-w-0 flex-1 flex flex-col gap-0.5">
+                                <span className="text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{vehicle.model || KIND_LABEL[kind]}</span>
+                                {vehicle.color && <span className="text-[12px] font-bold" style={{ color: colors.textSecondary }}>{vehicle.color}</span>}
+                                <span className="text-[11.5px] flex items-center gap-1" style={{ color: colors.textSecondary }}>{kind === 'carro' ? KIND_LABEL[kind] : <><Users size={12} /> leva 1 pessoa ou 1 objeto</>}</span>
+                            </span>
+                        </div>
+                        <CarAmenities services={vehicle.services} seats={kind === 'carro' ? vehicle.seats : null} babySeat={kind === 'carro' ? vehicle.babySeat : null} />
+                    </div>
                 </section>
             )}
 

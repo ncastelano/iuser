@@ -186,9 +186,11 @@ export default function RadarDriverDetails({ item, go }: { item: RadarDriverItem
                 </div>
             )}
 
-            <button type="button" onClick={() => go(`/${item.vehicleSlug}`)} className="w-full text-center text-[11px] font-black uppercase tracking-wide text-orange-600 hover:underline">
-                Ver a página do veículo
-            </button>
+            {item.profileSlug && (
+                <button type="button" onClick={() => go(`/${item.profileSlug}`)} className="w-full text-center text-[11px] font-black uppercase tracking-wide text-orange-600 hover:underline">
+                    Ver o perfil do motorista
+                </button>
+            )}
         </div>
     )
 }
