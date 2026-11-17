@@ -39,3 +39,16 @@ test('por tempo: o valor por minuto, nunca abaixo do padrão por hora', () => {
     assert.equal(quotePrice(none, shape, { km: 5, minutes: null }, 40), null)
     assert.deepEqual(quoteExamples(own, shape, 40).map((e) => e.label), ['10 min', '20 min', '30 min'])
 })
+
+test('tempo até quem vê a página: só com as duas posições', async () => {
+    const { etaFromViewer, etaText } = await import('../src/modules/driver-profile/domain.ts')
+    assert.equal(etaFromViewer(null, { lat: -8.76, lng: -63.9 }), null)
+    assert.equal(etaFromViewer({ lat: -8.76, lng: -63.9 }, null), null)
+    const e = etaFromViewer({ lat: -8.7612, lng: -63.9004 }, { lat: -8.7400, lng: -63.8750 })   // ~3,6 km em linha reta
+    assert.ok(e.km > 4 && e.km < 6, `km ${e.km}`)
+    assert.ok(e.minutes >= 8 && e.minutes <= 12, `min ${e.minutes}`)
+    assert.match(etaText(e), /^Cerca de \d+ min de você · \d/)
+    assert.equal(etaText({ km: 0.4, minutes: 1 }), 'Pertinho de você · 0,4 km')
+    assert.equal(etaText({ km: 50, minutes: 100 }), 'Cerca de 1 h 40 min de você · 50 km')
+    assert.equal(etaFromViewer({ lat: -8.76, lng: -63.9 }, { lat: -23.5, lng: -46.6 }), null)   // outra cidade
+})

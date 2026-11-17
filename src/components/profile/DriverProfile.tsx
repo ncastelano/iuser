@@ -17,7 +17,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Bike, Calendar, Car, ChevronRight, Lock, MapPin, MessageSquareQuote, Pencil, Route, Star, Users } from 'lucide-react'
+import { Bike, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, MessageCircle, MessageSquareQuote, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
@@ -27,7 +28,11 @@ import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { platformFloor } from '@/modules/negotiation'
-import { parseQuote, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote } from '@/modules/driver-profile'
+import { etaFromViewer, etaText, parseQuote, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote } from '@/modules/driver-profile'
+import { loadMyLocation } from '@/lib/myLocation'
+import { getCurrentPosition } from '@/lib/nativeGeolocation'
+import { isGeoPermissionGranted } from '@/components/AceitarCorridas/LocationAskDialog'
+import ChatContactButton from '@/components/ChatContactButton'
 import CarAmenities from '@/components/ride/CarAmenities'
 
 const GREEN = '#16a34a'
@@ -94,6 +99,14 @@ export interface DriverProfileProps {
     socialSlot?: ReactNode
     ownerTypeSlot?: ReactNode
     onEdit: () => void
+    /** quem vê a página (para o "a quantos minutos de você") */
+    viewerId: string | null
+    /** o motorista recebe conversas pelo iUser (profiles.chat_enabled) */
+    chatEnabled: boolean
+    /** os serviços que ele publicou (perfil de motorista que também atende com hora marcada) e se a agenda está ligada */
+    services: { id: string; name: string; description: string | null; image_url: string | null; service_type: string | null }[]
+    allowScheduling: boolean
+    onSchedule: (serviceTitle: string | null) => void
 }
 
 export default function DriverProfile(p: DriverProfileProps) {
@@ -107,6 +120,8 @@ export default function DriverProfile(p: DriverProfileProps) {
     const [reviews, setReviews] = useState<Review[] | null>(null)
     const [tariffsReady, setTariffsReady] = useState(false)
     const [showAll, setShowAll] = useState(false)
+    // onde está quem vê a página: o GPS (só se o navegador já deixou, sem perguntar) ou o local salvo; sem nenhum, não mostra o tempo
+    const [viewerPos, setViewerPos] = useState<{ lat: number; lng: number } | null>(null)
 
     useEffect(() => {
         let alive = true
@@ -129,6 +144,23 @@ export default function DriverProfile(p: DriverProfileProps) {
         return () => { alive = false }
     }, [p.driverId])
 
+    useEffect(() => {
+        if (!quote?.live || p.isOwner) return
+        let alive = true
+        void (async () => {
+            if (await isGeoPermissionGranted()) {
+                getCurrentPosition((pos) => { if (alive) setViewerPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }) }, async () => {
+                    const l = await loadMyLocation(supabase, p.viewerId)
+                    if (alive && l) setViewerPos({ lat: l.lat, lng: l.lng })
+                }, { timeout: 8000, maximumAge: 120000 })
+                return
+            }
+            const l = await loadMyLocation(supabase, p.viewerId)
+            if (alive && l) setViewerPos({ lat: l.lat, lng: l.lng })
+        })()
+        return () => { alive = false }
+    }, [quote?.live, p.isOwner, p.viewerId])
+
     const kind: Kind = vehicle?.kind || 'carro'
     const shape = useMemo(() => (quote && tariffsReady ? getEffectivePricing(quote.row as unknown as DriverPricingRow, kind) : null), [quote, tariffsReady, kind])
     const floor = platformFloor(null, minPerMinute)   // o mínimo de uma corrida (R$ 8): nenhum exemplo abaixo dele
@@ -138,6 +170,8 @@ export default function DriverProfile(p: DriverProfileProps) {
     const Icon = kind === 'carro' ? Car : Bike
     const active = !!quote?.active
     const withComment = (reviews || []).filter((r) => r.comment)
+    const noChat = () => toast.message('Este motorista ainda não recebe mensagens pelo iUser. Peça a corrida: ele é avisado na hora.')
+    const eta = etaFromViewer(viewerPos, quote?.live ?? null)
     const list = showAll ? reviews || [] : (withComment.length ? withComment : reviews || []).slice(0, 4)
 
     const cta = p.isOwner
@@ -220,14 +254,51 @@ export default function DriverProfile(p: DriverProfileProps) {
                 <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><MapPin size={16} style={{ color: GREEN }} /> Onde está agora</h2>
                 <div className="mt-2.5 rounded-3xl p-4 flex items-center gap-3" style={{ background: quote?.live ? `${GREEN}12` : soft }}>
                     <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1f`, color: GREEN }}>{quote?.live || p.loggedIn || !active ? <MapPin size={19} /> : <Lock size={18} />}</span>
-                    <p className="text-[12.5px] leading-snug" style={{ color: quote?.live ? colors.textPrimary : colors.textSecondary }}>
-                        {quote?.live ? <>No mapa lá em cima: <b>posição aproximada</b> (um círculo de uns 300 m), atualizada {ago2(quote.live.at)}.</>
+                    <p className="text-[12.5px] leading-snug flex flex-col" style={{ color: quote?.live ? colors.textPrimary : colors.textSecondary }}>
+                        {quote?.live ? <>{eta && <span className="flex items-center gap-1 text-[14px] font-black mb-0.5" style={{ color: GREEN }}><Navigation size={14} />{etaText(eta)}</span>}<span>No mapa lá em cima: <b>posição aproximada</b> (um círculo de uns 300 m), atualizada {ago2(quote.live.at)}.</span></>
                             : !active ? 'Fora do ar agora. Peça mesmo assim: o aviso chega no celular na hora.'
                                 : !p.loggedIn ? 'Entre na sua conta para ver por onde o motorista está agora.'
                                     : 'Dirigindo, mas sem mostrar a localização. Peça mesmo assim: o aviso chega na hora.'}
                     </p>
                 </div>
             </section>
+
+            {/* ===== serviços (motorista que também atende com hora marcada): conversar sobre o serviço e agendar na agenda dele (e na sua) ===== */}
+            {(p.services.length > 0 || (p.allowScheduling && !p.isOwner)) && (
+                <section className="mt-5">
+                    <h2 className="text-[16px] font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Wrench size={16} style={{ color: GREEN }} /> {p.allowScheduling ? 'Serviços com hora marcada' : 'Serviços'}</h2>
+                    <p className="text-[12px] mt-0.5" style={{ color: colors.textSecondary }}>{p.allowScheduling ? 'Converse sobre o serviço ou marque um horário: o agendamento entra na agenda dele e na sua.' : 'Converse sobre o serviço para combinar.'}</p>
+                    <div className="mt-2.5 flex flex-col gap-2.5">
+                        {p.services.map((sv) => (
+                            <article key={sv.id} className="rounded-3xl p-3 flex flex-col gap-2.5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center gap-3">
+                                    <span className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1a`, color: GREEN }}>
+                                        {sv.image_url ? <img src={sv.image_url} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Wrench size={22} />}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        {sv.service_type && <span className="block text-[10px] font-black uppercase tracking-wide truncate" style={{ color: GREEN }}>{sv.service_type}</span>}
+                                        <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{sv.name}</span>
+                                        {sv.description && <span className="block text-[11.5px] leading-snug line-clamp-2 mt-0.5" style={{ color: colors.textSecondary }}>{sv.description}</span>}
+                                    </span>
+                                </div>
+                                {!p.isOwner && (
+                                    <div className="flex gap-2">
+                                        {p.chatEnabled
+                                            ? <div className="flex-1 min-w-0 flex"><ChatContactButton productId={sv.id} colors={colors} variant="v3quiet" label="Conversar" /></div>
+                                            : <button onClick={noChat} className="flex-1 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ background: soft, color: colors.textSecondary }}><MessageCircle size={15} /> Conversar</button>}
+                                        {p.allowScheduling && (
+                                            <button onClick={() => p.onSchedule(sv.name)} className="flex-1 h-10 rounded-full text-[12.5px] font-black text-white flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: GREEN }}><CalendarCheck size={15} /> Agendar</button>
+                                        )}
+                                    </div>
+                                )}
+                            </article>
+                        ))}
+                        {p.allowScheduling && !p.isOwner && p.services.length === 0 && (
+                            <button onClick={() => p.onSchedule(null)} className="h-11 rounded-full text-[13px] font-black text-white flex items-center justify-center gap-1.5" style={{ background: GREEN }}><CalendarCheck size={16} /> Marcar um horário</button>
+                        )}
+                    </div>
+                </section>
+            )}
 
             {/* ===== 4. o veículo ===== */}
             {vehicle && (

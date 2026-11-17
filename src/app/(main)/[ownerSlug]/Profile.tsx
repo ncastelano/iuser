@@ -271,6 +271,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const liveLoc = useLiveLocation(owner?.id)
     const ownerSeen = lastSeenLabel(useLastSeen(useMemo(() => (owner?.id ? [owner.id] : []), [owner?.id]))[owner?.id || ''])
     const [showScheduleModal, setShowScheduleModal] = useState(false)
+    // o serviço escolhido para agendar (página do motorista: "Agendar" em cada serviço); null = atendimento comum
+    const [scheduleService, setScheduleService] = useState<string | null>(null)
     const [followersCount, setFollowersCount] = useState(0)
     const [followingCount, setFollowingCount] = useState(0)
     const [isFollowing, setIsFollowing] = useState(false)
@@ -1579,7 +1581,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             profileId={owner.id}
                             profileName={owner.name}
                             profileSlug={owner.slug}
-                            onClose={() => setShowScheduleModal(false)}
+                            serviceTitle={scheduleService || undefined}
+                            onClose={() => { setShowScheduleModal(false); setScheduleService(null) }}
                         />
                     )}
         </>
@@ -1654,6 +1657,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         loggedIn={!!currentUserId}
                         onEdit={() => setShowEditDialog(true)}
                         ownerTypeSlot={isOwner ? ownerTypeNode : undefined}
+                        viewerId={currentUserId || null}
+                        chatEnabled={!!owner.chat_enabled}
+                        services={services}
+                        allowScheduling={!!owner.allow_scheduling}
+                        onSchedule={(title) => { setScheduleService(title); setShowScheduleModal(true) }}
                         socialSlot={!isOwner ? (
                             <div className="flex items-center gap-2">
                                 {!!currentUserId && currentUserId !== owner.id && (
@@ -1661,7 +1669,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                         {isFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}{isFollowing ? 'Seguindo' : 'Seguir'}
                                     </button>
                                 )}
-                                {owner.chat_enabled && owner.id !== currentUserId && <div className="flex-1 min-w-0"><ChatContactButton profileId={owner.id} colors={colors} variant="v3quiet" label="Conversar" /></div>}
+                                {owner.id !== currentUserId && (owner.chat_enabled
+                                    ? <div className="flex-1 min-w-0 flex"><ChatContactButton profileId={owner.id} colors={colors} variant="v3quiet" label="Conversar" /></div>
+                                    : <button onClick={() => toast.message('Este motorista ainda não recebe mensagens pelo iUser. Peça a corrida: ele é avisado na hora.')} className="flex-1 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5" style={{ background: `${colors.border}40`, color: colors.textSecondary }}><MessageCircle size={16} /> Conversar</button>)}
                             </div>
                         ) : undefined}
                     />

@@ -76,3 +76,23 @@ export function quoteRule(q: DriverQuote, shape: KmShape, defaultHourly: number)
     }
     return `${brl(shape.baseFee)} até ${shape.baseDistanceKm} km${shape.pricePerKmAfterBase > 0 ? ` + ${brl(shape.pricePerKmAfterBase)} por km` : ''}`
 }
+
+/**
+ * Quanto tempo o motorista está de quem vê a página (17/11/2026): linha reta × 1,3 (as ruas não são retas) a ~30 km/h na cidade, a mesma
+ * conta das entregas. Só com as duas posições; a do motorista já é a APROXIMADA (~330 m), então o texto diz "cerca de".
+ */
+export function etaFromViewer(viewer: { lat: number; lng: number } | null, driver: { lat: number; lng: number } | null): { km: number; minutes: number } | null {
+    if (!viewer || !driver) return null
+    const R = 6371, rad = (d: number) => (d * Math.PI) / 180
+    const h = Math.sin(rad(driver.lat - viewer.lat) / 2) ** 2 + Math.cos(rad(viewer.lat)) * Math.cos(rad(driver.lat)) * Math.sin(rad(driver.lng - viewer.lng) / 2) ** 2
+    const km = 2 * R * Math.asin(Math.min(1, Math.sqrt(h))) * 1.3
+    if (km > 300) return null   // longe demais para dizer "minutos"
+    return { km: Math.round(km * 10) / 10, minutes: Math.max(1, Math.round((km / 30) * 60)) }
+}
+
+/** "Cerca de 6 min de você · 2,4 km" (ou "pertinho de você" a menos de 2 min) */
+export function etaText(e: { km: number; minutes: number }): string {
+    const km = e.km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+    if (e.minutes <= 2) return `Pertinho de você · ${km} km`
+    return e.minutes < 60 ? `Cerca de ${e.minutes} min de você · ${km} km` : `Cerca de ${Math.floor(e.minutes / 60)} h ${e.minutes % 60 ? `${e.minutes % 60} min ` : ''}de você · ${km} km`
+}

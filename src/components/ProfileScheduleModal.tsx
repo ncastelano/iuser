@@ -226,6 +226,7 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
                     </div>
                     <div className="flex-1 min-w-0">
                         <h3 className="text-base font-black text-gray-900">Agendar com {profileName}</h3>
+                        {serviceTitle && <p className="text-[13px] font-black text-orange-600 leading-tight">{serviceTitle}</p>}
                         <p className="text-xs text-gray-500">O horário fica pendente até {profileName} aceitar.</p>
                     </div>
                     <button onClick={onClose} className="p-1.5 rounded-full text-gray-500"><X size={20} /></button>
