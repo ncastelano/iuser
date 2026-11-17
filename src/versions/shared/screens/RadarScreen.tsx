@@ -1344,6 +1344,8 @@ export default function RadarScreen() {
                 .radar-v3 .mapboxgl-ctrl-bottom-left {
                     margin-bottom: 136px !important;
                 }
+                /* decisão do dono (17/11/2026): o logo do Mapbox não aparece no Radar; o contador ("23 lojas") fica no lugar dele */
+                .radar-v3 .mapboxgl-ctrl-logo { display: none !important; }
                 .mapboxgl-ctrl-group button {
                     background: white !important;
                     border-radius: 12px !important;
@@ -1945,10 +1947,10 @@ export default function RadarScreen() {
                 </div>
             )}
 
-            {/* Quantos há no mapa ("12 lojas"): na MESMA linha do logo do Mapbox, logo à frente dele (celular e computador). Não cobre o
-                logo: os termos do Mapbox pedem que ele fique visível. A altura acompanha a margem dos controles do mapa (136 px + 10 px). */}
+            {/* Quantos há no mapa ("12 lojas"): no LUGAR do logo do Mapbox, que fica escondido (decisão do dono, 17/11/2026), no canto de
+                baixo à esquerda (celular e computador). A altura acompanha a margem dos controles do mapa (136 px). */}
             {mapReady && (
-                <div className="absolute z-[2001] pointer-events-none" style={{ left: 102, bottom: 140 }}>
+                <div className="absolute z-[2001] pointer-events-none" style={{ left: 8, bottom: 140 }}>
                     <div className="rounded-full pl-2 pr-3 h-[28px] flex items-center gap-1.5 shadow-[0_4px_15px_rgba(0,0,0,0.2)]" style={{ background: 'rgba(255,255,255,0.96)', border: '1px solid #fed7aa' }}>
                         <Flame className="w-3.5 h-3.5 text-orange-500" />
                         <span className="text-[11.5px] font-black text-gray-700 whitespace-nowrap">
