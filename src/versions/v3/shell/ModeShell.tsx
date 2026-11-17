@@ -68,10 +68,8 @@ function modePath(mode: string, data: DrawerData): string {
     if (mode === 'perfil') return '/painel-perfil'
     if (mode === 'prestador') return '/modoprestador'
     if (mode.startsWith('loja:')) return `/painel-loja/${encodeURIComponent(mode.slice(5))}`
-    if (mode.startsWith('motorista:')) {
-        const v = data.vehicles.find((x) => `motorista:${x.slug}` === mode)
-        return v ? `/${v.slug}` : '/canal-do-motorista?aba=painel'
-    }
+    // a página do veículo saiu (17/11/2026): o modo motorista abre o Canal do Motorista
+    if (mode.startsWith('motorista:')) return '/canal-do-motorista?aba=painel'
     return '/'
 }
 
@@ -236,7 +234,7 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
         { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onSelect(`loja:${st.slug}`), solid: true },
     ]
     const vehicleActions = (v: DrawerData['vehicles'][number]): ModeAction[] => [
-        { label: 'Veículo', icon: act(Car), onClick: () => onGo(`/${v.slug}`) },
+        { label: 'Veículo', icon: act(Car), onClick: () => onGo('/canal-do-motorista?aba=veiculo') },
         { label: 'Entregas', icon: act(Bike), onClick: () => onGo('/entregas') },
         { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onGo('/canal-do-motorista?aba=painel'), solid: true },
     ]

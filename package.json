@@ -87,7 +87,8 @@
     "test:alert-suppression": "node --test scripts/test-alert-suppression.mjs",
     "test:review-prompt": "node --test scripts/test-review-prompt.mjs",
     "test:ride-places": "node --test scripts/test-ride-places.mjs",
-    "test:profile-type": "node --test scripts/test-profile-type.mjs"
+    "test:profile-type": "node --test scripts/test-profile-type.mjs",
+    "test:driver-profile": "node --test scripts/test-driver-profile.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

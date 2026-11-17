@@ -53,7 +53,8 @@ import {
     Car,
 } from 'lucide-react'
 import { defaultProfileTab, parseProfileType, profileMainAction, profileTabOrder, profileTypeInfo, profileTypeMissing } from '@/lib/profileType'
-import ProfileDriverCard, { useDriverVehicle } from '@/components/profile/ProfileDriverCard'
+import { useDriverVehicle } from '@/components/profile/ProfileDriverCard'
+import DriverProfile from '@/components/profile/DriverProfile'
 import { Spinner } from '@/components/Spinner'
 import ProfileSkeleton from '@/components/v3/ProfileSkeleton'
 import ProfileScheduleModal from '@/components/ProfileScheduleModal'
@@ -270,6 +271,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const liveLoc = useLiveLocation(owner?.id)
     const ownerSeen = lastSeenLabel(useLastSeen(useMemo(() => (owner?.id ? [owner.id] : []), [owner?.id]))[owner?.id || ''])
     const [showScheduleModal, setShowScheduleModal] = useState(false)
+    // o serviço escolhido para agendar (página do motorista: "Agendar" em cada serviço); null = atendimento comum
+    const [scheduleService, setScheduleService] = useState<string | null>(null)
     const [followersCount, setFollowersCount] = useState(0)
     const [followingCount, setFollowingCount] = useState(0)
     const [isFollowing, setIsFollowing] = useState(false)
@@ -1455,6 +1458,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 ? { label: `Contratar ${firstName}`, sub: services.length > 0 ? `${services.length} ${services.length === 1 ? 'serviço' : 'serviços'} · veja e combine` : 'Conte o que você precisa na conversa', icon: <Wrench size={19} />, color: profileTypeInfo('servicos').color, onClick: () => { void hire() } }
                 : null
     const typeMissing = profileTypeMissing(ptype, typeFacts)
+    // perfil de motorista COM veículo: a página própria do motorista (sem veículo, o perfil comum com o aviso de cadastrar)
+    const driverPage = ptype === 'motorista' && !!driverVehicle
     const ownerTypeNode = (
         <button onClick={() => router.push('/painel-perfil?secao=tipo')} className="w-full rounded-2xl px-3 py-2.5 flex items-center gap-2 text-left" style={typeMissing ? { background: '#f59e0b1a', border: '1px solid #f59e0b66' } : { background: `${colors.border}30` }}>
             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: profileTypeInfo(ptype).color }} />
@@ -1576,7 +1581,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             profileId={owner.id}
                             profileName={owner.name}
                             profileSlug={owner.slug}
-                            onClose={() => setShowScheduleModal(false)}
+                            serviceTitle={scheduleService || undefined}
+                            onClose={() => { setShowScheduleModal(false); setScheduleService(null) }}
                         />
                     )}
         </>
@@ -1637,6 +1643,41 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 }
             `}</style>
 
+            {/* ===== PERFIL DO TIPO MOTORISTA (17/11/2026): a página própria do motorista no lugar do cabeçalho e das abas ===== */}
+            {driverPage ? (
+                <>
+                    <DriverProfile
+                        driverId={owner.id}
+                        name={owner.name}
+                        slug={owner.slug}
+                        avatarSlot={renderAvatar('w-[84px] h-[84px]', 'text-3xl')}
+                        levelSlot={ownerLevel ? <LevelBadge level={ownerLevel} size="sm" /> : undefined}
+                        colors={colors}
+                        isOwner={isOwner}
+                        loggedIn={!!currentUserId}
+                        onEdit={() => setShowEditDialog(true)}
+                        ownerTypeSlot={isOwner ? ownerTypeNode : undefined}
+                        viewerId={currentUserId || null}
+                        chatEnabled={!!owner.chat_enabled}
+                        services={services}
+                        allowScheduling={!!owner.allow_scheduling}
+                        onSchedule={(title) => { setScheduleService(title); setShowScheduleModal(true) }}
+                        socialSlot={!isOwner ? (
+                            <div className="flex items-center gap-2">
+                                {!!currentUserId && currentUserId !== owner.id && (
+                                    <button onClick={handleFollowToggle} className="flex-1 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={isFollowing ? { background: 'transparent', color: '#f97316', border: '2px solid #f97316' } : { background: '#f9731618', color: '#ea580c' }}>
+                                        {isFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}{isFollowing ? 'Seguindo' : 'Seguir'}
+                                    </button>
+                                )}
+                                {owner.id !== currentUserId && (owner.chat_enabled
+                                    ? <div className="flex-1 min-w-0 flex"><ChatContactButton profileId={owner.id} colors={colors} variant="v3quiet" label="Conversar" /></div>
+                                    : <button onClick={() => toast.message('Este motorista ainda não recebe mensagens pelo iUser. Peça a corrida: ele é avisado na hora.')} className="flex-1 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5" style={{ background: `${colors.border}40`, color: colors.textSecondary }}><MessageCircle size={16} /> Conversar</button>)}
+                            </div>
+                        ) : undefined}
+                    />
+                    {agendaDialogs}
+                </>
+            ) : (<>
             {/* ===== HEADER DO PERFIL ===== */}
             {((
                 <ProfileHeaderV3
@@ -1679,7 +1720,6 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     }))}
                     onOpenStore={(slug) => router.push(`/${slug}`)}
                     mainAction={isOwner ? null : mainActionProps}
-                    typeSlot={ptype === 'motorista' && driverVehicle ? <ProfileDriverCard info={driverVehicle} colors={colors} onOpen={() => router.push(`/${driverVehicle.slug}`)} /> : undefined}
                     ownerTypeSlot={isOwner ? ownerTypeNode : undefined}
                 />
             ))}
@@ -2129,6 +2169,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 )}
 
             </div>
+            </>)}
 
             {/* ===== EDIT PROFILE DIALOG ===== */}
             {showEditDialog && owner && (
