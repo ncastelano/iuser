@@ -18,7 +18,7 @@ import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/l
 import { fetchSavedRidePlaces, saveRidePlace } from '@/lib/savedRidePlaces'
 import { saveRideDraft, loadRideDraft, clearRideDraft } from '@/lib/rideRequestDraft'
 import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS, kindForRideType, type VehicleType } from '@/lib/rideVehicle'
-import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricingRow, type RideConditionFlags } from '@/lib/driverPricing'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import PassengerOfferBox from '@/components/negotiation/PassengerOfferBox'
 import { setPassengerOffer } from '@/modules/negotiation'
@@ -947,6 +947,11 @@ export default function PedirMotoristaScreen() {
         const id = new URLSearchParams(window.location.search).get('motorista')
         if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return
         let cancelled = false
+        // o veículo do pedido já vem o DELE (chamar um motorista de moto com "Carro" escolhido faria ele não poder atender)
+        supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', id).order('updated_at', { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
+            const k = (data as any)?.vehicle_kind
+            if (!cancelled && (k === 'carro' || k === 'moto' || k === 'bicicleta')) chooseVehicle(k)
+        })
         supabase.from('profiles').select('id, profileSlug, name').eq('id', id).maybeSingle().then(({ data }) => {
             if (!cancelled && data) setCalledDriver({ id: (data as any).id, slug: (data as any).profileSlug, name: (data as any).name })
         })
@@ -1555,6 +1560,9 @@ export default function PedirMotoristaScreen() {
     const [offerMode, setOfferMode] = useState<'drivers' | 'mine'>('drivers')
     const [offerValue, setOfferValue] = useState<number | null>(null)
     const [referencePrice, setReferencePrice] = useState<number | null>(null)
+    // Motorista CHAMADO (?motorista=<id>, ex.: o botão "Solicitar corrida" do perfil dele): o valor pela tarifa DELE, já posto como a oferta
+    const [calledPrice, setCalledPrice] = useState<number | null>(null)
+    const calledPresetFor = useRef<string | null>(null)
     const minPerMinute = useRideMinimum()
     // mínimo da plataforma para este trajeto (R$ por minuto × os minutos da rota): nem a referência nem a oferta ficam abaixo
     const tripFloor = platformFloor(route?.durationMin ?? null, minPerMinute)
@@ -1578,11 +1586,27 @@ export default function PedirMotoristaScreen() {
                 wants_air_conditioning: isTwoWheels || requestFor === 'objeto' ? false : wantsAirConditioning,
             }
             const shape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(effectiveVehicleType)]
-            setReferencePrice(Math.max(Math.round(computeSuggestedPrice(route.distanceKm, shape, requestFor, flags) * 100) / 100, platformFloor(route.durationMin ?? null, minPerMinute)))
+            const floor = platformFloor(route.durationMin ?? null, minPerMinute)
+            setReferencePrice(Math.max(Math.round(computeSuggestedPrice(route.distanceKm, shape, requestFor, flags) * 100) / 100, floor))
+            // Chamando um motorista: a conta da corrida pela tarifa DELE (a própria, se usa; senão a Tarifa iUser do veículo dele), nunca abaixo
+            // do mínimo da plataforma. Vai como a oferta do passageiro, para ele só aceitar (o deslocamento até a partida fica para ele propor, se quiser).
+            if (calledDriver) {
+                const [{ data: pr }, { data: veh }] = await Promise.all([
+                    supabase.from('driver_pricing').select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado').eq('driver_id', calledDriver.id).maybeSingle(),
+                    supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', calledDriver.id).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+                ])
+                if (!alive) return
+                const row = (pr as DriverPricingRow | null) || { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }
+                const kind = ((veh as any)?.vehicle_kind || kindForRideType(effectiveVehicleType)) as 'carro' | 'moto' | 'bicicleta'
+                const price = Math.max(Math.round(computeSuggestedPrice(route.distanceKm, getEffectivePricing(row, kind), requestFor, flags) * 100) / 100, floor)
+                setCalledPrice(price)
+                const key = `${calledDriver.id}:${price}`
+                if (calledPresetFor.current !== key) { calledPresetFor.current = key; setOfferMode('mine'); setOfferValue(price) }
+            } else setCalledPrice(null)
         })()
         return () => { alive = false }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showPlateReminder, requestFor, route, effectiveVehicleType, wantsAirConditioning, minPerMinute])
+    }, [showPlateReminder, requestFor, route, effectiveVehicleType, wantsAirConditioning, minPerMinute, calledDriver])
 
     const handleSubmit = async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -1940,6 +1964,11 @@ export default function PedirMotoristaScreen() {
                             ))}
                         </div>
 
+                        {calledDriver && calledPrice != null && (
+                            <div className="w-full rounded-xl px-3 py-2 text-left text-[12px] font-bold leading-snug" style={{ background: '#16a34a14', border: '1px solid #16a34a55', color: colors.textPrimary }}>
+                                Pela tarifa de {calledDriver.name?.split(' ')[0] || 'o motorista'}, esta corrida sai <b style={{ color: '#16a34a' }}>R$ {calledPrice.toFixed(2).replace('.', ',')}</b> — o valor já vai como a sua oferta, é só aceitar.
+                            </div>
+                        )}
                         <PassengerOfferBox reference={referencePrice} min={tripFloor} mode={offerMode} onMode={setOfferMode} value={offerValue} onValue={setOfferValue} />
 
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
@@ -2039,7 +2068,7 @@ export default function PedirMotoristaScreen() {
                             {calledDriver && (
                                 <div className="mb-2 rounded-full px-3 h-9 flex items-center gap-2 text-[12.5px] font-bold" style={{ background: '#ea580c1a', color: '#ea580c' }}>
                                     <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                                    <span className="min-w-0 truncate">Chamando {calledDriver.slug ? `@${calledDriver.slug}` : calledDriver.name || 'o motorista'} — ele será avisado na hora</span>
+                                    <span className="min-w-0 truncate">Chamando {calledDriver.slug ? `@${calledDriver.slug}` : calledDriver.name || 'o motorista'} — o aviso chega na hora</span>
                                 </div>
                             )}
                             <div role="tablist" aria-label="Motorista para" className="grid grid-cols-3 gap-1 p-1 rounded-2xl mb-2" style={{ background: `${colors.border}30` }}>

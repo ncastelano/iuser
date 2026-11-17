@@ -41,6 +41,8 @@ import { getDeviceId } from '@/lib/deviceId'
 import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'
 
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
+import ProfileTypePicker from '@/components/profile/ProfileTypePicker'
+import type { ProfileType } from '@/lib/profileType'
 // Componente de badge animado com efeito rápido - CONTAINER TRANSPARENTE
 function AnimatedBadge({
   words,
@@ -137,6 +139,8 @@ function RegisterContent() {
   const [slugSuggestions, setSlugSuggestions] = useState<string[]>([])
   const [slugSimilar, setSlugSimilar] = useState<string[]>([])
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  // Tipo do perfil (17/11/2026): muda o botão principal da página; dá para trocar depois no painel do perfil
+  const [profileType, setProfileType] = useState<ProfileType>('pessoal')
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
@@ -393,6 +397,7 @@ function RegisterContent() {
         email: email,
         cpf_cnpj: cleanCpfCnpj,
         avatar_url: avatarUrl,
+        profile_type: profileType,
         updated_at: new Date().toISOString()
       }
 
@@ -863,6 +868,13 @@ function RegisterContent() {
                 {rule('Mínimo de 6 caracteres', password.length >= 6)}
                 {rule('Senhas iguais', confirmPassword.length > 0 && password === confirmPassword)}
               </div>
+            </div>
+
+            {/* Tipo do perfil: muda o botão principal da página (dá para trocar depois no painel do perfil) */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-wider block" style={{ color: textSecondary }}>Como você vai usar o seu perfil?</label>
+              <ProfileTypePicker value={profileType} onChange={setProfileType} colors={colors} compact />
+              <p className="text-[10.5px] text-center" style={{ color: textSecondary }}>Na dúvida, fique com Pessoal: dá para trocar quando quiser no painel do perfil.</p>
             </div>
 
             {/* Botão de cadastro */}
