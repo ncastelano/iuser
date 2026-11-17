@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
+import { addMapboxCredits } from '@/lib/mapCredits'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { ArrowUp, Package, CornerUpLeft, CornerUpRight, Flag, LocateFixed, Maximize2, Minimize2, MoveLeft, MoveRight, RotateCw, Store as StoreIcon } from 'lucide-react'
 import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
@@ -108,6 +109,7 @@ export default function DeliveryNavMap({
         const c = me || store || (target ? { lat: target.lat, lng: target.lng } : { lat: -8.76, lng: -63.9 })
         const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/streets-v12', center: [c.lng, c.lat], zoom: 14.5, attributionControl: false })
         map.current = m
+        addMapboxCredits(mapboxgl, m)   // logo do Mapbox visível + créditos compactos (lib/mapCredits)
         ;(window as any).__navMap = m   // depuração local
         m.on('error', (e) => console.warn('[DeliveryNavMap] mapbox:', (e as any)?.error?.message || e))
         m.on('dragstart', () => setFollow(false))

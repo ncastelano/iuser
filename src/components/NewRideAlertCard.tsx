@@ -82,7 +82,7 @@ export function NewRideAlertCard({ rideId, originAddress, destinationAddress, op
             const { count: vehicleCount } = await supabase.from('driver_vehicles').select('vehicle_kind', { count: 'exact', head: true }).eq('driver_id', user.id)
             if (!vehicleCount) {
                 toast.error('Cadastre seu veículo pra se candidatar.', {
-                    action: { label: 'Cadastrar', onClick: () => router.push('/painel-motorista?aba=veiculo&veiculo=carro') },
+                    action: { label: 'Cadastrar', onClick: () => router.push('/canal-do-motorista?aba=veiculo&veiculo=carro') },
                 })
                 return
             }

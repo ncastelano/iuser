@@ -28,6 +28,19 @@ export interface FlashItem {
     following: boolean
     /** só publicação: o slug dela (a página é /<autor>/<slug>) */
     link: string | null
+    /** "Rua, Bairro" quando quem postou marcou o local (migration ...70; o flash aparece no Radar) */
+    placeLabel: string | null
+}
+
+/** O local que a pessoa escolhe ao postar: a posição vai ao banco, que a ARREDONDA (~330 m) e tira o número do texto. */
+export interface FlashPlace { lat: number; lng: number; label: string }
+
+/** "Rua X, 123, Bairro, Cidade - UF" → "Rua X, Bairro" (sem número; no máximo rua e bairro). Igual ao que o banco guarda. */
+export function placeLabelOf(address: string): string {
+    const parts = address.split(',').map((p) => p.trim()).filter(Boolean)
+        .filter((p) => !/^(n[ºo°.]?\s*)?\d+[a-z]?$/i.test(p))   // o número da casa
+        .filter((p) => !/\s-\s[A-Z]{2}$/.test(p) && !/^\d{5}-?\d{3}$/.test(p) && !/^brasil$/i.test(p))   // "Cidade - UF", CEP, país
+    return parts.slice(0, 2).join(', ').slice(0, 80)
 }
 
 /** A linha que o banco devolve em get_flash_feed → o item do app */
@@ -39,7 +52,7 @@ export function rowToItem(r: Record<string, any>): FlashItem {
         title: r.title || null, content: r.content || '', mediaUrl: r.media_url || null,
         mediaType: r.media_type === 'video' ? 'video' : r.media_type === 'image' ? 'image' : null,
         likeCount: Number(r.like_count) || 0, commentCount: Number(r.comment_count) || 0, shareCount: Number(r.share_count) || 0,
-        liked: !!r.liked, following: !!r.following, link: r.link || null,
+        liked: !!r.liked, following: !!r.following, link: r.link || null, placeLabel: r.place_label || null,
     }
 }
 

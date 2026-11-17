@@ -79,3 +79,32 @@ test('prova de entrega: código só com 4 números e foto só depois da espera',
     assert.equal(photoWaitLeft(t - 130_000, t), 0)
     assert.deepEqual(PROOF_REASONS.map((r) => r.code), ['no_answer', 'no_pin', 'left_at_door'])
 })
+
+// Liberação por etapas para dinheiro e maquininha (migration ...69): o que o cartão do motorista diz
+import { cashTrustView, missingSteps } from '../src/modules/deliveries/cashTrust.ts'
+const trust = (o = {}) => ({ enabled: true, level: 'new', missing: [], deliveries: 0, min_deliveries: 10, full_after: 30, days: 0, min_days: 7, rating: null, reviews: 0, min_rating: 4.5, has_pix: false, has_selfie: false, per_order_max: 0, open_max: 0, open_now: 0, ...o })
+
+test('motorista novo: bloqueado, com o que falta na ordem', () => {
+    const v = cashTrustView(trust({ missing: ['selfie', 'pix', 'deliveries', 'days'], deliveries: 3, days: 2 }))
+    assert.equal(v.tone, 'locked')
+    assert.deepEqual(v.steps, ['Pôr a sua foto (selfie) no cadastro do veículo', 'Cadastrar a sua chave Pix', 'Fazer mais 7 entregas com Pix (3 de 10)', 'Esperar mais 5 dias de conta'])
+    assert.equal(v.progress, 0.3)
+})
+
+test('motorista novo favorito de uma loja: o cartão avisa', () => {
+    assert.match(cashTrustView(trust({ missing: ['pix'], favorite_stores: 1 })).text, /loja que te escolheu/)
+    assert.equal(missingSteps(trust({ missing: ['deliveries'], deliveries: 9 }))[0], 'Fazer mais 1 entrega com Pix (9 de 10)')
+})
+
+test('iniciante: mostra os limites de R$ 60 e R$ 80 e quanto falta para sair', () => {
+    const v = cashTrustView(trust({ level: 'starter', deliveries: 12, per_order_max: 60, open_max: 80, open_now: 35 }))
+    assert.equal(v.tone, 'starter')
+    assert.equal(v.title, 'Dinheiro e maquininha: até R$ 60 por entrega')
+    assert.match(v.text, /até R\$ 80 .*agora: R\$ 35.*faltam 18/)
+    assert.equal(v.progress, 0.4)
+})
+
+test('liberado ou regra desligada: sem limite próprio', () => {
+    assert.equal(cashTrustView(trust({ level: 'full' })).tone, 'free')
+    assert.equal(cashTrustView(trust({ enabled: false })).tone, 'free')
+})

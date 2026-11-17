@@ -2,7 +2,7 @@
 
 export type VehicleType = 'carro' | 'van' | 'van-grande' | 'moto' | 'bicicleta' | 'qualquer'
 
-// O que o motorista cadastra em painel-motorista (o veículo que ele tem).
+// O que o motorista cadastra em canal-do-motorista (o veículo que ele tem).
 // Carro cobre também van/van-grande — são classes de capacidade do mesmo
 // veículo, não tipos diferentes de cadastro.
 export type VehicleKind = 'carro' | 'moto' | 'bicicleta'

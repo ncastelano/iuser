@@ -2,12 +2,12 @@
 //
 // "Buscar imóvel" da home 3.0: no mesmo estilo do "Ver ao redor", o cartão já mostra alguns imóveis para alugar (foto, preço, bairro e ficha)
 // numa grade de 2 colunas, sem rolar para o lado. Tocar no título abre a busca (/imoveis); tocar num imóvel abre ele. Sem imóveis, chama
-// quem tem um para anunciar. Quem ANUNCIA usa o cartão "Anunciar imóvel" (em "Quero ganhar"): são papéis diferentes.
+// quem tem um para anunciar: o "Ver todos" some (não há o que ver) e no lugar do aviso vem um botão que leva a /anunciar-imovel. Quem ANUNCIA usa o cartão "Anunciar imóvel" (em "Quero ganhar"): são papéis diferentes.
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { BedDouble, ChevronRight, Home } from 'lucide-react'
+import { BedDouble, ChevronRight, Home, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { priceLabel, specsLine } from '@/modules/rentals/domain'
@@ -35,7 +35,7 @@ export default function RentalsPreviewCard({ title, desc }: { title: string; des
                     <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{title}</span>
                     <span className="block text-xs mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>{desc}</span>
                 </span>
-                <span className="flex items-center gap-0.5 text-xs font-black flex-shrink-0" style={{ color: COLOR }}>Ver todos <ChevronRight size={14} /></span>
+                {items !== null && items.length > 0 && <span className="flex items-center gap-0.5 text-xs font-black flex-shrink-0" style={{ color: COLOR }}>Ver todos <ChevronRight size={14} /></span>}
             </button>
 
             {items === null ? (
@@ -43,7 +43,16 @@ export default function RentalsPreviewCard({ title, desc }: { title: string; des
                     {[0, 1, 2, 3].map((i) => <div key={i} className="h-[72px] rounded-2xl animate-pulse" style={{ background: soft }} />)}
                 </div>
             ) : items.length === 0 ? (
-                <p className="px-3.5 pb-3.5 text-xs" style={{ color: colors.textSecondary }}>Ainda não há imóveis anunciados. Tem um para alugar? Use &quot;Anunciar imóvel&quot; aqui embaixo.</p>
+                <div className="px-3.5 pb-3.5">
+                    <button onClick={() => router.push('/anunciar-imovel')} className="w-full rounded-2xl p-3 flex items-center gap-3 text-left transition active:scale-[0.98]" style={{ background: `${COLOR}14`, border: `1.5px dashed ${COLOR}88` }}>
+                        <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: COLOR }}><Plus size={20} /></span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-[13.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>Tem um imóvel para alugar?</span>
+                            <span className="block text-[11.5px] leading-snug mt-0.5" style={{ color: colors.textSecondary }}>Seja o primeiro a anunciar: casa, apartamento, kitnet, sala ou temporada.</span>
+                        </span>
+                        <span className="flex items-center gap-0.5 text-xs font-black flex-shrink-0" style={{ color: COLOR }}>Anunciar <ChevronRight size={14} /></span>
+                    </button>
+                </div>
             ) : (
                 <div className="px-3.5 pb-3.5 grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {items.map((l) => (

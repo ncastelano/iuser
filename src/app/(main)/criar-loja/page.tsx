@@ -1,6 +1,7 @@
 // src/app/(main)/criar-loja/page.tsx
 "use client";
 
+import { addLeafletCredits } from '@/lib/mapCredits';
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
@@ -282,6 +283,7 @@ export default function CriarLoja() {
         zoomControl: true,
         attributionControl: false,
       });
+      addLeafletCredits(L, map);   // crédito do OpenStreetMap (lib/mapCredits)
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,

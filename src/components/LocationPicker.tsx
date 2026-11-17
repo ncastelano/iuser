@@ -1,6 +1,7 @@
 // src/app/(main)/LocationPicker.tsx
 'use client'
 
+import { addLeafletCredits } from '@/lib/mapCredits'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/app/contexts/theme'
@@ -354,7 +355,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     }, [])
 
     // ===== SINCRONIZAÇÃO DE LOCALIZAÇÃO PARA MOTORISTA =====
-    // Só aparece pra quem já aceitou um plano de tarifa em /painel-motorista
+    // Só aparece pra quem já aceitou um plano de tarifa em /canal-do-motorista
     // (ou seja, já existe uma linha em driver_pricing) E já ativou o modo
     // motorista por lá - sem isso, alguém que nunca ativou o modo via
     // duplicidade acabava vendo esse controle de qualquer forma.
@@ -651,6 +652,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                 zoomControl: true,
                 attributionControl: false,
             })
+            addLeafletCredits(L, map)   // crédito do OpenStreetMap (lib/mapCredits)
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
@@ -1283,7 +1285,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                         </div>
 
                         <p className="text-xs font-medium" style={{ color: colors.textPrimary, opacity: 0.8 }}>
-                            Você não vai mais aparecer como disponível para novas corridas até ativar o modo de novo em /painel-motorista.
+                            Você não vai mais aparecer como disponível para novas corridas até ativar o modo de novo em /canal-do-motorista.
                         </p>
 
                         <div className="flex gap-2 pt-2">

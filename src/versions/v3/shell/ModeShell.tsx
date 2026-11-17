@@ -10,7 +10,7 @@ import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } fro
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
     Store as StoreIcon, Car, User, ChevronRight, X, ShoppingBag, LayoutDashboard, Check, Plus, Pencil, Bike,
-    Search, MapPin, Users, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart,
+    Search, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -70,7 +70,7 @@ function modePath(mode: string, data: DrawerData): string {
     if (mode.startsWith('loja:')) return `/painel-loja/${encodeURIComponent(mode.slice(5))}`
     if (mode.startsWith('motorista:')) {
         const v = data.vehicles.find((x) => `motorista:${x.slug}` === mode)
-        return v ? `/${v.slug}` : '/painel-motorista'
+        return v ? `/${v.slug}` : '/canal-do-motorista?aba=painel'
     }
     return '/'
 }
@@ -208,7 +208,7 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
     // PESSOA: o que é da conta pessoal
     const myOrders = counts.orders.pending + counts.orders.preparing + counts.orders.ready
     const personChips: ModeChip[] = [
-        { key: 'chat', icon: ic(MessageCircle), count: counts.rooms.perfil || 0, label: (counts.rooms.perfil || 0) === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo('/atividade?aba=conversas') },
+        { key: 'chat', icon: ic(MessageCircle), count: counts.rooms.perfil || 0, label: (counts.rooms.perfil || 0) === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo('/conversas') },
         { key: 'cart', icon: ic(ShoppingCart), count: counts.cart, label: 'no carrinho', color: '#f97316', onClick: () => onGo('/atividade?aba=carrinho') },
         { key: 'orders', icon: ic(Package), count: myOrders, label: myOrders === 1 ? 'pedido' : 'pedidos', color: counts.orders.ready > 0 ? '#a855f7' : '#16a34a', onClick: () => onGo('/atividade?aba=pedidos') },
         { key: 'notifs', icon: ic(Bell), count: counts.notifs, label: counts.notifs === 1 ? 'notificação' : 'notificações', color: '#ef4444', onClick: () => onGo(NOTIFICATIONS_PATH) },
@@ -227,7 +227,7 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
             { key: 'new', icon: ic(ShoppingBag), count: o.pending, label: o.pending === 1 ? 'pedido novo' : 'pedidos novos', color: '#22c55e', onClick: () => onGo(orders) },
             { key: 'svc', icon: ic(Bell), count: o.services, label: o.services === 1 ? 'serviço' : 'serviços', color: '#14b8a6', onClick: () => onGo(orders) },
             { key: 'going', icon: ic(Package), count: going, label: 'em andamento', color: o.ready > 0 ? '#a855f7' : '#eab308', onClick: () => onGo(orders) },
-            { key: 'chat', icon: ic(MessageCircle), count: unread, label: unread === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo(`/atividade?aba=conversas&sala=${encodeURIComponent(st.slug)}`) },
+            { key: 'chat', icon: ic(MessageCircle), count: unread, label: unread === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo(`/conversas?sala=${encodeURIComponent(st.slug)}`) },
         ]
     }
     const storeActions = (st: DrawerData['stores'][number]): ModeAction[] => [
@@ -238,7 +238,7 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
     const vehicleActions = (v: DrawerData['vehicles'][number]): ModeAction[] => [
         { label: 'Veículo', icon: act(Car), onClick: () => onGo(`/${v.slug}`) },
         { label: 'Entregas', icon: act(Bike), onClick: () => onGo('/entregas') },
-        { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onGo('/painel-motorista'), solid: true },
+        { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onGo('/canal-do-motorista?aba=painel'), solid: true },
     ]
     return (
         <div className="w-full flex flex-col gap-2 px-3.5 pb-3.5">
@@ -251,7 +251,7 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
             {/* Motorista: um card por veículo */}
             {data.vehicles.length > 0 ? data.vehicles.map((v) => (
                 <ModeCard key={v.slug} selected={active === `motorista:${v.slug}`} kind="car" image={v.photo} title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`} desc={`Modo motorista · ${data.driverActive ? 'ativado' : 'desligado'}`} dot={data.driverActive ? '#4ade80' : '#fca5a5'} onClick={() => onSelect(`motorista:${v.slug}`)} actions={vehicleActions(v)} />
-            )) : <ModeCta kind="car" title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />}
+            )) : <ModeCta kind="car" title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/canal-do-motorista?aba=painel')} />}
         </div>
     )
 }
@@ -273,7 +273,7 @@ const LOGO_RING = { border: '2px solid #fff', overflow: 'hidden', boxShadow: '0 
 // Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
 // Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
 const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos']
-const BAR_PATHS = ['/', '/social', '/flash', '/entregas', '/comprar', '/lojas', '/produtos', '/digitais', '/servicos-disponiveis', '/atividade', '/carrinho', '/conversas', '/aceitar-corridas', '/ganhos', '/canal-do-motorista', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
+const BAR_PATHS = ['/', '/convidados', '/social', '/flash', '/entregas', '/comprar', '/lojas', '/produtos', '/digitais', '/servicos-disponiveis', '/atividade', '/carrinho', '/conversas', '/aceitar-corridas', '/ganhos', '/canal-do-motorista', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
 
 // Foto do modo (perfil, logo da loja, foto do carro) — ou o ícone do modo quando não há imagem. Troca de modo = pequeno "estouro".
 function ModeAvatar({ userId, image, noRing, modeIcon, popToken, colors, size = 40 }: {
@@ -341,7 +341,7 @@ export default function ModeShell({ children }: {
     // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>'
     const [activeMode, setActiveMode] = useState('perfil')
     // Com uma loja escolhida no menu, as conversas já abrem na sala dessa loja (?sala=<slug>)
-    const chatPath = activeMode.startsWith('loja:') ? `/atividade?aba=conversas&sala=${encodeURIComponent(activeMode.slice(5))}` : '/atividade?aba=conversas'
+    const chatPath = activeMode.startsWith('loja:') ? `/conversas?sala=${encodeURIComponent(activeMode.slice(5))}` : '/conversas'
     const [modeTick, setModeTick] = useState(0)
     // Resumo do topo da última visita: desenha o cabeçalho na hora (sem esperar o banco) e depois confere
     const [snap, setSnap] = useState<HeaderSnap | null>(null)
@@ -513,7 +513,7 @@ export default function ModeShell({ children }: {
         const t = setTimeout(() => setRising(false), 750)
         return () => clearTimeout(t)
     }, [shellPath])
-    // A barra acompanha o MODO: pessoa (Perto · Social · Atividade), loja (Painel · Pedidos · Conversas) ou motorista (Corridas · Entregas · Ganhos)
+    // A barra acompanha o MODO: pessoa (Atividade · Conversas), loja (Painel · Pedidos · Conversas) ou motorista (Corridas · Entregas · Ganhos)
     const { kind: barKind, storeSlug: barStore } = barKindOf(activeMode, drawerData.stores.map((st) => st.slug))
     const barActive = activeBarKey(barKind, shellPath, barStore, abaParam)
     const onCartPage = shellPath.startsWith('/carrinho') || (shellPath === '/atividade' && abaParam === 'carrinho')   // a faixa não repete o carrinho na própria aba do carrinho
@@ -632,7 +632,7 @@ export default function ModeShell({ children }: {
 
     // As abas da barra (Explorar + três do modo): para onde cada uma leva e o selo
     const ICON: Record<BarKey, ReactNode> = {
-        home: <Search size={22} />, radar: <MapPin size={22} />, people: <Users size={22} />, activity: <Bell size={22} />,
+        home: <Search size={22} />, activity: <Bell size={22} />,
         panel: <LayoutDashboard size={22} />, orders: <ClipboardList size={22} />, chat: <MessageCircle size={22} />,
         rides: <Car size={22} />, deliveries: <Bike size={22} />, earnings: <Wallet size={22} />,
     }
@@ -641,20 +641,19 @@ export default function ModeShell({ children }: {
     const openTab = (key: BarKey) => {
         if (key === barActive) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }   // tocar na aba da página em que já está volta ao topo
         if (key === 'activity') {
-            // a aba Atividade leva ao que pede atenção (pedido pronto, mensagem, pedido em andamento, carrinho); senão, à última subaba usada
+            // a aba Atividade leva ao que pede atenção (pedido em andamento, carrinho); senão, à última subaba usada
             let last: AtividadeAba | null = null
             try { last = localStorage.getItem(LAST_ABA_KEY) as AtividadeAba | null } catch { /* sem armazenamento */ }
             if (!userId) { go(topCart > 0 ? '/carrinho' : '/login'); return }   // visitante: só o carrinho existe sem conta
-            go(pathOfAba(smartAba({ unread: topUnread, orders: orderCounts, cart: topCart, last })))
+            go(pathOfAba(smartAba({ orders: orderCounts, cart: topCart, last })))
             return
         }
         const path = barPathOf(key, barStore)
         if (path) go(path)
     }
-    // O botão ATIVIDADE é o SININHO (mesmo tamanho e estilo dos outros ícones) com os selos EM CIMA, cada um na sua cor: mensagens não lidas (verde), pedidos em andamento
-    // (verde; roxo se há um pronto) e itens no carrinho (laranja). Tocar leva ao que pede atenção (smartAba).
+    // O botão ATIVIDADE é o SININHO (mesmo tamanho e estilo dos outros ícones) com os selos EM CIMA, cada um na sua cor: pedidos em andamento (verde; roxo se há um pronto)
+    // e itens no carrinho (laranja). As mensagens não lidas são o selo da aba Conversas. Tocar leva ao que pede atenção (smartAba).
     const activityBadges = [
-        { count: topUnread, color: '#16a34a' },
         { count: orderCounts.pending + orderCounts.preparing + orderCounts.ready, color: orderCounts.ready > 0 ? '#a855f7' : '#16a34a' },
         { count: topCart, color: '#f97316' },
     ]

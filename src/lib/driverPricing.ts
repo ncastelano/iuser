@@ -50,7 +50,7 @@ export interface RideConditionFlags {
 }
 
 // Tarifa padrão da plataforma — usada por quem escolhe não definir a
-// própria tarifa em /painel-motorista, e pra estimativa mostrada ao
+// própria tarifa em /canal-do-motorista, e pra estimativa mostrada ao
 // passageiro em /pedir-motorista (antes de qualquer motorista se
 // candidatar, não há tarifa própria pra usar ainda).
 export const PLATFORM_DEFAULT_EXTRA_FEES: DriverExtraFees = {
@@ -172,7 +172,7 @@ export function computeRideExtras(rideType: RideRequestType | undefined, ride: R
 }
 
 // rideType e ride são opcionais pra permitir uma prévia genérica (sem
-// corrida real associada, ex: painel-motorista) — nesse caso nenhum valor
+// corrida real associada, ex: canal-do-motorista) — nesse caso nenhum valor
 // extra entra.
 export function computeSuggestedPrice(
     distanceKm: number,

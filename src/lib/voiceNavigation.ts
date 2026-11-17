@@ -41,7 +41,7 @@ function distancePhrase(meters: number): string {
 }
 
 interface UseVoiceNavigationParams {
-    /** O motorista quer voz ligada (preferência dele, painel-motorista). */
+    /** O motorista quer voz ligada (preferência dele, canal-do-motorista). */
     enabled: boolean
     /** Só navega quando true — ex: a caminho da partida, ou corrida iniciada. */
     active: boolean

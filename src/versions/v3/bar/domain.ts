@@ -1,12 +1,13 @@
 // src/versions/v3/bar/domain.ts
 //
-// A BARRA DE BAIXO POR MODO (3.0): Explorar fica sempre à esquerda e Eu sempre à direita; as três do meio acompanham o modo.
-//   pessoa    → Perto · Social · Atividade
+// A BARRA DE BAIXO POR MODO (3.0): Explorar fica sempre à esquerda e Eu sempre à direita; as do meio acompanham o modo.
+//   pessoa    → Atividade · Conversas   (17/11/2026, decisão do dono: saíram Perto e Social — o Radar e o Social seguem pela home —
+//               e as Conversas viraram aba própria, fora da Atividade, que ficou com pedidos, carrinho e biblioteca)
 //   loja      → Painel · Pedidos · Conversas
 //   motorista → Corridas · Entregas · Ganhos
 // Regra pura (sem React): quais abas, para onde levam e qual está marcada. Testes: scripts/test-bar.mjs.
 
-export type BarKey = 'home' | 'radar' | 'people' | 'activity' | 'panel' | 'orders' | 'chat' | 'rides' | 'deliveries' | 'earnings'
+export type BarKey = 'home' | 'activity' | 'panel' | 'orders' | 'chat' | 'rides' | 'deliveries' | 'earnings'
 export type BarKind = 'pessoa' | 'loja' | 'motorista'
 
 export interface BarTabDef { key: BarKey; label: string }
@@ -25,12 +26,12 @@ export function barKindOf(activeMode: string, knownStoreSlugs: string[] = []): {
 
 const HOME: BarTabDef = { key: 'home', label: 'Explorar' }
 const MIDDLE: Record<BarKind, BarTabDef[]> = {
-    pessoa: [{ key: 'radar', label: 'Perto' }, { key: 'people', label: 'Social' }, { key: 'activity', label: 'Atividade' }],
+    pessoa: [{ key: 'activity', label: 'Atividade' }, { key: 'chat', label: 'Conversas' }],
     loja: [{ key: 'panel', label: 'Painel' }, { key: 'orders', label: 'Pedidos' }, { key: 'chat', label: 'Conversas' }],
     motorista: [{ key: 'rides', label: 'Corridas' }, { key: 'deliveries', label: 'Entregas' }, { key: 'earnings', label: 'Ganhos' }],
 }
 
-/** As quatro abas que mudam (Explorar + as do meio); a quinta, Eu, é sempre a foto do modo */
+/** As abas que mudam (Explorar + as do meio); a última, Eu, é sempre a foto do modo */
 export function barTabsFor(kind: BarKind): BarTabDef[] {
     return [HOME, ...MIDDLE[kind]]
 }
@@ -42,11 +43,9 @@ export function barPathOf(key: BarKey, storeSlug: string | null): string | null 
     const s = storeSlug ? encodeURIComponent(storeSlug) : null
     switch (key) {
         case 'home': return '/'
-        case 'radar': return '/radar'
-        case 'people': return '/social'
         case 'panel': return s ? `/painel-loja/${s}` : null
         case 'orders': return s ? `/painel-loja/${s}/pedidos` : null
-        case 'chat': return s ? `/atividade?aba=conversas&sala=${s}` : '/atividade?aba=conversas'
+        case 'chat': return s ? `/conversas?sala=${s}` : '/conversas'
         case 'rides': return '/aceitar-corridas'
         case 'deliveries': return '/entregas'
         case 'earnings': return '/ganhos'
@@ -54,14 +53,13 @@ export function barPathOf(key: BarKey, storeSlug: string | null): string | null 
     }
 }
 
-/** Qual aba está marcada neste endereço (null = nenhuma das quatro). `aba` é o `?aba=` da página Atividade (a loja marca Conversas quando a Atividade está nas conversas) */
+/** Qual aba está marcada neste endereço (null = nenhuma). `aba` é o `?aba=` da página Atividade (o endereço antigo ?aba=conversas conta como Conversas) */
 export function activeBarKey(kind: BarKind, shellPath: string, storeSlug: string | null, aba: string | null = null): BarKey | null {
     const p = clean(shellPath)
     if (p === '/') return 'home'
     if (kind === 'pessoa') {
-        if (p === '/atividade' || p === '/carrinho' || p === '/conversas') return 'activity'
-        if (p.startsWith('/radar')) return 'radar'
-        if (p.startsWith('/flash') || p.startsWith('/social')) return 'people'
+        if (p === '/conversas' || (p === '/atividade' && aba === 'conversas')) return 'chat'
+        if (p === '/atividade' || p === '/carrinho') return 'activity'
         return null
     }
     if (kind === 'loja') {

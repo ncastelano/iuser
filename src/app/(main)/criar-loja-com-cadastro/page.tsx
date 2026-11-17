@@ -2,6 +2,7 @@
 
 'use client'
 
+import { addLeafletCredits } from '@/lib/mapCredits'
 import { useState, useRef, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -344,6 +345,7 @@ function CriarLojaComCadastroContent() {
                 zoomControl: true,
                 attributionControl: false,
             })
+            addLeafletCredits(L, map)   // crédito do OpenStreetMap (lib/mapCredits)
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map)
 

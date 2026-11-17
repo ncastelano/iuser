@@ -36,6 +36,7 @@ import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
 import HomeLocationChip from '@/components/location/HomeLocationChip'
 import Outdoor from '@/components/outdoor/Outdoor'
 import SocialAroundCard from '@/components/v3/SocialAroundCard'
+import { FlashSection, PublicationsSection, StorePublicationsSection } from '@/components/social/SocialFeedSections'
 import DriverChannelCard from '@/components/v3/DriverChannelCard'
 import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 import DigitalStrip from '@/components/v3/DigitalStrip'
@@ -44,10 +45,8 @@ import SearchSuggestions from '@/components/search/SearchSuggestions'
 import { recordSearch, isRecordable } from '@/modules/search'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '@/app/(main)/inicio/SearchResultsSection'
-import CareerPlans from '@/app/(main)/inicio/sections/CareerPlans'
 import { rankStyle } from '@/components/social/SocialProfileCard'
 import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
-import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
 import { toast } from '@/lib/toast'
 import { useShellSearch } from '@/versions/v3/shell/ShellFrame'
 
@@ -250,7 +249,9 @@ function SectionHeader({ type, title, subtitle, onSeeAll, colors }: { type: Type
 // Faixa que rola de lado; os cartões encaixam (snap) pra ficar fácil de passar com o dedo
 function Strip({ children }: { children: ReactNode }) {
     return (
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-pl-4 scroll-pr-4 pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+        // folga em cima e embaixo (pt/pb com margem negativa): a rolagem de lado corta tudo que passa da caixa, e sem ela a sombra
+        // dos cartões e a coroa da moldura do nível ficavam com um corte seco
+        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-pl-4 scroll-pr-4 pt-3 pb-5 -mt-3 -mb-3 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
             {children}
         </div>
     )
@@ -610,8 +611,6 @@ export default function ModeloInicialPage() {
         setSellMode('product')
         setSellOpen(true)
     }
-    const [inviteOpen, setInviteOpen] = useState(false)
-    const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
     // `icons`: quatro ícones (quadrado 2x2) no lugar do ícone único — dão uma ideia do que cabe naquele cartão
     type Action = { /** Cartão próprio: o que tem por perto (um de cada tipo) */ nearby?: boolean; /** Cartão próprio: um de cada coisa do Social (flash, publicação, perfil em destaque...) */ social?: boolean; /** Cartão próprio: vitrine com alguns imóveis para alugar */ rentals?: boolean; /** Lugar do Canal do Motorista (as corridas abertas) no meio dos cartões */ driver?: boolean; /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean; sub?: string; /** O botão da ponta leva a outro lugar que o cartão (ex.: Comprar abre a loja, "Finalizar" abre o carrinho) */ onCta?: () => void }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
@@ -657,14 +656,10 @@ export default function ModeloInicialPage() {
         { title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: CircleDollarSign, color: '#16a34a', onClick: () => setSellOpen(true) },
         { title: 'Fazer serviços', desc: 'Veja os pedidos e se inscreva', icon: Briefcase, color: '#ea580c', onClick: () => go('/procurar-servico') },
         { title: 'Anunciar imóvel', desc: 'Alugue sua casa, apto ou sala', icon: HomeIcon, color: '#16a34a', onClick: () => go('/anunciar-imovel') },
-        { title: 'Ser motorista', desc: 'Receba corridas na sua região', icon: Car, color: '#ea580c', onClick: () => go('/painel-motorista') },
+        { title: 'Ser motorista', desc: 'Receba corridas na sua região', icon: Car, color: '#ea580c', onClick: () => go('/canal-do-motorista?aba=painel') },
         {
             title: 'Indicar e ganhar', desc: 'Convide e receba comissão', icon: UserPlus, color: '#7c3aed',
-            onClick: async () => {
-                if (!userId || !inviteUrl) return go('/login')
-                if (await copyText(inviteUrl)) toast.success('Link de convite copiado!')
-                setInviteOpen(true)
-            },
+            onClick: () => go('/convidados'),   // a página dos convidados: o link, como funciona, a rede e as comissões
         },
     ]
 
@@ -674,13 +669,6 @@ export default function ModeloInicialPage() {
         <>
 
                 <SellDialog open={sellOpen} onClose={() => { setSellOpen(false); setSellMode('all') }} userId={userId} colors={colors} go={go} mode={sellMode} />
-                <ShareLinkDialog
-                    open={inviteOpen}
-                    onClose={() => setInviteOpen(false)}
-                    url={inviteUrl}
-                    title="Convidar para o iUser"
-                    text={`@${profileSlug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:`}
-                />
 
                 {/* OUTDOOR iUSER: os perfis com mais pontos, em cima da busca */}
                 <Outdoor kind="pessoas" className="mt-2" />
@@ -1003,10 +991,10 @@ export default function ModeloInicialPage() {
                             )}
                         </section>
 
-                        {/* Planos (a mesma seção da home 2.0) */}
-                        <div className="mt-8">
-                            <CareerPlans />
-                        </div>
+                        {/* Flash e publicações (17/11/2026: no lugar dos planos, que foram para o "Meu plano" do painel do perfil) — as MESMAS seções do /social */}
+                        <FlashSection colors={colors} onOpen={(f) => go(`/flash?de=${f.id}`)} onNew={() => go(userId ? '/flash?novo=1' : '/login?redirect=/flash')} onAll={() => go('/flash')} />
+                        <PublicationsSection colors={colors} onOpen={(f) => go(f.kind === 'publication' && f.link ? `/${f.authorSlug}/${f.link}` : `/flash?de=${f.id}`)} />
+                        <StorePublicationsSection colors={colors} />
 
                         {/* ===== 4. CONVITE FINAL ===== */}
                         <SellCta

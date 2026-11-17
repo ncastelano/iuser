@@ -2,4 +2,5 @@
 export * from './domain'
 export { fetchDriverState, fetchActive, fetchOffers, fetchDoneToday, acceptOffer, leaveForStore, arriveAtStore, pickUpOrders, arriveAtDestination, sendDeliveryMessage, completeDelivery, submitProofPin, submitProofPhoto, setCapacity, setCapacityUnits, setOnline, fetchMyReviews } from './load'
 export * from './board'
+export * from './cashTrust'
 export type { DriverState, DoneToday, MyReview, MyReviews, PickupResult, ProofResult } from './load'

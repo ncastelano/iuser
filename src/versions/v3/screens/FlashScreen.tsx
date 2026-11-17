@@ -14,7 +14,8 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast'
 import ReportButton from '@/components/moderation/ReportButton'
-import { ArrowLeft, ArrowUp, Heart, ImagePlus, MessageCircle, Plus, Send, Share2, Trash2, UserPlus, X, Zap } from 'lucide-react'
+import { ArrowLeft, ArrowUp, Heart, ImagePlus, MapPin, MessageCircle, Plus, Send, Share2, Trash2, UserPlus, X, Zap } from 'lucide-react'
+import LocationPicker from '@/components/LocationPicker'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -22,7 +23,7 @@ import { handleShareLink } from '@/lib/share'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import {
     addComment, authorAvatarUrl, countShare, deleteComment, deleteFlash, fetchComments, fetchFeed, fitFontSize, flashGradient, mediaSrc, PAGE_SIZE, postFlash,
-    setFollowing, setLiked, shortCount, timeAgo, FLASH_COMMENT_MAX_CHARS, FLASH_MAX_CHARS, validateFlash,
+    setFollowing, setLiked, shortCount, timeAgo, FLASH_COMMENT_MAX_CHARS, FLASH_MAX_CHARS, validateFlash, placeLabelOf, type FlashPlace,
     type FlashComment, type FlashItem, type FlashMode,
 } from '@/modules/flash'
 
@@ -127,6 +128,7 @@ function FlashCard({ item, me, active, onLike, onFollow, onComments, onShare, on
                     <button onClick={goAuthor} className="min-w-0 text-left">
                         <span className="block text-sm font-black leading-tight truncate">{item.authorName}</span>
                         <span className="block text-[11px] opacity-85 truncate">@{item.authorSlug} · {timeAgo(item.createdAt)}</span>
+                        {item.placeLabel && <span className="flex items-center gap-1 text-[11px] font-bold opacity-90 truncate"><MapPin size={11} className="flex-shrink-0" />{item.placeLabel}</span>}
                     </button>
                     {!own && !item.following && (
                         <button onClick={() => onFollow(item)} className="ml-1 h-7 px-3 rounded-full text-[11px] font-black flex items-center gap-1 transition active:scale-95" style={{ background: ORANGE, color: '#fff' }}><UserPlus size={12} /> Seguir</button>
@@ -208,7 +210,7 @@ function CommentsSheet({ item, me, onClose, onCounted }: { item: FlashItem; me: 
     )
 }
 
-/** Postar um flash: texto e/ou foto ou vídeo */
+/** Postar um flash: texto e/ou foto ou vídeo e, se a pessoa quiser, o LOCAL (o flash aparece no Radar; o banco guarda só a posição aproximada e rua + bairro) */
 function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => void; onPosted: () => void }) {
     const { colors } = useTheme()
     const [text, setText] = useState('')
@@ -216,6 +218,8 @@ function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => vo
     const [preview, setPreview] = useState<string | null>(null)
     const [busy, setBusy] = useState(false)
     const [progress, setProgress] = useState<number | null>(null)
+    const [place, setPlace] = useState<FlashPlace | null>(null)
+    const [pickingPlace, setPickingPlace] = useState(false)
     const [videoMax, setVideoMax] = useState<number | undefined>(undefined)   // limite do vídeo quando o envio pesado (R2) está ligado
     useEffect(() => { let on = true; r2Availability('media_r2').then((a) => { if (on && a.available) setVideoMax(a.maxBytes) }); return () => { on = false } }, [])
     const problem = validateFlash({ content: text, file, videoMaxBytes: videoMax })
@@ -227,7 +231,7 @@ function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => vo
     const post = async () => {
         if (problem || busy) { if (problem) toast.error(problem); return }
         setBusy(true)
-        try { await postFlash(me, text, file, { onProgress: setProgress }); toast.success('Flash no ar!'); onPosted(); onClose() } catch (e: any) { toast.error(e.message || 'Não foi possível postar.') } finally { setBusy(false); setProgress(null) }
+        try { await postFlash(me, text, file, { onProgress: setProgress, place }); toast.success('Flash no ar!'); onPosted(); onClose() } catch (e: any) { toast.error(e.message || 'Não foi possível postar.') } finally { setBusy(false); setProgress(null) }
     }
     return createPortal(
         <div className="fixed inset-0 z-[80] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
@@ -243,7 +247,22 @@ function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => vo
                         <button onClick={() => pick(null)} aria-label="Tirar" className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center text-white" style={{ background: 'rgba(0,0,0,0.6)' }}><X size={16} /></button>
                     </div>
                 )}
+                {place ? (
+                    <div className="flex items-center gap-2 rounded-2xl px-3 py-2" style={{ background: `${ORANGE}14`, border: `1px solid ${ORANGE}55` }}>
+                        <MapPin size={16} className="flex-shrink-0" style={{ color: ORANGE }} />
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{placeLabelOf(place.label) || 'Local marcado'}</span>
+                            <span className="block text-[11px]" style={{ color: colors.textSecondary }}>Aparece no Radar · posição aproximada, sem o número</span>
+                        </span>
+                        <button onClick={() => setPlace(null)} aria-label="Tirar o local" className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textPrimary }}><X size={15} /></button>
+                    </div>
+                ) : null}
                 <div className="flex items-center gap-2">
+                    {!place && (
+                        <button onClick={() => setPickingPlace(true)} aria-label="Adicionar o local" className="h-11 px-3.5 rounded-full flex items-center gap-1.5 text-[13px] font-black transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>
+                            <MapPin size={17} /> Local
+                        </button>
+                    )}
                     <label className="h-11 px-4 rounded-full flex items-center gap-2 text-[13px] font-black cursor-pointer transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>
                         <ImagePlus size={17} /> Foto ou vídeo
                         <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => { pick(e.target.files?.[0] || null); e.target.value = '' }} />
@@ -252,6 +271,13 @@ function ComposeSheet({ me, onClose, onPosted }: { me: string; onClose: () => vo
                     <button onClick={post} disabled={busy || !!problem} className="h-11 px-6 rounded-full text-[14px] font-black text-white disabled:opacity-50 transition active:scale-95" style={{ background: ORANGE }}>{busy ? (progress != null && progress < 100 ? `Enviando ${progress}%` : 'Postando…') : 'Postar'}</button>
                 </div>
             </div>
+            {pickingPlace && (
+                <div onClick={(e) => e.stopPropagation()}>
+                    <LocationPicker initialLocation={null} allowDriverSync={false}
+                        onSave={(loc) => { setPlace({ lat: loc.lat, lng: loc.lng, label: loc.address }); setPickingPlace(false) }}
+                        onClose={() => setPickingPlace(false)} />
+                </div>
+            )}
         </div>,
         document.body,
     )

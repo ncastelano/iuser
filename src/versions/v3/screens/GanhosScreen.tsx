@@ -40,7 +40,7 @@ export default function GanhosScreen() {
     const cur = PERIODS.find((p) => p.key === period)!
     const bucket = summary?.[period]
     // Voltar: de onde a pessoa veio (o atalho do painel, a barra do motorista...); sem histórico, o painel do motorista
-    const goBack = () => { if (typeof window !== 'undefined' && window.history.length > 1) router.back(); else router.push('/painel-motorista') }
+    const goBack = () => { if (typeof window !== 'undefined' && window.history.length > 1) router.back(); else router.push('/canal-do-motorista?aba=painel') }
     const card = { background: colors.background, border: `1px solid ${colors.border}`, boxShadow: '0 4px 14px rgba(0,0,0,0.07)' } as const
 
     if (!loading && !userId) {
@@ -109,8 +109,8 @@ export default function GanhosScreen() {
 
             <div className="rounded-3xl overflow-hidden" style={card}>
                 {[
-                    { icon: <TrendingUp size={16} />, title: 'Meu ganho mínimo por hora', desc: 'Defina quanto vale o seu tempo e receba o aviso', to: '/painel-motorista?aba=plano' },
-                    { icon: <Car size={16} />, title: 'Veículo e tarifa', desc: 'Sua tarifa própria e os dados do veículo', to: '/painel-motorista?aba=veiculo' },
+                    { icon: <TrendingUp size={16} />, title: 'Meu ganho mínimo por hora', desc: 'Defina quanto vale o seu tempo e receba o aviso', to: '/canal-do-motorista?aba=plano' },
+                    { icon: <Car size={16} />, title: 'Veículo e tarifa', desc: 'Sua tarifa própria e os dados do veículo', to: '/canal-do-motorista?aba=veiculo' },
                 ].map((l, i) => (
                     <button key={l.to} onClick={() => router.push(l.to)} className="w-full flex items-center gap-3 p-3.5 text-left active:opacity-70" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
                         <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#f9731620', color: '#f97316' }}>{l.icon}</span>

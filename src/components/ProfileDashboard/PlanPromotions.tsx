@@ -3,11 +3,13 @@
 // "Meu plano": fica logo acima de "Conta" no ProfileDashboard. O brinde (Resgatar 90 dias de Plano Pré-pago) e os planos
 // ativos da pessoa, cada um num cartão: Pré-pago com os dias que faltam (barra), Pós-pago com quanto já acumulou do
 // limite (barra) e um botão pra gerenciar. Sem plano, convida a conhecer os planos. É o lugar de novas promoções.
+// Desde 16/11/2026 também mostra O QUE O PLANO INCLUI (a lista de `plans.features`), que antes ficava no cartão de planos da home
+// (`CareerPlans`, removido): a home não mostra mais planos.
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronRight, Crown, Sparkles, Wallet } from 'lucide-react'
+import { Check, ChevronRight, Crown, Sparkles, Wallet } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
@@ -18,6 +20,13 @@ interface ActivePlanBadge {
     name: string
     code: string | null
     daysLeft: number | null
+    features: string[]
+}
+
+// O texto do plano vem do banco; a frase do limite do Pós-pago foi escrita com o valor antigo (R$ 50). Mostra sempre o limite em vigor.
+function featureText(f: string, limit: number): string {
+    if (!/^Limite de saldo pendente/i.test(f)) return f
+    return f.replace(/R\$\s?\d+(?:,\d{2})?/, brl(limit))
 }
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -45,13 +54,13 @@ export default function PlanPromotions({ profileId, className = '' }: { profileI
         const loadPlans = async () => {
             const { data } = await supabase
                 .from('subscriptions')
-                .select('current_period_end, plans(name, code)')
+                .select('current_period_end, plans(name, code, features)')
                 .eq('user_id', profileId)
                 .eq('status', 'active')
             if (cancelled) return
             const badges = (data || []).map((s: any) => {
                 const plan = Array.isArray(s.plans) ? s.plans[0] : s.plans
-                return { name: plan?.name || 'Plano', code: plan?.code || null, daysLeft: daysLeft(s.current_period_end) }
+                return { name: plan?.name || 'Plano', code: plan?.code || null, daysLeft: daysLeft(s.current_period_end), features: Array.isArray(plan?.features) ? plan.features : [] }
             })
             setActivePlans(badges)
             setLoaded(true)
@@ -73,6 +82,23 @@ export default function PlanPromotions({ profileId, className = '' }: { profileI
     const bar = (percent: number, color: string) => (
         <div className="h-2.5 rounded-full overflow-hidden" style={{ background: `${colors.border}55` }} role="progressbar" aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
             <div style={{ width: `${Math.min(100, Math.max(0, percent))}%`, background: color, height: '100%', transition: 'width .4s' }} />
+        </div>
+    )
+
+    // o que o plano inclui (de plans.features) + o caminho para todos os detalhes
+    const includes = (p: ActivePlanBadge) => p.features.length === 0 ? null : (
+        <div className="rounded-2xl px-3.5 py-3 flex flex-col gap-1.5" style={{ background: `${colors.border}22` }}>
+            <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                {p.code === 'pos_pago' ? 'R$ 0,50 por uso · o que está incluído' : 'O que está incluído'}
+            </span>
+            {p.features.map((f) => (
+                <span key={f} className="flex items-start gap-1.5 text-[12px] leading-snug" style={{ color: colors.textPrimary }}>
+                    <Check size={13} className="mt-0.5 flex-shrink-0" style={{ color: '#16a34a' }} />{featureText(f, POSTPAID_LIMIT)}
+                </span>
+            ))}
+            <button onClick={() => router.push('/planos')} className="self-start mt-1 text-[12px] font-black flex items-center gap-0.5" style={{ color: '#f97316' }}>
+                Ver detalhes dos planos <ChevronRight size={14} />
+            </button>
         </div>
     )
 
@@ -118,8 +144,8 @@ export default function PlanPromotions({ profileId, className = '' }: { profileI
                         const blocked = accumulated >= POSTPAID_LIMIT
                         const pct = (accumulated / POSTPAID_LIMIT) * 100
                         return (
+                            <div key={i} className="flex flex-col gap-2">
                             <button
-                                key={i}
                                 onClick={() => router.push('/planos/pos-pago')}
                                 className="w-full text-left rounded-2xl p-3.5 flex flex-col gap-2.5 transition-all hover:-translate-y-0.5"
                                 style={{ border: `1px solid ${blocked ? '#ef444455' : '#22c55e55'}`, background: blocked ? '#ef444410' : '#22c55e0f' }}
@@ -137,13 +163,15 @@ export default function PlanPromotions({ profileId, className = '' }: { profileI
                                     </span>
                                 </span>
                             </button>
+                            {includes(p)}
+                            </div>
                         )
                     }
                     const left = p.daysLeft
                     const pct = left != null ? (Math.min(left, 30) / 30) * 100 : 100
                     return (
+                        <div key={i} className="flex flex-col gap-2">
                         <button
-                            key={i}
                             onClick={() => router.push('/planos')}
                             className="w-full text-left rounded-2xl p-3.5 flex flex-col gap-2.5 transition-all hover:-translate-y-0.5"
                             style={{ border: '1px solid #22c55e55', background: '#22c55e0f' }}
@@ -160,6 +188,8 @@ export default function PlanPromotions({ profileId, className = '' }: { profileI
                                     : 'Plano ativo'}
                             </span>
                         </button>
+                        {includes(p)}
+                        </div>
                     )
                 })}
             </div>
