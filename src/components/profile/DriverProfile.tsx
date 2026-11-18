@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Bike, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
+import { ArrowLeft, Bike, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -70,8 +70,10 @@ function ApproxMap({ lat, lng, kind }: { lat: number; lng: number; kind: Kind })
         if (!ref.current || !process.env.NEXT_PUBLIC_MAPBOX_TOKEN) return
         mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
         // logo à direita: à esquerda a foto da pessoa entra por cima do mapa
-        const map = new mapboxgl.Map({ container: ref.current, style: 'mapbox://styles/mapbox/streets-v12', center: [lng, lat], zoom: 14.2, interactive: false, attributionControl: false, logoPosition: 'bottom-right' })
-        addMapboxCredits(mapboxgl, map)
+        // logo e créditos em cima à direita (embaixo entram a foto e o nome); o centro do mapa sobe para o carro ficar à vista acima do degradê
+        const map = new mapboxgl.Map({ container: ref.current, style: 'mapbox://styles/mapbox/streets-v12', center: [lng, lat], zoom: 14.2, interactive: false, attributionControl: false, logoPosition: 'top-right' })
+        map.setPadding({ top: 0, bottom: 150, left: 0, right: 0 })
+        addMapboxCredits(mapboxgl, map, 'top-right')
         const el = document.createElement('div')
         el.innerHTML = vehicleMarkerHtml(kind, GREEN)
         const marker = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map)
@@ -100,6 +102,8 @@ export interface DriverProfileProps {
     socialSlot?: ReactNode
     ownerTypeSlot?: ReactNode
     onEdit: () => void
+    /** o voltar mora dentro da imagem, em cima à esquerda (a página não mostra o voltar do cabeçalho no perfil de motorista) */
+    onBack?: () => void
     /** quem vê a página (para o "a quantos minutos de você") */
     viewerId: string | null
     /** o motorista recebe conversas pelo iUser (profiles.chat_enabled) */
@@ -203,37 +207,62 @@ export default function DriverProfile(p: DriverProfileProps) {
 
     return (
         <div className="pb-10">
-            {/* ===== 1. o motorista: em cima, o MAPA de onde ele está (se ele deixa o local visível) ou a foto do veículo ===== */}
+            {/* ===== 1. o motorista: a IMAGEM ocupa 2/3 do cartão (o MAPA de onde ele está, se ele deixa o local visível, ou a foto do veículo) e entra no
+                fundo do cartão por um degradê; em cima o voltar e a situação; embaixo, sobre o degradê, a foto à esquerda e o nome, o @, o nível e o veículo à
+                direita. O 1/3 de baixo é compacto: o que o carro tem, os números numa linha e os botões ===== */}
             <section className="rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
-                <div className={`relative ${quote?.live ? 'h-52' : 'h-40'}`} style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})` }}>
+                <div className="relative h-[300px]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})` }}>
                     {quote?.live ? (
                         <>
-                            {/* o logo e os créditos do Mapbox ficam VISÍVEIS (termos): acima da faixa em que a foto e o degradê entram no mapa */}
-                            <style>{`.driver-hero-map .mapboxgl-ctrl-bottom-right, .driver-hero-map .mapboxgl-ctrl-bottom-left { bottom: 50px !important; }`}</style>
+                            {/* o logo e os créditos do Mapbox ficam VISÍVEIS (termos): em cima, à direita, abaixo da situação (embaixo entram a foto e o nome) */}
+                            <style>{`.driver-hero-map .mapboxgl-ctrl-top-right { top: 44px !important; }`}</style>
                             <div className="driver-hero-map absolute inset-0"><ApproxMap lat={quote.live.lat} lng={quote.live.lng} kind={kind} /></div>
-                            <span aria-hidden className="absolute inset-x-0 bottom-0 h-12 pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent, ${colors.surface})` }} />
                         </>
                     ) : (
                         <>
                             {vehicle?.photo && <img src={vehicle.photo} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }} />}
-                            {!framing && <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.55))' }} />}
-                            {!vehicle?.photo && <span className="absolute inset-0 flex items-center justify-center text-white/30"><Icon size={72} /></span>}
+                            {!vehicle?.photo && <span className="absolute inset-x-0 top-6 bottom-28 flex items-center justify-center text-white/30"><Icon size={84} /></span>}
                         </>
                     )}
-                    <span className="absolute right-3 top-3 z-10 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1.5 shadow" style={{ background: active ? GREEN : 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}>
+                    {/* o degradê que leva a imagem para dentro do cartão (some enquanto o dono enquadra a foto) */}
+                    {!framing && <span aria-hidden className="absolute inset-x-0 bottom-0 h-[58%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface}cc 55%, ${colors.surface} 100%)` }} />}
+                    {!framing && <span aria-hidden className="absolute inset-x-0 top-0 h-16 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.35), transparent)' }} />}
+
+                    {/* em cima: o voltar e a situação */}
+                    {p.onBack && (
+                        <button onClick={p.onBack} aria-label="Voltar" className="absolute left-3 top-3 z-10 w-10 h-10 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}>
+                            <ArrowLeft size={20} />
+                        </button>
+                    )}
+                    <span className="absolute right-3 top-3 z-10 h-8 px-3 rounded-full text-[11.5px] font-black text-white flex items-center gap-1.5 shadow" style={{ background: active ? GREEN : 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
                         <span className={`w-1.5 h-1.5 rounded-full bg-white ${active ? 'animate-pulse' : 'opacity-60'}`} />{active ? 'Dirigindo agora' : 'Fora do ar agora'}
                     </span>
-                    {vehicle && (
-                        <span className="absolute left-3 top-3 z-10 h-7 px-2.5 rounded-full text-[11px] font-black text-white flex items-center gap-1 shadow" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}>
-                            <Icon size={13} />{KIND_LABEL[kind]}
-                        </span>
-                    )}
-                    {/* o dono enquadra a foto: o ícone de mover abre o modo de arrastar */}
+                    {/* o dono enquadra a foto: o ícone de mover, logo abaixo da situação */}
                     {p.isOwner && !quote?.live && vehicle?.photo && !framing && (
-                        <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setFraming(true) }} aria-label="Enquadrar a foto do veículo" className="absolute right-3 bottom-3 z-10 w-9 h-9 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}>
+                        <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setFraming(true) }} aria-label="Enquadrar a foto do veículo" className="absolute right-3 top-14 z-10 w-9 h-9 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
                             <Move size={17} />
                         </button>
                     )}
+
+                    {/* embaixo, sobre o degradê: a foto à esquerda; nome, @, nível e o veículo à direita */}
+                    {!framing && (
+                        <div className="absolute left-4 right-4 bottom-3 z-10 flex items-end gap-3">
+                            <div className="rounded-full p-1 flex-shrink-0" style={{ background: colors.surface, boxShadow: '0 6px 18px rgba(0,0,0,0.18)' }}>{p.avatarSlot}</div>
+                            <div className="min-w-0 flex-1 pb-1">
+                                <h1 className="text-[22px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</h1>
+                                <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                                    <span className="text-[12.5px] truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span>
+                                    {p.levelSlot}
+                                </div>
+                                {vehicle && (
+                                    <span className="mt-1.5 inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-black max-w-full" style={{ background: `${GREEN}1f`, color: GREEN }}>
+                                        <Icon size={13} className="flex-shrink-0" /><span className="truncate">{KIND_LABEL[kind]}{vehicle.model ? ` · ${vehicle.model}` : ''}{vehicle.color ? ` ${vehicle.color}` : ''}</span>
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {framing && vehicle && (
                         <div className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing" style={{ touchAction: 'none', boxShadow: `inset 0 0 0 3px ${GREEN}` }}
                             onPointerDown={(e) => {
@@ -250,43 +279,30 @@ export default function DriverProfile(p: DriverProfileProps) {
                             onPointerUp={() => { drag.current = null }}
                             onPointerCancel={() => { drag.current = null }}
                         >
-                            <span className="absolute left-1/2 -translate-x-1/2 top-3 h-7 px-3 rounded-full text-[11px] font-black text-white flex items-center gap-1.5 shadow pointer-events-none" style={{ background: 'rgba(0,0,0,0.6)' }}><Move size={13} /> Arraste a foto para enquadrar</span>
+                            <span className="absolute left-1/2 -translate-x-1/2 top-3 h-8 px-3 rounded-full text-[11.5px] font-black text-white flex items-center gap-1.5 shadow pointer-events-none whitespace-nowrap" style={{ background: 'rgba(0,0,0,0.6)' }}><Move size={13} /> Arraste a foto para enquadrar</span>
                             <div className="absolute right-3 bottom-3 flex gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
-                                <button onClick={() => { setFraming(false); setPos(null) }} className="h-9 px-3.5 rounded-full text-[12px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>Cancelar</button>
-                                <button onClick={saveFraming} disabled={savingPos} className="h-9 px-3.5 rounded-full text-[12px] font-black text-white shadow disabled:opacity-60" style={{ background: GREEN }}>{savingPos ? 'Salvando…' : 'Salvar'}</button>
+                                <button onClick={() => { setFraming(false); setPos(null) }} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>Cancelar</button>
+                                <button onClick={saveFraming} disabled={savingPos} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white shadow disabled:opacity-60" style={{ background: GREEN }}>{savingPos ? 'Salvando…' : 'Salvar'}</button>
                             </div>
                         </div>
                     )}
                 </div>
-                <div className="px-4 pb-4 -mt-11 relative">
-                    {/* a foto da pessoa no centro, em cima do nome (entra um pouco no mapa / na foto do veículo) */}
-                    <div className="flex flex-col items-center text-center">
-                        <div className="rounded-full p-1" style={{ background: colors.surface }}>{p.avatarSlot}</div>
-                        <h1 className="mt-1 text-[21px] font-black leading-tight" style={{ color: colors.textPrimary }}>{p.name}</h1>
-                        <div className="flex items-center justify-center gap-2 mt-0.5">
-                            <span className="text-[12px]" style={{ color: colors.textSecondary }}>@{p.slug}</span>
-                            {p.levelSlot}
+
+                {/* o 1/3 de baixo, compacto */}
+                <div className="px-4 pb-4 pt-1 flex flex-col gap-2.5">
+                    {/* o que o CARRO tem (moto e bicicleta não têm ar, Wi-Fi, carregador...: os ícones ficariam todos riscados) */}
+                    {vehicle && kind === 'carro' && <CarAmenities services={vehicle.services} seats={vehicle.seats} babySeat={vehicle.babySeat} compact />}
+                    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[12.5px]" style={{ color: colors.textSecondary }}>
+                        <span className="flex items-center gap-1"><Star size={14} className="fill-amber-400 text-amber-400" /><b style={{ color: colors.textPrimary }}>{stats?.rating != null ? stats.rating.toFixed(1).replace('.', ',') : 'Novo'}</b>{stats && stats.ratingCount > 0 ? <span>({stats.ratingCount})</span> : null}</span>
+                        <span className="flex items-center gap-1"><Route size={14} style={{ color: GREEN }} /><b style={{ color: colors.textPrimary }}>{stats?.rides ?? 0}</b> {(stats?.rides ?? 0) === 1 ? 'corrida' : 'corridas'}</span>
+                        {monthYear(stats?.since ?? null) && <span className="flex items-center gap-1"><Calendar size={14} style={{ color: GREEN }} />desde <b style={{ color: colors.textPrimary }}>{monthYear(stats?.since ?? null)}</b></span>}
+                    </div>
+                    {p.isOwner ? (
+                        <div className="flex items-center gap-2">
+                            <button onClick={p.onEdit} className="flex-1 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ background: soft, color: colors.textPrimary }}><Pencil size={14} /> Editar perfil</button>
                         </div>
-                        {p.isOwner && (
-                            <button onClick={p.onEdit} className="mt-2 h-9 px-3.5 rounded-full text-[12px] font-black flex items-center gap-1.5" style={{ background: soft, color: colors.textPrimary }}><Pencil size={13} /> Editar perfil</button>
-                        )}
-                    </div>
-                    {/* o que o veículo tem, em ícones, no centro, em cima dos números */}
-                    {vehicle && <div className="mt-3 flex justify-center"><CarAmenities services={vehicle.services} seats={kind === 'carro' ? vehicle.seats : null} babySeat={kind === 'carro' ? vehicle.babySeat : null} compact /></div>}
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                        {[
-                            { icon: <Star size={14} className="fill-amber-400 text-amber-400" />, value: stats?.rating != null ? stats.rating.toFixed(1).replace('.', ',') : 'Novo', label: stats && stats.ratingCount > 0 ? `${stats.ratingCount} ${stats.ratingCount === 1 ? 'avaliação' : 'avaliações'}` : 'sem avaliações' },
-                            { icon: <Route size={14} style={{ color: GREEN }} />, value: String(stats?.rides ?? 0), label: (stats?.rides ?? 0) === 1 ? 'corrida' : 'corridas' },
-                            { icon: <Calendar size={14} style={{ color: GREEN }} />, value: monthYear(stats?.since ?? null) || '—', label: 'no iUser' },
-                        ].map((x, i) => (
-                            <div key={i} className="rounded-2xl px-2.5 py-2" style={{ background: soft }}>
-                                <span className="flex items-center gap-1 text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{x.icon}<span className="truncate">{x.value}</span></span>
-                                <span className="block text-[10.5px] leading-tight mt-0.5 truncate" style={{ color: colors.textSecondary }}>{x.label}</span>
-                            </div>
-                        ))}
-                    </div>
-                    {p.socialSlot && <div className="mt-3">{p.socialSlot}</div>}
-                    {p.ownerTypeSlot && <div className="mt-3">{p.ownerTypeSlot}</div>}
+                    ) : p.socialSlot}
+                    {p.ownerTypeSlot}
                 </div>
             </section>
 
@@ -441,7 +457,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                                 <span className="text-[11.5px] flex items-center gap-1" style={{ color: colors.textSecondary }}>{kind === 'carro' ? KIND_LABEL[kind] : <><Users size={12} /> leva 1 pessoa ou 1 objeto</>}</span>
                             </span>
                         </div>
-                        <CarAmenities services={vehicle.services} seats={kind === 'carro' ? vehicle.seats : null} babySeat={kind === 'carro' ? vehicle.babySeat : null} />
+                        {kind === 'carro' && <CarAmenities services={vehicle.services} seats={vehicle.seats} babySeat={vehicle.babySeat} />}
                     </div>
                 </section>
             )}

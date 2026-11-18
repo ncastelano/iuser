@@ -1665,6 +1665,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         isOwner={isOwner}
                         loggedIn={!!currentUserId}
                         onEdit={() => setShowEditDialog(true)}
+                        onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
                         ownerTypeSlot={isOwner ? ownerTypeNode : undefined}
                         viewerId={currentUserId || null}
                         chatEnabled={!!owner.chat_enabled}

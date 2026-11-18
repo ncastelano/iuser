@@ -41,6 +41,8 @@ export default function OwnerClientPage() {
 
     const [loading, setLoading] = useState(true)
     const [ownerType, setOwnerType] = useState<OwnerType | null>(null)
+    // perfil de MOTORISTA: o voltar mora dentro da imagem da página do motorista (o do cabeçalho deixava um espaço vazio em cima)
+    const [ownerIsDriver, setOwnerIsDriver] = useState(false)
     const [, setOwnerId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [loadFailed, setLoadFailed] = useState(false)
@@ -124,6 +126,7 @@ export default function OwnerClientPage() {
                 }
 
                 setOwnerType(result.type)
+                setOwnerIsDriver('driver' in result && !!result.driver)
                 rememberOwnerType(ownerSlug, 'driver' in result && result.driver ? 'driver' : result.type)
                 setOwnerId(result.id)
                 setReferralOwnerProfileId(result.ownerProfileId)
@@ -220,8 +223,8 @@ export default function OwnerClientPage() {
             <main className="relative z-10 min-h-dvh pb-28" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
-                    // na página de uma loja o voltar fica na mesma linha do logo e do nome, dentro do cabeçalho da loja
-                    showBack={!(ownerType === 'store' && !showPublications)}
+                    // na página de uma loja o voltar fica na mesma linha do logo e do nome, dentro do cabeçalho da loja; no perfil de motorista, dentro da imagem
+                    showBack={!(ownerType === 'store' && !showPublications) && !(ownerType === 'profile' && ownerIsDriver && !showPublications)}
                     onBack={showPublications ? closePublications : () => (window.history.length > 1 ? router.back() : router.push('/'))}
                     tabs={[]}
                     showSearch={false}
