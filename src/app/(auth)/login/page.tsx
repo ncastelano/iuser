@@ -5,6 +5,7 @@ import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { Spinner } from '@/components/Spinner'
+import { safeInternalPath } from '@/lib/safeRedirect'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,7 @@ function LoginPageContent() {
   const searchParams = useSearchParams()
 
   const handleLoginSuccess = () => {
-    const redirectTo = searchParams.get('redirect') || '/'
+    const redirectTo = safeInternalPath(searchParams.get('redirect'))
     router.push(redirectTo)
   }
 

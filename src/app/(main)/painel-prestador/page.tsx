@@ -13,13 +13,15 @@ import { toast } from '@/lib/toast'
 import { Briefcase } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useActivePlans } from '@/hooks/useActivePlans'
+import { safeInternalPath } from '@/lib/safeRedirect'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 function PainelPrestadorContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const nextUrl = searchParams.get('next')
+    const nextRaw = searchParams.get('next')
+    const nextUrl = nextRaw ? safeInternalPath(nextRaw, '') || null : null
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
     const { hasProvider } = useActivePlans(userId)

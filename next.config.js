@@ -48,6 +48,29 @@ const nextConfig = {
 
   env: { NEXT_PUBLIC_IMAGE_BASE: imageBase },
 
+  // CABEÇALHOS DE SEGURANÇA (18/11/2026, revisão antes de comercializar). Só no build de produção/preview: o /tres-telas local
+  // abre o app em molduras de outros subdomínios (*.tela.localhost), que o frame-ancestors recusaria.
+  //  - X-Frame-Options + frame-ancestors: nenhum outro site abre o iUser numa moldura (clickjacking: botão invisível por cima);
+  //  - HSTS: o navegador só fala com o iUser por https (sem "rebaixar" para http numa rede pública);
+  //  - nosniff: arquivo enviado não é interpretado como outro tipo (ex.: imagem virando script);
+  //  - Referrer-Policy: o endereço completo (com ?códigos) não vaza para outros sites;
+  //  - Permissions-Policy: câmera, microfone e localização só para o próprio iUser.
+  // NÃO há CSP completa de scripts (Mapbox, Supabase, Firebase, pdf.js...): fazer com calma, em modo "report-only" antes.
+  async headers() {
+    if (process.env.NODE_ENV !== 'production') return []
+    return [{
+      source: '/:path*',
+      headers: [
+        { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+        { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+        { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), interest-cohort=()' },
+      ],
+    }]
+  },
+
   images: {
     ...(localSupabase ? { dangerouslyAllowLocalIP: true } : {}),
     remotePatterns: [

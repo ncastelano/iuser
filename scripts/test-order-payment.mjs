@@ -44,3 +44,7 @@ test('lê a resposta do banco', () => {
     assert.equal(p.pixKey, 'k')
     assert.equal(parseOrderPayment(null), null)
 })
+test('pedido retido (esperando entregador): held vem do banco e só é true se o banco disser', () => {
+    assert.equal(parseOrderPayment({ role: 'buyer', method: 'pix', status: 'awaiting', amount: 50, held: true }).held, true)
+    assert.equal(parseOrderPayment({ role: 'buyer', method: 'pix', status: 'awaiting', amount: 50 }).held, false)
+})

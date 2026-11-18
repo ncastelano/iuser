@@ -733,7 +733,7 @@ def pay_orders(speed=1.0):
     """PAGAMENTO direto à loja (migration ...74): o cliente que pediu por Pix paga e toca "Já paguei"; a loja confere e confirma (se o simulador atende a loja)."""
     sc = max(CFG.get('scale', 1), 1)
     for p in q_local(f"""select p.order_id, o.buyer_id from order_payments p join orders o on o.id = p.order_id where p.store_id = {esc(STORE['id'])}::uuid and p.status = 'awaiting'
-        and p.method in ('pix', 'link_cartao') and o.status <> 'rejected' and o.created_at > now() - interval '1 day' and o.created_at < now() - make_interval(secs => {R.uniform(10, 40) / sc}) limit 10"""):
+        and p.method in ('pix', 'link_cartao') and o.status <> 'rejected' and coalesce(o.store_visible, true) and o.created_at > now() - interval '1 day' and o.created_at < now() - make_interval(secs => {R.uniform(10, 40) / sc}) limit 10"""):
         try:
             as_user(p['buyer_id'], f"select report_order_paid({esc(p['order_id'])}::uuid);")
             log("  💳 cliente pagou o pedido direto à loja (Pix) e avisou")
@@ -741,7 +741,7 @@ def pay_orders(speed=1.0):
             log(f"  ✗ pagar: {str(e).splitlines()[0][:100]}")
     if CFG.get('manual'):
         return
-    for p in q_local(f"select order_id from order_payments where store_id = {esc(STORE['id'])}::uuid and status = 'reported' and reported_at < now() - make_interval(secs => {R.uniform(8, 30) / sc}) limit 10"):
+    for p in q_local(f"select p.order_id from order_payments p join orders o on o.id = p.order_id where p.store_id = {esc(STORE['id'])}::uuid and p.status = 'reported' and coalesce(o.store_visible, true) and reported_at < now() - make_interval(secs => {R.uniform(8, 30) / sc}) limit 10"):
         try:
             as_user(STORE['owner_id'], f"select confirm_order_payment({esc(p['order_id'])}::uuid, true);")
             log("  ✅ a loja confirmou o pagamento")

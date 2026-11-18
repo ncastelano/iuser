@@ -38,6 +38,8 @@ import ProfileQuoteCard from '@/components/driver/ProfileQuoteCard'
 import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
+import { safeInternalPath } from '@/lib/safeRedirect'
+
 const ORANGE_V3 = '#f97316'
 
 function formatDate(iso: string): string {
@@ -78,7 +80,8 @@ function isVehicleRowComplete(v: VehicleRow | null | undefined, admin: boolean):
 function PainelMotoristaContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const nextUrl = searchParams.get('next')
+    const nextRaw = searchParams.get('next')
+    const nextUrl = nextRaw ? safeInternalPath(nextRaw, '') || null : null
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
     const { hasDriver } = useActivePlans(userId)

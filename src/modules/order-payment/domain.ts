@@ -19,6 +19,8 @@ export interface OrderPayment {
     cardLink: string | null
     reportedAt: string | null
     confirmedAt: string | null
+    /** pedido retido esperando um entregador aceitar: a loja ainda não recebeu, então ainda não se paga (migration 080) */
+    held: boolean
 }
 
 export const brl = (n: number | null | undefined) => `R$ ${Number(n ?? 0).toFixed(2).replace('.', ',')}`
@@ -30,7 +32,7 @@ export function parseOrderPayment(raw: unknown): OrderPayment | null {
     return {
         role: r.role, method: r.method ?? null, paymentMethod: r.payment_method ?? null, status: r.status ?? null, amount: Number(r.amount) || 0,
         storeName: r.store_name || 'a loja', txid: r.txid ?? null, pixKey: r.pix_key ?? null, pixKeyType: r.pix_key_type ?? null, cardLink: r.card_link ?? null,
-        reportedAt: r.reported_at ?? null, confirmedAt: r.confirmed_at ?? null,
+        reportedAt: r.reported_at ?? null, confirmedAt: r.confirmed_at ?? null, held: r.held === true,
     }
 }
 

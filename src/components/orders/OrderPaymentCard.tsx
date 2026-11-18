@@ -58,6 +58,12 @@ export default function OrderPaymentCard({ orderId, finished = false, paymentMet
             </div>
         )
     }
+    // pedido retido (esperando um entregador aceitar): ainda não se paga — se ninguém aceitar, ele é cancelado e não há o que devolver
+    if (p.held && p.role === 'buyer' && !finished && p.status !== 'confirmed' && p.status !== 'reported') return (
+        <div className="mx-3.5 mt-3 rounded-2xl px-3 py-2.5 text-[12px] font-bold flex items-start gap-2" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+            <Hourglass size={15} className="flex-shrink-0 mt-px" /> Pague depois: o Pix da loja aparece aqui assim que um entregador aceitar e a loja receber o pedido.
+        </div>
+    )
     const st = paymentStatusText(p)
     if (!st || (finished && p.status === 'confirmed')) return null
     const color = TONE[st.tone]
