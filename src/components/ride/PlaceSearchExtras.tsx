@@ -74,7 +74,8 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, vehicleK
     recents: PlacePick[]
     locating: boolean
     onUseMyLocation: () => void
-    onPickOnMap: () => void
+    /** sem ele, o atalho "Marcar no mapa" não aparece (ex.: a página de chamar um motorista) */
+    onPickOnMap?: () => void
     onPick: (p: PlacePick) => void
 }) {
     const { colors } = useTheme()
@@ -166,13 +167,15 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, vehicleK
     return (
         <div className="pb-6">
             {/* atalhos */}
-            <div className="grid grid-cols-2 gap-2 px-4 pt-3">
+            <div className={`grid ${onPickOnMap ? 'grid-cols-2' : 'grid-cols-1'} gap-2 px-4 pt-3`}>
                 <button type="button" onClick={onUseMyLocation} className="h-11 rounded-2xl flex items-center justify-center gap-2 text-[13px] font-black active:scale-95 transition" style={{ background: '#22c55e1a', color: '#16a34a' }}>
                     {locating ? <Spinner size={15} /> : <Crosshair size={16} />}Minha localização
                 </button>
-                <button type="button" onClick={onPickOnMap} className="h-11 rounded-2xl flex items-center justify-center gap-2 text-[13px] font-black active:scale-95 transition" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
-                    <MapIcon size={16} />Marcar no mapa
-                </button>
+                {onPickOnMap && (
+                    <button type="button" onClick={onPickOnMap} className="h-11 rounded-2xl flex items-center justify-center gap-2 text-[13px] font-black active:scale-95 transition" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                        <MapIcon size={16} />Marcar no mapa
+                    </button>
+                )}
             </div>
 
             {recentList.length > 0 && (

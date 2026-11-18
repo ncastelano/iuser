@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { ArrowLeft, Bike, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
+import { ArrowLeft, Bike, Eye, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -29,7 +29,7 @@ import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { platformFloor } from '@/modules/negotiation'
-import { etaFromViewer, etaText, parseQuote, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote, type QuoteMode } from '@/modules/driver-profile'
+import { etaFromViewer, etaText, parseQuote, quoteModeClientLabel, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote, type QuoteMode } from '@/modules/driver-profile'
 import { loadMyLocation } from '@/lib/myLocation'
 import { getCurrentPosition } from '@/lib/nativeGeolocation'
 import { isGeoPermissionGranted } from '@/components/AceitarCorridas/LocationAskDialog'
@@ -39,6 +39,8 @@ import DriverSkeleton from '@/components/v3/DriverSkeleton'
 
 const GREEN = '#16a34a'
 const GREEN_DARK = '#15803d'
+const ORANGE = '#f97316'
+const ORANGE_DARK = '#ea580c'
 const KIND_LABEL = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' } as const
 type Kind = keyof typeof KIND_LABEL
 
@@ -134,6 +136,9 @@ export default function DriverProfile(p: DriverProfileProps) {
     const drag = useRef<{ px: number; py: number; x: number; y: number; w: number; h: number } | null>(null)
     // onde está quem vê a página: o GPS (só se o navegador já deixou, sem perguntar) ou o local salvo; sem nenhum, não mostra o tempo
     const [viewerPos, setViewerPos] = useState<{ lat: number; lng: number } | null>(null)
+    // VER PERFIL (17/11/2026, decisão do dono): o dono vê a própria página como o CLIENTE vê (sem os botões de dono); "Voltar" sai do modo
+    const [asClient, setAsClient] = useState(false)
+    const owner = p.isOwner && !asClient
 
     useEffect(() => {
         let alive = true
@@ -171,7 +176,7 @@ export default function DriverProfile(p: DriverProfileProps) {
         }, () => { setLocStatus('denied'); onFail?.() }, { timeout: 10000, maximumAge: 120000 })
     }
     useEffect(() => {
-        if (p.isOwner || quote === null) return
+        if (owner || quote === null) return
         let alive = true
         void (async () => {
             const saved = await loadMyLocation(supabase, p.viewerId).catch(() => null)
@@ -184,7 +189,7 @@ export default function DriverProfile(p: DriverProfileProps) {
         })()
         return () => { alive = false }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [quote === null, p.isOwner, p.viewerId])
+    }, [quote === null, owner, p.viewerId])
     const dismissAsk = () => { setAskLoc(false); setLocStatus('idle'); try { sessionStorage.setItem(askKey, '1') } catch { /* só esta vez */ } }
 
     const kind: Kind = vehicle?.kind || 'carro'
@@ -226,20 +231,21 @@ export default function DriverProfile(p: DriverProfileProps) {
         toast.success('Foto enquadrada')
     }
 
-    const cta = p.isOwner
-        ? { label: 'Editar a minha tarifa', sub: quote ? `O botão do seu perfil usa: ${quoteModeLabel(quote.mode)}` : 'Escolha como o seu perfil cobra', onClick: () => router.push('/canal-do-motorista?aba=plano') }
+    const cta = owner
+        ? { label: 'Editar a minha tarifa', sub: quote ? `O botão do seu perfil usa: ${quoteModeLabel(quote.mode)}` : 'Escolha como o seu perfil cobra', price: fromPrice, onClick: () => router.push('/canal-do-motorista?aba=plano') }
         : vehicle
             ? {
                 label: 'Solicitar corrida',
-                sub: [eta ? `chega em ~${eta.minutes} min` : null, quote ? quoteModeLabel(quote.mode) : null, fromPrice != null ? `a partir de ${brl(fromPrice)}` : null].filter(Boolean).join(' · ') || 'O aviso chega na hora',
+                sub: [eta ? `chega em ~${eta.minutes} min` : null, quote ? quoteModeClientLabel(quote.mode) : null].filter(Boolean).join(' · ') || 'O aviso chega na hora',
+                price: fromPrice,
                 onClick: () => {
-                    // com a posição de quem pede, o pedido já abre com a PARTIDA preenchida (aqui): o valor sai na hora, falta só a chegada
-                    const qs = new URLSearchParams({ motorista: p.driverId })
+                    // a página de CHAMAR ESTE motorista (/chamar/<@>): com a posição de quem pede, a PARTIDA já vai preenchida e falta só a chegada
+                    const qs = new URLSearchParams()
                     if (viewerPos) {
                         qs.set('origem', viewerSource === 'saved' && savedPlace?.address ? savedPlace.address : 'Minha localização')
                         qs.set('origem_lat', String(viewerPos.lat)); qs.set('origem_lng', String(viewerPos.lng))
                     }
-                    router.push(`/pedir-motorista?${qs.toString()}`)
+                    router.push(`/chamar/${encodeURIComponent(p.slug)}${qs.toString() ? `?${qs}` : ''}`)
                 },
             }
             : null
@@ -247,8 +253,19 @@ export default function DriverProfile(p: DriverProfileProps) {
     if (quote === null || vehicle === undefined || stats === null) return <DriverSkeleton />
 
     return (
-        <div className="pb-10">
-            {askLoc && !p.isOwner && typeof document !== 'undefined' && createPortal(
+        <div className={`pb-10 ${asClient ? '[&_[data-owner-only]]:hidden' : ''}`}>
+            {/* VER PERFIL: o aviso de que é a visão do cliente, com a volta */}
+            {asClient && typeof document !== 'undefined' && createPortal(
+                <div className="fixed left-0 right-0 z-[60] flex justify-center px-4" style={{ bottom: 'calc(14px + env(safe-area-inset-bottom, 0px) + var(--shell-bottom, 0px) + var(--staging-banner-h, 0px))' }}>
+                    <div className="w-full max-w-md rounded-full pl-4 pr-1.5 py-1.5 flex items-center gap-2 text-white" style={{ background: '#111827', boxShadow: '0 12px 30px -10px rgba(0,0,0,0.6)' }}>
+                        <Eye size={16} className="flex-shrink-0" style={{ color: ORANGE }} />
+                        <span className="min-w-0 flex-1 text-[12.5px] font-bold leading-tight">Você está vendo como o <b>cliente</b> vê</span>
+                        <button onClick={() => setAsClient(false)} className="h-9 px-4 rounded-full text-[12.5px] font-black flex-shrink-0" style={{ background: ORANGE }}>Voltar</button>
+                    </div>
+                </div>,
+                document.body,
+            )}
+            {askLoc && !owner && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 z-[96] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={dismissAsk}>
                     <div className="w-full max-w-md rounded-t-[28px] p-5 pb-7 flex flex-col gap-3" style={{ background: colors.background, paddingBottom: 'calc(28px + env(safe-area-inset-bottom, 0px))' }} onClick={(e) => e.stopPropagation()}>
                         <span className="w-12 h-12 rounded-2xl flex items-center justify-center text-white" style={{ background: GREEN }}>{locStatus === 'asking' ? <Navigation size={22} className="animate-pulse" /> : <MapPin size={22} />}</span>
@@ -299,7 +316,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                         <span className={`w-1.5 h-1.5 rounded-full bg-white ${active ? 'animate-pulse' : 'opacity-60'}`} />{active ? 'Dirigindo agora' : 'Fora do ar agora'}
                     </span>
                     {/* o dono enquadra a foto: o ícone de mover, logo abaixo da situação */}
-                    {p.isOwner && !quote?.live && vehicle?.photo && !framing && (
+                    {owner && !quote?.live && vehicle?.photo && !framing && (
                         <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setFraming(true) }} aria-label="Enquadrar a foto do veículo" className="absolute right-3 top-14 z-10 w-9 h-9 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
                             <Move size={17} />
                         </button>
@@ -358,24 +375,39 @@ export default function DriverProfile(p: DriverProfileProps) {
                         <span className="flex items-center gap-1"><Route size={14} style={{ color: GREEN }} /><b style={{ color: colors.textPrimary }}>{stats?.rides ?? 0}</b> {(stats?.rides ?? 0) === 1 ? 'corrida' : 'corridas'}</span>
                         {monthYear(stats?.since ?? null) && <span className="flex items-center gap-1"><Calendar size={14} style={{ color: GREEN }} />desde <b style={{ color: colors.textPrimary }}>{monthYear(stats?.since ?? null)}</b></span>}
                     </div>
-                    {p.isOwner ? (
+                    {owner ? (
                         <div className="flex items-center gap-2">
                             <button onClick={p.onEdit} className="flex-1 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ background: soft, color: colors.textPrimary }}><Pencil size={14} /> Editar perfil</button>
+                            <button onClick={() => { setAsClient(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className="flex-1 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={{ background: `${ORANGE}1a`, color: ORANGE_DARK }}><Eye size={14} /> Ver perfil</button>
+                        </div>
+                    ) : asClient ? (
+                        <div className="flex items-center gap-2">
+                            {['Seguir', 'Conversar'].map((l) => (
+                                <button key={l} onClick={() => toast.message('É assim que o cliente vê este botão. Você não pode usar no próprio perfil.')} className="flex-1 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5" style={l === 'Seguir' ? { background: GREEN, color: '#fff' } : { background: soft, color: colors.textPrimary }}>
+                                    {l === 'Conversar' && <MessageCircle size={14} />}{l}
+                                </button>
+                            ))}
                         </div>
                     ) : p.socialSlot}
-                    {p.ownerTypeSlot}
+                    {owner && p.ownerTypeSlot}
                 </div>
             </section>
 
             {/* ===== 2. UM botão só: Solicitar corrida (o dono: Editar a minha tarifa) ===== */}
             {cta && (
-                <button onClick={cta.onClick} className="mt-4 w-full h-[62px] rounded-[22px] px-4 flex items-center gap-3 text-left text-white transition active:scale-[0.99]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})`, boxShadow: `0 12px 28px -12px ${GREEN}` }}>
-                    <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>{p.isOwner ? <Pencil size={18} /> : <Icon size={20} />}</span>
+                <button onClick={cta.onClick} className="mt-4 w-full min-h-[66px] rounded-[22px] pl-4 pr-2.5 py-2.5 flex items-center gap-3 text-left text-white transition active:scale-[0.99]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})`, boxShadow: `0 12px 28px -12px ${GREEN}` }}>
+                    <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>{owner ? <Pencil size={18} /> : <Icon size={20} />}</span>
                     <span className="min-w-0 flex-1">
                         <span className="block text-[16px] font-black leading-tight">{cta.label}</span>
                         <span className="block text-[12px] font-bold leading-tight opacity-90 truncate">{cta.sub}</span>
                     </span>
-                    <ChevronRight size={20} className="flex-shrink-0" />
+                    {/* o VALOR em destaque, no laranja do iUser (decisão do dono, 17/11/2026) */}
+                    {cta.price != null ? (
+                        <span className="flex-shrink-0 rounded-2xl px-3 py-1.5 flex flex-col items-end leading-none" style={{ background: '#fff', boxShadow: `0 6px 16px -8px ${ORANGE_DARK}` }}>
+                            <span className="text-[9.5px] font-black uppercase tracking-wide" style={{ color: ORANGE_DARK }}>a partir de</span>
+                            <span className="mt-0.5 text-[19px] font-black tracking-tight" style={{ color: ORANGE }}>{brl(cta.price)}</span>
+                        </span>
+                    ) : <ChevronRight size={20} className="flex-shrink-0" />}
                 </button>
             )}
 
@@ -443,7 +475,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                 )}
 
                 {tab === 'servicos' && (
-                    p.services.length > 0 || (p.allowScheduling && !p.isOwner) ? (
+                    p.services.length > 0 || (p.allowScheduling && !owner) ? (
 <section>
                     <p className="text-[12px]" style={{ color: colors.textSecondary }}>{p.allowScheduling ? 'Converse sobre o serviço ou marque um horário: o agendamento entra na agenda dele e na sua.' : 'Converse sobre o serviço para combinar.'}</p>
                     <div className="mt-2.5 flex flex-col gap-2.5">
@@ -459,7 +491,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                                         {sv.description && <span className="block text-[11.5px] leading-snug line-clamp-2 mt-0.5" style={{ color: colors.textSecondary }}>{sv.description}</span>}
                                     </span>
                                 </div>
-                                {!p.isOwner && (
+                                {!owner && (
                                     <div className="flex gap-2">
                                         {p.chatEnabled
                                             ? <div className="flex-1 min-w-0 flex"><ChatContactButton productId={sv.id} colors={colors} variant="v3quiet" label="Conversar" /></div>
@@ -471,7 +503,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                                 )}
                             </article>
                         ))}
-                        {p.allowScheduling && !p.isOwner && p.services.length === 0 && (
+                        {p.allowScheduling && !owner && p.services.length === 0 && (
                             <button onClick={() => p.onSchedule(null)} className="h-11 rounded-full text-[13px] font-black text-white flex items-center justify-center gap-1.5" style={{ background: GREEN }}><CalendarCheck size={16} /> Marcar um horário</button>
                         )}
                     </div>
@@ -479,9 +511,9 @@ export default function DriverProfile(p: DriverProfileProps) {
                     ) : (
                         <div className="rounded-3xl p-5 text-center" style={{ background: soft }}>
                             <Wrench size={22} className="mx-auto" style={{ color: GREEN }} />
-                            <p className="mt-2 text-[13px] font-black" style={{ color: colors.textPrimary }}>{p.isOwner ? 'Você ainda não publicou serviços' : 'Sem serviços publicados'}</p>
-                            <p className="mt-0.5 text-[12px]" style={{ color: colors.textSecondary }}>{p.isOwner ? 'Transfer, motorista por hora, frete... publique e ligue a agenda para marcarem horário com você.' : 'Por enquanto, peça a corrida pelo botão acima.'}</p>
-                            {p.isOwner && <button onClick={() => router.push('/meus-servicos')} className="mt-3 h-10 px-5 rounded-full text-[12.5px] font-black text-white" style={{ background: GREEN }}>Publicar serviço</button>}
+                            <p className="mt-2 text-[13px] font-black" style={{ color: colors.textPrimary }}>{owner ? 'Você ainda não publicou serviços' : 'Sem serviços publicados'}</p>
+                            <p className="mt-0.5 text-[12px]" style={{ color: colors.textSecondary }}>{owner ? 'Transfer, motorista por hora, frete... publique e ligue a agenda para marcarem horário com você.' : 'Por enquanto, peça a corrida pelo botão acima.'}</p>
+                            {owner && <button onClick={() => router.push('/meus-servicos')} className="mt-3 h-10 px-5 rounded-full text-[12.5px] font-black text-white" style={{ background: GREEN }}>Publicar serviço</button>}
                         </div>
                     )
                 )}

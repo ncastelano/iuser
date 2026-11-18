@@ -1510,6 +1510,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             <>
                                 <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />
                                 <button
+                                    data-owner-only
+                                    aria-label="Trocar a foto"
                                     onClick={handleAvatarButtonClick}
                                     className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110"
                                     style={{ background: GRADIENT, color: '#fff' }}

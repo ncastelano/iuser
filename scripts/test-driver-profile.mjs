@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { parseQuote, quoteExamples, quotePrice, quoteRule, quoteTimeRate } from '../src/modules/driver-profile/domain.ts'
+import { parseQuote, quoteModeClientLabel, quoteExamples, quotePrice, quoteRule, quoteTimeRate } from '../src/modules/driver-profile/domain.ts'
 
 const shape = { baseFee: 10, baseDistanceKm: 2, pricePerKmAfterBase: 3 }
 
@@ -51,4 +51,10 @@ test('tempo até quem vê a página: só com as duas posições', async () => {
     assert.equal(etaText({ km: 0.4, minutes: 1 }), 'Pertinho de você · 0,4 km')
     assert.equal(etaText({ km: 50, minutes: 100 }), 'Cerca de 1 h 40 min de você · 50 km')
     assert.equal(etaFromViewer({ lat: -8.76, lng: -63.9 }, { lat: -23.5, lng: -46.6 }), null)   // outra cidade
+})
+
+test('quem pede vê o nome do jeito de cobrar sem o "Minha" do motorista', () => {
+    assert.equal(quoteModeClientLabel('km'), 'Tarifa por km')
+    assert.equal(quoteModeClientLabel('time'), 'Tarifa por tempo')
+    assert.equal(quoteModeClientLabel('platform'), 'Tarifa iUser')
 })
