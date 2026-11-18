@@ -56,7 +56,8 @@ import { defaultProfileTab, parseProfileType, profileMainAction, profileTabOrder
 import { useDriverVehicle } from '@/components/profile/ProfileDriverCard'
 import DriverProfile from '@/components/profile/DriverProfile'
 import { Spinner } from '@/components/Spinner'
-import ProfileSkeleton from '@/components/v3/ProfileSkeleton'
+import OwnerSkeleton, { rememberOwnerType } from '@/components/v3/OwnerSkeleton'
+import DriverSkeleton from '@/components/v3/DriverSkeleton'
 import ProfileScheduleModal from '@/components/ProfileScheduleModal'
 import { toast } from '@/lib/toast'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -292,6 +293,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     // tipo do perfil (pessoal, servicos, agendamentos, motorista) e, no de motorista, o veículo com a tarifa dele
     const ptype = parseProfileType(owner?.profile_type)
     const driverVehicle = useDriverVehicle(ptype === 'motorista' ? owner?.id : null)
+    // lembra neste aparelho se este endereço abre a página do motorista (o esqueleto da próxima visita já tem a forma certa)
+    useEffect(() => {
+        if (!owner?.slug || (ptype === 'motorista' && driverVehicle === undefined)) return
+        rememberOwnerType(owner.slug, ptype === 'motorista' && driverVehicle ? 'driver' : 'profile')
+    }, [owner?.slug, ptype, driverVehicle])
     const [mounted, setMounted] = useState(false)
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 100
@@ -1415,7 +1421,10 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     }
 
     // ========== RENDER ==========
-    if (loading) return <ProfileSkeleton />
+    if (loading) return <OwnerSkeleton />
+
+    // perfil de motorista com o veículo ainda chegando: o esqueleto do motorista (antes aparecia por um instante o cabeçalho do perfil comum)
+    if (owner && !error && ptype === 'motorista' && driverVehicle === undefined) return <DriverSkeleton standalone />
 
     if (error || !owner) {
         return (
@@ -1501,6 +1510,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             <>
                                 <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />
                                 <button
+                                    data-owner-only
+                                    aria-label="Trocar a foto"
                                     onClick={handleAvatarButtonClick}
                                     className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110"
                                     style={{ background: GRADIENT, color: '#fff' }}
@@ -1618,7 +1629,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     )
 
     return (
-        <div className="w-full px-4 md:px-6 py-4 md:max-w-3xl md:mx-auto flex flex-col gap-4">
+        // a página do motorista começa colada no topo (o voltar mora dentro da imagem): sem o respiro de cima do perfil comum
+        <div className={`w-full px-4 md:px-6 ${driverPage ? 'pt-0 pb-4' : 'py-4'} md:max-w-3xl md:mx-auto flex flex-col gap-4`}>
             <style jsx global>{`
                 @keyframes pulse-glow {
                     0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
@@ -1656,6 +1668,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         isOwner={isOwner}
                         loggedIn={!!currentUserId}
                         onEdit={() => setShowEditDialog(true)}
+                        onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
                         ownerTypeSlot={isOwner ? ownerTypeNode : undefined}
                         viewerId={currentUserId || null}
                         chatEnabled={!!owner.chat_enabled}

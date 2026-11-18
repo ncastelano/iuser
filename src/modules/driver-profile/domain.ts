@@ -28,6 +28,8 @@ export const QUOTE_MODES: { id: QuoteMode; title: string; desc: string }[] = [
 ]
 
 export const quoteModeLabel = (m: QuoteMode): string => QUOTE_MODES.find((x) => x.id === m)!.title
+/** O nome do jeito de cobrar visto por quem PEDE a corrida ("Minha tarifa…" é a fala do motorista) */
+export const quoteModeClientLabel = (m: QuoteMode): string => (m === 'km' ? 'Tarifa por km' : m === 'time' ? 'Tarifa por tempo' : 'Tarifa iUser')
 
 const ROW_KEYS = ['base_distance_km', 'base_fee', 'price_per_km_after_base', 'price_per_minute', 'extra_fee_pessoa', 'extra_fee_animal', 'extra_fee_objeto', 'extra_fee_condominio', 'extra_fee_compras', 'extra_fee_necessidade_especial', 'extra_fee_pet_sem_caixa', 'extra_fee_entrega_interna', 'extra_fee_ar_condicionado']
 

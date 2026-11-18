@@ -81,6 +81,7 @@ const IGNORED_PREFIXES = [
     '/painel-loja/', // painel de uma loja (iuser.com.br/painel-loja/<storeSlug>) — o 1º segmento não é slug de perfil/loja
     '/veiculo/', // página de um veículo (rota interna; o endereço público é iuser.com.br/<vehicleSlug>)
     '/img/', // proxy de imagens (iuser.com.br/img/<bucket>/<arquivo>) -> Storage do Supabase com cache da Vercel (next.config.js rewrites)
+    '/chamar/', // chamar UM motorista (iuser.com.br/chamar/<@ do motorista>) — o 1º segmento não é slug de perfil/loja
     '/imoveis/', // página de um imóvel (iuser.com.br/imoveis/<slug>) — o 1º segmento não é slug de perfil/loja
 ]
 
