@@ -34,6 +34,7 @@ import { getCurrentPosition } from '@/lib/nativeGeolocation'
 import { isGeoPermissionGranted } from '@/components/AceitarCorridas/LocationAskDialog'
 import ChatContactButton from '@/components/ChatContactButton'
 import CarAmenities from '@/components/ride/CarAmenities'
+import DriverSkeleton from '@/components/v3/DriverSkeleton'
 
 const GREEN = '#16a34a'
 const GREEN_DARK = '#15803d'
@@ -198,27 +199,7 @@ export default function DriverProfile(p: DriverProfileProps) {
             ? { label: 'Solicitar corrida', sub: quote ? `${quoteModeLabel(quote.mode)}${fromPrice != null ? ` · a partir de ${brl(fromPrice)}` : ''}` : 'O aviso chega na hora', onClick: () => router.push(`/pedir-motorista?motorista=${p.driverId}`) }
             : null
 
-    if (quote === null || vehicle === undefined || stats === null) {
-        const sk = { background: `${colors.border}55` }
-        return (
-            <div className="pb-10" aria-busy="true" aria-label="Carregando o perfil do motorista">
-                <section className="rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                    <div className="h-40 animate-pulse" style={sk} />
-                    <div className="px-4 pb-4 -mt-11 flex flex-col items-center">
-                        <div className="w-[92px] h-[92px] rounded-full animate-pulse" style={{ ...sk, boxShadow: `0 0 0 4px ${colors.surface}` }} />
-                        <div className="mt-3 h-5 w-44 rounded-full animate-pulse" style={sk} />
-                        <div className="mt-2 h-3 w-28 rounded-full animate-pulse" style={sk} />
-                        <div className="mt-3 flex gap-1.5">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-5 w-11 rounded-full animate-pulse" style={sk} />)}</div>
-                        <div className="mt-3 w-full grid grid-cols-3 gap-2">{[0, 1, 2].map((i) => <div key={i} className="h-14 rounded-2xl animate-pulse" style={sk} />)}</div>
-                        <div className="mt-3 w-full h-11 rounded-full animate-pulse" style={sk} />
-                    </div>
-                </section>
-                <div className="mt-4 h-[62px] rounded-[22px] animate-pulse" style={sk} />
-                <div className="mt-5 h-12 rounded-[20px] animate-pulse" style={sk} />
-                {[0, 1].map((i) => <div key={i} className="mt-3 h-24 rounded-3xl animate-pulse" style={sk} />)}
-            </div>
-        )
-    }
+    if (quote === null || vehicle === undefined || stats === null) return <DriverSkeleton />
 
     return (
         <div className="pb-10">

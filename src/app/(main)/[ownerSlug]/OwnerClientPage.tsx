@@ -69,12 +69,13 @@ export default function OwnerClientPage() {
         // Tenta encontrar como perfil
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .select('id')
+            .select('id, profile_type')
             .eq('profileSlug', slug)
             .maybeSingle()
 
         if (profile && !profileError) {
-            return { type: 'profile' as OwnerType, id: profile.id, ownerProfileId: profile.id }
+            // o perfil de MOTORISTA tem página própria: guardar isso já aqui faz o esqueleto seguinte ter a forma dela
+            return { type: 'profile' as OwnerType, id: profile.id, ownerProfileId: profile.id, driver: (profile as any).profile_type === 'motorista' }
         }
 
         // Tenta encontrar como loja
@@ -123,7 +124,7 @@ export default function OwnerClientPage() {
                 }
 
                 setOwnerType(result.type)
-                rememberOwnerType(ownerSlug, result.type)
+                rememberOwnerType(ownerSlug, 'driver' in result && result.driver ? 'driver' : result.type)
                 setOwnerId(result.id)
                 setReferralOwnerProfileId(result.ownerProfileId)
             } catch (err: any) {

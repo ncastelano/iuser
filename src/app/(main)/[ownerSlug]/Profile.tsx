@@ -56,7 +56,8 @@ import { defaultProfileTab, parseProfileType, profileMainAction, profileTabOrder
 import { useDriverVehicle } from '@/components/profile/ProfileDriverCard'
 import DriverProfile from '@/components/profile/DriverProfile'
 import { Spinner } from '@/components/Spinner'
-import ProfileSkeleton from '@/components/v3/ProfileSkeleton'
+import OwnerSkeleton, { rememberOwnerType } from '@/components/v3/OwnerSkeleton'
+import DriverSkeleton from '@/components/v3/DriverSkeleton'
 import ProfileScheduleModal from '@/components/ProfileScheduleModal'
 import { toast } from '@/lib/toast'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -292,6 +293,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     // tipo do perfil (pessoal, servicos, agendamentos, motorista) e, no de motorista, o veículo com a tarifa dele
     const ptype = parseProfileType(owner?.profile_type)
     const driverVehicle = useDriverVehicle(ptype === 'motorista' ? owner?.id : null)
+    // lembra neste aparelho se este endereço abre a página do motorista (o esqueleto da próxima visita já tem a forma certa)
+    useEffect(() => {
+        if (!owner?.slug || (ptype === 'motorista' && driverVehicle === undefined)) return
+        rememberOwnerType(owner.slug, ptype === 'motorista' && driverVehicle ? 'driver' : 'profile')
+    }, [owner?.slug, ptype, driverVehicle])
     const [mounted, setMounted] = useState(false)
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 100
@@ -1415,7 +1421,10 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     }
 
     // ========== RENDER ==========
-    if (loading) return <ProfileSkeleton />
+    if (loading) return <OwnerSkeleton />
+
+    // perfil de motorista com o veículo ainda chegando: o esqueleto do motorista (antes aparecia por um instante o cabeçalho do perfil comum)
+    if (owner && !error && ptype === 'motorista' && driverVehicle === undefined) return <DriverSkeleton standalone />
 
     if (error || !owner) {
         return (

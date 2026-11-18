@@ -30,11 +30,12 @@ const photoUrl = (p: string | null) => (p ? (p.startsWith('http') ? p : supabase
 
 /** O veículo principal do motorista (o mexido por último, como no Radar) e a tarifa dele. undefined = carregando; null = sem veículo */
 export function useDriverVehicle(driverId: string | null | undefined): DriverVehicleInfo | null | undefined {
-    const [info, setInfo] = useState<DriverVehicleInfo | null | undefined>(undefined)
+    // a resposta é guardada junto com o motorista a que se refere: enquanto a busca do motorista ATUAL não volta, é "carregando"
+    // (antes o "sem veículo" de antes valia por um quadro e a página desenhava o cabeçalho do perfil comum)
+    const [state, setState] = useState<{ id: string | null; info: DriverVehicleInfo | null }>({ id: null, info: null })
     useEffect(() => {
-        if (!driverId) { setInfo(null); return }
+        if (!driverId) return
         let alive = true
-        setInfo(undefined)
         void (async () => {
             const [{ data: v }, { data: pr }] = await Promise.all([
                 supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_model, car_color, car_photo_url').eq('driver_id', driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
@@ -42,11 +43,11 @@ export function useDriverVehicle(driverId: string | null | undefined): DriverVeh
                 loadPlatformTariffs(supabase),   // a Tarifa iUser vem do banco: carregar antes de calcular
             ])
             if (!alive) return
-            if (!v) { setInfo(null); return }
+            if (!v) { setState({ id: driverId, info: null }); return }
             const kind = ((v as any).vehicle_kind || 'carro') as DriverVehicleInfo['kind']
             const row = (pr as DriverPricingRow | null) || { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }
             const pricing = getEffectivePricing(row, kind)
-            setInfo({
+            setState({ id: driverId, info: {
                 slug: (v as any).vehicle_slug,
                 kind,
                 model: (v as any).car_model || null,
@@ -55,11 +56,12 @@ export function useDriverVehicle(driverId: string | null | undefined): DriverVeh
                 active: !!(pr as any)?.driver_mode_active,
                 fromPrice: pricing ? pricing.baseFee : null,
                 customTariff: row.pricing_mode === 'custom',
-            })
+            } })
         })()
         return () => { alive = false }
     }, [driverId])
-    return info
+    if (!driverId) return null
+    return state.id === driverId ? state.info : undefined
 }
 
 export default function ProfileDriverCard({ info, colors, onOpen }: { info: DriverVehicleInfo; colors: any; onOpen: () => void }) {
