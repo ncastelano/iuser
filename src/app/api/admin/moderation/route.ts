@@ -10,7 +10,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
 
 const UUID = /^[0-9a-f-]{36}$/i
-const TYPES = ['flash', 'flash_comment', 'publication', 'comment', 'product_review', 'community_message', 'digital_product'] as const
+const TYPES = ['flash', 'flash_comment', 'publication', 'comment', 'product_review', 'community_message', 'digital_product', 'product', 'store', 'profile'] as const
 type T = (typeof TYPES)[number]
 
 interface Preview { text: string; image: string | null; authorId: string | null; extra?: string }
@@ -38,6 +38,18 @@ async function previews(keys: { type: T; id: string }[]): Promise<Map<string, Pr
             const k = kinds.get(r.id); const items = k ? [...k.entries()].map(([kind, n]) => `${n} ${kind === 'audio' ? 'áudio' : kind === 'video' ? 'vídeo' : kind === 'link' ? 'link' : 'arquivo'}${n > 1 ? 's' : ''}`).join(' · ') : 'sem conteúdo'
             out.set(`digital_product:${r.id}`, { text: [r.name, r.description].filter(Boolean).join(' — '), image: r.image_url ? supabaseAdmin.storage.from('product-images').getPublicUrl(r.image_url).data.publicUrl : null, authorId: r.owner_id, extra: `${Number(r.price) > 0 ? `R$ ${Number(r.price).toFixed(2).replace('.', ',')}` : 'grátis'} · ${items}` })
         })
+    })())
+    if (ids('product').length) jobs.push((async () => {
+        const { data } = await supabaseAdmin.from('products').select('id, owner_id, name, description, image_url, price, type, store_id, stores(owner_id, name)').in('id', ids('product'))
+        ;(data || []).forEach((r: any) => out.set(`product:${r.id}`, { text: [r.name, r.description].filter(Boolean).join(' — '), image: r.image_url ? (String(r.image_url).startsWith('http') ? r.image_url : supabaseAdmin.storage.from('product-images').getPublicUrl(r.image_url).data.publicUrl) : null, authorId: r.stores?.owner_id || r.owner_id, extra: `${r.type === 'service' ? 'serviço' : 'produto'}${r.stores?.name ? ` · ${r.stores.name}` : ''} · R$ ${Number(r.price || 0).toFixed(2).replace('.', ',')}` }))
+    })())
+    if (ids('store').length) jobs.push((async () => {
+        const { data } = await supabaseAdmin.from('stores').select('id, owner_id, name, description, logo_url, "storeSlug", is_active').in('id', ids('store'))
+        ;(data || []).forEach((r: any) => out.set(`store:${r.id}`, { text: [r.name, r.description].filter(Boolean).join(' — '), image: r.logo_url ? (String(r.logo_url).startsWith('http') ? r.logo_url : supabaseAdmin.storage.from('store-logos').getPublicUrl(r.logo_url).data.publicUrl) : null, authorId: r.owner_id, extra: `/${r.storeSlug}${r.is_active ? '' : ' · fora do ar'}` }))
+    })())
+    if (ids('profile').length) jobs.push((async () => {
+        const { data } = await supabaseAdmin.from('profiles').select('id, name, "profileSlug", bio, avatar_url, is_blocked').in('id', ids('profile'))
+        ;(data || []).forEach((r: any) => out.set(`profile:${r.id}`, { text: [r.name, r.bio].filter(Boolean).join(' — '), image: r.avatar_url || null, authorId: r.id, extra: `@${r.profileSlug}${r.is_blocked ? ' · conta bloqueada' : ''}` }))
     })())
     await Promise.all(jobs)
     return out

@@ -20,6 +20,7 @@ BEGIN
      LIMIT 1;
     IF v_drv IS NULL THEN RAISE NOTICE 'SEM pessoa para ser o motorista novo: cenários pulados'; RETURN; END IF;
     PERFORM set_config('session_replication_role', 'replica', true);   -- preparar sem os gatilhos de guarda (precisa de superusuário)
+    UPDATE public.ride_requests SET exclusive_until = NULL WHERE id = v_ride;   -- sem a janela dos favoritos (o simulador cria): o teste não depende dela
 
     -- 1) pedido por Pix: ninguém é barrado
     UPDATE public.orders SET payment_method = 'pix', total_amount = 50 WHERE id = v_order;

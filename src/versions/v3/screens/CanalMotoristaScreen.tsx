@@ -39,6 +39,7 @@ import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
 import { safeInternalPath } from '@/lib/safeRedirect'
+import { ensureLegal } from '@/components/legal/LegalHost'
 
 const ORANGE_V3 = '#f97316'
 
@@ -682,6 +683,9 @@ function PainelMotoristaContent() {
             router.push('/planos?plan=motorista')
             return
         }
+
+        // ficar online exige a declaração do motorista (CNH com EAR, documentos, seguro APP); o banco também confere (migration 082)
+        if (next && !(await ensureLegal('driver_requirements'))) return
 
         setTogglingMode(true)
         try {

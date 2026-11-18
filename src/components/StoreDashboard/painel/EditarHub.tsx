@@ -26,7 +26,7 @@ import { gerenciarItens, SELO, TIPO_SECAO, type ItemGerenciar, type SecaoKey } f
 const ORANGE = '#f97316'
 
 const GRUPOS: { titulo: string; dica: string; ks: SecaoKey[] }[] = [
-    { titulo: 'Sobre a loja', dica: 'Como a loja aparece para o cliente', ks: ['dados'] },
+    { titulo: 'Sobre a loja', dica: 'Como a loja aparece para o cliente', ks: ['dados', 'vendedor'] },
     { titulo: 'O que você vende', dica: 'Produtos, digitais, serviços e promoções', ks: ['catalogo', 'promocoes'] },
     { titulo: 'Como você recebe', dica: 'Pagamento e entrega', ks: ['pagamento', 'entrega'] },
     { titulo: 'Quando e quem atende', dica: 'Horários, agenda e equipe', ks: ['horarios', 'agenda', 'regras', 'equipe'] },
@@ -36,6 +36,7 @@ const GRUPOS: { titulo: string; dica: string; ks: SecaoKey[] }[] = [
 
 export interface EditarBlocos {
     dados: ReactNode
+    vendedor: ReactNode
     entrega: ReactNode
     pagamento: ReactNode
     horarios: ReactNode

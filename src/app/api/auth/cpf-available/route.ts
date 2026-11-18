@@ -1,7 +1,8 @@
 // app/api/auth/cpf-available/route.ts
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { clientIp, rateLimit } from '@/lib/rateLimit'
+import { clientIp } from '@/lib/rateLimit'
+import { rateLimitShared } from '@/lib/rateLimitShared'
 
 // Um CPF/CNPJ só pode estar em UM perfil. O cadastro (ainda sem login) pergunta aqui antes de criar a conta.
 // Antes a tela filtrava `profiles` por `cpf_cnpj` direto no navegador — o que obrigava a coluna a ser legível por
@@ -9,7 +10,8 @@ import { clientIp, rateLimit } from '@/lib/rateLimit'
 // Limite por IP para encarecer consulta em massa (é um sim/não por documento, nunca devolve dados de ninguém).
 export async function POST(req: Request) {
     const ip = clientIp(req)
-    if (!rateLimit(`cpf-check:${ip}`, 20, 60_000)) {
+    // limite contado no banco (vale para todas as instâncias): 20 por minuto e 100 por dia por IP — o cadastro de verdade usa 1 ou 2
+    if (!(await rateLimitShared(`cpf-check:${ip}`, 20, 60_000)) || !(await rateLimitShared(`cpf-check-day:${ip}`, 100, 86_400_000))) {
         return NextResponse.json({ error: 'Muitas tentativas. Aguarde um minuto.' }, { status: 429 })
     }
     const body = await req.json().catch(() => ({}))

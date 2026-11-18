@@ -31,6 +31,7 @@ import {
 } from '@/modules/deliveries'
 import { countdown, fetchMyExclusiveOffers, fetchMyFavoriteStores, leaveStore, respondInvite, secondsLeft, type ExclusiveOffer, type MyFavoriteStore } from '@/modules/favorites'
 import DeliveryPayBox from '@/components/deliveries/DeliveryPayBox'
+import { ensureLegal } from '@/components/legal/LegalHost'
 
 /** GPS de teste (só LOCAL): dentro do /tres-telas, ou em qualquer aba com `localStorage.iuser_dev_gps = 1` */
 /** Botões de TESTE ("Estou no local (teste)"): só no ambiente local e só se o desenvolvedor ligar (localStorage.iuser_dev_teste = 1) — fora disso nunca aparecem */
@@ -422,7 +423,7 @@ export default function DriverDeliveriesScreen() {
                         <h1 className="text-xl font-black leading-tight truncate">Olá{myName ? `, ${String(myName).split(' ')[0]}` : ''}!</h1>
                         <p className="text-[12px] opacity-90 truncate">{state?.vehicle || 'Motorista iUser'}{reviews && reviews.count > 0 && reviews.avg != null ? ` · ★ ${reviews.avg.toFixed(1).replace('.', ',')} (${reviews.count})` : ''}</p>
                     </div>
-                    <button onClick={() => run('online', () => setOnline(userId, !state?.online))} aria-pressed={!!state?.online} disabled={busy === 'online'} className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black transition active:scale-95" style={state?.online ? { background: '#fff', color: '#16a34a' } : { background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
+                    <button onClick={() => run('online', async () => { if (!state?.online && !(await ensureLegal('driver_requirements'))) return; await setOnline(userId, !state?.online) })} aria-pressed={!!state?.online} disabled={busy === 'online'} className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black transition active:scale-95" style={state?.online ? { background: '#fff', color: '#16a34a' } : { background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
                         <Power size={14} /> {!state ? '…' : state.online ? 'Online' : 'Offline'}
                     </button>
                 </div>

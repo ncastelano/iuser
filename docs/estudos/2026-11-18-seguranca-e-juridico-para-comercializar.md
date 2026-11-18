@@ -33,6 +33,21 @@ Testes: `supabase/tests/security_hardening_scenarios.sql` (6 grupos), `npm run t
 `test:security-exposure`, build de produção. Rollbacks em `supabase/rollbacks/security_hardening_rollback.sql` e
 `order_payment_after_release_rollback.sql`.
 
+### 1b. Feito na segunda rodada (mesmo dia; migrations 081–083)
+
+| Item | Como ficou |
+|---|---|
+| Denunciar **loja, perfil e produto/serviço** | Botão "Denunciar" nas páginas. Produto: 3 pessoas ocultam até o admin decidir. **Loja e perfil nunca somem sozinhos** (3 contas de um concorrente derrubariam a loja de outro): só o admin, em Admin → Denúncias (ocultar loja = fora do ar; perfil = conta bloqueada). O dono não reativa sozinho o que o iUser ocultou. |
+| **Aceite registrado** dos Termos | Tabela com quem, versão e data/hora. Quem não aceitou a versão em vigor vê uma janela que só fecha aceitando (ou saindo da conta). Mudou o texto: suba a versão em `legal_documents` e todos aceitam de novo. |
+| **Declaração do motorista** | Antes de ficar online: CNH com EAR, documentos em dia, seguro APP para passageiros, regras da cidade, cadastro verdadeiro. O **banco** não deixa ligar o modo motorista pelo app sem ela. |
+| **"Quem vende"** (Decreto 7.962) | Editar loja → Quem vende: razão social/nome, CNPJ ou CPF (dígitos conferidos) e endereço. Na página da loja: o CNPJ inteiro, o **CPF mascarado** (***.456.789-**). O número completo é privado. O atalho fica vermelho até a loja preencher. |
+| **Licenças de ramos regulados** | Na mesma seção, a loja declara que tem as licenças para remédio, bebida, gás e tabaco (fica gravado com a data). |
+| **Limite de tentativas no banco** | Checagem de CPF do cadastro e prévia de links contam no banco (vale para todas as instâncias da Vercel), não só na memória. |
+| **security.txt** | `iuser.com.br/.well-known/security.txt` diz como avisar uma falha. |
+| **CSP em modo observação** | O site diz ao navegador quais scripts pode rodar, mas ainda **sem bloquear**: só registra nos logs da Vercel (`[CSP]`) o que bloquearia. Depois de alguns dias sem registros estranhos, trocar para bloquear (instrução no `next.config.js`). |
+
+Não feito de propósito: confirmar 18+ na compra de bebida (todas as contas já exigem 18+ nos Termos aceitos e registrados).
+
 ## 2. O que já estava BOM (não precisa refazer)
 
 - Dados privados (CPF, telefone, Pix, endereço, coordenadas) protegidos **no banco**, por coluna, com testes automáticos.

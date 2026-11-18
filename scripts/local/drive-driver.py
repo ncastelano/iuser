@@ -137,6 +137,8 @@ class Driver:
 
     # ---- passos do app
     def online(self):
+        # ficar online pelo app exige a declaração do motorista (migration 082): o motorista simulado a aceita como ele mesmo
+        as_user(self.id, "select accept_legal('driver_requirements');")
         as_user(self.id, f"update driver_pricing set driver_mode_active = true, live_location_sync = true where driver_id = {esc(self.id)}::uuid;")
 
     def rides(self):

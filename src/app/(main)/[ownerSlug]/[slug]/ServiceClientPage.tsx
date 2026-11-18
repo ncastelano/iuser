@@ -20,6 +20,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import ChatContactButton from '@/components/ChatContactButton'
+import ReportButton from '@/components/moderation/ReportButton'
 import { trackProductView } from '@/lib/trackProductView'
 import { trackProfileVisit } from '@/lib/trackProfileVisit'
 
@@ -176,6 +177,11 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
                     >
                         <Share2 size={18} />
                     </button>
+                    {!isOwner && (
+                        <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                            <ReportButton type="product" id={service.id} authorId={service.owner_id} size={16} />
+                        </span>
+                    )}
                     {isOwner && (
                         <button
                             onClick={() => setShowEdit(true)}

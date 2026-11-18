@@ -92,6 +92,7 @@
     "test:driver-call": "node --test scripts/test-driver-call.mjs",
     "test:order-payment": "node --test scripts/test-order-payment.mjs",
     "test:safe-redirect": "node --test scripts/test-safe-redirect.mjs",
+    "test:legal": "node --test scripts/test-legal.mjs",
     "test:delivery-rules": "node --test scripts/test-delivery-rules.mjs"
   },
   "dependencies": {

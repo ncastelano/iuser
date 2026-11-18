@@ -20,6 +20,7 @@ import { SystemEventsListener } from '@/components/SystemEventsListener'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { MaintenanceBanner } from '@/components/MaintenanceNotice'
 import ShareDialogHost from '@/components/ShareDialogHost'
+import LegalHost from '@/components/legal/LegalHost'
 import ScreenDirector from '@/components/dev/ScreenDirector'
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -64,6 +65,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <PwaCleanup />
         <PwaInstallPrompt />
         <ShareDialogHost />
+        {/* Termos de Uso (quem ainda não aceitou a versão em vigor) e as declarações do motorista e da loja (ensureLegal) */}
+        <LegalHost />
         <PushNotificationSetup />
         {/* Avisos: a ilha da 3.0 os mostra (lib/toast); sem ilha (2.0) uma pílula no topo */}
         <IslandToastFallback />

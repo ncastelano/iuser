@@ -6,6 +6,8 @@
 import { NextResponse } from 'next/server'
 import { lookup } from 'dns/promises'
 import net from 'net'
+import { clientIp } from '@/lib/rateLimit'
+import { rateLimitShared } from '@/lib/rateLimitShared'
 
 export const runtime = 'nodejs'
 
@@ -103,6 +105,11 @@ function metaContent(html: string, keys: string[]): string | null {
 }
 
 export async function GET(req: Request) {
+    // o servidor busca a página: sem limite, qualquer um o usaria para varrer sites de terceiros (60 por minuto, 600 por dia por IP)
+    const ip = clientIp(req)
+    if (!(await rateLimitShared(`link-preview:${ip}`, 60, 60_000)) || !(await rateLimitShared(`link-preview-day:${ip}`, 600, 86_400_000))) {
+        return NextResponse.json({ error: 'Muitas tentativas. Aguarde um pouco.' }, { status: 429 })
+    }
     const raw = new URL(req.url).searchParams.get('url') || ''
     let target: URL
     try {

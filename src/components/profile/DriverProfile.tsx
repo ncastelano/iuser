@@ -103,6 +103,8 @@ export interface DriverProfileProps {
     /** Seguir / conversar (o perfil monta: as regras são as de sempre) */
     socialSlot?: ReactNode
     ownerTypeSlot?: ReactNode
+    /** "Denunciar perfil" (quem não é o dono) */
+    reportSlot?: ReactNode
     onEdit: () => void
     /** o voltar mora dentro da imagem, em cima à esquerda (a página não mostra o voltar do cabeçalho no perfil de motorista) */
     onBack?: () => void
@@ -390,6 +392,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </div>
                     ) : p.socialSlot}
                     {owner && p.ownerTypeSlot}
+                    {!owner && p.reportSlot && <div className="mt-2 flex justify-end">{p.reportSlot}</div>}
                 </div>
             </section>
 
