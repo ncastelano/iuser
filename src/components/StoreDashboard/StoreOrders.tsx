@@ -34,6 +34,7 @@ import { handleShareLink } from '@/lib/share'
 import { STORE_STATE_TEXT, brl as brlText } from '@/modules/delivery-search'
 import StoreDeliveryPayment from '@/components/DeliveryPayment/StoreDeliveryPayment'
 import { useFunnelFlip } from './painel/useFunnelFlip'
+import { fetchStoreOrderPayments, storePayChip, type StoreOrderPayment } from '@/modules/order-payment'
 
 // Entrega V2 vista pela loja: o estado vem da fase da entrega (o pedido continua com o status dele)
 const RELEASED_PHASES = ['ENTREGA_LIBERADA', 'A_CAMINHO_DA_LOJA', 'CHEGOU_NA_LOJA', 'PEDIDO_RETIRADO', 'A_CAMINHO_DO_CLIENTE', 'ENTREGUE', 'CONCLUIDO']
@@ -289,6 +290,18 @@ export default function StoreOrders({
         const t = setInterval(run, 6000)
         return () => { alive = false; clearInterval(t) }
     }, [storeId, iuserDeliveryEnabled])
+
+    // o PAGAMENTO feito direto à loja (Pix com o QR dela, link de cartão, Pix na porta): o selo em cada pedido ("Pix a conferir", "Pix ✓")
+    const [payments, setPayments] = useState<Map<string, StoreOrderPayment>>(new Map())
+    useEffect(() => {
+        if (!storeId) return
+        let alive = true
+        const run = () => fetchStoreOrderPayments(storeId).then((m) => { if (alive) setPayments(m) }).catch(() => { })
+        run()
+        const t = setInterval(run, 15000)
+        window.addEventListener('iuser-orders-changed', run)
+        return () => { alive = false; clearInterval(t); window.removeEventListener('iuser-orders-changed', run) }
+    }, [storeId])
 
     // Ref para evitar múltiplas chamadas
     const isLoadingRef = useRef(false)
@@ -1403,7 +1416,7 @@ export default function StoreOrders({
                                                     {x.list.length === 0 && <span className="text-[11.5px] font-semibold" style={{ color: colors.textSecondary }}>nenhum agora</span>}
                                                 </div>
                                                 {list.slice(0, PER).map((o: any) => (
-                                                    <FlowRow key={o.checkout_id} order={o} color={x.color} line={x.key === 'done' ? { text: isDelivery(o) ? 'Entregue' : 'Retirado na loja', tone: 'plain' } : lineFor(o)} colors={colors} onOpen={() => setSelectedOrder(o)}
+                                                    <FlowRow key={o.checkout_id} order={o} color={x.color} line={x.key === 'done' ? { text: isDelivery(o) ? 'Entregue' : 'Retirado na loja', tone: 'plain' } : lineFor(o)} colors={colors} onOpen={() => setSelectedOrder(o)} pay={storePayChip(payments.get(o.id))}
                                                         flipKey={`o${o.checkout_id}`} glow={flipFx.chegou === `o${o.checkout_id}`}>
                                                         {x.key === 'new' && (
                                                             <>
@@ -1543,7 +1556,7 @@ export default function StoreOrders({
 }
 
 /** Uma linha do FUNIL de pedidos do painel da loja: quem pediu, o que é, quanto, e UMA frase sobre a entrega — com a ação da etapa à direita */
-function FlowRow({ order, color, line, onOpen, children, colors, flipKey, glow }: { order: any; color: string; line: { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain'; code?: string }; onOpen: () => void; children?: React.ReactNode; colors: any; flipKey?: string; glow?: boolean }) {
+function FlowRow({ order, color, line, onOpen, children, colors, flipKey, glow, pay }: { order: any; color: string; line: { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain'; code?: string }; onOpen: () => void; children?: React.ReactNode; colors: any; flipKey?: string; glow?: boolean; pay?: { text: string; color: string } | null }) {
     const who = order.buyer_profile_slug ? `@${order.buyer_profile_slug}` : (order.buyer_name || 'Cliente')
     const first = order.items?.[0]
     const more = (order.items?.length || 0) - 1
@@ -1561,7 +1574,10 @@ function FlowRow({ order, color, line, onOpen, children, colors, flipKey, glow }
                     <span className="text-[10.5px] flex-shrink-0 tabular-nums" style={{ color: colors.textSecondary }}>{time}</span>
                     <span className="ml-auto text-[12px] font-black flex-shrink-0 tabular-nums" style={{ color: colors.textPrimary }}>R$ {Number(order.totalPrice || 0).toFixed(2).replace('.', ',')}</span>
                 </p>
-                <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{summary}</p>
+                <p className="text-[11px] flex items-center gap-1.5 min-w-0" style={{ color: colors.textSecondary }}>
+                    <span className="truncate">{summary}</span>
+                    {pay && <span className="flex-shrink-0 px-1.5 py-px rounded-md text-[10px] font-black" style={{ background: `${pay.color}1a`, color: pay.color }}>{pay.text}</span>}
+                </p>
                 <p className="text-[11px] font-bold flex items-center gap-1.5 min-w-0" style={{ color: tone }}>
                     <span className="truncate">{line.text}</span>
                     {line.code && (

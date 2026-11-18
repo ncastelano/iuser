@@ -1,5 +1,11 @@
 # Estudo: delivery do iUser × concorrentes, dinheiro na porta e preço (18/11/2026)
 
+> **Andamento (18/11/2026):** implementado no app (migrations `20261130000074` a `20261130000078`): saídas A (Pix antes, direto à loja), B (Pix na porta),
+> C1 (link de cartão da loja), D (frete devido pela loja + acerto pelo saldo + troco na oferta); ajustes de preço 1 (teto do Pós-pago) e 2 (frete mínimo
+> R$ 7,00, editável em Admin → Entregas); itens 2 (o cliente vê o entregador), 4 (push do cancelamento sem entregador), 5 (Admin dos prazos e limites) e
+> 6 (endereço obrigatório para o Entregador do iUser) da seção 4. Ficam para depois: E (confirmação automática pela Asaas), C2 (Tap to Pay do entregador)
+> e o item 8 (custo por pedido).
+
 Objetivo: saber o que o iUser já tem, o que os concorrentes cobram e fazem, e o que falta para o delivery começar a ser
 vendido com qualidade. Três perguntas do dono:
 

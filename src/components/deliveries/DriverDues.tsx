@@ -6,10 +6,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Banknote, Check, Copy, CreditCard, Gavel } from 'lucide-react'
+import { AlertTriangle, Banknote, Check, Copy, CreditCard, Gavel, Truck } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
-import { brl, declareDue, dueAction, dueIn, fetchMyDisputes, fetchMyDues, fetchRemitTarget, proofStrength, parseEvidence, REASON_LABEL, replyDispute, type Due, type MyDispute, type MyDues } from '@/modules/dues'
+import { brl, confirmFreight, declareDue, dueAction, dueIn, fetchMyDisputes, fetchMyDues, fetchRemitTarget, proofStrength, parseEvidence, REASON_LABEL, replyDispute, type Due, type MyDispute, type MyDues } from '@/modules/dues'
+import DuesBalances from '@/components/deliveries/DuesBalances'
 
 const ORANGE = '#f97316', RED = '#ef4444', GREEN = '#22c55e'
 
@@ -20,6 +21,7 @@ export default function DriverDues() {
     const [busy, setBusy] = useState<string | null>(null)
     const [pix, setPix] = useState<{ id: string; key: string | null; store: string; amount: number } | null>(null)
     const [reply, setReply] = useState<Record<string, string>>({})
+    const [refuse, setRefuse] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         const [d, ds] = await Promise.all([fetchMyDues().catch(() => null), fetchMyDisputes().catch(() => [] as MyDispute[])])
@@ -29,7 +31,7 @@ export default function DriverDues() {
 
     const run = async (key: string, fn: () => Promise<void>, ok?: string) => {
         setBusy(key)
-        try { await fn(); if (ok) toast.success(ok); setPix(null); await load() } catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(null) }
+        try { await fn(); if (ok) toast.success(ok); setPix(null); setRefuse(null); await load() } catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(null) }
     }
     const openPix = async (d: Due) => {
         setBusy(`pixq-${d.id}`)
@@ -38,7 +40,7 @@ export default function DriverDues() {
 
     const items = dues?.items ?? []
     const openDisputes = disputes.filter((x) => x.status === 'open' || x.outcome === 'driver_at_fault')
-    if (!dues || (items.length === 0 && openDisputes.length === 0 && !dues.blocked)) return null
+    if (!dues || (items.length === 0 && openDisputes.length === 0 && !dues.blocked && !dues.settlements.some((t) => t.status === 'declared'))) return null
     const soft = `${colors.border}40`
 
     return (
@@ -50,25 +52,40 @@ export default function DriverDues() {
                 </div>
             )}
 
+            <DuesBalances viewer="driver" balances={dues.balances} settlements={dues.settlements} onChanged={load} />
+
             {items.length > 0 && (
                 <div className="rounded-3xl p-4 flex flex-col gap-2.5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                     <div className="flex items-end justify-between gap-2">
                         <div>
                             <h2 className="text-base font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Banknote size={16} style={{ color: ORANGE }} /> Caixa</h2>
-                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>O dinheiro da porta é da loja (o frete é seu): repasse e declare. A loja confirma.</p>
+                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>O dinheiro da porta é da loja (o frete é seu): repasse e declare. Pedido pago direto à loja: ela te paga o frete. Com a mesma loja, acerte só o saldo.</p>
                         </div>
                         {dues.openAmount > 0 && <span className="text-[12px] font-black" style={{ color: dues.openAmount >= dues.maxOpen ? RED : ORANGE }}>{brl(dues.openAmount)} <span className="font-normal opacity-70">de {brl(dues.maxOpen)}</span></span>}
                     </div>
                     {items.map((d) => (
                         <div key={d.id} className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: soft, border: d.overdue || d.status === 'disputed' ? `1.5px solid ${RED}` : 'none' }}>
                             <div className="flex items-start gap-2.5">
-                                <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ background: d.kind === 'machine' ? '#3b82f6' : d.kind === 'dispute_debt' ? RED : GREEN }}>{d.kind === 'machine' ? <CreditCard size={17} /> : <Banknote size={17} />}</span>
+                                <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ background: d.kind === 'machine' ? '#3b82f6' : d.kind === 'dispute_debt' ? RED : d.kind === 'freight' ? ORANGE : GREEN }}>{d.kind === 'machine' ? <CreditCard size={17} /> : d.kind === 'freight' ? <Truck size={17} /> : <Banknote size={17} />}</span>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-[13px] font-black leading-tight" style={{ color: colors.textPrimary }}>{dueAction(d)}</p>
-                                    <p className="text-[11px]" style={{ color: d.overdue ? RED : colors.textSecondary }}>{d.status === 'open' && d.dueAt ? `Prazo: ${dueIn(d.dueAt)}` : d.kind === 'machine' && d.status === 'open' ? 'O prazo começa quando acabar a última entrega no cartão.' : ''}{d.note && d.status === 'disputed' ? ` · “${d.note}”` : ''}</p>
+                                    <p className="text-[11px]" style={{ color: d.overdue && d.kind !== 'freight' ? RED : colors.textSecondary }}>{d.settlementId && d.status === 'declared' ? 'No acerto pelo saldo' : d.kind === 'freight' ? (d.status === 'open' && d.dueAt ? `A loja tem até ${dueIn(d.dueAt)?.replace('em ', '')} para pagar` : '') : d.status === 'open' && d.dueAt ? `Prazo: ${dueIn(d.dueAt)}` : d.kind === 'machine' && d.status === 'open' ? 'O prazo começa quando acabar a última entrega no cartão.' : ''}{d.note && d.status === 'disputed' ? ` · “${d.note}”` : ''}</p>
                                 </div>
                             </div>
-                            {(d.status === 'open' || d.status === 'disputed') && (
+                            {d.kind === 'freight' && d.status === 'declared' && !d.settlementId && (
+                                refuse === d.id ? (
+                                    <div className="flex gap-2">
+                                        <input value={reply[d.id] || ''} onChange={(e) => setReply((r) => ({ ...r, [d.id]: e.target.value }))} placeholder="O que aconteceu?" maxLength={400} className="flex-1 min-w-0 h-10 px-3 rounded-full text-[13px] outline-none" style={{ background: colors.surface, color: colors.textPrimary }} />
+                                        <button onClick={() => run(`fn-${d.id}`, () => confirmFreight(d.id, false, reply[d.id] || ''), 'Avisamos a loja.')} disabled={!(reply[d.id] || '').trim() || busy === `fn-${d.id}`} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white disabled:opacity-40" style={{ background: RED }}>Enviar</button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button onClick={() => run(`fc-${d.id}`, () => confirmFreight(d.id, true), 'Frete confirmado!')} disabled={busy === `fc-${d.id}`} className="h-10 rounded-full text-[12.5px] font-black text-white disabled:opacity-50" style={{ background: GREEN }}>Recebi o frete</button>
+                                        <button onClick={() => setRefuse(d.id)} className="h-10 rounded-full text-[12.5px] font-black" style={{ background: colors.surface, color: colors.textPrimary, border: `1.5px solid ${colors.border}` }}>Não recebi</button>
+                                    </div>
+                                )
+                            )}
+                            {d.kind !== 'freight' && !(d.settlementId && d.status === 'declared') && (d.status === 'open' || d.status === 'disputed') && (
                                 d.kind === 'machine' ? (
                                     <button onClick={() => run(d.id, () => declareDue(d.id, 'devolvida'), 'Avisei a loja.')} disabled={busy === d.id} className="h-10 rounded-full text-[13px] font-black text-white active:scale-95 disabled:opacity-50" style={{ background: ORANGE }}>Devolvi a maquininha</button>
                                 ) : pix?.id === d.id ? (

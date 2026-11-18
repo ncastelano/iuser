@@ -14,7 +14,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
 import FreeTrialGift from '@/components/FreeTrialGift'
-import { usePostpaidLimit } from '@/lib/postpaid'
+import { usePostpaidCap, usePostpaidLimit } from '@/lib/postpaid'
 
 interface ActivePlanBadge {
     name: string
@@ -40,6 +40,7 @@ function daysLeft(iso: string | null): number | null {
 
 export default function PlanPromotions({ profileId, className = '' }: { profileId: string; className?: string }) {
     const POSTPAID_LIMIT = usePostpaidLimit()
+    const POSTPAID_CAP = usePostpaidCap()
     const router = useRouter()
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
@@ -89,7 +90,7 @@ export default function PlanPromotions({ profileId, className = '' }: { profileI
     const includes = (p: ActivePlanBadge) => p.features.length === 0 ? null : (
         <div className="rounded-2xl px-3.5 py-3 flex flex-col gap-1.5" style={{ background: `${colors.border}22` }}>
             <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>
-                {p.code === 'pos_pago' ? 'R$ 0,50 por uso · o que está incluído' : 'O que está incluído'}
+                {p.code === 'pos_pago' ? `R$ 0,50 por uso${POSTPAID_CAP ? ` · nunca mais que R$ ${POSTPAID_CAP.toFixed(0)} no mês` : ''} · o que está incluído` : 'O que está incluído'}
             </span>
             {p.features.map((f) => (
                 <span key={f} className="flex items-start gap-1.5 text-[12px] leading-snug" style={{ color: colors.textPrimary }}>

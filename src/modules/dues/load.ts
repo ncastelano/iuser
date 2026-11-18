@@ -1,23 +1,26 @@
 // src/modules/dues/load.ts — conversa com o banco (RPCs do caixa e das contestações). Nenhuma regra aqui: quem decide é o banco.
 import { supabase } from '@/lib/supabase/client'
-import type { Due, DisputeOutcome, DisputeReason, MyDues, StoreDues } from './domain'
+import type { Due, DisputeOutcome, DisputeReason, MyDues, PairBalance, Settlement, StoreDues } from './domain'
 
 const toDue = (r: any): Due => ({
     id: r.id, kind: r.kind, storeId: r.store_id, storeName: r.store_name || 'Loja', amount: r.amount != null ? Number(r.amount) : null, status: r.status, dueAt: r.due_at || null,
     declaredAt: r.declared_at || null, method: r.declare_method || null, note: r.note || null, overdue: !!r.overdue, createdAt: r.created_at, driverName: r.driver_name, driverSlug: r.driver_slug ?? null,
+    settlementId: r.settlement_id ?? null,
 })
+const toBalance = (r: any): PairBalance => ({ storeId: r.store_id, storeName: r.store_name, driverId: r.driver_id, driverName: r.driver_name, driverOwes: Number(r.driver_owes) || 0, storeOwes: Number(r.store_owes) || 0, net: Number(r.net) || 0, items: Number(r.items) || 0 })
+const toSettlement = (r: any): Settlement => ({ id: r.id, storeId: r.store_id, storeName: r.store_name, driverId: r.driver_id, driverName: r.driver_name, payer: r.payer, amount: Number(r.amount) || 0, method: r.method || null, status: r.status, createdAt: r.created_at })
 
 export async function fetchMyDues(): Promise<MyDues | null> {
     const { data, error } = await supabase.rpc('get_my_dues')
     if (error || !data) return null
     const d = data as any
-    return { blocked: d.blocked || null, blockedText: d.blocked_text || null, openAmount: Number(d.open_amount) || 0, maxOpen: Number(d.max_open) || 0, items: ((d.items || []) as any[]).map(toDue) }
+    return { blocked: d.blocked || null, blockedText: d.blocked_text || null, openAmount: Number(d.open_amount) || 0, maxOpen: Number(d.max_open) || 0, items: ((d.items || []) as any[]).map(toDue), balances: ((d.balances || []) as any[]).map(toBalance), settlements: ((d.settlements || []) as any[]).map(toSettlement) }
 }
 export async function fetchStoreDues(storeId: string): Promise<StoreDues> {
     const { data, error } = await supabase.rpc('get_store_dues', { p_store: storeId })
     if (error) throw error
     const d = data as any
-    return { items: ((d?.items || []) as any[]).map((r) => toDue({ ...r, store_name: '' })), pendingAmount: Number(d?.pending_amount) || 0 }
+    return { items: ((d?.items || []) as any[]).map((r) => toDue({ ...r, store_name: '' })), pendingAmount: Number(d?.pending_amount) || 0, freightAmount: Number(d?.freight_amount) || 0, balances: ((d?.balances || []) as any[]).map(toBalance), settlements: ((d?.settlements || []) as any[]).map(toSettlement) }
 }
 export async function fetchRemitTarget(dueId: string): Promise<{ storeName: string; pixKey: string | null; amount: number }> {
     const { data, error } = await supabase.rpc('get_due_remit_target', { p_due: dueId })
@@ -31,6 +34,37 @@ export async function declareDue(dueId: string, method: 'pix' | 'em_maos' | 'dev
 }
 export async function confirmDue(dueId: string, ok: boolean, note?: string): Promise<void> {
     const { error } = await supabase.rpc('confirm_due', { p_due: dueId, p_ok: ok, p_note: note ?? null })
+    if (error) throw new Error(error.message)
+}
+
+// ===== frete e acerto pelo saldo =====
+export async function fetchFreightPayTarget(dueId: string): Promise<{ driverName: string; pixKey: string | null; pixKeyType: string | null; amount: number }> {
+    const { data, error } = await supabase.rpc('get_freight_pay_target', { p_due: dueId })
+    if (error) throw new Error(error.message)
+    const d = data as any
+    return { driverName: d.driver_name || 'Entregador', pixKey: d.pix_key || null, pixKeyType: d.pix_key_type || null, amount: Number(d.amount) }
+}
+export async function declareFreight(dueId: string, method: 'pix' | 'em_maos'): Promise<void> {
+    const { error } = await supabase.rpc('store_declare_freight', { p_due: dueId, p_method: method })
+    if (error) throw new Error(error.message)
+}
+export async function confirmFreight(dueId: string, ok: boolean, note?: string): Promise<void> {
+    const { error } = await supabase.rpc('driver_confirm_freight', { p_due: dueId, p_ok: ok, p_note: note ?? null })
+    if (error) throw new Error(error.message)
+}
+export async function fetchPairTarget(storeId: string, driverId: string): Promise<PairBalance & { payToName: string | null; pixKey: string | null; pixKeyType: string | null }> {
+    const { data, error } = await supabase.rpc('get_dues_pair_target', { p_store: storeId, p_driver: driverId })
+    if (error) throw new Error(error.message)
+    const d = data as any
+    return { ...toBalance(d), payToName: d.pay_to_name || null, pixKey: d.pix_key || null, pixKeyType: d.pix_key_type || null }
+}
+export async function settlePair(storeId: string, driverId: string, method: 'pix' | 'em_maos'): Promise<{ payer: string; amount: number }> {
+    const { data, error } = await supabase.rpc('settle_dues_pair', { p_store: storeId, p_driver: driverId, p_method: method })
+    if (error) throw new Error(error.message)
+    return { payer: (data as any)?.payer, amount: Number((data as any)?.amount) || 0 }
+}
+export async function confirmSettlement(id: string, ok: boolean, note?: string): Promise<void> {
+    const { error } = await supabase.rpc('confirm_dues_settlement', { p_settlement: id, p_ok: ok, p_note: note ?? null })
     if (error) throw new Error(error.message)
 }
 

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import OrderReviewPanel from '@/components/OrderReviewPanel'
 import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck, Globe, Store, ShoppingCart, CreditCard, Coins, Calendar, User, Phone } from 'lucide-react'
+import StoreOrderPaymentBox from '@/components/orders/StoreOrderPaymentBox'
 
 export interface GroupedOrder {
     id?: string
@@ -285,6 +286,9 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                                 <p className="text-xs font-bold text-gray-700">{formattedDate}</p>
                             </div>
                         </div>
+
+                        {/* o pagamento que o cliente fez direto à loja (Pix, link de cartão ou Pix na porta): a loja confere e confirma */}
+                        {order.id && <StoreOrderPaymentBox orderId={order.id} />}
 
                         {/* Entregador do iUser que vem buscar (ou retirada na loja) */}
                         {deliveryLine && !assignmentInfo && (() => {

@@ -58,6 +58,8 @@ import CatalogBag from '@/app/(main)/[ownerSlug]/catalogo/CatalogBag'
 import CarrinhoSkeleton from './CarrinhoSkeleton'
 import DeliveryIncreasePrompt from '@/components/DeliveryIncreasePrompt'
 import CancelPendingOrder from '@/components/orders/CancelPendingOrder'
+import OrderPaymentCard from '@/components/orders/OrderPaymentCard'
+import OrderTrackingCard from '@/components/orders/OrderTrackingCard'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -1113,7 +1115,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 })),
             }])
 
-            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Order ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
+            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Order ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉', !isV2Order && (paymentOpt === 'pix' || paymentOpt === 'cartao') ? { description: paymentOpt === 'pix' ? 'Pague direto à loja pelo QR Pix que aparece no seu pedido.' : 'Se a loja tiver link de cartão, pague por ele no seu pedido.', action: { label: 'Ver pedido', onClick: () => { window.location.href = '/atividade?aba=pedidos' } }, duration: 12000 } : undefined)
         } catch (err: any) {
             console.error('[Checkout] Erro inesperado:', err)
             toast.error(`Erro inesperado: ${err?.message ?? 'Tente novamente.'}`)
@@ -1456,6 +1458,10 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: ['pending', 'preparing', 'ready'].includes(order.status) ? `2px solid ${accent}` : `1px solid ${colors.border}`, transition: 'border-color 300ms ease' }}>
                     {/* o CÓDIGO de entrega (e o resultado) fica EM CIMA do pedido: é o que a pessoa precisa ver primeiro quando o entregador chega */}
                     <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} top />
+                    {/* onde está o entregador (a caminho da loja, com o pedido, na porta); com o "entregador primeiro" ele já vem antes de a loja aceitar */}
+                    {order.order_id && <OrderTrackingCard orderId={order.order_id} enabled={Number(order.deliveryFee) > 0 && ['pending', 'preparing', 'ready'].includes(order.status)} />}
+                    {/* pagar direto à loja: o QR Pix dela (ou o link de cartão) e o "Já paguei" */}
+                    {order.order_id && !rejected && <OrderPaymentCard orderId={order.order_id} finished={order.status === 'paid'} paymentMethod={order.payment_method} />}
                     <div className="p-3.5 flex items-center justify-between gap-3">
                         <h3 className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{order.storeName || order.store_name}</h3>
                         <span className="flex-shrink-0 text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: `${accent}22`, color: accent }}>

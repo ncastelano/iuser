@@ -13,6 +13,7 @@ import ActivitySection from './ActivitySection'
 import FinanceSection from './FinanceSection'
 import PlatformTariffsSection from './PlatformTariffsSection'
 import DeliverySettingsSection from './DeliverySettingsSection'
+import DeliveryRulesCard from './DeliveryRulesCard'
 import FreeTrialSection from './FreeTrialSection'
 import AvatarBordersSection from './AvatarBordersSection'
 import GrantsSection from './GrantsSection'
@@ -122,7 +123,7 @@ export default function AdminDashboard() {
             {section === 'bordas' && <AvatarBordersSection cardStyle={cardStyle} colors={colors} />}
             {section === 'brinde' && <FreeTrialSection cardStyle={cardStyle} colors={colors} />}
             {section === 'tarifas' && <PlatformTariffsSection cardStyle={cardStyle} colors={colors} />}
-            {section === 'entregas' && <DeliverySettingsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'entregas' && <><DeliverySettingsSection cardStyle={cardStyle} colors={colors} /><div className="mt-3"><DeliveryRulesCard cardStyle={cardStyle} colors={colors} /></div></>}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'graduacao' && <GraduationSection cardStyle={cardStyle} colors={colors} />}
             {section === 'status' && <IuserStatusSection cardStyle={cardStyle} colors={colors} />}

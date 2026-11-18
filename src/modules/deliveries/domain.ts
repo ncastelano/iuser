@@ -76,6 +76,9 @@ export interface DeliveryOffer {
     units: number
     itemsCount: number
     createdAt: string
+    /** como o cliente paga: 'pix' (pago à loja) · 'dinheiro' (com o troco) · 'cartao' (maquininha da loja ou Pix da loja na porta) */
+    paymentMethod?: string | null
+    cashChangeFor?: number | null
 }
 
 export function haversineKm(a: LatLng, b: LatLng): number {
@@ -184,9 +187,9 @@ export function withinRadius(offers: DeliveryOffer[], pos: LatLng | null, radius
 export interface PaymentRecap { label: string; collect: boolean; note: string | null }
 /** O que o motorista faz com o dinheiro na porta: pago online (nada), cartão (levar a máquina) ou dinheiro (troco) */
 export function paymentRecap(method: string | null, cashChangeFor: number | null): PaymentRecap {
-    if (method === 'dinheiro' || method === 'money') return { label: 'Dinheiro na entrega', collect: true, note: cashChangeFor ? `Cliente paga com R$ ${cashChangeFor.toFixed(2).replace('.', ',')} — leve o troco` : 'Leve troco' }
-    if (method === 'cartao' || method === 'credit_card') return { label: 'Cartão na entrega', collect: true, note: 'Leve a maquininha' }
-    if (method === 'pix') return { label: 'Pix — já pago', collect: false, note: null }
+    if (method === 'dinheiro' || method === 'money') return { label: 'Dinheiro na entrega', collect: true, note: cashChangeFor ? `Cliente paga com R$ ${cashChangeFor.toFixed(2).replace('.', ',')} — leve o troco (ou cobre com o Pix da loja)` : 'sem troco (ou cobre com o Pix da loja)' }
+    if (method === 'cartao' || method === 'credit_card') return { label: 'Cartão na entrega', collect: true, note: 'Leve a maquininha da loja ou cobre com o Pix da loja' }
+    if (method === 'pix') return { label: 'Pix — pago direto à loja', collect: false, note: null }
     return { label: 'Pagamento combinado', collect: false, note: null }
 }
 

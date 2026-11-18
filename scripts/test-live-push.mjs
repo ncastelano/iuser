@@ -4,8 +4,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { LIVE_PUSH_KINDS, livePushFor } from '../src/lib/livePushPayload.ts'
 
-test('a lista de tipos do código é a MESMA do gatilho do banco (a definição mais recente: migration 20261130000068)', () => {
-    const sql = readFileSync(new URL('../supabase/migrations/20261130000068_delivery_cycle_guards.sql', import.meta.url), 'utf8')
+test('a lista de tipos do código é a MESMA do gatilho do banco (a definição mais recente: migration 20261130000074)', () => {
+    const sql = readFileSync(new URL('../supabase/migrations/20261130000074_order_payments.sql', import.meta.url), 'utf8')
     const at = sql.indexOf('trg_ping_live_push')
     const block = sql.slice(sql.indexOf('ARRAY[', at), sql.indexOf(']) THEN', at))
     const inDb = [...block.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort()

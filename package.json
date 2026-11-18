@@ -89,7 +89,9 @@
     "test:ride-places": "node --test scripts/test-ride-places.mjs",
     "test:profile-type": "node --test scripts/test-profile-type.mjs",
     "test:driver-profile": "node --test scripts/test-driver-profile.mjs",
-    "test:driver-call": "node --test scripts/test-driver-call.mjs"
+    "test:driver-call": "node --test scripts/test-driver-call.mjs",
+    "test:order-payment": "node --test scripts/test-order-payment.mjs",
+    "test:delivery-rules": "node --test scripts/test-delivery-rules.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

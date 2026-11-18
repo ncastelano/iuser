@@ -36,6 +36,8 @@ export const LIVE_PUSH_KINDS: Record<string, { urgent: boolean }> = {
     delivery_late: { urgent: true },              // o pedido está demorando a chegar
     delivery_quit_blocked: { urgent: false },     // entregas pausadas por desistências
     store_reject_warning: { urgent: false },      // a loja recusou muitos pedidos que já tinham entregador
+    order_no_driver: { urgent: false },           // pedido cancelado: nenhum entregador aceitou a tempo
+    order_payment: { urgent: true },              // pagamento do pedido a conferir / confirmado / não encontrado (migration ...74)
 }
 
 export interface LivePushRow { id: string; kind: string; meta?: Record<string, any> | null }

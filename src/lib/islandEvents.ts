@@ -76,6 +76,8 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     delivery_late: { level: 'error', icon: '⏳', label: 'Ver', duration: 12000 },                 // cliente e loja: a entrega está demorando
     delivery_quit_blocked: { level: 'error', icon: '⛔', label: 'Ver', duration: 12000 },         // entregador: entregas pausadas
     store_reject_warning: { level: 'error', icon: '⚠️', label: 'Ver', duration: 12000 },         // loja: muitas recusas depois do aceite do entregador
+    // pagamento do pedido direto à loja (migration ...74): a conferir (loja), confirmado / não encontrado (cliente), Pix na porta
+    order_payment: { level: 'message', icon: '💳', label: 'Ver', duration: 12000 },
 }
 
 export function islandEventFor(n: RawNotification): IslandEvent | null {

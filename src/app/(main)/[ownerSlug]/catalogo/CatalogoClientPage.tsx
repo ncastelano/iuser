@@ -938,7 +938,7 @@ export default function CatalogoClientPage() {
                 console.warn('[Checkout] Falha ao abrir WhatsApp:', waErr)
             }
 
-            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
+            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉', !isV2Delivery && (paymentMethod === 'pix' || paymentMethod === 'cartao') ? { description: paymentMethod === 'pix' ? 'Pague direto à loja pelo QR Pix que aparece no seu pedido.' : 'Se a loja tiver link de cartão, pague por ele no seu pedido.', action: { label: 'Ver pedido', onClick: () => { window.location.href = '/atividade?aba=pedidos' } }, duration: 12000 } : undefined)
             setIsBagExpanded(false)
             setCheckoutStep(null)
             setCheckoutLoading(false)
@@ -1811,6 +1811,9 @@ export default function CatalogoClientPage() {
                                         })}
                                     </div>
 
+                                    {paymentMethod === 'pix' && !digitalOnly && (
+                                        <p className="text-[11px] mt-2 leading-snug" style={{ color: colors.textSecondary }}>Depois de pedir, o QR Pix da loja aparece no seu pedido: você paga direto a ela e ninguém precisa levar troco nem maquininha.</p>
+                                    )}
                                     {paymentMethod === 'dinheiro' && (
                                         <input
                                             type="text"

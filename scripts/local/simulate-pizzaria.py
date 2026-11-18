@@ -662,12 +662,46 @@ def drivers_accept(speed=1.0):
 
 
 def settle_dues(speed=1.0):
-    """CAIXA do entregador: o dinheiro que recebeu na porta é repassado à loja (Pix ou em mãos) e a maquininha é devolvida; a loja confirma. Sem isso o banco barra o motorista (cash_limit/overdue)."""
+    """CAIXA do entregador: o dinheiro que recebeu na porta é repassado à loja (Pix ou em mãos) e a maquininha é devolvida; a loja confirma. Sem isso o banco barra o motorista (cash_limit/overdue).
+    FRETE (migration ...74): no pedido pago direto à loja a LOJA deve o frete ao entregador — ela paga e ele confirma. Quando os dois lados têm pendências, metade das vezes acertam só o SALDO."""
     sc = max(CFG.get('scale', 1), 1)
+    # acerto pelo saldo: o par loja × entregador com dinheiro E frete em aberto
+    for b in q_local(f"""select driver_id, public._dues_pair_balance({esc(STORE['id'])}::uuid, driver_id) as b from (select distinct driver_id from store_dues
+        where store_id = {esc(STORE['id'])}::uuid and status = 'open' and kind in ('cash', 'freight')) x"""):
+        drv = next((x for x in IUSER_DRIVERS if x['id'] == b['driver_id']), None)
+        bal = b['b'] if isinstance(b['b'], dict) else json.loads(b['b'])
+        if (drv and is_manual(drv)) or not (float(bal['driver_owes']) > 0 and float(bal['store_owes']) > 0) or R.random() < 0.5:
+            continue
+        payer = STORE['owner_id'] if float(bal['net']) < 0 else b['driver_id']
+        try:
+            as_user(payer, f"select settle_dues_pair({esc(STORE['id'])}::uuid, {esc(b['driver_id'])}::uuid, 'pix');")
+            log(f"  ⚖️ acerto pelo saldo com {drv['name'] if drv else 'o entregador'}: {'a loja' if payer == STORE['owner_id'] else 'ele'} pagou {abs(float(bal['net'])):.2f}")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ acerto: {str(e).splitlines()[0][:100]}")
+    for t in q_local(f"select id, payer, driver_id from dues_settlements where store_id = {esc(STORE['id'])}::uuid and status = 'declared' and created_at < now() - make_interval(secs => {R.uniform(8, 25) / sc})"):
+        drv = next((x for x in IUSER_DRIVERS if x['id'] == t['driver_id']), None)
+        receiver = STORE['owner_id'] if t['payer'] == 'driver' else t['driver_id']
+        if receiver == t['driver_id'] and drv and is_manual(drv):
+            continue
+        try:
+            as_user(receiver, f"select confirm_dues_settlement({esc(t['id'])}::uuid, true);")
+            log("  ✅ acerto confirmado")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ confirmar acerto: {str(e).splitlines()[0][:100]}")
     rows = q_local(f"""select d.id, d.kind, d.driver_id from store_dues d where d.store_id = {esc(STORE['id'])}::uuid and d.status = 'open'
         and d.created_at < now() - make_interval(secs => {R.uniform(25, 70) / sc})""")
     for d in rows:
         drv = next((x for x in IUSER_DRIVERS if x['id'] == d['driver_id']), None)
+        if d['kind'] == 'freight':
+            # a LOJA paga o frete (a dona é a pessoa quando o simulador está --manual; senão, o simulador paga por ela)
+            if CFG.get('manual'):
+                continue
+            try:
+                as_user(STORE['owner_id'], f"select store_declare_freight({esc(d['id'])}::uuid, 'pix');")
+                log(f"  🚚 a loja pagou o frete a {drv['name'] if drv else 'o entregador'}")
+            except Exception as e:  # noqa: BLE001
+                log(f"  ✗ frete: {str(e).splitlines()[0][:100]}")
+            continue
         if drv and is_manual(drv):
             continue
         try:
@@ -676,12 +710,43 @@ def settle_dues(speed=1.0):
             log(f"  💵 {drv['name'] if drv else 'Motorista'} {'devolveu a maquininha' if d['kind'] == 'machine' else 'repassou o dinheiro à loja (' + method.replace('em_maos', 'em mãos') + ')'}")
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ repasse: {str(e).splitlines()[0][:100]}")
-    for d in q_local(f"select id from store_dues where store_id = {esc(STORE['id'])}::uuid and status = 'declared' and declared_at < now() - make_interval(secs => {R.uniform(8, 25) / sc})"):
+    # o entregador confirma o frete que a loja diz ter pago
+    for d in q_local(f"select id, driver_id from store_dues where store_id = {esc(STORE['id'])}::uuid and kind = 'freight' and status = 'declared' and settlement_id is null and declared_at < now() - make_interval(secs => {R.uniform(8, 25) / sc})"):
+        drv = next((x for x in IUSER_DRIVERS if x['id'] == d['driver_id']), None)
+        if drv and is_manual(drv):
+            continue
+        try:
+            as_user(d['driver_id'], f"select driver_confirm_freight({esc(d['id'])}::uuid, true);")
+            log(f"  ✅ {drv['name'] if drv else 'o entregador'} confirmou o frete")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ confirmar frete: {str(e).splitlines()[0][:100]}")
+    # a loja confirma o repasse do dinheiro/maquininha (mesmo com a loja à mão: senão o banco trava os entregadores simulados)
+    for d in q_local(f"select id from store_dues where store_id = {esc(STORE['id'])}::uuid and kind <> 'freight' and settlement_id is null and status = 'declared' and declared_at < now() - make_interval(secs => {R.uniform(8, 25) / sc})"):
         try:
             as_user(STORE['owner_id'], f"select confirm_due({esc(d['id'])}::uuid, true);")
             log("  ✅ a loja confirmou o recebimento")
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ confirmação: {str(e).splitlines()[0][:100]}")
+
+
+def pay_orders(speed=1.0):
+    """PAGAMENTO direto à loja (migration ...74): o cliente que pediu por Pix paga e toca "Já paguei"; a loja confere e confirma (se o simulador atende a loja)."""
+    sc = max(CFG.get('scale', 1), 1)
+    for p in q_local(f"""select p.order_id, o.buyer_id from order_payments p join orders o on o.id = p.order_id where p.store_id = {esc(STORE['id'])}::uuid and p.status = 'awaiting'
+        and p.method in ('pix', 'link_cartao') and o.status <> 'rejected' and o.created_at > now() - interval '1 day' and o.created_at < now() - make_interval(secs => {R.uniform(10, 40) / sc}) limit 10"""):
+        try:
+            as_user(p['buyer_id'], f"select report_order_paid({esc(p['order_id'])}::uuid);")
+            log("  💳 cliente pagou o pedido direto à loja (Pix) e avisou")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ pagar: {str(e).splitlines()[0][:100]}")
+    if CFG.get('manual'):
+        return
+    for p in q_local(f"select order_id from order_payments where store_id = {esc(STORE['id'])}::uuid and status = 'reported' and reported_at < now() - make_interval(secs => {R.uniform(8, 30) / sc}) limit 10"):
+        try:
+            as_user(STORE['owner_id'], f"select confirm_order_payment({esc(p['order_id'])}::uuid, true);")
+            log("  ✅ a loja confirmou o pagamento")
+        except Exception as e:  # noqa: BLE001
+            log(f"  ✗ confirmar pagamento: {str(e).splitlines()[0][:100]}")
 
 
 def drivers_run(speed=1.0):
@@ -896,7 +961,7 @@ def cycle_tick(speed):
     if CFG.get('manual') and not CFG['theater']:
         # LOJA À MÃO (--manual): quem atende é a pessoa, mas os ENTREGADORES seguem sozinhos — no fluxo "entregador primeiro, loja depois" o pedido de entrega só chega à loja
         # depois que um motorista aceita, e sem eles os pedidos ficariam retidos para sempre. 
-        fns = [drivers_accept, drivers_run, settle_dues] if CFG['mode'] == 'iuser' else []   # settle_dues: o repasse do dinheiro/maquininha dos motoristas (sem ele o banco trava quem passa do limite)
+        fns = [drivers_accept, drivers_run, settle_dues, pay_orders] if CFG['mode'] == 'iuser' else [pay_orders]   # settle_dues: o repasse do dinheiro/maquininha dos motoristas (sem ele o banco trava quem passa do limite)
         for fn in fns:
             try:
                 fn(speed)
@@ -907,7 +972,7 @@ def cycle_tick(speed):
         # TEATRO DE 6 TELAS: a dona atende pelas telas (nada de aceitar/preparar/responder aqui) e a loja é quem avalia o motorista (também pela tela)
         fns = [review_featured]
         if CFG['mode'] == 'iuser':
-            fns += [drivers_accept, drivers_run, settle_dues]
+            fns += [drivers_accept, drivers_run, settle_dues, pay_orders]
         for fn in fns:
             try:
                 fn(speed)
@@ -915,7 +980,7 @@ def cycle_tick(speed):
                 log(f"  ✗ {fn.__name__}: {str(e).splitlines()[0][:140]}")
         return
     if CFG['mode'] == 'iuser':
-        fns += [drivers_accept, drivers_run, rate_deliveries, settle_dues]
+        fns += [drivers_accept, drivers_run, rate_deliveries, settle_dues, pay_orders]
     elif CFG['couriers']:
         fns += [dispatch_batches, run_couriers]
     for fn in fns:
