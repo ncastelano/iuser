@@ -7,7 +7,7 @@
 //   2. UM botão só: "Solicitar corrida" (o dono vê "Editar a minha tarifa")
 //   3. Onde está agora: a situação em uma linha (o mapa fica no topo)
 //   4. O veículo: modelo, cor, lugares e o que tem (ar, Wi-Fi, carregador, som, pet — `CarAmenities`)
-//   5. Quanto custa: o modo que o motorista escolheu (Tarifa iUser, por km ou por tempo), a regra e três exemplos
+//   5. Quanto custa: TODOS os jeitos que ele cobra (por km e/ou por tempo, ou só a Tarifa iUser), o do botão marcado, cada um com a regra e três exemplos
 //   6. O que dizem os passageiros: a nota grande e as avaliações (as com comentário primeiro)
 // Os dados vêm de funções públicas do banco (get_driver_public_quote, get_driver_public_stats, get_driver_reviews) — a tabela da tarifa é
 // privada; o valor é calculado em modules/driver-profile. Só apresentação: nenhuma regra de corrida mora aqui.
@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { ArrowLeft, Bike, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
@@ -28,7 +29,7 @@ import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { platformFloor } from '@/modules/negotiation'
-import { etaFromViewer, etaText, parseQuote, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote } from '@/modules/driver-profile'
+import { etaFromViewer, etaText, parseQuote, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote, type QuoteMode } from '@/modules/driver-profile'
 import { loadMyLocation } from '@/lib/myLocation'
 import { getCurrentPosition } from '@/lib/nativeGeolocation'
 import { isGeoPermissionGranted } from '@/components/AceitarCorridas/LocationAskDialog'
@@ -53,7 +54,6 @@ const ago = (iso: string) => {
     return d === 0 ? 'hoje' : d === 1 ? 'ontem' : d < 30 ? `há ${d} dias` : new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')
 }
 
-const ago2 = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m <= 1 ? 'agora há pouco' : `há ${m} min` }
 
 function Stars({ value, size = 13 }: { value: number; size?: number }) {
     return (
@@ -156,28 +156,57 @@ export default function DriverProfile(p: DriverProfileProps) {
         return () => { alive = false }
     }, [p.driverId])
 
+    // ONDE ESTÁ QUEM VÊ (17/11/2026, decisão do dono): a página do motorista pede a localização ao abrir, para o botão já dizer em quanto tempo
+    // ele chega e o pedido já sair daqui (partida preenchida). GPS sem perguntar se o navegador já deixou; senão o local salvo e a folha que pergunta
+    // (uma vez por visita; "Agora não" vale até fechar a aba). Nada disso é gravado: só serve para a conta na tela e para preencher o pedido.
+    const [viewerSource, setViewerSource] = useState<'gps' | 'saved' | null>(null)
+    const [savedPlace, setSavedPlace] = useState<{ lat: number; lng: number; address: string } | null>(null)
+    const [askLoc, setAskLoc] = useState(false)
+    const [locStatus, setLocStatus] = useState<'idle' | 'asking' | 'denied'>('idle')
+    const askKey = 'iuser_driver_page_loc_ask'
+    const locateMe = (onFail?: () => void) => {
+        setLocStatus('asking')
+        getCurrentPosition((pos) => {
+            setViewerPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setViewerSource('gps'); setLocStatus('idle'); setAskLoc(false)
+        }, () => { setLocStatus('denied'); onFail?.() }, { timeout: 10000, maximumAge: 120000 })
+    }
     useEffect(() => {
-        if (!quote?.live || p.isOwner) return
+        if (p.isOwner || quote === null) return
         let alive = true
         void (async () => {
-            if (await isGeoPermissionGranted()) {
-                getCurrentPosition((pos) => { if (alive) setViewerPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }) }, async () => {
-                    const l = await loadMyLocation(supabase, p.viewerId)
-                    if (alive && l) setViewerPos({ lat: l.lat, lng: l.lng })
-                }, { timeout: 8000, maximumAge: 120000 })
-                return
-            }
-            const l = await loadMyLocation(supabase, p.viewerId)
-            if (alive && l) setViewerPos({ lat: l.lat, lng: l.lng })
+            const saved = await loadMyLocation(supabase, p.viewerId).catch(() => null)
+            if (!alive) return
+            if (saved) { setSavedPlace({ lat: saved.lat, lng: saved.lng, address: saved.address }); setViewerPos({ lat: saved.lat, lng: saved.lng }); setViewerSource('saved') }
+            if (await isGeoPermissionGranted()) { if (alive) locateMe(); return }
+            let dismissed = false
+            try { dismissed = sessionStorage.getItem(askKey) === '1' } catch { /* sem armazenamento */ }
+            if (alive && !dismissed) setAskLoc(true)
         })()
         return () => { alive = false }
-    }, [quote?.live, p.isOwner, p.viewerId])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [quote === null, p.isOwner, p.viewerId])
+    const dismissAsk = () => { setAskLoc(false); setLocStatus('idle'); try { sessionStorage.setItem(askKey, '1') } catch { /* só esta vez */ } }
 
     const kind: Kind = vehicle?.kind || 'carro'
     const shape = useMemo(() => (quote && tariffsReady ? getEffectivePricing(quote.row as unknown as DriverPricingRow, kind) : null), [quote, tariffsReady, kind])
     const floor = platformFloor(null, minPerMinute)   // o mínimo de uma corrida (R$ 8): nenhum exemplo abaixo dele
     const examples = quote && shape ? quoteExamples(quote, shape, hourly).map((e) => ({ ...e, price: Math.max(e.price, floor) })) : []
     const fromPrice = examples.length ? examples[0].price : null
+    // QUANTO CUSTA: todos os jeitos que ESTE motorista cobra — a tarifa por km (se ele tem tarifa própria), a por tempo (se definiu um valor por
+    // minuto) — ou só a Tarifa iUser; o do botão vai marcado. Cada um com a regra e três exemplos (nunca abaixo do mínimo de uma corrida).
+    const priceModes: { mode: QuoteMode; rule: string; examples: { label: string; price: number }[] }[] = (() => {
+        if (!quote || !tariffsReady) return []
+        const modes: QuoteMode[] = []
+        if (quote.pricing_mode === 'custom') modes.push('km')
+        if (quote.price_per_minute != null) modes.push('time')
+        if (!modes.length || quote.mode === 'platform') modes.unshift('platform')
+        if (!modes.includes(quote.mode)) modes.unshift(quote.mode)
+        return modes.map((m) => {
+            const q2: DriverQuote = { ...quote, mode: m, row: { ...quote.row, pricing_mode: m === 'km' ? 'custom' : 'platform' } }
+            const sh = getEffectivePricing(q2.row as unknown as DriverPricingRow, kind)
+            return { mode: m, rule: quoteRule(q2, sh, hourly), examples: quoteExamples(q2, sh, hourly).map((e) => ({ ...e, price: Math.max(e.price, floor) })) }
+        }).sort((x, y) => Number(y.mode === quote.mode) - Number(x.mode === quote.mode))
+    })()
     const soft = `${colors.border}30`
     const Icon = kind === 'carro' ? Car : Bike
     const active = !!quote?.active
@@ -200,13 +229,45 @@ export default function DriverProfile(p: DriverProfileProps) {
     const cta = p.isOwner
         ? { label: 'Editar a minha tarifa', sub: quote ? `O botão do seu perfil usa: ${quoteModeLabel(quote.mode)}` : 'Escolha como o seu perfil cobra', onClick: () => router.push('/canal-do-motorista?aba=plano') }
         : vehicle
-            ? { label: 'Solicitar corrida', sub: quote ? `${quoteModeLabel(quote.mode)}${fromPrice != null ? ` · a partir de ${brl(fromPrice)}` : ''}` : 'O aviso chega na hora', onClick: () => router.push(`/pedir-motorista?motorista=${p.driverId}`) }
+            ? {
+                label: 'Solicitar corrida',
+                sub: [eta ? `chega em ~${eta.minutes} min` : null, quote ? quoteModeLabel(quote.mode) : null, fromPrice != null ? `a partir de ${brl(fromPrice)}` : null].filter(Boolean).join(' · ') || 'O aviso chega na hora',
+                onClick: () => {
+                    // com a posição de quem pede, o pedido já abre com a PARTIDA preenchida (aqui): o valor sai na hora, falta só a chegada
+                    const qs = new URLSearchParams({ motorista: p.driverId })
+                    if (viewerPos) {
+                        qs.set('origem', viewerSource === 'saved' && savedPlace?.address ? savedPlace.address : 'Minha localização')
+                        qs.set('origem_lat', String(viewerPos.lat)); qs.set('origem_lng', String(viewerPos.lng))
+                    }
+                    router.push(`/pedir-motorista?${qs.toString()}`)
+                },
+            }
             : null
 
     if (quote === null || vehicle === undefined || stats === null) return <DriverSkeleton />
 
     return (
         <div className="pb-10">
+            {askLoc && !p.isOwner && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[96] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={dismissAsk}>
+                    <div className="w-full max-w-md rounded-t-[28px] p-5 pb-7 flex flex-col gap-3" style={{ background: colors.background, paddingBottom: 'calc(28px + env(safe-area-inset-bottom, 0px))' }} onClick={(e) => e.stopPropagation()}>
+                        <span className="w-12 h-12 rounded-2xl flex items-center justify-center text-white" style={{ background: GREEN }}>{locStatus === 'asking' ? <Navigation size={22} className="animate-pulse" /> : <MapPin size={22} />}</span>
+                        <div>
+                            <h2 className="text-[18px] font-black leading-tight" style={{ color: colors.textPrimary }}>{locStatus === 'asking' ? 'Localizando você…' : `Onde você está?`}</h2>
+                            <p className="text-[13px] mt-1 leading-snug" style={{ color: colors.textSecondary }}>Com a sua localização mostramos em quanto tempo {p.name.split(' ')[0]} chega e o pedido já sai daí, com o valor na hora. Ela não fica salva.</p>
+                            {locStatus === 'denied' && <p className="text-[12px] font-bold mt-2" style={{ color: '#ca8a04' }}>A localização está bloqueada ou não respondeu. Libere nas configurações do navegador e tente de novo{savedPlace ? ', ou use o seu endereço salvo' : ''}.</p>}
+                        </div>
+                        <button onClick={() => locateMe()} disabled={locStatus === 'asking'} className="h-12 rounded-full text-[14px] font-black text-white flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: GREEN }}><Navigation size={17} /> {locStatus === 'denied' ? 'Tentar de novo' : 'Usar minha localização'}</button>
+                        {savedPlace && (
+                            <button onClick={() => { setViewerPos({ lat: savedPlace.lat, lng: savedPlace.lng }); setViewerSource('saved'); dismissAsk() }} className="h-12 rounded-full text-[13px] font-black flex items-center justify-center gap-2 px-4" style={{ background: soft, color: colors.textPrimary }}>
+                                <MapPin size={16} className="flex-shrink-0" /><span className="truncate">Usar {savedPlace.address}</span>
+                            </button>
+                        )}
+                        <button onClick={dismissAsk} className="h-10 text-[13px] font-bold" style={{ color: colors.textSecondary }}>Agora não</button>
+                    </div>
+                </div>,
+                document.body,
+            )}
             {/* ===== 1. o motorista: a IMAGEM ocupa 2/3 do cartão (o MAPA de onde ele está, se ele deixa o local visível, ou a foto do veículo) e entra no
                 fundo do cartão por um degradê; em cima o voltar e a situação; embaixo, sobre o degradê, a foto à esquerda e o nome, o @, o nível e o veículo à
                 direita. O 1/3 de baixo é compacto: o que o carro tem, os números numa linha e os botões ===== */}
@@ -433,7 +494,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                 <div className="mt-2.5 rounded-3xl p-4 flex items-center gap-3" style={{ background: quote?.live ? `${GREEN}12` : soft }}>
                     <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1f`, color: GREEN }}>{quote?.live || p.loggedIn || !active ? <MapPin size={19} /> : <Lock size={18} />}</span>
                     <p className="text-[12.5px] leading-snug flex flex-col" style={{ color: quote?.live ? colors.textPrimary : colors.textSecondary }}>
-                        {quote?.live ? <>{eta && <span className="flex items-center gap-1 text-[14px] font-black mb-0.5" style={{ color: GREEN }}><Navigation size={14} />{etaText(eta)}</span>}<span>No mapa lá em cima: <b>posição aproximada</b> (um círculo de uns 300 m), atualizada {ago2(quote.live.at)}.</span></>
+                        {quote?.live ? (eta ? <span className="flex items-center gap-1 text-[14px] font-black" style={{ color: GREEN }}><Navigation size={14} />{etaText(eta)}</span> : <span>Dirigindo agora, por perto. Use a sua localização para ver em quanto tempo ele chega.</span>)
                             : !active ? 'Fora do ar agora. Peça mesmo assim: o aviso chega no celular na hora.'
                                 : !p.loggedIn ? 'Entre na sua conta para ver por onde o motorista está agora.'
                                     : 'Dirigindo, mas sem mostrar a localização. Peça mesmo assim: o aviso chega na hora.'}
@@ -462,25 +523,35 @@ export default function DriverProfile(p: DriverProfileProps) {
                 </section>
             )}
 
-            {/* ===== 5. quanto custa ===== */}
-            {quote && shape && (
-                <section className="rounded-3xl p-4" style={{ background: `linear-gradient(150deg, ${GREEN}14, ${GREEN}05)`, border: `1px solid ${GREEN}40` }}>
-                    <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                            <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>Quanto custa</h2>
-                            <p className="text-[12px] leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{quoteRule(quote, shape, hourly)}</p>
-                        </div>
-                        <span className="flex-shrink-0 h-7 px-2.5 rounded-full text-[11px] font-black flex items-center text-white" style={{ background: GREEN }}>{quoteModeLabel(quote.mode)}</span>
+            {/* ===== 5. quanto custa: todos os jeitos que ele cobra, o do botão primeiro e marcado ===== */}
+            {priceModes.length > 0 && (
+                <section>
+                    <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>Quanto custa</h2>
+                    <div className="mt-2.5 flex flex-col gap-2.5">
+                        {priceModes.map((pm) => {
+                            const main = quote ? pm.mode === quote.mode : false
+                            return (
+                                <div key={pm.mode} className="rounded-3xl p-4" style={main ? { background: `linear-gradient(150deg, ${GREEN}14, ${GREEN}05)`, border: `1.5px solid ${GREEN}66` } : { background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <span className="block text-[14px] font-black" style={{ color: colors.textPrimary }}>{quoteModeLabel(pm.mode)}</span>
+                                            <span className="block text-[12px] leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{pm.rule}</span>
+                                        </div>
+                                        {main && <span className="flex-shrink-0 h-6 px-2.5 rounded-full text-[10.5px] font-black flex items-center text-white" style={{ background: GREEN }}>valor do botão</span>}
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-3 gap-2">
+                                        {pm.examples.map((e) => (
+                                            <div key={e.label} className="rounded-2xl py-2 text-center" style={{ background: main ? colors.surface : soft }}>
+                                                <span className="block text-[11px] font-bold" style={{ color: colors.textSecondary }}>{e.label}</span>
+                                                <span className="block text-[15px] font-black" style={{ color: main ? GREEN : colors.textPrimary }}>{brl(e.price)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )
+                        })}
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                        {examples.map((e) => (
-                            <div key={e.label} className="rounded-2xl py-2.5 text-center" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                                <span className="block text-[11px] font-bold" style={{ color: colors.textSecondary }}>{e.label}</span>
-                                <span className="block text-[16px] font-black" style={{ color: GREEN }}>{brl(e.price)}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <p className="text-[10.5px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>O valor da sua corrida aparece antes de confirmar e já vai como a sua oferta. Extras (pet, compras, condomínio) somam quando você marca.</p>
+                    <p className="text-[10.5px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>Ao pedir, a corrida vai pelo valor do botão e já como a sua oferta. Extras (pet, compras, condomínio) somam quando você marca.</p>
                 </section>
             )}
 

@@ -41,7 +41,7 @@ export default function DriverSkeleton({ standalone = false }: { standalone?: bo
     )
     if (!standalone) return <div className="pb-10" aria-busy="true" aria-label="Carregando o perfil do motorista">{body}</div>
     return (
-        <div aria-busy="true" aria-label="Carregando o perfil do motorista" className="w-full px-4 md:px-6 py-4 md:max-w-3xl md:mx-auto" style={{ background: colors.background }}>
+        <div aria-busy="true" aria-label="Carregando o perfil do motorista" className="w-full px-4 md:px-6 pt-0 pb-4 md:max-w-3xl md:mx-auto" style={{ background: colors.background }}>
             {body}
         </div>
     )
