@@ -29,7 +29,7 @@ declaração. O edital deixa formalizar a empresa **durante** o programa (item 1
 
 | Critério | Peso | O que conta | iUser |
 |---|---|---|---|
-| **Negócio** | 50% | escala, inovação, diferencial, maturidade (TRL), tamanho e crescimento do mercado (TAM/CAGR), **uso relevante de IA** | forte em produto e mercado; **fraco em IA** (ver 6) |
+| **Negócio** | 50% | escala, inovação, diferencial, maturidade (TRL), tamanho e crescimento do mercado (TAM/CAGR), **uso relevante de IA** | forte em produto e mercado; IA do iUser feita em 18/11 (falta ligar em produção, ver 6) |
 | **Impacto** | 30% | relevância e alcance do problema, eficácia da solução, **aderência a um tema prioritário** | forte no problema; tema prioritário só parcial (logística de baixa emissão) |
 | **Empreendedor e time** | 8% | conhecimento do setor, dedicação e complementaridade dos sócios | depende da 2ª pessoa |
 | **Diversidade e inclusão** | 12% | mulher ou pessoa trans na liderança; pessoa preta/parda/indígena sócia; solução para PcD ou **periferias** | depende do time; "periferias" defendível |
@@ -77,11 +77,20 @@ O diferencial é o modelo de cobrança e de dinheiro:
 3. "Super app" de bairro: compra, serviço, corrida e entrega num mesmo cadastro, para o mesmo cliente.
 4. Entrega com o entregador aceitando **antes** de a loja receber o pedido (pedido nunca fica parado), liberação por etapas do
    dinheiro vivo para entregador novo (antifraude) e acerto de saldo entre loja e entregador num Pix só.
+5. **IA do iUser que opera o aplicativo por linguagem natural (texto ou voz).** No mesmo campo "O que você procura?" a pessoa
+   escreve ou fala o que quer fazer — "cadastra Coca-Cola 2 litros por 12 reais", "pausa a loja", "quanto vendi hoje?",
+   "fica online", "me leva para o shopping", "preciso de um eletricista" — e a IA entende, escolhe a ação certa conforme QUEM a
+   pessoa é (lojista, motorista, prestador, cliente) e mostra o que vai fazer; nada muda sem a pessoa tocar em Confirmar. Quem
+   tem pouca familiaridade com aplicativos (ou pouca leitura) passa a usar ferramentas profissionais falando, sem aprender
+   menus. A IA trabalha só com o que é da própria pessoa e com as mesmas travas do sistema (não paga, não cancela, não apaga).
 
 **Estágio / maturidade (TRL)**
 Produto completo e em produção (web e Android), com loja, catálogo, carrinho, pedidos, entregas, corridas, agenda, pagamentos
 Pix declarados, moderação, termos de uso e política de privacidade. Estamos na fase de **primeiras vendas** em Porto Velho.
-**[Números reais: lojas cadastradas, usuários, pedidos/mês, motoristas ativos — ver seção 7.]**
+**Tração atual (informada pelo fundador, 18/11/2026): cerca de 30 usuários reais**, de perfis diferentes — motoristas,
+técnicos/prestadores de serviço, advogado, donos de loja e de restaurante. **Antes de enviar, confirme o número exato e quantos
+de cada perfil** (e, se houver, pedidos/corridas reais no último mês). Nunca arredonde para cima: informação inconsistente
+desclassifica.
 
 **Mercado (TAM e crescimento)**
 - Delivery de comida no Brasil: projeção de cerca de **US$ 21 bilhões de receita em 2025**, com crescimento de **cerca de 7% ao ano
@@ -129,8 +138,9 @@ impacto de forma comprovável e nos preparar para captar recursos e crescer para
 | 0:00–0:20 | Você, de frente: nome, cidade (Porto Velho), "o iUser devolve ao comércio do bairro o dinheiro que hoje fica na comissão". |
 | 0:20–0:50 | A dor: lanchonete que vende R$ 100 e paga R$ 15 a R$ 26 de taxa; o dinheiro fica retido; motorista sem preço próprio. |
 | 0:50–1:50 | Tela do app: loja recebendo pedido, cliente pagando o Pix direto à loja, entregador aceitando e entregando com código. |
-| 1:50–2:20 | Modelo: R$ 100/mês ou R$ 0,50 por uso com teto. O iUser não segura dinheiro de ninguém. |
-| 2:20–2:45 | Números reais e o que o programa vai destravar (validação, impacto medido, expansão no Norte). |
+| 1:50–2:05 | **A IA do iUser:** falar "cadastra Coca-Cola 2 litros por 12 reais" no campo de busca, a tela mostra o que entendeu, tocar em Confirmar e o produto aparece. |
+| 2:05–2:20 | Modelo (encurtado): R$ 100/mês ou R$ 0,50 por uso com teto. |
+| 2:20–2:45 | Números reais (~30 usuários: motoristas, prestadores, advogado, lojas e restaurantes) e o que o programa vai destravar. |
 | 2:45–2:55 | Encerramento com o nome e o site. |
 
 ## 5. Calendário e documentos
@@ -150,21 +160,27 @@ CADIMPACTO** (https://cadimpacto.mdic.gov.br — faça já) e declaração de fa
 
 ## 6. Pontos fracos e como tratar
 
-1. **IA (vale ponto dentro dos 50% de "Negócio")** — hoje o iUser não usa IA de forma relevante. **Não declarar o que não existe.**
-   Opção concreta: até a entrevista (janeiro) colocar no ar UMA função de IA de verdade, por exemplo: o lojista tira foto do
-   cardápio e a IA cadastra os produtos com nome, descrição e preço; ou sugestão de preço/tarifa. Aí a resposta vira real.
+1. **IA (vale ponto dentro dos 50% de "Negócio")** — **construída em 18/11/2026: a IA do iUser** (ver a Inovação nº 5). Para
+   poder declará-la, ela precisa estar **no ar em produção** antes do envio: falta o dono criar a chave da Anthropic
+   (`ANTHROPIC_API_KEY`, console.anthropic.com) e colocá-la na Vercel, e publicar o código (migration 084 + código). Grave o
+   trecho do vídeo com ela funcionando de verdade. O custo é por uso (cada pedido à IA), com limite de 10 por minuto e 60 por dia
+   por pessoa; acompanhe em Admin → Financeiro.
 2. **Tração ainda pequena** — o Módulo de Criação aceita isso; o que pesa é mostrar números reais, mesmo pequenos, e um plano.
 3. **Tema prioritário parcial** — dizer com clareza onde se encaixa (logística) e não forçar.
 4. **Time de uma pessoa** — indicar um segundo representante com papel real (sócio, operação, comercial) ajuda nos 8% de time.
 
 ## 7. O que falta o dono decidir/informar
 
-- [ ] Inscrever como **pessoa física** ou com **CNPJ**? (se CNPJ: número, e se as certidões e o CADIMPACTO estão ok)
-- [ ] **2º Representante Titular**: nome e papel no negócio
-- [ ] Diversidade: há mulher ou pessoa trans na liderança? Pessoa preta, parda ou indígena entre quem decide? (autodeclaração, IBGE)
-- [ ] Números reais de produção: lojas, usuários, pedidos, motoristas, faturamento dos lojistas (se houver)
-- [ ] Disponibilidade para ir ao Rio nas datas acima
-- [ ] Quer que eu construa uma função de IA real antes da entrevista?
+- [x] **Pessoa física** (Pessoa Empreendedora, sem CNPJ) — decidido em 18/11.
+- [x] **2º Representante Titular: a esposa do fundador.** Para contar em Diversidade (mulher na liderança) ela precisa ter papel
+      REAL de decisão no iUser e saber falar dele na entrevista (nome, papel, o que decide). Falta: nome completo e o papel.
+- [ ] **Autodeclaração indígena:** o fundador disse ser "filho indígena". O edital conta pessoa **autodeclarada** preta, parda ou
+      indígena (critério do IBGE) e pode conferir por foto, entrevista ou banca de heteroidentificação; declaração que não se
+      sustenta elimina. Marque só se você se identifica como indígena — a decisão é sua. Se sim, tenha à mão o que embasa
+      (povo/etnia, vínculo com a comunidade); não é obrigatório documento, mas ajuda na entrevista.
+- [~] Números reais: ~30 usuários (motoristas, técnicos, advogado, lojas e restaurantes) — confirmar o número exato e por perfil.
+- [x] Pode ir ao Rio na fase 2.
+- [x] IA real antes da entrevista: feita (IA do iUser no "O que você procura?"); falta ligar em produção (chave + publicação).
 
 Fontes de mercado (conferir o relatório original antes de citar): Statista via Saipos/Portal do Franchising (US$ 21,18 bi em
 2025, ~7% a.a.); Getnet/Linx via Monitor Mercantil (R$ 79 bi, +12,7%); Fipe via Paraíba Business (R$ 167 bi); comissões do iFood

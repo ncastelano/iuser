@@ -57,7 +57,7 @@ export default function PrivacidadePage() {
                 <p>Não vendemos seus dados. Compartilhamos só o necessário com:</p>
                 <Ul>
                     <li><b>As outras partes da sua transação</b> (loja, cliente, motorista, prestador), para ela acontecer.</li>
-                    <li><b>Fornecedores que operam o iUser:</b> Supabase (banco de dados e login), Vercel (hospedagem), Cloudflare (DNS e armazenamento de arquivos), Mapbox (mapas, rotas e busca de endereços), Google Firebase (notificações), Asaas (cobrança dos planos) e Meta/WhatsApp (mensagens automáticas, quando a loja usa esse recurso).</li>
+                    <li><b>Fornecedores que operam o iUser:</b> Supabase (banco de dados e login), Vercel (hospedagem), Cloudflare (DNS e armazenamento de arquivos), Mapbox (mapas, rotas e busca de endereços), Google Firebase (notificações), Asaas (cobrança dos planos), Meta/WhatsApp (mensagens automáticas, quando a loja usa esse recurso) e Anthropic (a IA do iUser: quando você faz um pedido à IA, o texto do pedido e o que é preciso para atendê-lo — por exemplo, os nomes e preços dos produtos da sua loja — são enviados para ela entender o pedido; a IA não recebe senha, documento nem dados de pagamento, e nada muda sem a sua confirmação). Ao falar em vez de digitar, o ditado é feito pelo seu navegador (no Chrome, pelo serviço de voz do Google); o iUser não grava o áudio.</li>
                     <li><b>Autoridades</b>, quando a lei ou uma ordem judicial exigir.</li>
                 </Ul>
                 <p>

@@ -116,6 +116,7 @@ export default function TermosPage() {
                 <Ul>
                     <li>O iUser se esforça para manter o serviço disponível e seguro, mas ele pode ter interrupções para manutenção ou por falhas de terceiros (internet, provedores de mapa, de mensagem e de hospedagem).</li>
                     <li>Cada loja, prestador e motorista responde pelo que oferece e faz. O iUser responde pelos atos da própria plataforma, nos limites da lei.</li>
+                    <li><b>IA do iUser:</b> a IA ajuda a fazer pedidos no app (procurar, cadastrar produto, mudar preço, ficar online...). Ela pode entender errado: por isso mostra o que entendeu e nada muda sem você tocar em <b>Confirmar</b>. Confira antes de confirmar; o que você confirma vale como feito por você.</li>
                     <li>Nada nestes Termos retira direitos que o Código de Defesa do Consumidor garante a você.</li>
                 </Ul>
             </Sec>

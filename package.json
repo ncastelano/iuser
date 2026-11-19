@@ -93,9 +93,11 @@
     "test:order-payment": "node --test scripts/test-order-payment.mjs",
     "test:safe-redirect": "node --test scripts/test-safe-redirect.mjs",
     "test:legal": "node --test scripts/test-legal.mjs",
-    "test:delivery-rules": "node --test scripts/test-delivery-rules.mjs"
+    "test:delivery-rules": "node --test scripts/test-delivery-rules.mjs",
+    "test:ai-assistant": "node --test scripts/test-ai-assistant.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.5.0",
     "@capacitor/android": "^8.5.2",
     "@capacitor/camera": "^8.2.4",
     "@capacitor/cli": "^8.5.2",
