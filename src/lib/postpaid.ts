@@ -39,3 +39,18 @@ export function usePostpaidLimit(): number {
 }
 
 export { POSTPAID_DEBT_LIMIT, POSTPAID_LEGACY_LIMIT, interpretLimit, limitText, salesUntilLimit }
+
+// ===== TETO MENSAL do Pós-pago (migration 20261130000075): R$ 0,50 por uso, nunca mais que isto no mês =====
+let capCached: number | null | undefined
+/** o teto do mês (hoje R$ 100); null = sem teto OU banco ainda sem a migration (aí o texto simplesmente não fala de teto) */
+export function loadPostpaidCap(): Promise<number | null> {
+    if (capCached !== undefined) return Promise.resolve(capCached)
+    return Promise.resolve(supabase.rpc('get_postpaid_monthly_cap'))
+        .then(({ data, error }) => { const n = error ? null : Number(data); capCached = n && Number.isFinite(n) && n > 0 ? n : null; return capCached })
+        .catch(() => null)
+}
+export function usePostpaidCap(): number | null {
+    const [cap, setCap] = useState<number | null>(capCached ?? null)
+    useEffect(() => { let alive = true; loadPostpaidCap().then((n) => { if (alive) setCap(n) }); return () => { alive = false } }, [])
+    return cap
+}

@@ -47,7 +47,7 @@ export default function DigitalGet({ productId, productName, price, items, store
         try {
             await claimFree(productId); setHas(true)
             // programa: fica na página e os downloads se liberam; o resto abre na biblioteca
-            if (kind === 'programa') { toast.success('Pronto! Os downloads foram liberados ✓'); window.dispatchEvent(new Event(APP_CLAIMED_EVENT)) } else { toast.success('Adicionado à sua biblioteca ✓'); open() }
+            if (kind === 'programa') { toast.success('Pronto! Os downloads foram liberados ✓'); window.dispatchEvent(new Event(APP_CLAIMED_EVENT)) } else { toast.success('Adicionado aos seus itens ✓'); open() }
         } catch (e: any) { toast.error(e?.message || 'Não foi possível pegar.') } finally { setBusy(false) }
     }
     const togglePreview = async () => {
@@ -80,7 +80,7 @@ export default function DigitalGet({ productId, productName, price, items, store
         <section className="rounded-3xl p-4 flex items-center gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
             <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#a855f722', color: '#7c3aed' }}><CheckCircle2 size={22} /></span>
             <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{club?.my?.musicOk ? 'Incluído no seu clube' : 'Está na sua biblioteca'}</span>
+                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{club?.my?.musicOk ? 'Incluído no seu clube' : 'Está nos seus itens'}</span>
                 <span className="block text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{club?.my?.musicOk ? 'Você ouve com a assinatura do clube; não precisa comprar.' : (items ? summaryFromCounts(counts) : '')}</span>
             </span>
             <button type="button" onClick={kind === 'programa' ? () => document.getElementById('baixar-programa')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : open} className="h-10 px-4 rounded-full text-[13px] font-black text-white flex-shrink-0 active:scale-95" style={{ background: 'linear-gradient(135deg, #a855f7, #6366f1)' }}>{kind === 'programa' ? 'Baixar ↓' : 'Abrir'}</button>
@@ -93,12 +93,12 @@ export default function DigitalGet({ productId, productName, price, items, store
                     <div className="flex items-center gap-3">
                         <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#22c55e22', color: '#16a34a' }}>{has ? <CheckCircle2 size={22} /> : <Gift size={22} />}</span>
                         <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{has ? 'Está na sua biblioteca' : 'Grátis'}</span>
+                            <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{has ? 'Está nos seus itens' : 'Grátis'}</span>
                             <span className="block text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{items ? summaryFromCounts(counts) : ''}{!has ? ' · abre na hora, sem pedido' : ''}</span>
                         </span>
                     </div>
                     <button type="button" disabled={busy || has === null} onClick={has ? (kind === 'programa' ? () => document.getElementById('baixar-programa')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : open) : claim} className="w-full h-11 rounded-full text-sm font-black text-white transition active:scale-95 disabled:opacity-60" style={{ background: '#f97316' }}>
-                        {busy ? 'Adicionando…' : has ? (kind === 'programa' ? 'Baixe abaixo ↓' : 'Abrir na minha biblioteca') : freeCtaLabel(kind)}
+                        {busy ? 'Adicionando…' : has ? (kind === 'programa' ? 'Baixe abaixo ↓' : 'Abrir nos meus itens') : freeCtaLabel(kind)}
                     </button>
                 </div>
             )}

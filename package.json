@@ -89,9 +89,17 @@
     "test:ride-places": "node --test scripts/test-ride-places.mjs",
     "test:profile-type": "node --test scripts/test-profile-type.mjs",
     "test:driver-profile": "node --test scripts/test-driver-profile.mjs",
-    "test:driver-call": "node --test scripts/test-driver-call.mjs"
+    "test:driver-call": "node --test scripts/test-driver-call.mjs",
+    "test:order-payment": "node --test scripts/test-order-payment.mjs",
+    "test:safe-redirect": "node --test scripts/test-safe-redirect.mjs",
+    "test:legal": "node --test scripts/test-legal.mjs",
+    "test:delivery-rules": "node --test scripts/test-delivery-rules.mjs",
+    "test:ai-assistant": "node --test scripts/test-ai-assistant.mjs",
+    "test:forum": "node --test scripts/test-forum.mjs",
+    "test:items": "node --test scripts/test-items.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.5.0",
     "@capacitor/android": "^8.5.2",
     "@capacitor/camera": "^8.2.4",
     "@capacitor/cli": "^8.5.2",
@@ -119,7 +127,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^1.7.0",
     "mapbox-gl": "^3.21.0",
-    "next": "^16.2.1",
+    "next": "^16.4.6",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "4.10.38",
     "postcss": "^8.4.32",

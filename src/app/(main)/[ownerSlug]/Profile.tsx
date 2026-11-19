@@ -72,6 +72,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PROFILE_PUBLIC_SELECT, STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 import PostpaidLimitText from '@/components/PostpaidLimitText'
+import ReportButton from '@/components/moderation/ReportButton'
 
 interface ProfileProps {
     ownerSlug: string
@@ -1667,6 +1668,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         colors={colors}
                         isOwner={isOwner}
                         loggedIn={!!currentUserId}
+                        reportSlot={!isOwner ? <ReportButton type="profile" id={owner.id} label="Denunciar perfil" size={12} className="opacity-70" /> : undefined}
                         onEdit={() => setShowEditDialog(true)}
                         onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
                         ownerTypeSlot={isOwner ? ownerTypeNode : undefined}
@@ -1716,6 +1718,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     liveLocSlot={liveLoc && owner.show_location !== false && process.env.NEXT_PUBLIC_MAPBOX_TOKEN ? liveLocCard : undefined}
                     dialogsSlot={agendaDialogs}
                     isOwner={isOwner}
+                    reportSlot={!isOwner ? <ReportButton type="profile" id={owner.id} label="Denunciar perfil" size={12} className="opacity-70" /> : undefined}
                     onEdit={() => setShowEditDialog(true)}
                     chatEnabled={!!owner.chat_enabled}
                     chatSaving={chatSaving}

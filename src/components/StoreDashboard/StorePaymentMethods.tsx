@@ -9,6 +9,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { hexToRgb } from '@/lib/color'
 import V3Section from './V3Section'
+import { cardLinkProblem, fetchStorePaymentLink, saveStorePaymentLink } from '@/modules/order-payment'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -47,6 +48,8 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
     const [pixKey, setPixKey] = useState('')
     const [pixKeyType, setPixKeyType] = useState<'cpf' | 'email' | 'phone' | 'random'>('cpf')
     const [isPixExpanded, setIsPixExpanded] = useState(true)
+    // o LINK de pagamento por cartão da conta da loja (Mercado Pago, InfinitePay...): o cliente paga antes, sem maquininha na porta (privado; só a dona edita)
+    const [cardLink, setCardLink] = useState('')
 
     const loadConfig = useCallback(async () => {
         if (!storeId) return
@@ -71,6 +74,7 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
             setPixKey(store.pix_key || '')
             setPixKeyType(store.pix_key_type || 'cpf')
         }
+        setCardLink((await fetchStorePaymentLink(storeId)) || '')
 
         setLoading(false)
     }, [storeId])
@@ -81,6 +85,8 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
 
     const saveConfig = async () => {
         if (!storeId) return
+        const linkErr = cardLinkProblem(cardLink)
+        if (linkErr) { toast.error(linkErr); return }
         setSaving(true)
 
         const { error } = await supabase
@@ -100,6 +106,8 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
             return
         }
 
+        try { await saveStorePaymentLink(storeId, acceptsCard ? cardLink : '') }
+        catch (e: any) { toast.error(e?.message || 'Não deu para salvar o link de cartão'); setSaving(false); return }
         toast.success('Formas de pagamento salvas!')
         setSaving(false)
         if (onRefresh) onRefresh()
@@ -244,6 +252,23 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
                             )}
                         </div>
                     </div>
+
+                    {/* cartão SEM maquininha na porta: o link de pagamento da conta da loja (o cliente paga antes, no próprio celular) */}
+                    {acceptsCard && (
+                        <div className="rounded-2xl p-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, border: `1px solid ${colors.border}` }}>
+                            <p className="text-[12px] font-black" style={{ color: colors.textPrimary }}>Link de pagamento por cartão (opcional)</p>
+                            <p className="text-[11px] mt-0.5" style={{ color: colors.textSecondary }}>Cole o link da sua conta (Mercado Pago, InfinitePay, PagBank...). O cliente paga o pedido no cartão antes, pelo celular dele, e o entregador não precisa levar a sua maquininha.</p>
+                            <input
+                                type="url"
+                                value={cardLink}
+                                onChange={(e) => setCardLink(e.target.value)}
+                                placeholder="https://link.mercadopago.com.br/sua-loja"
+                                className="mt-2 w-full p-3 rounded-full border text-sm"
+                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, borderColor: cardLinkProblem(cardLink) ? '#ef4444' : colors.border, color: colors.textPrimary }}
+                            />
+                            {cardLinkProblem(cardLink) && <p className="text-[11px] mt-1 font-bold" style={{ color: '#ef4444' }}>{cardLinkProblem(cardLink)}</p>}
+                        </div>
+                    )}
 
                     {/* Botões de ação - PILL */}
                     <div className="flex gap-3 mt-2">

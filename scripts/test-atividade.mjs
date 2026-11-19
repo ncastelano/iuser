@@ -1,12 +1,12 @@
 // Testes das regras puras da aba Atividade da barra da 3.0 (src/versions/v3/atividade/domain.ts). Rodar: npm run test:atividade
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ATIVIDADE_ABAS, NOTIFICATIONS_PATH, abaOfLocation, activityBadge, carrinhoTabOf, conversasTarget, isActivityPath, isLegacyAvisos, legacyTarget, pathOfAba, smartAba } from '../src/versions/v3/atividade/domain.ts'
+import { ATIVIDADE_ABAS, NOTIFICATIONS_PATH, abaOfLocation, activityBadge, carrinhoTabOf, conversasTarget, isActivityPath, isLegacyAvisos, legacyTarget, pathOfAba, smartAba, smartPath, HISTORY_PATH } from '../src/versions/v3/atividade/domain.ts'
 
 const none = { pending: 0, preparing: 0, ready: 0 }
 
 test('uma página só: cada subaba é /atividade?aba=...', () => {
-    assert.deepEqual(ATIVIDADE_ABAS.map((a) => a.key), ['pedidos', 'carrinho', 'biblioteca'])   // as notificações moram no painel do perfil e as conversas na página delas
+    assert.deepEqual(ATIVIDADE_ABAS.map((a) => a.key), ['carrinho', 'itens'])   // 19/11/2026: duas subabas; o Histórico mora dentro de Itens   // as notificações moram no painel do perfil e as conversas na página delas
     for (const a of ATIVIDADE_ABAS) assert.equal(pathOfAba(a.key), `/atividade?aba=${a.key}`)
 })
 
@@ -17,26 +17,27 @@ test('que endereços são da Atividade', () => {
 
 test('a subaba aberta sai do ?aba=', () => {
     assert.equal(abaOfLocation('/atividade', 'conversas'), null)   // as conversas saíram (a tela leva a /conversas)
-    assert.equal(abaOfLocation('/atividade', 'pedidos'), 'pedidos')
-    assert.equal(abaOfLocation('/atividade', 'avaliacoes'), 'pedidos')   // avaliar uma compra faz parte de Pedidos
-    assert.equal(abaOfLocation('/atividade', 'biblioteca'), 'biblioteca')
-    assert.equal(abaOfLocation('/atividade', 'digital'), 'biblioteca')
+    assert.equal(abaOfLocation('/atividade', 'itens'), 'itens')
+    assert.equal(abaOfLocation('/atividade', 'pedidos'), 'itens')        // endereço antigo: o Histórico mora em Itens
+    assert.equal(abaOfLocation('/atividade', 'avaliacoes'), 'itens')
+    assert.equal(abaOfLocation('/atividade', 'biblioteca'), 'itens')
+    assert.equal(abaOfLocation('/atividade', 'digital'), 'itens')
     assert.equal(abaOfLocation('/atividade', 'carrinho'), 'carrinho')
     assert.equal(abaOfLocation('/atividade', 'avisos'), null)            // as notificações não são mais uma subaba (a tela redireciona)
     assert.equal(abaOfLocation('/atividade'), null)                      // sem ?aba=: nenhuma escolhida (a tela abre a que pede atenção)
     assert.equal(abaOfLocation('/atividade', 'qualquer'), null)
     assert.equal(abaOfLocation('/conversas'), null)                      // página própria
     assert.equal(abaOfLocation('/carrinho'), 'carrinho')
-    assert.equal(abaOfLocation('/carrinho', 'pedidos'), 'pedidos')
-    assert.equal(abaOfLocation('/carrinho', 'digital'), 'biblioteca')
+    assert.equal(abaOfLocation('/carrinho', 'pedidos'), 'itens')
+    assert.equal(abaOfLocation('/carrinho', 'digital'), 'itens')
     assert.equal(abaOfLocation('/social'), null)
 })
 
 test('a aba que a tela do carrinho abre', () => {
     assert.equal(carrinhoTabOf('carrinho'), 'carrinho')
-    assert.equal(carrinhoTabOf('pedidos'), 'pedidos')
-    assert.equal(carrinhoTabOf('pedidos', 'avaliacoes'), 'avaliacoes')
-    assert.equal(carrinhoTabOf('biblioteca'), 'digital')
+    assert.equal(carrinhoTabOf('itens'), 'pedidos')
+    assert.equal(carrinhoTabOf('itens', 'avaliacoes'), 'avaliacoes')
+    assert.equal(carrinhoTabOf('itens', 'digital'), 'digital')
     assert.equal(carrinhoTabOf(null), 'carrinho')
 })
 
@@ -59,12 +60,13 @@ test('o endereço antigo das conversas na Atividade leva a /conversas sem perder
 })
 
 test('para onde a barra leva: o que pede atenção primeiro', () => {
-    assert.equal(smartAba({ orders: none, cart: 0 }), 'pedidos')
-    assert.equal(smartAba({ orders: { pending: 0, preparing: 0, ready: 1 }, cart: 2 }), 'pedidos')
-    assert.equal(smartAba({ orders: { pending: 1, preparing: 0, ready: 0 }, cart: 4 }), 'pedidos')
+    assert.equal(smartAba({ orders: none, cart: 0 }), 'itens')
+    assert.equal(smartAba({ orders: { pending: 0, preparing: 0, ready: 1 }, cart: 2 }), 'itens')
+    assert.equal(smartPath({ orders: { pending: 1, preparing: 0, ready: 0 }, cart: 4 }), HISTORY_PATH)   // pedido em andamento abre o Histórico
     assert.equal(smartAba({ orders: none, cart: 4 }), 'carrinho')
-    assert.equal(smartAba({ orders: none, cart: 0, last: 'biblioteca' }), 'biblioteca')
-    assert.equal(smartAba({ orders: none, cart: 0, last: 'conversas' }), 'pedidos')   // a antiga subaba guardada no aparelho
+    assert.equal(smartPath({ orders: none, cart: 0 }), '/atividade?aba=itens')
+    assert.equal(smartAba({ orders: none, cart: 0, last: 'biblioteca' }), 'itens')   // a antiga subaba guardada no aparelho
+    assert.equal(smartAba({ orders: none, cart: 0, last: 'conversas' }), 'itens')
 })
 
 test('o selo de pedidos da Atividade; roxo se há pedido pronto', () => {

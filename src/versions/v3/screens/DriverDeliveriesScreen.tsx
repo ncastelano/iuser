@@ -11,6 +11,7 @@
 // Central quando a saída acaba, junto com o resumo dela. A tela do celular fica acesa (wake lock) enquanto ele está no Percurso.
 'use client'
 
+import GanhosScreen from './GanhosScreen'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from '@/lib/toast'
@@ -30,6 +31,8 @@ import {
     type ActiveDelivery, type DeliveryOffer, type DoneToday, type DriverState, type LatLng, type MyReviews,
 } from '@/modules/deliveries'
 import { countdown, fetchMyExclusiveOffers, fetchMyFavoriteStores, leaveStore, respondInvite, secondsLeft, type ExclusiveOffer, type MyFavoriteStore } from '@/modules/favorites'
+import DeliveryPayBox from '@/components/deliveries/DeliveryPayBox'
+import { ensureLegal } from '@/components/legal/LegalHost'
 
 /** GPS de teste (só LOCAL): dentro do /tres-telas, ou em qualquer aba com `localStorage.iuser_dev_gps = 1` */
 /** Botões de TESTE ("Estou no local (teste)"): só no ambiente local e só se o desenvolvedor ligar (localStorage.iuser_dev_teste = 1) — fora disso nunca aparecem */
@@ -421,7 +424,7 @@ export default function DriverDeliveriesScreen() {
                         <h1 className="text-xl font-black leading-tight truncate">Olá{myName ? `, ${String(myName).split(' ')[0]}` : ''}!</h1>
                         <p className="text-[12px] opacity-90 truncate">{state?.vehicle || 'Motorista iUser'}{reviews && reviews.count > 0 && reviews.avg != null ? ` · ★ ${reviews.avg.toFixed(1).replace('.', ',')} (${reviews.count})` : ''}</p>
                     </div>
-                    <button onClick={() => run('online', () => setOnline(userId, !state?.online))} aria-pressed={!!state?.online} disabled={busy === 'online'} className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black transition active:scale-95" style={state?.online ? { background: '#fff', color: '#16a34a' } : { background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
+                    <button onClick={() => run('online', async () => { if (!state?.online && !(await ensureLegal('driver_requirements'))) return; await setOnline(userId, !state?.online) })} aria-pressed={!!state?.online} disabled={busy === 'online'} className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-black transition active:scale-95" style={state?.online ? { background: '#fff', color: '#16a34a' } : { background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
                         <Power size={14} /> {!state ? '…' : state.online ? 'Online' : 'Offline'}
                     </button>
                 </div>
@@ -431,6 +434,7 @@ export default function DriverDeliveriesScreen() {
                         <div><p className="text-[10px] uppercase font-black opacity-80">Ganho de hoje</p><p className="text-lg font-black leading-tight">{brl(todayTotal)}</p></div>
                         <div><p className="text-[10px] uppercase font-black opacity-80">Entregas hoje</p><p className="text-lg font-black leading-tight">{done.length}</p></div>
                     </div>
+                    <button onClick={() => document.getElementById('ganhos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="h-8 px-3 rounded-full text-[11.5px] font-black flex-shrink-0" style={{ background: 'rgba(255,255,255,0.22)' }}>Ganhos ↓</button>
                 </div>
                 {state?.capacityUnits != null && (
                     <div className="mt-3">
@@ -499,7 +503,6 @@ export default function DriverDeliveriesScreen() {
 
                     {/* Entregando: a próxima parada em destaque */}
                     {phase === 'delivering' && current && (() => {
-                        const pay = paymentRecap(current.paymentMethod, current.cashChangeFor)
                         const idx = ordered.findIndex((d) => d.id === current.id) + 1
                         const e = eta(current.to, myPos)
                         return (
@@ -517,7 +520,7 @@ export default function DriverDeliveriesScreen() {
                                 <ul className="rounded-2xl p-3" style={{ background: colors.surface }}>
                                     {itemsList(current.items).map((it, k) => <li key={k} className="text-[12px] flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Package size={11} style={{ color: ORANGE }} />{it}</li>)}
                                 </ul>
-                                <div className="rounded-2xl px-3 py-2 text-[12px] font-bold" style={pay.collect ? { background: '#f59e0b22', color: '#b45309' } : { background: `${GREEN}22`, color: '#16a34a' }}>{pay.label}{pay.note ? ` · ${pay.note}` : ''}</div>
+                                <DeliveryPayBox rideId={current.id} orderId={current.orderId} paymentMethod={current.paymentMethod} cashChangeFor={current.cashChangeFor} pickedUp={current.started} />
                                 {primaryAction}
                                 {testTools() && <button onClick={() => (current.atDoor ? finish(current, true) : arriveDoor(current, true))} className="text-[11px] font-bold underline self-center" style={{ color: colors.textSecondary }}>{current.atDoor ? 'Entreguei (teste)' : 'Estou no local (teste)'}</button>}
                                 {ordered.length > 1 && (
@@ -623,6 +626,7 @@ export default function DriverDeliveriesScreen() {
                                             <p className="flex items-center gap-1.5 text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{o.storeName}{fresh.has(o.id) && <span className="text-[9px] px-1.5 py-0.5 rounded-full text-white" style={{ background: GREEN }}>NOVA</span>}</p>
                                             <p className="text-[12px] truncate" style={{ color: colors.textSecondary }}>{itemsList(o.items).slice(0, 2).join(', ') || 'Pedido da loja'}</p>
                                             <p className="text-[11px] font-black mt-0.5" style={{ color: fitsUnits(usedUnits, o.units, state?.capacityUnits ?? null) ? ORANGE : '#ef4444' }}>{loadLabel(o.itemsCount, o.units)}{fitsUnits(usedUnits, o.units, state?.capacityUnits ?? null) ? '' : ' · não cabe na sua mochila'}</p>
+                                            {o.paymentMethod && (() => { const pl = paymentRecap(o.paymentMethod ?? null, o.cashChangeFor ?? null); return <p className="text-[11px] font-bold mt-0.5" style={{ color: pl.collect ? '#b45309' : '#16a34a' }}>{pl.label}{pl.note ? ` · ${pl.note}` : ''}</p> })()}
                                             {/* ONDE PEGAR e ONDE ENTREGAR, rotulados: é o que o motorista precisa saber antes de aceitar */}
                                             <p className="text-[12px] flex items-center gap-1 mt-1.5 truncate" style={{ color: colors.textPrimary }}><StoreIcon size={11} className="flex-shrink-0" style={{ color: GREEN }} /><b style={{ color: '#16a34a' }}>Retirar</b> {shortAddress(o.storeAddress) || o.storeName}{toStore != null ? ` · a ${toStore.toFixed(1).replace('.', ',')} km de você` : ''}</p>
                                             <p className="text-[12px] flex items-center gap-1 mt-0.5 truncate" style={{ color: colors.textPrimary }}><MapPin size={11} className="flex-shrink-0" style={{ color: ORANGE }} /><b style={{ color: ORANGE }}>Entregar</b> {shortAddress(o.address)}{o.km != null ? ` · ${o.km.toFixed(1).replace('.', ',')} km da loja` : ''}</p>
@@ -644,7 +648,7 @@ export default function DriverDeliveriesScreen() {
             {done.length > 0 && (
                 <section className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                     <button onClick={() => setShowDone((v) => !v)} className="w-full flex items-center justify-between p-4 text-left">
-                        <span><span className="block text-base font-black" style={{ color: colors.textPrimary }}>Entregas de hoje</span><span className="block text-[11px]" style={{ color: colors.textSecondary }}>{done.length} concluídas · <b style={{ color: '#16a34a' }}>{brl(todayTotal)}</b></span></span>
+                        <span><span className="block text-base font-black" style={{ color: colors.textPrimary }}>Entregas de hoje</span><span className="block text-[11px]" style={{ color: colors.textSecondary }}>{done.length} concluídas · <b style={{ color: '#16a34a' }}>{brl(todayTotal)}</b> de frete, 100% seu (o iUser fica só com a taxa do seu plano)</span></span>
                         {showDone ? <ChevronUp size={20} style={{ color: colors.textSecondary }} /> : <ChevronDown size={20} style={{ color: colors.textSecondary }} />}
                     </button>
                     {showDone && <div className="px-4 pb-4 flex flex-col gap-1.5">{done.map((d) => (
@@ -673,6 +677,12 @@ export default function DriverDeliveriesScreen() {
             )}
 
             {/* NAVEGAÇÃO: com uma saída em andamento o foco é o MAPA (tela cheia abaixo da ilha) + uma folha de ação embaixo; Central volta ao resumo e às ofertas */}
+            {/* ===== GANHOS (19/11/2026: a página /ganhos foi mesclada aqui; /ganhos leva para cá) ===== */}
+            <section id="ganhos" className="scroll-mt-24">
+                <h2 className="text-base font-black mb-2" style={{ color: colors.textPrimary }}>Seus ganhos</h2>
+                <GanhosScreen embedded />
+            </section>
+
             {active.length > 0 && view === 'map' && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-x-0 bottom-0 z-[45] flex flex-col" style={{ top: shellTop, background: colors.background }}>
                     <div className="relative flex-1 min-h-0">
@@ -703,10 +713,9 @@ export default function DriverDeliveriesScreen() {
                         {sheetOpen && (
                             <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: '34vh' }}>
                                 {phase === 'delivering' && current ? (() => {
-                                    const pay = paymentRecap(current.paymentMethod, current.cashChangeFor)
                                     return (<>
                                         <ul className="rounded-2xl p-3" style={{ background: soft }}>{itemsList(current.items).map((it, k) => <li key={k} className="text-[12px] flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Package size={11} style={{ color: ORANGE }} />{it}</li>)}</ul>
-                                        <div className="rounded-2xl px-3 py-2 text-[12px] font-bold" style={pay.collect ? { background: '#f59e0b22', color: '#b45309' } : { background: `${GREEN}22`, color: '#16a34a' }}>{pay.label}{pay.note ? ` · ${pay.note}` : ''}</div>
+                                        <DeliveryPayBox rideId={current.id} orderId={current.orderId} paymentMethod={current.paymentMethod} cashChangeFor={current.cashChangeFor} pickedUp={current.started} />
                                         {ordered.length > 1 && ordered.slice(1).map((d, i) => (
                                             <div key={d.id} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: soft }}>
                                                 <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black flex-shrink-0" style={{ background: `${ORANGE}22`, color: ORANGE }}>{i + 2}</span>

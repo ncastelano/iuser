@@ -20,6 +20,7 @@ BEGIN
      LIMIT 1;
     IF v_drv IS NULL THEN RAISE NOTICE 'SEM pessoa para ser o motorista novo: cenários pulados'; RETURN; END IF;
     PERFORM set_config('session_replication_role', 'replica', true);   -- preparar sem os gatilhos de guarda (precisa de superusuário)
+    UPDATE public.ride_requests SET exclusive_until = NULL WHERE id = v_ride;   -- sem a janela dos favoritos (o simulador cria): o teste não depende dela
 
     -- 1) pedido por Pix: ninguém é barrado
     UPDATE public.orders SET payment_method = 'pix', total_amount = 50 WHERE id = v_order;
@@ -66,7 +67,8 @@ BEGIN
     ASSERT public._driver_cash_trust(v_drv)->>'level' = 'full', '5a: liberado';
     ASSERT public._cash_trust_check(v_ride, v_drv) IS NULL, '5b: liberado leva R$ 250';
 
-    -- 6) nota baixa (3+ avaliações) volta a "novo"
+    -- 6) nota baixa (3+ avaliações) volta a "novo" (zera as avaliações que a pessoa escolhida já tinha: o teste não pode depender delas)
+    DELETE FROM public.ride_reviews WHERE reviewee_id = v_drv OR ride_request_id IN (SELECT id FROM public.ride_requests WHERE driver_id = v_drv);
     INSERT INTO public.ride_reviews (id, ride_request_id, reviewer_id, reviewee_id, rating, created_at)
     SELECT gen_random_uuid(), r.id, (SELECT owner_id FROM public.stores WHERE id = v_store), v_drv, 2, now()
       FROM public.ride_requests r WHERE r.driver_id = v_drv LIMIT 3;

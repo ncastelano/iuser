@@ -60,7 +60,7 @@ export async function fetchActive(me: string): Promise<ActiveDelivery[]> {
 
 export async function fetchOffers(): Promise<DeliveryOffer[]> {
     const { data, error } = await supabase.from('ride_offers')
-        .select('id, order_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, object_description, offered_price, distance_km, delivery_units, items_count, created_at, status')
+        .select('id, order_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, object_description, offered_price, distance_km, delivery_units, items_count, created_at, status, payment_method, cash_change_for')
         .eq('status', 'pending').not('order_id', 'is', null).gte('created_at', new Date(Date.now() - OFFER_MAX_AGE_MIN * 60_000).toISOString()).order('created_at', { ascending: false }).limit(40)
     if (error) throw error
     const rows = (data || []) as any[]
@@ -75,6 +75,7 @@ export async function fetchOffers(): Promise<DeliveryOffer[]> {
         id: r.id, orderId: r.order_id, storeName: String(storeOf.get(r.id) || 'Loja'), storeAddress: r.origin_address || '', store: pos(r.origin_lat, r.origin_lng),
         address: r.destination_address || '', to: pos(r.destination_lat, r.destination_lng), items: r.object_description || '',
         price: Number(r.offered_price) || 0, km: num(r.distance_km), units: Number(r.delivery_units) || 1, itemsCount: Number(r.items_count) || 1, createdAt: r.created_at,
+        paymentMethod: r.payment_method || null, cashChangeFor: num(r.cash_change_for),
     }))
 }
 

@@ -1,0 +1,7 @@
+# Achou uma falha de segurança no iUser? Avise-nos antes de divulgar. Obrigado!
+# (RFC 9116. Renove o "Expires" antes de vencer: no máximo 1 ano à frente.)
+Contact: mailto:contato@iuser.com.br
+Expires: 2027-11-18T00:00:00.000Z
+Preferred-Languages: pt-BR, en
+Canonical: https://www.iuser.com.br/.well-known/security.txt
+Policy: https://www.iuser.com.br/termos#s9

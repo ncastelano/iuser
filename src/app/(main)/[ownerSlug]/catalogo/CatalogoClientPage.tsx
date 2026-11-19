@@ -198,6 +198,16 @@ export default function CatalogoClientPage() {
         }
     }, [storeConfig, deliveryOption])
 
+    // QR NA MESA (migration 20261130000086): quem chega pelo QR impresso (?mesa=N, 0 = balcão) conta uma leitura para a loja (1 por dia/pessoa)
+    const qrCounted = useRef(false)
+    useEffect(() => {
+        if (!storeInfo?.id || qrCounted.current) return
+        const m = new URLSearchParams(window.location.search).get('mesa')
+        if (m === null || !/^\d{1,3}$/.test(m)) return
+        qrCounted.current = true
+        void supabase.rpc('record_qr_scan', { p_store: storeInfo.id, p_table: Number(m) })
+    }, [storeInfo?.id])
+
     // ========== CARREGAR DADOS DA LOJA ==========
     useEffect(() => {
         async function loadStoreData() {
@@ -938,7 +948,7 @@ export default function CatalogoClientPage() {
                 console.warn('[Checkout] Falha ao abrir WhatsApp:', waErr)
             }
 
-            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
+            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉', !isV2Delivery && (paymentMethod === 'pix' || paymentMethod === 'cartao') ? { description: paymentMethod === 'pix' ? 'Pague direto à loja pelo QR Pix que aparece no seu pedido.' : 'Se a loja tiver link de cartão, pague por ele no seu pedido.', action: { label: 'Ver pedido', onClick: () => { window.location.href = '/atividade?aba=pedidos' } }, duration: 12000 } : undefined)
             setIsBagExpanded(false)
             setCheckoutStep(null)
             setCheckoutLoading(false)
@@ -1574,7 +1584,7 @@ export default function CatalogoClientPage() {
                                             </div>
                                             <div>
                                                 <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{digitalOnly ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
-                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digitalOnly ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
+                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digitalOnly ? 'Pague com Pix e o acesso abre em Itens quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                             </div>
                                         </div>
                                     ) : onlyDeliveryAvailable ? (
@@ -1811,6 +1821,9 @@ export default function CatalogoClientPage() {
                                         })}
                                     </div>
 
+                                    {paymentMethod === 'pix' && !digitalOnly && (
+                                        <p className="text-[11px] mt-2 leading-snug" style={{ color: colors.textSecondary }}>Depois de pedir, o QR Pix da loja aparece no seu pedido: você paga direto a ela e ninguém precisa levar troco nem maquininha.</p>
+                                    )}
                                     {paymentMethod === 'dinheiro' && (
                                         <input
                                             type="text"

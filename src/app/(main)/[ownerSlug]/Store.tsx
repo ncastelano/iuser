@@ -68,6 +68,7 @@ import StoreFrame from '@/components/store/StoreFrame'
 import StoreDigitalShelves from '@/components/digital/StoreDigitalShelves'
 import { loadDigitalShowcase, pickFeatured, type ShowcaseItem } from '@/modules/digital'
 import PostpaidLimitText from '@/components/PostpaidLimitText'
+import ReportButton from '@/components/moderation/ReportButton'
 
 interface StoreProps {
     ownerSlug: string
@@ -99,6 +100,8 @@ interface OwnerData {
     store_model?: StoreModel
     /** nível da loja (moldura do logo; 0 = sem) */
     store_level?: number
+    /** Quem vende (Decreto 7.962/2013; migration 082) */
+    seller?: { name: string; doc: string | null; address: string | null } | null
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -638,6 +641,7 @@ export function Store({
                 links: sanitizeStoreLinks(store.links),
                 store_model: parseStoreModel(store.store_model),
                 store_level: Number(store.store_level) || 0,
+                seller: store.seller_name ? { name: store.seller_name, doc: store.seller_doc_public || null, address: store.seller_address || null } : null,
                 category_order: Array.isArray(store.category_order) ? store.category_order : null,
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
@@ -1095,6 +1099,8 @@ export function Store({
                     productsSecondary={actions.productsSecondary}
                     model={model}
                     isOwner={isOwner}
+                    seller={owner.seller}
+                    reportSlot={!isOwner ? <ReportButton type="store" id={owner.id} label="Denunciar loja" size={12} className="opacity-70" /> : undefined}
                     chatEnabled={!!owner.chat_enabled}
                     chatSaving={chatSaving}
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}

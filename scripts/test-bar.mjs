@@ -15,9 +15,9 @@ test('o modo vira o tipo da barra; loja que não existe cai na barra de pessoa',
 
 test('as abas que mudam: Explorar sempre primeiro; pessoa = Atividade e Conversas (sem Perto nem Social, 17/11/2026)', () => {
     const names = (k) => barTabsFor(k).map((t) => t.label)
-    assert.deepEqual(names('pessoa'), ['Explorar', 'Atividade', 'Conversas'])
+    assert.deepEqual(names('pessoa'), ['Explorar', 'Itens', 'Conversas'])
     assert.deepEqual(names('loja'), ['Explorar', 'Painel', 'Pedidos', 'Conversas'])
-    assert.deepEqual(names('motorista'), ['Explorar', 'Corridas', 'Entregas', 'Ganhos'])
+    assert.deepEqual(names('motorista'), ['Explorar', 'Corridas', 'Entregas', 'Conversas'])
     for (const k of ['pessoa', 'loja', 'motorista']) assert.equal(barTabsFor(k)[0].key, 'home')
 })
 
@@ -60,7 +60,7 @@ test('qual aba está marcada: motorista', () => {
     assert.equal(activeBarKey('motorista', '/aceitar-corridas', null), 'rides')
     assert.equal(activeBarKey('motorista', '/aceitar-corridas?ride=1', null), 'rides')
     assert.equal(activeBarKey('motorista', '/entregas', null), 'deliveries')
-    assert.equal(activeBarKey('motorista', '/ganhos', null), 'earnings')
+    assert.equal(activeBarKey('motorista', '/ganhos', null), 'deliveries')
     assert.equal(activeBarKey('motorista', '/', null), 'home')
     assert.equal(activeBarKey('motorista', '/social', null), null)
 })

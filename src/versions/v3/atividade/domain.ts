@@ -6,13 +6,18 @@
 // página própria (/conversas); o endereço antigo /atividade?aba=conversas leva para lá (conversasTarget). As NOTIFICAÇÕES DO PERFIL não são mais uma subaba: moram no painel do perfil
 // (NOTIFICATIONS_PATH) e a barra chega a elas pelo SININHO, o 4º ícone do botão Atividade. Testes: scripts/test-atividade.mjs.
 
-export type AtividadeAba = 'pedidos' | 'carrinho' | 'biblioteca'
+// 19/11/2026 (decisão do dono): DUAS subabas — Carrinho e Itens. Itens = tudo o que a pessoa já tem, por tipo (Produtos, Digitais, Serviços)
+// e o Histórico dos pedidos dentro dela (`?ver=`, modules/items). Os endereços antigos ?aba=pedidos|avaliacoes|biblioteca|digital continuam
+// valendo e caem em Itens, na parte certa (viewFromLegacy).
+export type AtividadeAba = 'carrinho' | 'itens'
 
 export const ATIVIDADE_ABAS: { key: AtividadeAba; label: string; path: string }[] = [
-    { key: 'pedidos', label: 'Pedidos', path: '/atividade?aba=pedidos' },
     { key: 'carrinho', label: 'Carrinho', path: '/atividade?aba=carrinho' },
-    { key: 'biblioteca', label: 'Biblioteca', path: '/atividade?aba=biblioteca' },
+    { key: 'itens', label: 'Itens', path: '/atividade?aba=itens' },
 ]
+
+/** O Histórico dos pedidos (dentro de Itens) */
+export const HISTORY_PATH = '/atividade?aba=itens&ver=historico'
 
 /** As notificações do perfil moram no painel do perfil (o sininho da barra leva para lá; o antigo /atividade?aba=avisos também) */
 export const NOTIFICATIONS_PATH = '/painel-perfil?secao=notificacoes'
@@ -43,8 +48,7 @@ export function conversasTarget(pathname: string, search: string): string | null
 export function abaOfLocation(pathname: string, abaParam?: string | null): AtividadeAba | null {
     const p = clean(pathname)
     if (p === '/atividade' || p === '/carrinho') {
-        if (abaParam === 'pedidos' || abaParam === 'avaliacoes') return 'pedidos'
-        if (abaParam === 'biblioteca' || abaParam === 'digital') return 'biblioteca'
+        if (abaParam === 'itens' || abaParam === 'pedidos' || abaParam === 'avaliacoes' || abaParam === 'biblioteca' || abaParam === 'digital') return 'itens'
         if (abaParam === 'carrinho') return 'carrinho'
         return p === '/carrinho' ? 'carrinho' : null
     }
@@ -53,8 +57,7 @@ export function abaOfLocation(pathname: string, abaParam?: string | null): Ativi
 
 /** O `?aba=` que a tela do carrinho entende, para a subaba aberta */
 export function carrinhoTabOf(aba: AtividadeAba | null, abaParam?: string | null): 'carrinho' | 'pedidos' | 'digital' | 'avaliacoes' {
-    if (aba === 'pedidos') return abaParam === 'avaliacoes' ? 'avaliacoes' : 'pedidos'
-    if (aba === 'biblioteca') return 'digital'
+    if (aba === 'itens') return abaParam === 'avaliacoes' ? 'avaliacoes' : abaParam === 'biblioteca' || abaParam === 'digital' ? 'digital' : 'pedidos'
     return 'carrinho'
 }
 
@@ -77,11 +80,18 @@ export interface ActivitySignals {
     last?: AtividadeAba | null
 }
 
-/** Para onde a aba Atividade leva: o que pede atenção primeiro — pedido em andamento (pronto antes), carrinho; senão a última subaba usada (ou Pedidos) */
+/** Para onde a aba Itens leva: o que pede atenção primeiro — pedido em andamento (Itens), carrinho; senão a última subaba usada (ou Itens) */
 export function smartAba(s: ActivitySignals): AtividadeAba {
-    if (s.orders.ready + s.orders.pending + s.orders.preparing > 0) return 'pedidos'
+    if (s.orders.ready + s.orders.pending + s.orders.preparing > 0) return 'itens'
     if (s.cart > 0) return 'carrinho'
-    return s.last && ATIVIDADE_ABAS.some((a) => a.key === s.last) ? s.last : 'pedidos'
+    return s.last && ATIVIDADE_ABAS.some((a) => a.key === s.last) ? s.last : 'itens'
+}
+
+/** O endereço do toque na aba: pedido em andamento abre direto o Histórico */
+export function smartPath(s: ActivitySignals): string {
+    const aba = smartAba(s)
+    if (aba === 'itens' && s.orders.ready + s.orders.pending + s.orders.preparing > 0) return HISTORY_PATH
+    return pathOfAba(aba)
 }
 
 /** O selo de pedidos da aba Atividade na barra: pedidos em andamento (roxo quando há pedido pronto). As mensagens têm o selo da aba Conversas. */

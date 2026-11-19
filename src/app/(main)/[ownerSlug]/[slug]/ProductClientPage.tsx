@@ -718,7 +718,7 @@ export function ProductClientPage({
                                 </div>
                                 <div>
                                     <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{checkout.digitalOnly ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
-                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>{checkout.digitalOnly ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
+                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>{checkout.digitalOnly ? 'Pague com Pix e o acesso abre em Itens quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                 </div>
                             </div>
                         ) : checkout.onlyDeliveryAvailable ? (
@@ -1271,6 +1271,9 @@ export function ProductClientPage({
                                     {/* Denunciar: direito autoral, golpe, conteúdo impróprio... (3 pessoas diferentes tiram do ar até o iUser analisar) */}
                                     <ReportButton type="digital_product" id={product.id} authorId={product.store?.owner_id} label="Denunciar este produto" size={15} />
                                 </>
+                            )}
+                            {product.type !== 'digital' && (
+                                <ReportButton type="product" id={product.id} authorId={product.store?.owner_id} label={product.type === 'service' ? 'Denunciar este serviço' : 'Denunciar este produto'} size={13} className="self-start opacity-70" />
                             )}
 
                             {/* v3: avaliações em cartão que gira (mais curtidas primeiro) e abre a lista completa */}

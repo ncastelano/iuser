@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Briefcase, Users, MessageCircle,
     Home as HomeIcon, ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Plus, Package, ShoppingCart, Scissors, Check,
-    UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, Motorbike, CircleDollarSign, type LucideIcon,
+    UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, Motorbike, CircleDollarSign, Mic, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -49,6 +49,12 @@ import { rankStyle } from '@/components/social/SocialProfileCard'
 import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import { toast } from '@/lib/toast'
 import { useShellSearch } from '@/versions/v3/shell/ShellFrame'
+import AiAssistantSheet from '@/components/ai/AiAssistantSheet'
+import AiExamples from '@/components/ai/AiExamples'
+import ForumHomeCard from '@/components/forum/ForumHomeCard'
+import { looksLikeCommand } from '@/modules/ai-assistant/domain'
+import { useSpeechInput } from '@/hooks/useSpeechInput'
+import { loadMyLocation } from '@/lib/myLocation'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -424,6 +430,13 @@ export default function ModeloInicialPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, userId])
     useShellSearch({ value: query, onChange: setQuery, placeholder: 'O que você procura? Lojas, serviços, pessoas...', inline: true, focus: () => searchInputRef.current?.focus() })
+    // IA DO iUSER: o mesmo campo recebe PEDIDOS ("cadastra coca 2 litros por 12 reais", "me leva pro shopping", "quanto vendi hoje").
+    // A IA só propõe; o que muda algo pede Confirmar (components/ai/AiAssistantSheet). Falar = o ditado do navegador.
+    const [aiText, setAiText] = useState<string | null>(null)
+    const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null)
+    useEffect(() => { loadMyLocation(supabase, userId).then((l) => setMyPos(l ? { lat: l.lat, lng: l.lng } : null)).catch(() => {}) }, [userId])
+    const askAiNow = (t: string) => { const v = t.trim(); if (v.length >= 2) { searchInputRef.current?.blur(); setAiText(v) } }
+    const speech = useSpeechInput((t, final) => { setQuery(t); if (final && t.trim()) askAiNow(t) })
     const [stores, setStores] = useState<StoreItem[] | null>(null)
     // Quantas lojas ativas cada categoria tem (null = carregando)
     const [catCounts, setCatCounts] = useState<Record<string, number> | null>(null)
@@ -685,19 +698,45 @@ export default function ModeloInicialPage() {
                         onChange={(e) => setQuery(e.target.value)}
                         onFocus={() => { if (blurTimer.current) clearTimeout(blurTimer.current); setSearchFocused(true) }}
                         onBlur={() => { blurTimer.current = setTimeout(() => setSearchFocused(false), 150) }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { commitSearch(query); (e.target as HTMLInputElement).blur() } }}
-                        placeholder="O que você procura? Lojas, serviços, pessoas..."
+                        onKeyDown={(e) => { if (e.key === 'Enter') { if (looksLikeCommand(query)) askAiNow(query); else commitSearch(query); (e.target as HTMLInputElement).blur() } }}
+                        placeholder={speech.listening ? 'Pode falar…' : 'O que você procura ou quer fazer?'}
                         className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none appearance-none [&::-webkit-search-cancel-button]:hidden"
                         style={{ color: colors.textPrimary }}
                     />
                     {query && <button onClick={() => setQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={17} /></button>}
+                    {speech.supported && (
+                        <button onClick={() => (speech.listening ? speech.stop() : speech.start())} aria-label={speech.listening ? 'Parar de ouvir' : 'Falar o pedido'}
+                            className={`w-9 h-9 -mr-2 rounded-full flex items-center justify-center flex-shrink-0 ${speech.listening ? 'animate-pulse' : ''}`}
+                            style={speech.listening ? { background: '#ef4444', color: '#fff' } : { color: colors.accent }}>
+                            <Mic size={18} />
+                        </button>
+                    )}
                 </div>
+                <AiAssistantSheet text={aiText} loggedIn={!!userId} near={myPos} onClose={() => setAiText(null)} go={go} search={(t) => { setQuery(t); commitSearch(t) }} />
 
 
                 {searching ? (
-                    <div className="mt-6"><SearchResultsSection searchQuery={query} /></div>
+                    <div className="mt-3">
+                        {/* o mesmo texto vira PEDIDO à IA do iUser (destacado quando parece um pedido, ex.: "cadastra…", "me leva…") */}
+                        {(() => {
+                            const cmd = looksLikeCommand(query)
+                            return (
+                                <button onClick={() => askAiNow(query)} className="w-full mb-4 rounded-2xl px-3.5 py-3 flex items-center gap-3 text-left active:scale-[0.99] transition"
+                                    style={cmd ? { background: '#f97316', color: '#fff' } : { background: colors.surface, border: `1.5px solid ${colors.border}`, color: colors.textPrimary }}>
+                                    <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: cmd ? 'rgba(255,255,255,0.22)' : '#f973161f', color: cmd ? '#fff' : '#f97316' }}><Sparkles size={18} /></span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-[13.5px] font-black leading-tight">Pedir à IA do iUser</span>
+                                        <span className="block text-[12px] truncate" style={{ opacity: cmd ? 0.9 : 0.7 }}>“{query.trim()}”</span>
+                                    </span>
+                                    <ChevronRight size={17} className="flex-shrink-0" />
+                                </button>
+                            )
+                        })()}
+                        <SearchResultsSection searchQuery={query} />
+                    </div>
                 ) : searchFocused ? (
                     <div className="mt-5 pb-10">
+                        <AiExamples userId={userId} onPick={(t) => { setQuery(t); askAiNow(t) }} />
                         <SearchSuggestions loggedIn={!!userId} onPick={(t) => { setQuery(t); commitSearch(t); searchInputRef.current?.blur() }} />
                     </div>
                 ) : (
@@ -867,6 +906,9 @@ export default function ModeloInicialPage() {
 
 
                         </section>
+
+                        {/* FÓRUM DO iUSER: novidades das versões e ideias com votos (/forum), logo depois do que a pessoa quer fazer */}
+                        <ForumHomeCard />
 
                         {/* ===== 2. CATEGORIAS — as que já têm loja em destaque; as vazias convidam a abrir a primeira ===== */}
                         {(() => {

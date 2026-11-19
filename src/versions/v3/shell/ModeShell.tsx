@@ -10,7 +10,7 @@ import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } fro
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
     Store as StoreIcon, Car, User, ChevronRight, X, ShoppingBag, LayoutDashboard, Check, Plus, Pencil, Bike,
-    Search, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart,
+    Search, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart, History,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -30,7 +30,7 @@ import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarExtra
 import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import { miniHidden, subtitleOf } from '@/modules/player'
-import { NOTIFICATIONS_PATH, isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
+import { HISTORY_PATH, NOTIFICATIONS_PATH, isActivityPath, smartPath, type AtividadeAba } from '@/versions/v3/atividade'
 import { BarKindProvider } from '@/versions/v3/bar/kind'
 import { activeBarKey, barKindOf, isOwnVehiclePage, barPathOf, barTabsFor, type BarKey } from '@/versions/v3/bar/domain'
 import { LAST_ABA_KEY } from '@/versions/v3/screens/AtividadeTabs'
@@ -108,7 +108,7 @@ function ModeCard({ selected, kind, image, title, desc, dot, onClick, chips, act
     chips?: ModeChip[]; actions?: ModeAction[] | null
 }) {
     const Icon = kind === 'store' ? StoreIcon : kind === 'car' ? Car : User
-    const hasChips = (chips || []).some((c) => c.count > 0)
+    const hasChips = !selected && (chips || []).some((c) => c.count > 0)   // as fichinhas só nos modos NÃO escolhidos (19/11/2026: no escolhido elas repetiam a barra)
     const hasActions = selected && !!actions && actions.length > 0
     return (
         <div className="w-full rounded-2xl overflow-hidden transition" style={{ border: `1.5px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, background: selected ? '#f9731612' : 'transparent' }}>
@@ -208,7 +208,7 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
     const personChips: ModeChip[] = [
         { key: 'chat', icon: ic(MessageCircle), count: counts.rooms.perfil || 0, label: (counts.rooms.perfil || 0) === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo('/conversas') },
         { key: 'cart', icon: ic(ShoppingCart), count: counts.cart, label: 'no carrinho', color: '#f97316', onClick: () => onGo('/atividade?aba=carrinho') },
-        { key: 'orders', icon: ic(Package), count: myOrders, label: myOrders === 1 ? 'pedido' : 'pedidos', color: counts.orders.ready > 0 ? '#a855f7' : '#16a34a', onClick: () => onGo('/atividade?aba=pedidos') },
+        { key: 'orders', icon: ic(History), count: myOrders, label: myOrders === 1 ? 'pedido' : 'pedidos', color: counts.orders.ready > 0 ? '#a855f7' : '#16a34a', onClick: () => onGo(HISTORY_PATH) },   // Histórico (dentro de Itens)
         { key: 'notifs', icon: ic(Bell), count: counts.notifs, label: counts.notifs === 1 ? 'notificação' : 'notificações', color: '#ef4444', onClick: () => onGo(NOTIFICATIONS_PATH) },
     ]
     const personActions: ModeAction[] = [
@@ -270,8 +270,8 @@ const SHELL_BOTTOM = BAR_SPACE
 const LOGO_RING = { border: '2px solid #fff', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
 // Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
 // Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
-const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos']
-const BAR_PATHS = ['/', '/convidados', '/social', '/flash', '/entregas', '/comprar', '/lojas', '/produtos', '/digitais', '/servicos-disponiveis', '/atividade', '/carrinho', '/conversas', '/aceitar-corridas', '/ganhos', '/canal-do-motorista', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
+const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos', '/atividade']   // na aba Itens também (menos na subaba Carrinho: onCartPage)
+const BAR_PATHS = ['/', '/convidados', '/forum', '/social', '/flash', '/entregas', '/comprar', '/lojas', '/produtos', '/digitais', '/servicos-disponiveis', '/atividade', '/carrinho', '/conversas', '/aceitar-corridas', '/ganhos', '/canal-do-motorista', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
 
 // Foto do modo (perfil, logo da loja, foto do carro) — ou o ícone do modo quando não há imagem. Troca de modo = pequeno "estouro".
 function ModeAvatar({ userId, image, noRing, modeIcon, popToken, colors, size = 40 }: {
@@ -630,20 +630,21 @@ export default function ModeShell({ children }: {
 
     // As abas da barra (Explorar + três do modo): para onde cada uma leva e o selo
     const ICON: Record<BarKey, ReactNode> = {
-        home: <Search size={22} />, activity: <Bell size={22} />,
+        home: <Search size={22} />, activity: <Package size={22} />,   // aba Itens = a caixa (19/11/2026; antes o sino da Atividade)
         panel: <LayoutDashboard size={22} />, orders: <ClipboardList size={22} />, chat: <MessageCircle size={22} />,
         rides: <Car size={22} />, deliveries: <Bike size={22} />, earnings: <Wallet size={22} />,
     }
     const barStoreId = barStore ? drawerData.stores.find((st) => st.slug === barStore)?.id : null
     const barStoreNew = barStoreId ? (storeOrders[barStoreId]?.pending || 0) + (storeOrders[barStoreId]?.services || 0) : 0
     const openTab = (key: BarKey) => {
+        setDrawerOpen(false)   // tocar em outro ícone da barra fecha o menu Eu (19/11/2026)
         if (key === barActive) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }   // tocar na aba da página em que já está volta ao topo
         if (key === 'activity') {
             // a aba Atividade leva ao que pede atenção (pedido em andamento, carrinho); senão, à última subaba usada
             let last: AtividadeAba | null = null
             try { last = localStorage.getItem(LAST_ABA_KEY) as AtividadeAba | null } catch { /* sem armazenamento */ }
             if (!userId) { go(topCart > 0 ? '/carrinho' : '/login'); return }   // visitante: só o carrinho existe sem conta
-            go(pathOfAba(smartAba({ orders: orderCounts, cart: topCart, last })))
+            go(smartPath({ orders: orderCounts, cart: topCart, last }))
             return
         }
         const path = barPathOf(key, barStore)
@@ -705,12 +706,12 @@ export default function ModeShell({ children }: {
                 mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: drawerOpen ? () => setDrawerOpen(false) : openHub }}
                 hub={{ open: drawerOpen, label: 'Menu do iUser', vars: hubVars, children: hubInner }}
                 player={barPlayer}
-                onCart={() => go('/carrinho')}
+                onCart={() => { setDrawerOpen(false); go('/carrinho') }}
                 message={islandMsg && msgStyle ? { id: islandMsg.id, text: islandMsg.text, description: islandMsg.description, icon: islandMsg.icon, glyph: msgStyle.glyph, color: msgStyle.color, action: islandMsg.action ? { label: islandMsg.action.label, onClick: islandMsg.action.onClick } : undefined } : null}
                 extras={barExtras}
                 customCard={islandMsg?.custom ? islandMsg.custom(islandMsg.id) : null}
                 onDismiss={() => { if (islandMsg) toast.dismiss(islandMsg.id) }}
-                onGo={(path) => go(path)}
+                onGo={(path) => { setDrawerOpen(false); go(path) }}
             />
         )}
 

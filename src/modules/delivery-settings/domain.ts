@@ -99,7 +99,7 @@ const yesNo = undefined
 
 export const FIELDS: FieldDef[] = [
     // precificação
-    { key: 'min_freight', group: 'precificacao', label: 'Valor mínimo do frete', hint: 'Nenhuma entrega custa menos que isso.', kind: 'money', min: 0 },
+    { key: 'min_freight', group: 'precificacao', label: 'Valor mínimo do frete', hint: 'Nenhuma entrega custa menos que isso. Também é o frete de partida das lojas com Entregador do iUser (o entregador ganha pelo menos isso).', kind: 'money', min: 0 },
     { key: 'max_freight', group: 'precificacao', label: 'Teto máximo do frete', hint: 'Nenhum reajuste ou proposta passa desse valor.', kind: 'money', min: 1, max: 10000 },
     { key: 'freight_rounding_step', group: 'precificacao', label: 'Arredondar o frete de', kind: 'select', options: [
         { value: '0.01', label: 'R$ 0,01 (sem arredondar)' }, { value: '0.05', label: 'R$ 0,05' }, { value: '0.1', label: 'R$ 0,10' },

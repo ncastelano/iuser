@@ -46,9 +46,11 @@ interface ProfileInfoData {
 interface ProfileInfoProps {
     profile: ProfileInfoData
     onProfileUpdate: (updates: Partial<ProfileInfoData>) => void
+    /** o que mora DENTRO do cartão, embaixo (19/11/2026: o tipo do perfil) */
+    children?: React.ReactNode
 }
 
-export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
+export function ProfileInfo({ profile, onProfileUpdate, children }: ProfileInfoProps) {
     const { colors } = useTheme()
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -395,6 +397,7 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                         </div>
                     </>
                 )}
+                {children && <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${colors.border}` }}>{children}</div>}
             </div>
 
             {showBorders && (

@@ -16,7 +16,7 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import FreeTrialGift from '@/components/FreeTrialGift'
 import { PostpaidFees, TYPE_INFO, type ChargeType } from '@/components/planos/PostpaidFees'
 import { Spinner } from '@/components/Spinner'
-import { usePostpaidLimit } from '@/lib/postpaid'
+import { usePostpaidCap, usePostpaidLimit } from '@/lib/postpaid'
 import { Info } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -41,6 +41,7 @@ const short = (addr?: string | null) => (addr || '').split(',')[0]
 
 export default function PosPagoDetails() {
     const DEBT_LIMIT = usePostpaidLimit()
+    const MONTH_CAP = usePostpaidCap()
     const router = useRouter()
     const { colors } = useTheme()
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -131,7 +132,7 @@ export default function PosPagoDetails() {
                     <div>
                         <h1 className="text-2xl font-black" style={{ color: colors.textPrimary }}>Plano Pós-pago</h1>
                         <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                            Sem mensalidade. Cada serviço realizado gera um crédito (o valor varia por tipo — veja abaixo) e você paga via Pix quando o total chegar a {brl(DEBT_LIMIT)}.
+                            Sem mensalidade. Cada serviço realizado gera um crédito (o valor varia por tipo — veja abaixo) e você paga via Pix quando o total chegar a {brl(DEBT_LIMIT)}.{MONTH_CAP ? <> <b>Nunca mais que {brl(MONTH_CAP)} no mês:</b> passou disso, o resto do mês é por nossa conta.</> : null}
                         </p>
                     </div>
 

@@ -32,6 +32,7 @@ import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 import { StoreDescription } from './StoreDescription'
 import { checkSlugAvailability } from '@/lib/slugUtils'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
+import StoreSellerInfo from './StoreSellerInfo'
 const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
 
 function startOfDay(date: Date = new Date()): string {
@@ -234,7 +235,9 @@ export default function StoreDashboard({
         if (!storeData) { toast.error('Loja não encontrada'); setLoading(false); return }
 
         const logoUrl = storeData.logo_url ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl : null
-        setStore({ ...storeData, logo_url: logoUrl })
+        // "Quem vende" (migration 082): colunas públicas que a visão my_stores não traz — só para o estado do atalho no Editar loja
+        const { data: seller } = await supabase.from('stores').select('seller_name, seller_doc_public').eq('id', storeData.id).maybeSingle()
+        setStore({ ...storeData, ...(seller || {}), logo_url: logoUrl })
 
         // Atualiza os estados do StoreDescription
         setName(storeData.name || '')
@@ -555,6 +558,7 @@ export default function StoreDashboard({
                 onShare={shareStoreLink} onDelete={() => setShowDeleteStore(true)} onStoreChange={(p) => setStore((prev: any) => ({ ...prev, ...p }))}
                 blocos={{
                     dados: descriptionNode,
+                    vendedor: <StoreSellerInfo storeId={store.id} onSaved={loadDashboard} />,
                     horarios: <StoreOperatingDays storeId={store.id} />,
                     regras: <StoreDepositEditor storeId={store.id} />,
                     entrega: <><StoreDeliverySettings storeId={store.id} onRefresh={loadDashboard} /><div className="mt-4"><StoreFavoriteDrivers storeId={store.id} v3 /></div></>,

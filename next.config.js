@@ -42,11 +42,57 @@ const imageBase = (() => {
 let imageBaseHost = ''
 try { if (imageBase) imageBaseHost = new URL(imageBase).hostname } catch {}
 
+// Fontes que o app usa de verdade (revisão de 18/11/2026): Supabase (dados, login, tempo real), Mapbox (mapas, rotas, busca),
+// OpenStreetMap (mapas Leaflet e busca de endereço), R2 (vídeos do Flash) e a própria Vercel.
+const supaOrigin = (() => { try { return new URL(supabaseUrl).origin } catch { return '' } })()
+const cspReportOnly = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://api.mapbox.com https://va.vercel-scripts.com",
+  "style-src 'self' 'unsafe-inline' https://api.mapbox.com https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  `connect-src 'self' ${supaOrigin} ${supaOrigin.replace(/^http/, 'ws')} https://*.mapbox.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://*.r2.cloudflarestorage.com https://midia.iuser.com.br https://vitals.vercel-insights.com https://va.vercel-scripts.com`,
+  "media-src 'self' blob: data: https:",
+  "worker-src 'self' blob:",
+  "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
+  "frame-ancestors 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  'report-uri /api/csp-report',
+].join('; ')
+
 const nextConfig = {
   // `*.tela.localhost`: a observação em 3 telas (/tres-telas, só local) abre cada tela num endereço (owner/client/driver.tela.localhost) para guardar uma sessão por tela
   allowedDevOrigins: ['192.168.1.33', '*.localhost', '*.tela.localhost'], // se necessário, mantenha
 
   env: { NEXT_PUBLIC_IMAGE_BASE: imageBase },
+
+  // CABEÇALHOS DE SEGURANÇA (18/11/2026, revisão antes de comercializar). Só no build de produção/preview: o /tres-telas local
+  // abre o app em molduras de outros subdomínios (*.tela.localhost), que o frame-ancestors recusaria.
+  //  - X-Frame-Options + frame-ancestors: nenhum outro site abre o iUser numa moldura (clickjacking: botão invisível por cima);
+  //  - HSTS: o navegador só fala com o iUser por https (sem "rebaixar" para http numa rede pública);
+  //  - nosniff: arquivo enviado não é interpretado como outro tipo (ex.: imagem virando script);
+  //  - Referrer-Policy: o endereço completo (com ?códigos) não vaza para outros sites;
+  //  - Permissions-Policy: câmera, microfone e localização só para o próprio iUser.
+  // NÃO há CSP completa de scripts (Mapbox, Supabase, Firebase, pdf.js...): fazer com calma, em modo "report-only" antes.
+  async headers() {
+    if (process.env.NODE_ENV !== 'production') return []
+    return [{
+      source: '/:path*',
+      headers: [
+        { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+        { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+        { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), interest-cohort=()' },
+        // CSP em modo SÓ OBSERVAR: não bloqueia nada; o navegador manda a /api/csp-report o que BLOQUEARIA. Depois de alguns dias
+        // sem relatório inesperado nos logs da Vercel, troque a chave por 'Content-Security-Policy' (aí passa a bloquear).
+        { key: 'Content-Security-Policy-Report-Only', value: cspReportOnly },
+      ],
+    }]
+  },
 
   images: {
     ...(localSupabase ? { dangerouslyAllowLocalIP: true } : {}),

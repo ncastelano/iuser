@@ -4,11 +4,18 @@
 // "Editar loja" (agrupada). Cada um tem a SUA cor e o ESTADO real (verde = ligado, cinza = desligado, vermelho = falta algo) e uma
 // chave `k` que vira `/editar-loja/<slug>?secao=<k>` — abre direto na folha/página daquela coisa (mesmo desenho do laboratório /painel-teste).
 import type { ReactNode } from 'react'
-import { CalendarDays, Crown, Megaphone, Package, Store, Tag, Timer, Truck, Users, Wallet, Zap, CalendarCheck } from 'lucide-react'
+import { CalendarDays, Crown, Megaphone, Package, Store, Tag, Timer, Truck, Users, Wallet, Zap, CalendarCheck, BadgeCheck, QrCode } from 'lucide-react'
 
 export type Est = 'on' | 'off' | 'warn'
-export type SecaoKey = 'dados' | 'catalogo' | 'promocoes' | 'entrega' | 'pagamento' | 'horarios' | 'agenda' | 'regras' | 'equipe' | 'publicacoes' | 'clube' | 'whatsapp'
+export type SecaoKey = 'dados' | 'catalogo' | 'promocoes' | 'entrega' | 'pagamento' | 'horarios' | 'agenda' | 'regras' | 'equipe' | 'publicacoes' | 'clube' | 'whatsapp' | 'vendedor' | 'mesas'
 export interface ItemGerenciar { k: SecaoKey; t: string; ic: ReactNode; cor: string; texto: string; est: Est }
+
+/** atalhos que são uma PÁGINA fora do Editar loja (o resto abre /editar-loja/<slug>?secao=<k>) */
+export function rotaPropria(k: SecaoKey, slug: string): string | null {
+    if (k === 'agenda') return `/compromissos/${encodeURIComponent(slug)}`
+    if (k === 'mesas') return `/painel-loja/${encodeURIComponent(slug)}/mesas`
+    return null
+}
 
 export const SELO: Record<Est, string> = { on: '#16a34a', off: '#9ca3af', warn: '#ef4444' }
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -18,6 +25,8 @@ export function gerenciarItens(store: any, hasServices: boolean, opts: { whatsap
     const horarios = !!store.business_hours && Object.keys(store.business_hours).length > 0
     const itens: ItemGerenciar[] = [
         { k: 'dados', t: 'Dados da loja', ic: <Store size={19} />, cor: '#6366f1', texto: store.description ? 'logo, links, modelo' : 'falta a descrição', est: store.description ? 'on' : 'warn' },
+        // Decreto 7.962/2013: quem vende pela internet mostra nome, CPF/CNPJ e endereço (migration 082)
+        { k: 'vendedor', t: 'Quem vende', ic: <BadgeCheck size={19} />, cor: '#0ea5e9', texto: store.seller_name ? (store.seller_doc_public || 'preenchido') : 'falta preencher (lei)', est: store.seller_name ? 'on' : 'warn' },
         { k: 'catalogo', t: 'Catálogo', ic: <Package size={19} />, cor: '#3b82f6', texto: hasServices ? 'produtos, digitais e serviços' : 'produtos e digitais', est: 'on' },
         { k: 'promocoes', t: 'Promoções', ic: <Tag size={19} />, cor: '#ef4444', texto: 'montar combos', est: 'on' },
         { k: 'entrega', t: 'Entrega', ic: <Truck size={19} />, cor: '#22c55e', texto: store.iuser_delivery_enabled ? 'iUser ligado' : store.accepts_delivery ? 'eu entrego' : store.accepts_pickup ? 'só retirada' : 'desligada', est: store.accepts_delivery || store.iuser_delivery_enabled ? 'on' : 'off' },
@@ -31,6 +40,8 @@ export function gerenciarItens(store: any, hasServices: boolean, opts: { whatsap
     itens.push(
         { k: 'equipe', t: 'Equipe', ic: <Users size={19} />, cor: '#06b6d4', texto: store.iuser_delivery_enabled ? 'desligada · entrega iUser' : 'entregadores e funcionários', est: store.iuser_delivery_enabled ? 'off' : 'on' },
         { k: 'publicacoes', t: 'Publicações', ic: <Megaphone size={19} />, cor: '#f97316', texto: 'posts da loja', est: 'on' },
+        // QR de mesa / balcão com a logo da loja (abre o cardápio no iUser): página própria /painel-loja/<slug>/mesas
+        { k: 'mesas', t: 'QR na mesa', ic: <QrCode size={19} />, cor: '#0f766e', texto: 'imprimir cardápio com QR', est: 'on' },
         { k: 'clube', t: 'Clube VIP', ic: <Crown size={19} />, cor: '#d97706', texto: store.vip_club_enabled ? (store.vip_club_price ? `${brl(Number(store.vip_club_price))}/mês` : 'grátis') : 'desligado', est: store.vip_club_enabled ? 'on' : 'off' },
     )
     if (opts.whatsapp !== false) itens.push({ k: 'whatsapp', t: 'WhatsApp', ic: <Zap size={19} />, cor: '#10b981', texto: store.whatsapp_bot_status === 'connected' ? 'avisos ligados' : 'desligado', est: store.whatsapp_bot_status === 'connected' ? 'on' : 'off' })
@@ -39,6 +50,6 @@ export function gerenciarItens(store: any, hasServices: boolean, opts: { whatsap
 
 /** FOLHA (sobe de baixo) = interruptor + poucas decisões; PÁGINA = lista editada item a item (o mesmo critério do laboratório) */
 export const TIPO_SECAO: Record<SecaoKey, 'folha' | 'pagina'> = {
-    dados: 'folha', entrega: 'folha', pagamento: 'folha', horarios: 'folha', regras: 'folha', clube: 'folha', whatsapp: 'folha',
-    catalogo: 'pagina', promocoes: 'pagina', equipe: 'pagina', publicacoes: 'pagina', agenda: 'pagina',
+    dados: 'folha', vendedor: 'folha', entrega: 'folha', pagamento: 'folha', horarios: 'folha', regras: 'folha', clube: 'folha', whatsapp: 'folha',
+    catalogo: 'pagina', promocoes: 'pagina', equipe: 'pagina', publicacoes: 'pagina', agenda: 'pagina', mesas: 'pagina',
 }

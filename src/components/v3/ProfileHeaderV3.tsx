@@ -55,6 +55,8 @@ export interface ProfileHeaderV3Props {
     typeSlot?: ReactNode
     /** só o dono: o tipo do perfil e o que falta para ele funcionar, com o atalho para trocar */
     ownerTypeSlot?: ReactNode
+    /** "Denunciar perfil" (quem não é o dono) */
+    reportSlot?: ReactNode
 }
 
 export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
@@ -203,6 +205,8 @@ export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
                 )}
 
                 {p.dialogsSlot}
+
+                {p.reportSlot && <div className="mt-2 flex justify-end">{p.reportSlot}</div>}
             </div>
         </section>
     )

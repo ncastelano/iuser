@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useRouter } from 'next/navigation'
 import {
     AlertCircle, Banknote, Heart, MessageCircle, Wallet, CalendarDays, ChevronRight, ClipboardList, CreditCard, Eye, GraduationCap, Settings, Share2, Star,
-    Store, Check,
+    Store, Check, Truck,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -20,16 +20,18 @@ import { parseStoreModel } from '@/lib/storeModel'
 import { limitText, usePostpaidLimit } from '@/lib/postpaid'
 import { fetchStoreDigitalSummary, digitalAttention } from '@/modules/digital'
 import { fetchStoreDues } from '@/modules/dues'
+import { fetchStoreOrderPayments } from '@/modules/order-payment'
 import { fetchTipsPanel } from '@/modules/tips'
 import StoreFrame from '@/components/store/StoreFrame'
 import StoreOrders from '../StoreOrders'
 import StoreDeliveryDues from '../StoreDeliveryDues'
+import StoreIuserCredits from '../StoreIuserCredits'
 import StoreMissions from '../StoreMissions'
 import StoreDigital from '../StoreDigital'
 import StoreFeedback from '../StoreFeedback'
 import StoreVisitors from '../StoreVisitors'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
-import { gerenciarItens, SELO } from './gerenciar'
+import { gerenciarItens, rotaPropria, SELO } from './gerenciar'
 import { TYPE_INFO } from '@/components/planos/PostpaidFees'
 import LogoFolha from './LogoFolha'
 import BalcaoV3 from './BalcaoV3'
@@ -77,24 +79,29 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
 
     // ---------- dados novos (cada um some sozinho se falhar) ----------
     const [pub, setPub] = useState<{ level: number; model: string } | null>(null)
-    const [att, setAtt] = useState<{ orders: number; services: number; digital: number; dues: number; duesAmount: number; tips: number; chats: number } | null>(null)
+    const [att, setAtt] = useState<{ orders: number; services: number; digital: number; dues: number; duesAmount: number; tips: number; chats: number; payments: number; freight: number; freightAmount: number } | null>(null)
     const [plan, setPlan] = useState<{ postpaid: boolean; debt: number; byType: [string, { n: number; total: number }][] } | null>(null)
     const [period, setPeriod] = useState<SalesPeriod>('hoje')
 
     const loadAttention = useCallback(async () => {
-        const [o, s, d, du, tp, ch] = await Promise.all([
+        const [o, s, d, du, tp, ch, pay] = await Promise.all([
             supabase.from('orders').select('id', { count: 'exact', head: true }).eq('store_id', store.id).eq('status', 'pending'),
             supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('store_id', store.id).eq('status', 'pending'),
             fetchStoreDigitalSummary(store.id),
             fetchStoreDues(store.id).catch(() => null),
             fetchTipsPanel(store.id).catch(() => null),
             supabase.rpc('get_my_conversations', { p_scope: 'store', p_store: store.id }),
+            fetchStoreOrderPayments(store.id).catch(() => new Map()),
         ])
-        // repasses que o entregador já DECLAROU e esperam a loja conferir (ou contestados)
-        const conferir = (du?.items || []).filter((x) => x.status === 'declared' || x.status === 'disputed')
+        // repasses que o entregador já DECLAROU e esperam a loja conferir (ou contestados); o frete que a LOJA declarou quem confere é o entregador
+        const conferir = (du?.items || []).filter((x) => x.kind !== 'freight' && !x.settlementId && (x.status === 'declared' || x.status === 'disputed'))
+        const acertos = (du?.settlements || []).filter((x) => x.payer === 'driver' && x.status === 'declared')
+        const fretes = (du?.items || []).filter((x) => x.kind === 'freight' && x.status === 'open')
         setAtt({
             orders: o.count || 0, services: s.count || 0, digital: d ? digitalAttention(d) : 0,
-            dues: conferir.length, duesAmount: conferir.reduce((t, x) => t + (x.kind === 'machine' ? 0 : Number(x.amount) || 0), 0),
+            dues: conferir.length + acertos.length, duesAmount: conferir.reduce((t, x) => t + (x.kind === 'machine' ? 0 : Number(x.amount) || 0), 0) + acertos.reduce((t, x) => t + x.amount, 0),
+            payments: [...pay.values()].filter((x) => x.status === 'reported').length,
+            freight: fretes.length, freightAmount: fretes.reduce((t, x) => t + (Number(x.amount) || 0), 0),
             tips: tp?.toCheck || 0,
             chats: ((ch.data as { unread: number }[] | null) || []).filter((r) => r.unread > 0).length,
         })
@@ -133,6 +140,8 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
         if (att?.orders) a.push({ cor: '#22c55e', icone: <ClipboardList size={17} />, titulo: `${att.orders} ${att.orders === 1 ? 'pedido novo' : 'pedidos novos'}`, sub: 'Aceite para a loja começar a preparar', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Ver pedidos' })
         if (att?.services) a.push({ cor: '#14b8a6', icone: <CalendarDays size={17} />, titulo: `${att.services} ${att.services === 1 ? 'pedido de serviço' : 'pedidos de serviço'}`, sub: 'Clientes esperando o horário ser confirmado', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Ver pendentes' })
         if (att?.digital) a.push({ cor: '#a855f7', icone: <GraduationCap size={17} />, titulo: `${att.digital} ${att.digital === 1 ? 'pagamento digital' : 'pagamentos digitais'} para conferir`, sub: 'Confira o Pix e libere o acesso', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Conferir' })
+        if (att?.payments) a.push({ cor: '#0284c7', icone: <Wallet size={17} />, titulo: `${att.payments} ${att.payments === 1 ? 'pagamento' : 'pagamentos'} para conferir`, sub: 'Clientes dizem que pagaram direto na sua conta: confira e confirme', ir: `/painel-loja/${slug}/pedidos`, rotulo: 'Conferir' })
+        if (att?.freight) a.push({ cor: '#f97316', icone: <Truck size={17} />, titulo: `${att.freight} ${att.freight === 1 ? 'frete' : 'fretes'} a pagar aos entregadores`, sub: `${brl(att.freightAmount)} das entregas pagas direto à loja (acerte o saldo com quem também te deve)`, ir: '?secao=repasses', rotulo: 'Pagar' })
         if (att?.dues) a.push({ cor: '#eab308', icone: <Banknote size={17} />, titulo: `${att.dues} ${att.dues === 1 ? 'repasse' : 'repasses'} para conferir`, sub: att.duesAmount > 0 ? `${brl(att.duesAmount)} que os entregadores dizem ter repassado` : 'Confira se recebeu e confirme', ir: '?secao=repasses', rotulo: 'Conferir' })
         if (att?.tips) a.push({ cor: '#8b5cf6', icone: <Heart size={17} />, titulo: `${att.tips} ${att.tips === 1 ? 'apoio' : 'apoios'} para conferir`, sub: 'Fãs dizem que mandaram um Pix: confira na sua conta', ir: '?secao=apoios', rotulo: 'Conferir' })
         if (att?.chats) a.push({ cor: '#16a34a', icone: <MessageCircle size={17} />, titulo: `${att.chats} ${att.chats === 1 ? 'conversa' : 'conversas'} sem resposta`, sub: 'Clientes falando com a loja', ir: `/conversas?sala=${encodeURIComponent(slug)}`, rotulo: 'Responder' })
@@ -272,6 +281,8 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 ))}
             </div>
 
+            <StoreIuserCredits storeId={store.id} />
+
             {/* ===== DIGITAL E CLUBE ===== */}
             <div className="mt-2"><StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 /></div>
 
@@ -323,7 +334,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 {tiles.map((g) => {
                     const apagado = g.est === 'off'
                     return (
-                        <button key={g.k} onClick={() => router.push(g.k === 'agenda' ? `/compromissos/${encodeURIComponent(slug)}` : `${editar}?secao=${g.k}`)} className="relative rounded-3xl p-3 text-left active:scale-95 transition" style={{ background: apagado ? colors.surface : `${g.cor}14`, border: `1.5px solid ${apagado ? colors.border : `${g.cor}55`}`, opacity: apagado ? 0.75 : 1 }}>
+                        <button key={g.k} onClick={() => router.push(rotaPropria(g.k, slug) || `${editar}?secao=${g.k}`)} className="relative rounded-3xl p-3 text-left active:scale-95 transition" style={{ background: apagado ? colors.surface : `${g.cor}14`, border: `1.5px solid ${apagado ? colors.border : `${g.cor}55`}`, opacity: apagado ? 0.75 : 1 }}>
                             <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full" style={{ background: SELO[g.est] }} />
                             <span className="w-9 h-9 rounded-2xl flex items-center justify-center" style={{ background: apagado ? `${colors.border}60` : `${g.cor}26`, color: apagado ? colors.textSecondary : g.cor }}>{g.ic}</span>
                             <span className="block text-[12.5px] font-black leading-tight mt-2" style={{ color: colors.textPrimary }}>{g.t}</span>

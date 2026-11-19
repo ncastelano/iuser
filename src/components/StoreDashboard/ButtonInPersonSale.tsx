@@ -135,7 +135,8 @@ export default function ButtonInPersonSale({
         if (!code) return
         setApplyingCode(true)
         try {
-            const discount = await validateCampaignCode(code)
+            const discount = await validateCampaignCode(code, storeId)
+            if (discount.discountType === 'iuser_credit') throw new Error('O cartão do iUser vale só em pedido feito pelo app')
             if (discount.storeId !== storeId) throw new Error('Esse código não é dessa loja')
             setAppliedDiscount(discount)
             toast.success('Código VIP aplicado!')

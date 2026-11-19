@@ -26,9 +26,9 @@ export function barKindOf(activeMode: string, knownStoreSlugs: string[] = []): {
 
 const HOME: BarTabDef = { key: 'home', label: 'Explorar' }
 const MIDDLE: Record<BarKind, BarTabDef[]> = {
-    pessoa: [{ key: 'activity', label: 'Atividade' }, { key: 'chat', label: 'Conversas' }],
+    pessoa: [{ key: 'activity', label: 'Itens' }, { key: 'chat', label: 'Conversas' }],
     loja: [{ key: 'panel', label: 'Painel' }, { key: 'orders', label: 'Pedidos' }, { key: 'chat', label: 'Conversas' }],
-    motorista: [{ key: 'rides', label: 'Corridas' }, { key: 'deliveries', label: 'Entregas' }, { key: 'earnings', label: 'Ganhos' }],
+    motorista: [{ key: 'rides', label: 'Corridas' }, { key: 'deliveries', label: 'Entregas' }, { key: 'chat', label: 'Conversas' }],   // 19/11/2026: Ganhos entrou na página de Entregas; no lugar, Conversas
 }
 
 /** As abas que mudam (Explorar + as do meio); a última, Eu, é sempre a foto do modo */
@@ -70,8 +70,8 @@ export function activeBarKey(kind: BarKind, shellPath: string, storeSlug: string
         return null
     }
     if (p === '/aceitar-corridas' || p.startsWith('/aceitar-corridas/')) return 'rides'
-    if (p === '/entregas') return 'deliveries'
-    if (p === '/ganhos') return 'earnings'
+    if (p === '/entregas' || p === '/ganhos') return 'deliveries'   // Ganhos mora dentro de Entregas
+    if (p === '/conversas') return 'chat'
     return null
 }
 

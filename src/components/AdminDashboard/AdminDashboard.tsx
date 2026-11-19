@@ -13,6 +13,7 @@ import ActivitySection from './ActivitySection'
 import FinanceSection from './FinanceSection'
 import PlatformTariffsSection from './PlatformTariffsSection'
 import DeliverySettingsSection from './DeliverySettingsSection'
+import DeliveryRulesCard from './DeliveryRulesCard'
 import FreeTrialSection from './FreeTrialSection'
 import AvatarBordersSection from './AvatarBordersSection'
 import GrantsSection from './GrantsSection'
@@ -23,9 +24,11 @@ import ManualSection from './ManualSection'
 import DeliveryDisputesSection from './DeliveryDisputesSection'
 import ModerationSection from './ModerationSection'
 import UploadsSection from './UploadsSection'
+import CreditsSection from './CreditsSection'
+import ForumAdminSection from './ForumAdminSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro' | 'status' | 'manual' | 'disputas' | 'denuncias' | 'uploads'
+type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro' | 'status' | 'manual' | 'disputas' | 'denuncias' | 'uploads' | 'creditos' | 'forum'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
@@ -37,6 +40,8 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'tarifas', label: 'Tarifas', icon: Car },
     { id: 'entregas', label: 'Entregas', icon: Truck },
     { id: 'brinde', label: 'Brinde', icon: Gift },
+    { id: 'creditos', label: 'Créditos', icon: Gift },
+    { id: 'forum', label: 'Fórum', icon: MessageCircle },
     { id: 'bordas', label: 'Bordas', icon: CircleDashed },
     { id: 'graduacao', label: 'Graduação', icon: Award },
     { id: 'pontuacao', label: 'Pontuação', icon: Trophy },
@@ -122,12 +127,14 @@ export default function AdminDashboard() {
             {section === 'bordas' && <AvatarBordersSection cardStyle={cardStyle} colors={colors} />}
             {section === 'brinde' && <FreeTrialSection cardStyle={cardStyle} colors={colors} />}
             {section === 'tarifas' && <PlatformTariffsSection cardStyle={cardStyle} colors={colors} />}
-            {section === 'entregas' && <DeliverySettingsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'entregas' && <><DeliverySettingsSection cardStyle={cardStyle} colors={colors} /><div className="mt-3"><DeliveryRulesCard cardStyle={cardStyle} colors={colors} /></div></>}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'graduacao' && <GraduationSection cardStyle={cardStyle} colors={colors} />}
             {section === 'status' && <IuserStatusSection cardStyle={cardStyle} colors={colors} />}
             {section === 'denuncias' && <ModerationSection cardStyle={cardStyle} colors={colors} />}
             {section === 'uploads' && <UploadsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'creditos' && <CreditsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'forum' && <ForumAdminSection cardStyle={cardStyle} colors={colors} />}
             {section === 'disputas' && <DeliveryDisputesSection cardStyle={cardStyle} colors={colors} />}
             {section === 'manual' && <ManualSection cardStyle={cardStyle} colors={colors} />}
             {section === 'pontuacao' && <PointsSection cardStyle={cardStyle} colors={colors} />}

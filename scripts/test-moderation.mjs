@@ -8,10 +8,13 @@ import { REASONS, TARGETS, HIDE_THRESHOLD, resultText, reasonSummary, ADMIN_ACTI
 const sql = readFileSync(new URL('../supabase/migrations/20261130000013_moderation.sql', import.meta.url), 'utf8')
 // a 28 (produto digital) redefine as listas do CHECK: valem as dela
 const sql28 = readFileSync(new URL('../supabase/migrations/20261130000028_digital_moderation.sql', import.meta.url), 'utf8')
+// a 81 (loja, perfil e produto) redefine o CHECK dos tipos de novo
+const sql81 = readFileSync(new URL('../supabase/migrations/20261130000081_report_stores_profiles_products.sql', import.meta.url), 'utf8')
 
 test('tipos e motivos do app são os MESMOS do banco', () => {
     const inDb28 = (re) => [...(sql28.match(re)?.[1] || '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1])
-    assert.deepEqual(TARGETS.map((t) => t.code).sort(), inDb28(/content_reports_target_type_check CHECK \(target_type IN \(([^)]*)\)/).sort())
+    const inDb81 = [...(sql81.match(/content_reports_target_type_check CHECK \(target_type = ANY \(ARRAY\[([^\]]*)\]/)?.[1] || '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1])
+    assert.deepEqual(TARGETS.map((t) => t.code).sort(), inDb81.sort())
     assert.deepEqual(REASONS.map((r) => r.code).sort(), inDb28(/content_reports_reason_check CHECK \(reason IN \(([^)]*)\)/).sort())
 })
 test('o limite para ocultar é o mesmo do banco (3 pessoas)', () => {
@@ -31,7 +34,8 @@ test('ações do admin = as do banco', () => {
     assert.deepEqual(ADMIN_ACTIONS.map((a) => a.code), ['hide', 'clear', 'restore'])
 })
 test('a função report_content da 28 aceita os mesmos tipos e motivos do app', () => {
-    for (const t of TARGETS) assert.ok(sql28.includes(`'${t.code}'`), t.code)
+    for (const t of TARGETS) assert.ok(sql81.includes(`'${t.code}'`), t.code)
+    assert.match(sql81, /p_type IN \('store', 'profile'\) THEN RETURN 'reported'/)
     for (const r of REASONS) assert.ok(sql28.includes(`'${r.code}'`), r.code)
     assert.match(sql28, /v_n >= 3/)
 })

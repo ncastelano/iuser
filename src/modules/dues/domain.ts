@@ -1,7 +1,7 @@
 // src/modules/dues/domain.ts — regras puras do CAIXA do entregador (dinheiro e maquininha) e da CONTESTAÇÃO de entrega: rótulos, textos e estados.
 // Sem React nem rede; testado em scripts/test-dues.mjs (npm run test:dues). As regras de verdade (prazos, limites, bloqueio, quem decide) moram no banco.
 
-export type DueKind = 'cash' | 'machine' | 'dispute_debt'
+export type DueKind = 'cash' | 'machine' | 'dispute_debt' | 'freight'
 export type DueStatus = 'open' | 'declared' | 'confirmed' | 'disputed' | 'waived'
 
 export interface Due {
@@ -13,7 +13,9 @@ export interface Due {
     status: DueStatus
     dueAt: string | null
     declaredAt: string | null
-    method: 'pix' | 'em_maos' | 'devolvida' | null
+    method: 'pix' | 'em_maos' | 'devolvida' | 'saldo' | null
+    /** faz parte de um acerto pelo saldo */
+    settlementId?: string | null
     note: string | null
     overdue: boolean
     createdAt: string
@@ -21,16 +23,24 @@ export interface Due {
     driverName?: string
     driverSlug?: string | null
 }
-export interface MyDues { blocked: string | null; blockedText: string | null; openAmount: number; maxOpen: number; items: Due[] }
-export interface StoreDues { items: Due[]; pendingAmount: number }
+/** o saldo entre a loja e o entregador: o que ELE deve (dinheiro recebido) − o que ELA deve (fretes) */
+export interface PairBalance { storeId?: string; storeName?: string; driverId?: string; driverName?: string; driverOwes: number; storeOwes: number; net: number; items: number }
+export interface Settlement { id: string; storeId?: string; storeName?: string; driverId?: string; driverName?: string; payer: 'driver' | 'store' | 'none'; amount: number; method: 'pix' | 'em_maos' | null; status: 'declared' | 'confirmed' | 'disputed'; createdAt: string }
+export interface MyDues { blocked: string | null; blockedText: string | null; openAmount: number; maxOpen: number; items: Due[]; balances: PairBalance[]; settlements: Settlement[] }
+export interface StoreDues { items: Due[]; pendingAmount: number; freightAmount: number; balances: PairBalance[]; settlements: Settlement[] }
 
 export const brl = (n: number | null | undefined) => `R$ ${Number(n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-export const KIND_LABEL: Record<DueKind, string> = { cash: 'Dinheiro a repassar', machine: 'Maquininha da loja', dispute_debt: 'Dívida de entrega contestada' }
+export const KIND_LABEL: Record<DueKind, string> = { cash: 'Dinheiro a repassar', machine: 'Maquininha da loja', dispute_debt: 'Dívida de entrega contestada', freight: 'Frete a receber' }
 export const STATUS_LABEL: Record<DueStatus, string> = { open: 'Pendente', declared: 'Esperando a loja confirmar', confirmed: 'Confirmado', disputed: 'Contestado pela loja', waived: 'Perdoado' }
 
 /** Frase curta do que o entregador deve fazer */
 export function dueAction(d: Pick<Due, 'kind' | 'amount' | 'storeName' | 'status'>): string {
+    if (d.kind === 'freight') {
+        if (d.status === 'declared') return `${d.storeName} diz que te pagou ${brl(d.amount)} de frete. Confirme se recebeu.`
+        if (d.status === 'disputed') return 'Você disse que não recebeu este frete. O iUser vai analisar.'
+        return `${d.storeName} te deve ${brl(d.amount)} de frete.`
+    }
     if (d.status === 'declared') return d.kind === 'machine' ? 'Você disse que devolveu. Esperando a loja confirmar.' : 'Você disse que repassou. Esperando a loja confirmar.'
     if (d.status === 'disputed') return 'A loja diz que não recebeu. Repasse de novo ou fale com o suporte.'
     if (d.kind === 'machine') return `Devolva a maquininha à ${d.storeName}.`
@@ -78,3 +88,30 @@ export function parseEvidence(e: Record<string, any> | null | undefined): Eviden
     const x = e || {}
     return { proofMethod: x.proof_method ?? null, proofReason: x.proof_reason ?? null, proofPhoto: x.proof_photo ?? null, minutesAtDoor: x.minutes_at_door ?? null, doneDistM: x.done_dist_m ?? null, driverName: x.driver_name ?? null, paymentMethod: x.payment_method ?? null, orderTotal: x.order_total != null ? Number(x.order_total) : null, address: x.address ?? null, doneAt: x.done_at ?? null }
 }
+
+// ===== acerto pelo SALDO entre a loja e o entregador =====
+/** Quem paga o saldo e quanto: o entregador (deve mais do que tem a receber), a loja (deve mais fretes) ou ninguém (se compensa) */
+export function balanceSide(b: Pick<PairBalance, 'net'>): { payer: 'driver' | 'store' | 'none'; amount: number } {
+    const n = Math.round((Number(b.net) || 0) * 100) / 100
+    return n > 0 ? { payer: 'driver', amount: n } : n < 0 ? { payer: 'store', amount: -n } : { payer: 'none', amount: 0 }
+}
+
+/** A conta em uma frase, do ponto de vista de quem vê ('driver' ou 'store') */
+export function balanceText(b: PairBalance, viewer: 'driver' | 'store'): string {
+    const { payer, amount } = balanceSide(b)
+    const other = viewer === 'driver' ? (b.storeName || 'a loja') : (b.driverName?.split(' ')[0] || 'o entregador')
+    const Other = other.charAt(0).toUpperCase() + other.slice(1)
+    const parts = [b.driverOwes > 0 ? `dinheiro de pedidos ${brl(b.driverOwes)}` : '', b.storeOwes > 0 ? `fretes ${brl(b.storeOwes)}` : ''].filter(Boolean).join(' − ')
+    if (payer === 'none') return `Com ${other}: ${parts}. Se compensa: nada a pagar, é só acertar.`
+    const youPay = payer === viewer
+    return youPay ? `Você paga ${brl(amount)} a ${other} (${parts}).` : `${Other} te paga ${brl(amount)} (${parts}).`
+}
+
+/** Quem pode tocar em "Acertar": quem deve o saldo, ou qualquer um quando ele zera */
+export function canSettle(b: Pick<PairBalance, 'net' | 'items'>, viewer: 'driver' | 'store'): boolean {
+    if (!b.items) return false
+    const { payer } = balanceSide(b)
+    return payer === 'none' || payer === viewer
+}
+
+export const SETTLEMENT_LABEL: Record<Settlement['status'], string> = { declared: 'Esperando confirmar', confirmed: 'Acertado', disputed: 'Contestado' }

@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { GraduationCap, Package, ShoppingCart } from 'lucide-react'
+import { Package, ShoppingCart } from 'lucide-react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import { useOrderStatusCounts } from '@/hooks/useOrderStatusCounts'
@@ -14,7 +14,7 @@ import { useCartStore } from '@/store/useCartStore'
 import { ATIVIDADE_ABAS, pathOfAba, type AtividadeAba } from '../atividade'
 
 export const LAST_ABA_KEY = 'iuser_atividade_last'
-const ICONS = { pedidos: Package, carrinho: ShoppingCart, biblioteca: GraduationCap } as const
+const ICONS = { carrinho: ShoppingCart, itens: Package } as const   // Carrinho · Itens = caixa
 
 export default function AtividadeTabs({ aba }: { aba: AtividadeAba }) {
     const router = useRouter()
@@ -31,12 +31,12 @@ export default function AtividadeTabs({ aba }: { aba: AtividadeAba }) {
     useEffect(() => { try { localStorage.setItem(LAST_ABA_KEY, aba) } catch { /* sem armazenamento */ } }, [aba])
 
     const badgeFor = (k: AtividadeAba): { n: number; color: string } | null => {
-        if (k === 'pedidos') return ordersActive > 0 ? { n: ordersActive, color: orders.ready > 0 ? '#a855f7' : '#16a34a' } : null
+        if (k === 'itens') return ordersActive > 0 ? { n: ordersActive, color: orders.ready > 0 ? '#a855f7' : '#16a34a' } : null
         if (k === 'carrinho') return cart > 0 ? { n: cart, color: '#f97316' } : null
         return null
     }
     return (
-        <div role="tablist" aria-label="Atividade" className="mt-1 p-1 rounded-[20px] flex gap-0.5" style={{ background: `${colors.border}45` }}>
+        <div role="tablist" aria-label="Itens" className="mt-1 p-1 rounded-[20px] flex gap-0.5" style={{ background: `${colors.border}45` }}>
             {ATIVIDADE_ABAS.map((a) => {
                 const Icon = ICONS[a.key]
                 const active = a.key === aba

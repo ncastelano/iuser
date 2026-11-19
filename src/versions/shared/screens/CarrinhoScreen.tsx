@@ -1,13 +1,14 @@
 // src/app/(main)/carrinho/page.tsx
 'use client'
 
+import OrderRepeatBar from '@/components/orders/OrderRepeatBar'
 import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import DriverFirstNote from '@/components/checkout/DriverFirstNote'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/store/useCartStore'
 import { isDigitalCart } from '@/modules/digital'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
-import { validateCampaignCode, calculateCampaignDiscountAmount, type CampaignDiscount } from '@/lib/campaignRedemption'
+import { validateCampaignCode, calculateCampaignDiscountAmount, CREDIT_CODE_KEY, type CampaignDiscount } from '@/lib/campaignRedemption'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     Store,
@@ -35,7 +36,7 @@ import {
     Plus,
     Minus,
     Trash2,
-    PackageCheck, GraduationCap } from 'lucide-react'
+    PackageCheck, GraduationCap, History } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -58,6 +59,8 @@ import CatalogBag from '@/app/(main)/[ownerSlug]/catalogo/CatalogBag'
 import CarrinhoSkeleton from './CarrinhoSkeleton'
 import DeliveryIncreasePrompt from '@/components/DeliveryIncreasePrompt'
 import CancelPendingOrder from '@/components/orders/CancelPendingOrder'
+import OrderPaymentCard from '@/components/orders/OrderPaymentCard'
+import OrderTrackingCard from '@/components/orders/OrderTrackingCard'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -885,15 +888,28 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
         }
     }
 
+    // Cartão do iUser resgatado em /resgatar (fica guardado neste aparelho): já vem escrito no campo de código de cada loja
+    const creditSlugsKey = Object.keys(itemsByStore || {}).join(',')
+    useEffect(() => {
+        let code: string | null = null
+        try { code = localStorage.getItem(CREDIT_CODE_KEY) } catch { /* sem storage */ }
+        if (!code) return
+        setRedemptionInputByStore((prev) => {
+            const next = { ...prev }
+            for (const s of creditSlugsKey.split(',').filter(Boolean)) if (!next[s]) next[s] = code!
+            return next
+        })
+    }, [creditSlugsKey])
+
     // ---- Handler de finalização por loja ----
     const handleApplyRedemptionCode = async (slug: string) => {
         const code = (redemptionInputByStore[slug] || '').trim()
         if (!code) return
         setApplyingCodeByStore((prev) => ({ ...prev, [slug]: true }))
         try {
-            const discount = await validateCampaignCode(code)
+            const discount = await validateCampaignCode(code, storeConfigs[slug]?.id)
             setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: discount }))
-            toast.success('Código aplicado!')
+            toast.success(discount.discountType === 'iuser_credit' ? `Cartão do iUser aplicado: até R$ ${(discount.discountValue || 0).toFixed(2).replace('.', ',')} de desconto` : 'Código aplicado!')
         } catch (err: any) {
             setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: null }))
             toast.error(err.message || 'Código inválido')
@@ -1051,6 +1067,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
             finalTotal = created.totalAmount
             deliveryFee = created.deliveryFee
 
+            if (appliedDiscount?.discountType === 'iuser_credit') { try { localStorage.removeItem(CREDIT_CODE_KEY) } catch { /* ok */ } }
             if (appliedDiscount) {
                 // O código já foi validado e consumido pelo servidor junto com o pedido
                 setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: null }))
@@ -1113,7 +1130,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 })),
             }])
 
-            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Order ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
+            toast.success(created.awaitingDriver ? 'Pedido feito! Procurando um entregador — a loja recebe quando um aceitar.' : isV2Order ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉', !isV2Order && (paymentOpt === 'pix' || paymentOpt === 'cartao') ? { description: paymentOpt === 'pix' ? 'Pague direto à loja pelo QR Pix que aparece no seu pedido.' : 'Se a loja tiver link de cartão, pague por ele no seu pedido.', action: { label: 'Ver pedido', onClick: () => { window.location.href = '/atividade?aba=pedidos' } }, duration: 12000 } : undefined)
         } catch (err: any) {
             console.error('[Checkout] Erro inesperado:', err)
             toast.error(`Erro inesperado: ${err?.message ?? 'Tente novamente.'}`)
@@ -1391,8 +1408,8 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 },
                 {
                     id: 'pedidos',
-                    label: 'Pedidos',
-                    icon: Package,
+                    label: 'Histórico',
+                    icon: History,
                     sectionId: 'section-pedidos',
                     indicator:
                         activeOrderCounts.pending > 0 ||
@@ -1410,7 +1427,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 {
                     id: 'digital',
                     label: 'Digital',
-                    icon: GraduationCap,
+                    icon: Package,
                     sectionId: 'section-digital',
                     indicator: null,
                     badge: digitalCount > 0 ? { count: digitalCount, color: '#f97316' } : null,
@@ -1455,7 +1472,12 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 // pedido acontecendo agora: a BORDA do cartão ganha a cor da etapa (o resto do cartão fica como está); finalizado e recusado voltam à borda comum
                 <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: ['pending', 'preparing', 'ready'].includes(order.status) ? `2px solid ${accent}` : `1px solid ${colors.border}`, transition: 'border-color 300ms ease' }}>
                     {/* o CÓDIGO de entrega (e o resultado) fica EM CIMA do pedido: é o que a pessoa precisa ver primeiro quando o entregador chega */}
+                    {order.order_id && ['paid', 'rejected'].includes(order.status) && <OrderRepeatBar orderId={order.order_id} colors={colors} />}
                     <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} top />
+                    {/* onde está o entregador (a caminho da loja, com o pedido, na porta); com o "entregador primeiro" ele já vem antes de a loja aceitar */}
+                    {order.order_id && <OrderTrackingCard orderId={order.order_id} enabled={Number(order.deliveryFee) > 0 && ['pending', 'preparing', 'ready'].includes(order.status)} />}
+                    {/* pagar direto à loja: o QR Pix dela (ou o link de cartão) e o "Já paguei" */}
+                    {order.order_id && !rejected && <OrderPaymentCard orderId={order.order_id} finished={order.status === 'paid'} paymentMethod={order.payment_method} />}
                     <div className="p-3.5 flex items-center justify-between gap-3">
                         <h3 className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{order.storeName || order.store_name}</h3>
                         <span className="flex-shrink-0 text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: `${accent}22`, color: accent }}>
@@ -1765,7 +1787,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                                                             </div>
                                                             <div>
                                                                 <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{digital ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
-                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digital ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
+                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digital ? 'Pague com Pix e o acesso abre em Itens quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                                             </div>
                                                         </div>
                                                     ) : onlyDeliveryAvailable ? (
@@ -1988,7 +2010,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                                                 <div className="pt-2 space-y-1.5">
                                                     {appliedDiscountByStore[slug] ? (
                                                         <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
-                                                            <span className="font-bold" style={{ color: '#22c55e' }}>Código VIP aplicado · -R$ {discountAmount.toFixed(2)}</span>
+                                                            <span className="font-bold" style={{ color: '#22c55e' }}>{appliedDiscountByStore[slug]?.discountType === 'iuser_credit' ? 'Cartão do iUser' : 'Código VIP'} aplicado · -R$ {discountAmount.toFixed(2)}{appliedDiscountByStore[slug]?.discountType === 'iuser_credit' && discountAmount === 0 ? ` (pedido mínimo R$ ${(appliedDiscountByStore[slug]?.minOrder || 0).toFixed(2)})` : ''}</span>
                                                             <button
                                                                 onClick={() => { setAppliedDiscountByStore(prev => ({ ...prev, [slug]: null })); setRedemptionInputByStore(prev => ({ ...prev, [slug]: '' })) }}
                                                                 className="text-[10px] font-bold underline"
@@ -2001,7 +2023,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                                                         <div className="flex gap-2">
                                                             <input
                                                                 type="text"
-                                                                placeholder="Código de resgate VIP (opcional)"
+                                                                placeholder="Cartão do iUser ou código VIP (opcional)"
                                                                 value={redemptionInputByStore[slug] || ''}
                                                                 onChange={(e) => setRedemptionInputByStore(prev => ({ ...prev, [slug]: e.target.value }))}
                                                                 className="flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none"
@@ -2026,7 +2048,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                                                     </div>
                                                     {discountAmount > 0 && (
                                                         <div className="flex justify-between">
-                                                            <span style={{ color: colors.textSecondary }}>Desconto VIP</span>
+                                                            <span style={{ color: colors.textSecondary }}>{appliedDiscountByStore[slug]?.discountType === 'iuser_credit' ? 'Cartão do iUser (o iUser paga à loja)' : 'Desconto VIP'}</span>
                                                             <span className="font-bold" style={{ color: '#22c55e' }}>-R$ {discountAmount.toFixed(2)}</span>
                                                         </div>
                                                     )}

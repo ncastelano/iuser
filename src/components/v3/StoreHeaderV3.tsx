@@ -66,6 +66,10 @@ export interface StoreHeaderV3Props {
     extraSlot?: ReactNode
     /** só o dono: ajustar dias e horários */
     ownerToolsSlot?: ReactNode
+    /** "Denunciar loja" (quem não é o dono) */
+    reportSlot?: ReactNode
+    /** Quem vende (Decreto 7.962/2013): nome/razão social, CNPJ ou CPF mascarado e endereço */
+    seller?: { name: string; doc: string | null; address: string | null } | null
 }
 
 export default function StoreHeaderV3(p: StoreHeaderV3Props) {
@@ -214,6 +218,18 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                 {p.extraSlot && <div className="mt-2">{p.extraSlot}</div>}
 
                 {p.ownerToolsSlot && <div className="mt-2">{p.ownerToolsSlot}</div>}
+
+                {(p.seller || p.reportSlot) && (
+                    <div className="mt-2 flex items-start justify-between gap-3">
+                        {p.seller ? (
+                            <details className="text-[11.5px] min-w-0" style={{ color: colors.textSecondary }}>
+                                <summary className="cursor-pointer font-bold select-none">Quem vende</summary>
+                                <p className="mt-1 leading-snug">{p.seller.name}{p.seller.doc ? ` · ${p.seller.doc}` : ''}{p.seller.address ? <><br />{p.seller.address}</> : null}</p>
+                            </details>
+                        ) : <span />}
+                        {p.reportSlot}
+                    </div>
+                )}
             </div>
         </section>
     )

@@ -1,7 +1,7 @@
 // src/modules/moderation/domain.ts — regras puras da MODERAÇÃO (denunciar e ocultar): tipos, motivos e textos. Sem React nem rede; testado em scripts/test-moderation.mjs (npm run test:moderation).
 // O que de fato oculta (3 denúncias de pessoas diferentes, conta com mais de 1 dia, limite de 20 por dia) e o que o admin decide moram no banco.
 
-export type ReportTarget = 'flash' | 'flash_comment' | 'publication' | 'comment' | 'product_review' | 'community_message' | 'digital_product'
+export type ReportTarget = 'flash' | 'flash_comment' | 'publication' | 'comment' | 'product_review' | 'community_message' | 'digital_product' | 'product' | 'store' | 'profile'
 export type ReportReason = 'spam' | 'offensive' | 'sexual' | 'violence' | 'scam' | 'illegal' | 'copyright' | 'other'
 export type ReportResult = 'reported' | 'hidden' | 'already'
 export type ModerationAction = 'hide' | 'clear' | 'restore'
@@ -14,6 +14,9 @@ export const TARGETS: { code: ReportTarget; label: string }[] = [
     { code: 'product_review', label: 'Avaliação' },
     { code: 'community_message', label: 'Mensagem de comunidade' },
     { code: 'digital_product', label: 'Produto digital' },
+    { code: 'product', label: 'Produto ou serviço' },
+    { code: 'store', label: 'Loja' },
+    { code: 'profile', label: 'Perfil' },
 ]
 export const TARGET_LABEL: Record<ReportTarget, string> = Object.fromEntries(TARGETS.map((t) => [t.code, t.label])) as Record<ReportTarget, string>
 
@@ -31,6 +34,8 @@ export const REASON_LABEL: Record<ReportReason, string> = Object.fromEntries(REA
 
 /** Quantas pessoas diferentes precisam denunciar para o conteúdo ficar oculto até o admin decidir (a mesma regra do banco) */
 export const HIDE_THRESHOLD = 3
+/** Loja e perfil NUNCA somem sozinhos por denúncias (3 contas de um concorrente derrubariam a loja de outro): só o admin decide (migration 081) */
+export const ADMIN_ONLY_TARGETS: ReportTarget[] = ['store', 'profile']
 
 /** O que dizer à pessoa depois de denunciar */
 export function resultText(r: ReportResult): string {

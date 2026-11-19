@@ -38,6 +38,9 @@ import ProfileQuoteCard from '@/components/driver/ProfileQuoteCard'
 import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
+import { safeInternalPath } from '@/lib/safeRedirect'
+import { ensureLegal } from '@/components/legal/LegalHost'
+
 const ORANGE_V3 = '#f97316'
 
 function formatDate(iso: string): string {
@@ -78,7 +81,8 @@ function isVehicleRowComplete(v: VehicleRow | null | undefined, admin: boolean):
 function PainelMotoristaContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const nextUrl = searchParams.get('next')
+    const nextRaw = searchParams.get('next')
+    const nextUrl = nextRaw ? safeInternalPath(nextRaw, '') || null : null
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
     const { hasDriver } = useActivePlans(userId)
@@ -679,6 +683,9 @@ function PainelMotoristaContent() {
             router.push('/planos?plan=motorista')
             return
         }
+
+        // ficar online exige a declaração do motorista (CNH com EAR, documentos, seguro APP); o banco também confere (migration 082)
+        if (next && !(await ensureLegal('driver_requirements'))) return
 
         setTogglingMode(true)
         try {

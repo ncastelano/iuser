@@ -109,7 +109,7 @@ export function StorePublicationsSection({ colors }: { colors: any }) {
                                 <span className="absolute left-2 right-2 bottom-2 flex flex-col gap-1.5 text-white">
                                     {p.image && <span className="text-[11px] font-black leading-snug line-clamp-2" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>{p.title}</span>}
                                     <span className="flex items-center gap-1.5">
-                                        <span className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center text-[11px] font-black flex-shrink-0" style={{ background: 'rgba(255,255,255,0.3)', boxShadow: '0 0 0 1.5px #fff' }}>
+                                        <span className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-black flex-shrink-0" style={{ background: 'rgba(255,255,255,0.3)', boxShadow: '0 0 0 1.5px #fff' }}>
                                             {p.storeLogo ? <img src={p.storeLogo} alt="" className="w-full h-full object-cover" /> : p.storeName.charAt(0).toUpperCase()}
                                         </span>
                                         <span className="min-w-0 flex-1">
