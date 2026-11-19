@@ -15,7 +15,7 @@ test('o modo vira o tipo da barra; loja que não existe cai na barra de pessoa',
 
 test('as abas que mudam: Explorar sempre primeiro; pessoa = Atividade e Conversas (sem Perto nem Social, 17/11/2026)', () => {
     const names = (k) => barTabsFor(k).map((t) => t.label)
-    assert.deepEqual(names('pessoa'), ['Explorar', 'Atividade', 'Conversas'])
+    assert.deepEqual(names('pessoa'), ['Explorar', 'Itens', 'Conversas'])
     assert.deepEqual(names('loja'), ['Explorar', 'Painel', 'Pedidos', 'Conversas'])
     assert.deepEqual(names('motorista'), ['Explorar', 'Corridas', 'Entregas', 'Ganhos'])
     for (const k of ['pessoa', 'loja', 'motorista']) assert.equal(barTabsFor(k)[0].key, 'home')

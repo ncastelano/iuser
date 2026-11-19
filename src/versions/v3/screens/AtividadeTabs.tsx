@@ -36,7 +36,7 @@ export default function AtividadeTabs({ aba }: { aba: AtividadeAba }) {
         return null
     }
     return (
-        <div role="tablist" aria-label="Atividade" className="mt-1 p-1 rounded-[20px] flex gap-0.5" style={{ background: `${colors.border}45` }}>
+        <div role="tablist" aria-label="Itens" className="mt-1 p-1 rounded-[20px] flex gap-0.5" style={{ background: `${colors.border}45` }}>
             {ATIVIDADE_ABAS.map((a) => {
                 const Icon = ICONS[a.key]
                 const active = a.key === aba

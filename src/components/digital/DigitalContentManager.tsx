@@ -110,7 +110,7 @@ export default function DigitalContentManager({ productId }: { productId: string
         <div className="flex flex-col gap-3">
             <div>
                 <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Conteúdo digital</p>
-                <p className="text-[11px]" style={{ color: colors.textSecondary }}>{curriculumSummary(asCurriculum)}. Quem comprar abre tudo aqui depois que você confirmar o pagamento; o item marcado como grátis qualquer pessoa assiste. <b>Preço R$ 0 = produto grátis</b>: a pessoa o adiciona à biblioteca e abre na hora, sem pedido.</p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>{curriculumSummary(asCurriculum)}. Quem comprar abre tudo aqui depois que você confirmar o pagamento; o item marcado como grátis qualquer pessoa assiste. <b>Preço R$ 0 = produto grátis</b>: a pessoa o adiciona aos itens dela e abre na hora, sem pedido.</p>
             </div>
 
             <div>

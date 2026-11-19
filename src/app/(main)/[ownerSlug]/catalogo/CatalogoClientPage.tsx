@@ -1584,7 +1584,7 @@ export default function CatalogoClientPage() {
                                             </div>
                                             <div>
                                                 <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{digitalOnly ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
-                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digitalOnly ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
+                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digitalOnly ? 'Pague com Pix e o acesso abre em Itens quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                             </div>
                                         </div>
                                     ) : onlyDeliveryAvailable ? (

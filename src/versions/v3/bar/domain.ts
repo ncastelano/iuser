@@ -26,7 +26,7 @@ export function barKindOf(activeMode: string, knownStoreSlugs: string[] = []): {
 
 const HOME: BarTabDef = { key: 'home', label: 'Explorar' }
 const MIDDLE: Record<BarKind, BarTabDef[]> = {
-    pessoa: [{ key: 'activity', label: 'Atividade' }, { key: 'chat', label: 'Conversas' }],
+    pessoa: [{ key: 'activity', label: 'Itens' }, { key: 'chat', label: 'Conversas' }],
     loja: [{ key: 'panel', label: 'Painel' }, { key: 'orders', label: 'Pedidos' }, { key: 'chat', label: 'Conversas' }],
     motorista: [{ key: 'rides', label: 'Corridas' }, { key: 'deliveries', label: 'Entregas' }, { key: 'earnings', label: 'Ganhos' }],
 }

@@ -240,7 +240,7 @@ export const isFreeProduct = (price: number | null | undefined) => !price || Num
 
 /** Texto do botão de pegar o que é grátis, conforme o tipo */
 export function freeCtaLabel(kind: DigitalProductKind): string {
-    return isMusicKind(kind) ? 'Adicionar à minha biblioteca' : kind === 'programa' ? 'Liberar download grátis' : 'Pegar grátis'
+    return isMusicKind(kind) ? 'Adicionar aos meus itens' : kind === 'programa' ? 'Liberar download grátis' : 'Pegar grátis'
 }
 
 // ------------------------------------------------------------------ programas e aplicativos para baixar

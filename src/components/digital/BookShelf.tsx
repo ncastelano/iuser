@@ -40,7 +40,7 @@ export default function BookShelf({ items }: { items: ShowcaseItem[] }) {
             const doc = (await fetchCurriculum(b.id)).find((c) => c.kind === 'document')
             if (!doc) { router.push(`/${b.storeSlug}/${b.slug}`); return }
             const o = await openItem(doc.id)
-            setOpen({ url: o.url, title: b.name, subtitle: 'Livro grátis · está na sua biblioteca', item: b, full: true })
+            setOpen({ url: o.url, title: b.name, subtitle: 'Livro grátis · está nos seus itens', item: b, full: true })
         } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível abrir o livro.') } finally { setBusy(null) }
     }
 

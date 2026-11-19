@@ -24,9 +24,9 @@ export const AI_ACTIONS: AiAction[] = ['answer', 'search', 'go', 'ride', 'servic
 /** Páginas que a IA pode abrir (nada fora desta lista: o destino é montado AQUI, nunca vem pronto da IA). */
 export const AI_PAGES: Record<string, { path: string; label: string }> = {
     conversas: { path: '/conversas', label: 'Conversas' },
-    pedidos: { path: '/atividade?aba=pedidos', label: 'Meus pedidos' },
+    pedidos: { path: '/atividade?aba=pedidos', label: 'Histórico de pedidos' },
     carrinho: { path: '/atividade?aba=carrinho', label: 'Carrinho' },
-    biblioteca: { path: '/atividade?aba=biblioteca', label: 'Minha biblioteca digital' },
+    biblioteca: { path: '/atividade?aba=biblioteca', label: 'Meus itens' },
     radar: { path: '/radar', label: 'Radar (o que tem perto)' },
     social: { path: '/social', label: 'Social' },
     flash: { path: '/flash', label: 'Flash' },

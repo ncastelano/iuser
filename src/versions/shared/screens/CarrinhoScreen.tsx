@@ -1407,7 +1407,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 },
                 {
                     id: 'pedidos',
-                    label: 'Pedidos',
+                    label: 'Histórico',
                     icon: Package,
                     sectionId: 'section-pedidos',
                     indicator:
@@ -1785,7 +1785,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                                                             </div>
                                                             <div>
                                                                 <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{digital ? 'Produto digital: não tem entrega' : 'Essa loja não tem entrega'}</p>
-                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digital ? 'Pague com Pix e o acesso abre em Minhas compras digitais quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
+                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{digital ? 'Pague com Pix e o acesso abre em Itens quando a loja confirmar o pagamento' : 'Seu pedido será retirado no balcão'}</p>
                                                             </div>
                                                         </div>
                                                     ) : onlyDeliveryAvailable ? (

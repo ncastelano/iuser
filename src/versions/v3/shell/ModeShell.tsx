@@ -270,7 +270,7 @@ const SHELL_BOTTOM = BAR_SPACE
 const LOGO_RING = { border: '2px solid #fff', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
 // Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
 // Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
-const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos']
+const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos', '/atividade']   // na aba Itens também (menos na subaba Carrinho: onCartPage)
 const BAR_PATHS = ['/', '/convidados', '/forum', '/social', '/flash', '/entregas', '/comprar', '/lojas', '/produtos', '/digitais', '/servicos-disponiveis', '/atividade', '/carrinho', '/conversas', '/aceitar-corridas', '/ganhos', '/canal-do-motorista', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
 
 // Foto do modo (perfil, logo da loja, foto do carro) — ou o ícone do modo quando não há imagem. Troca de modo = pequeno "estouro".

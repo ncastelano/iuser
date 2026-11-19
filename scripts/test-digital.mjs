@@ -120,7 +120,7 @@ test('música: faixas, grátis e botões', () => {
     assert.equal(summaryFromCounts({ videos: 2, audios: 1, docs: 0, links: 0, seconds: 0 }), '2 aulas em vídeo · 1 áudio')
     assert.ok(isMusicKind('musica') && isMusicKind('album') && !isMusicKind('curso'))
     assert.ok(isFreeProduct(0) && isFreeProduct(null) && isFreeProduct('0') && !isFreeProduct(9.9))
-    assert.equal(freeCtaLabel('album'), 'Adicionar à minha biblioteca')
+    assert.equal(freeCtaLabel('album'), 'Adicionar aos meus itens')
     assert.equal(freeCtaLabel('ebook'), 'Pegar grátis')
     assert.equal(PRODUCT_KIND_LABEL.musica, 'Música')
     assert.equal(PRODUCT_KIND_LABEL.album, 'Álbum')

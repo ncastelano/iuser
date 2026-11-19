@@ -9,9 +9,9 @@
 export type AtividadeAba = 'pedidos' | 'carrinho' | 'biblioteca'
 
 export const ATIVIDADE_ABAS: { key: AtividadeAba; label: string; path: string }[] = [
-    { key: 'pedidos', label: 'Pedidos', path: '/atividade?aba=pedidos' },
+    { key: 'pedidos', label: 'Histórico', path: '/atividade?aba=pedidos' },
     { key: 'carrinho', label: 'Carrinho', path: '/atividade?aba=carrinho' },
-    { key: 'biblioteca', label: 'Biblioteca', path: '/atividade?aba=biblioteca' },
+    { key: 'biblioteca', label: 'Itens', path: '/atividade?aba=biblioteca' },
 ]
 
 /** As notificações do perfil moram no painel do perfil (o sininho da barra leva para lá; o antigo /atividade?aba=avisos também) */
