@@ -30,7 +30,7 @@ import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarExtra
 import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import { miniHidden, subtitleOf } from '@/modules/player'
-import { NOTIFICATIONS_PATH, isActivityPath, pathOfAba, smartAba, type AtividadeAba } from '@/versions/v3/atividade'
+import { HISTORY_PATH, NOTIFICATIONS_PATH, isActivityPath, smartPath, type AtividadeAba } from '@/versions/v3/atividade'
 import { BarKindProvider } from '@/versions/v3/bar/kind'
 import { activeBarKey, barKindOf, isOwnVehiclePage, barPathOf, barTabsFor, type BarKey } from '@/versions/v3/bar/domain'
 import { LAST_ABA_KEY } from '@/versions/v3/screens/AtividadeTabs'
@@ -208,7 +208,7 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
     const personChips: ModeChip[] = [
         { key: 'chat', icon: ic(MessageCircle), count: counts.rooms.perfil || 0, label: (counts.rooms.perfil || 0) === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo('/conversas') },
         { key: 'cart', icon: ic(ShoppingCart), count: counts.cart, label: 'no carrinho', color: '#f97316', onClick: () => onGo('/atividade?aba=carrinho') },
-        { key: 'orders', icon: ic(History), count: myOrders, label: myOrders === 1 ? 'pedido' : 'pedidos', color: counts.orders.ready > 0 ? '#a855f7' : '#16a34a', onClick: () => onGo('/atividade?aba=pedidos') },   // Histórico
+        { key: 'orders', icon: ic(History), count: myOrders, label: myOrders === 1 ? 'pedido' : 'pedidos', color: counts.orders.ready > 0 ? '#a855f7' : '#16a34a', onClick: () => onGo(HISTORY_PATH) },   // Histórico (dentro de Itens)
         { key: 'notifs', icon: ic(Bell), count: counts.notifs, label: counts.notifs === 1 ? 'notificação' : 'notificações', color: '#ef4444', onClick: () => onGo(NOTIFICATIONS_PATH) },
     ]
     const personActions: ModeAction[] = [
@@ -643,7 +643,7 @@ export default function ModeShell({ children }: {
             let last: AtividadeAba | null = null
             try { last = localStorage.getItem(LAST_ABA_KEY) as AtividadeAba | null } catch { /* sem armazenamento */ }
             if (!userId) { go(topCart > 0 ? '/carrinho' : '/login'); return }   // visitante: só o carrinho existe sem conta
-            go(pathOfAba(smartAba({ orders: orderCounts, cart: topCart, last })))
+            go(smartPath({ orders: orderCounts, cart: topCart, last }))
             return
         }
         const path = barPathOf(key, barStore)

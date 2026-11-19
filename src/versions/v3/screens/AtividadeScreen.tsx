@@ -8,6 +8,7 @@
 import { Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import CarrinhoScreen from '@/versions/shared/screens/CarrinhoScreen'
+import ItensScreen from './ItensScreen'
 import AtividadeTabs, { LAST_ABA_KEY } from './AtividadeTabs'
 import { ATIVIDADE_ABAS, NOTIFICATIONS_PATH, abaOfLocation, carrinhoTabOf, conversasTarget, isLegacyAvisos, pathOfAba, type AtividadeAba } from '../atividade'
 
@@ -25,7 +26,7 @@ function Inner() {
         if (!aba) {
             let last: string | null = null
             try { last = localStorage.getItem(LAST_ABA_KEY) } catch { /* sem armazenamento */ }
-            router.replace(pathOfAba(ATIVIDADE_ABAS.some((a) => a.key === last) ? (last as AtividadeAba) : 'pedidos'))
+            router.replace(pathOfAba(ATIVIDADE_ABAS.some((a) => a.key === last) ? (last as AtividadeAba) : 'itens'))
         }
     }, [legacy, toChat, aba, router])
     if (!aba) return null
@@ -33,7 +34,7 @@ function Inner() {
         <div className="relative pb-8">
             <AtividadeTabs aba={aba} />
             <div className="mt-3">
-                <CarrinhoScreen hideTabs tab={carrinhoTabOf(aba, param)} />
+                {aba === 'itens' ? <ItensScreen abaParam={param} /> : <CarrinhoScreen hideTabs tab={carrinhoTabOf(aba, param)} />}
             </div>
         </div>
     )

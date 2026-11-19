@@ -48,10 +48,10 @@ export const GUIDE: GuideGroup[] = [
             },
             {
                 id: 'barra', icon: 'help', color: '#64748b', title: 'Como navegar no app',
-                summary: 'A barra de baixo leva ao que importa: Explorar (a página inicial, com a busca), Itens (o histórico dos seus pedidos, o carrinho e os seus itens), Conversas e Eu (seus modos). No modo Loja e no modo Motorista a barra muda e mostra as ferramentas de trabalho.',
+                summary: 'A barra de baixo leva ao que importa: Explorar (a página inicial, com a busca), Itens (o Carrinho e tudo o que você já tem, com o histórico dos pedidos), Conversas e Eu (seus modos). No modo Loja e no modo Motorista a barra muda e mostra as ferramentas de trabalho.',
                 steps: [
                     'Explorar: procure lojas, serviços, pessoas e produtos, ou use os atalhos "Preciso de" e "Quero ganhar".',
-                    'Itens: acompanhe o pedido em andamento no Histórico, o Carrinho e, em Itens, tudo o que é seu (cursos, músicas, livros, programas).',
+                    'Itens: tem duas partes. Carrinho, com o que você vai comprar, e Itens, com tudo o que já é seu, separado por tipo (Produtos, Digitais, Serviços) e o Histórico dos pedidos.',
                     'Conversas: fale com lojas, profissionais e motoristas sem passar seu telefone.',
                     'A faixa em cima da barra mostra avisos e o que está acontecendo agora (pedido, corrida, carrinho).',
                 ],
@@ -199,7 +199,7 @@ export const GUIDE: GuideGroup[] = [
                 steps: [
                     'Encontre em "Conteúdos digitais" na home ou na aba Digitais da loja. Muitos têm prévia.',
                     'Pague o pedido; a loja libera o acesso. Os grátis você pega com um toque.',
-                    'Assista, ouça ou leia em Itens → Itens. A música continua tocando enquanto você usa o app.',
+                    'Assista, ouça ou leia em Itens → Digitais. A música continua tocando enquanto você usa o app.',
                     'Gostou do artista? Assine o clube dele ou mande um apoio.',
                 ],
                 rules: ['Quem publica declara que é dono da obra ou tem licença. Cópia de conteúdo alheio é retirada do ar.'],

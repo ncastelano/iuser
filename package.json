@@ -95,7 +95,8 @@
     "test:legal": "node --test scripts/test-legal.mjs",
     "test:delivery-rules": "node --test scripts/test-delivery-rules.mjs",
     "test:ai-assistant": "node --test scripts/test-ai-assistant.mjs",
-    "test:forum": "node --test scripts/test-forum.mjs"
+    "test:forum": "node --test scripts/test-forum.mjs",
+    "test:items": "node --test scripts/test-items.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.5.0",
