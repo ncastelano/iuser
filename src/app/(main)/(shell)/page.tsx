@@ -1034,6 +1034,17 @@ export default function ModeloInicialPage() {
                         <PublicationsSection colors={colors} onOpen={(f) => go(f.kind === 'publication' && f.link ? `/${f.authorSlug}/${f.link}` : `/flash?de=${f.id}`)} />
                         <StorePublicationsSection colors={colors} />
 
+                        {/* FÓRUM DO iUSER: o que mudou em cada versão e as ideias de quem usa, com votos (/forum) */}
+                        <button onClick={() => go('/forum')} className="mt-8 w-full text-left rounded-3xl p-4 border flex items-center gap-3.5 transition active:scale-[0.99]"
+                            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}>
+                            <span className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#f973161f', color: '#f97316' }}><Sparkles size={24} /></span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>Fórum do iUser</span>
+                                <span className="block text-xs mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>Veja as novidades de cada versão, sugira o que você quer no app e vote nas ideias.</span>
+                            </span>
+                            <ChevronRight size={17} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                        </button>
+
                         {/* ===== 4. CONVITE FINAL ===== */}
                         <SellCta
                             colors={colors}

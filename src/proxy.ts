@@ -39,6 +39,7 @@ const IGNORED_ROUTES = [
     '/aceitar-corridas',
     '/painel-motorista', // só redireciona para /canal-do-motorista (o painel mora dentro do Canal desde 16/11/2026)
     '/convidados', // Convidados iUser: convidar, graduação, rede, saldo e saque
+    '/forum', // Fórum do iUser: novidades das versões e ideias com votos
     '/resgatar', // cartão de crédito do iUser (QR do cartão impresso): confere o código e guarda para o carrinho
     '/privacidade', // Política de Privacidade (estava fora da lista: em produção dava 404 — exigida pela Google Play e pela Meta)
     '/termos', // Termos de Uso (o cadastro manda aceitar; não existia)
