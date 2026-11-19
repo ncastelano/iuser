@@ -24,9 +24,10 @@ import ManualSection from './ManualSection'
 import DeliveryDisputesSection from './DeliveryDisputesSection'
 import ModerationSection from './ModerationSection'
 import UploadsSection from './UploadsSection'
+import CreditsSection from './CreditsSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro' | 'status' | 'manual' | 'disputas' | 'denuncias' | 'uploads'
+type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro' | 'status' | 'manual' | 'disputas' | 'denuncias' | 'uploads' | 'creditos'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
@@ -38,6 +39,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'tarifas', label: 'Tarifas', icon: Car },
     { id: 'entregas', label: 'Entregas', icon: Truck },
     { id: 'brinde', label: 'Brinde', icon: Gift },
+    { id: 'creditos', label: 'Créditos', icon: Gift },
     { id: 'bordas', label: 'Bordas', icon: CircleDashed },
     { id: 'graduacao', label: 'Graduação', icon: Award },
     { id: 'pontuacao', label: 'Pontuação', icon: Trophy },
@@ -129,6 +131,7 @@ export default function AdminDashboard() {
             {section === 'status' && <IuserStatusSection cardStyle={cardStyle} colors={colors} />}
             {section === 'denuncias' && <ModerationSection cardStyle={cardStyle} colors={colors} />}
             {section === 'uploads' && <UploadsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'creditos' && <CreditsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'disputas' && <DeliveryDisputesSection cardStyle={cardStyle} colors={colors} />}
             {section === 'manual' && <ManualSection cardStyle={cardStyle} colors={colors} />}
             {section === 'pontuacao' && <PointsSection cardStyle={cardStyle} colors={colors} />}

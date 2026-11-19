@@ -21,7 +21,7 @@ import { cachedStoreLevels, levelOf, loadStoreLevels } from '@/modules/store-lev
 import StoreFrame from '@/components/store/StoreFrame'
 import { V3SectionForceOpen } from '../V3Section'
 import CatalogoV3, { type CatAba } from './CatalogoV3'
-import { gerenciarItens, SELO, TIPO_SECAO, type ItemGerenciar, type SecaoKey } from './gerenciar'
+import { gerenciarItens, rotaPropria, SELO, TIPO_SECAO, type ItemGerenciar, type SecaoKey } from './gerenciar'
 
 const ORANGE = '#f97316'
 
@@ -30,7 +30,7 @@ const GRUPOS: { titulo: string; dica: string; ks: SecaoKey[] }[] = [
     { titulo: 'O que você vende', dica: 'Produtos, digitais, serviços e promoções', ks: ['catalogo', 'promocoes'] },
     { titulo: 'Como você recebe', dica: 'Pagamento e entrega', ks: ['pagamento', 'entrega'] },
     { titulo: 'Quando e quem atende', dica: 'Horários, agenda e equipe', ks: ['horarios', 'agenda', 'regras', 'equipe'] },
-    { titulo: 'Divulgação', dica: 'Publicações, clube e avisos', ks: ['publicacoes', 'clube', 'whatsapp'] },
+    { titulo: 'Divulgação', dica: 'Publicações, clube e avisos', ks: ['publicacoes', 'mesas', 'clube', 'whatsapp'] },
 ]
 
 
@@ -89,7 +89,8 @@ export default function EditarHub({ store, storeSlug, hasServices, whatsapp, blo
     }, [store.id])
 
     const abrir = useCallback((k: SecaoKey, a?: CatAba) => {
-        if (k === 'agenda') { router.push(`/compromissos/${encodeURIComponent(slug)}`); return }
+        const fora = rotaPropria(k, slug)
+        if (fora) { router.push(fora); return }
         const q = new URLSearchParams(window.location.search)
         q.set('secao', k)
         if (a) q.set('aba', a); else q.delete('aba')
@@ -210,7 +211,7 @@ export default function EditarHub({ store, storeSlug, hasServices, whatsapp, blo
             {secao && TIPO_SECAO[secao] === 'folha' && item(secao) && (
                 <Folha item={item(secao)!} onClose={fechar}>{blocos[secao as keyof EditarBlocos] as ReactNode}</Folha>
             )}
-            {secao && TIPO_SECAO[secao] === 'pagina' && secao !== 'agenda' && item(secao) && (
+            {secao && TIPO_SECAO[secao] === 'pagina' && !rotaPropria(secao, slug) && item(secao) && (
                 <Pagina item={secao === 'promocoes' ? item('catalogo')! : item(secao)!} loja={store.name} onClose={fechar} promo={secao === 'promocoes'}>
                     {secao === 'catalogo' || secao === 'promocoes'
                         ? <CatalogoV3 storeId={store.id} storeSlug={slug} hasServices={hasServices} aba={aba || 'produtos'} onAba={trocarAba} promocoes={blocos.promocoes}

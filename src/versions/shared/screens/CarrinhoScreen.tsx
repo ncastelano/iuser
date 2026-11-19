@@ -7,7 +7,7 @@ import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/s
 import { isDigitalCart } from '@/modules/digital'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
-import { validateCampaignCode, calculateCampaignDiscountAmount, type CampaignDiscount } from '@/lib/campaignRedemption'
+import { validateCampaignCode, calculateCampaignDiscountAmount, CREDIT_CODE_KEY, type CampaignDiscount } from '@/lib/campaignRedemption'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     Store,
@@ -887,15 +887,28 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
         }
     }
 
+    // Cartão do iUser resgatado em /resgatar (fica guardado neste aparelho): já vem escrito no campo de código de cada loja
+    const creditSlugsKey = Object.keys(itemsByStore || {}).join(',')
+    useEffect(() => {
+        let code: string | null = null
+        try { code = localStorage.getItem(CREDIT_CODE_KEY) } catch { /* sem storage */ }
+        if (!code) return
+        setRedemptionInputByStore((prev) => {
+            const next = { ...prev }
+            for (const s of creditSlugsKey.split(',').filter(Boolean)) if (!next[s]) next[s] = code!
+            return next
+        })
+    }, [creditSlugsKey])
+
     // ---- Handler de finalização por loja ----
     const handleApplyRedemptionCode = async (slug: string) => {
         const code = (redemptionInputByStore[slug] || '').trim()
         if (!code) return
         setApplyingCodeByStore((prev) => ({ ...prev, [slug]: true }))
         try {
-            const discount = await validateCampaignCode(code)
+            const discount = await validateCampaignCode(code, storeConfigs[slug]?.id)
             setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: discount }))
-            toast.success('Código aplicado!')
+            toast.success(discount.discountType === 'iuser_credit' ? `Cartão do iUser aplicado: até R$ ${(discount.discountValue || 0).toFixed(2).replace('.', ',')} de desconto` : 'Código aplicado!')
         } catch (err: any) {
             setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: null }))
             toast.error(err.message || 'Código inválido')
@@ -1053,6 +1066,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
             finalTotal = created.totalAmount
             deliveryFee = created.deliveryFee
 
+            if (appliedDiscount?.discountType === 'iuser_credit') { try { localStorage.removeItem(CREDIT_CODE_KEY) } catch { /* ok */ } }
             if (appliedDiscount) {
                 // O código já foi validado e consumido pelo servidor junto com o pedido
                 setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: null }))
@@ -1994,7 +2008,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                                                 <div className="pt-2 space-y-1.5">
                                                     {appliedDiscountByStore[slug] ? (
                                                         <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
-                                                            <span className="font-bold" style={{ color: '#22c55e' }}>Código VIP aplicado · -R$ {discountAmount.toFixed(2)}</span>
+                                                            <span className="font-bold" style={{ color: '#22c55e' }}>{appliedDiscountByStore[slug]?.discountType === 'iuser_credit' ? 'Cartão do iUser' : 'Código VIP'} aplicado · -R$ {discountAmount.toFixed(2)}{appliedDiscountByStore[slug]?.discountType === 'iuser_credit' && discountAmount === 0 ? ` (pedido mínimo R$ ${(appliedDiscountByStore[slug]?.minOrder || 0).toFixed(2)})` : ''}</span>
                                                             <button
                                                                 onClick={() => { setAppliedDiscountByStore(prev => ({ ...prev, [slug]: null })); setRedemptionInputByStore(prev => ({ ...prev, [slug]: '' })) }}
                                                                 className="text-[10px] font-bold underline"
@@ -2007,7 +2021,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                                                         <div className="flex gap-2">
                                                             <input
                                                                 type="text"
-                                                                placeholder="Código de resgate VIP (opcional)"
+                                                                placeholder="Cartão do iUser ou código VIP (opcional)"
                                                                 value={redemptionInputByStore[slug] || ''}
                                                                 onChange={(e) => setRedemptionInputByStore(prev => ({ ...prev, [slug]: e.target.value }))}
                                                                 className="flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none"
@@ -2032,7 +2046,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                                                     </div>
                                                     {discountAmount > 0 && (
                                                         <div className="flex justify-between">
-                                                            <span style={{ color: colors.textSecondary }}>Desconto VIP</span>
+                                                            <span style={{ color: colors.textSecondary }}>{appliedDiscountByStore[slug]?.discountType === 'iuser_credit' ? 'Cartão do iUser (o iUser paga à loja)' : 'Desconto VIP'}</span>
                                                             <span className="font-bold" style={{ color: '#22c55e' }}>-R$ {discountAmount.toFixed(2)}</span>
                                                         </div>
                                                     )}

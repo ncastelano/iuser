@@ -25,12 +25,13 @@ import { fetchTipsPanel } from '@/modules/tips'
 import StoreFrame from '@/components/store/StoreFrame'
 import StoreOrders from '../StoreOrders'
 import StoreDeliveryDues from '../StoreDeliveryDues'
+import StoreIuserCredits from '../StoreIuserCredits'
 import StoreMissions from '../StoreMissions'
 import StoreDigital from '../StoreDigital'
 import StoreFeedback from '../StoreFeedback'
 import StoreVisitors from '../StoreVisitors'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
-import { gerenciarItens, SELO } from './gerenciar'
+import { gerenciarItens, rotaPropria, SELO } from './gerenciar'
 import { TYPE_INFO } from '@/components/planos/PostpaidFees'
 import LogoFolha from './LogoFolha'
 import BalcaoV3 from './BalcaoV3'
@@ -280,6 +281,8 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 ))}
             </div>
 
+            <StoreIuserCredits storeId={store.id} />
+
             {/* ===== DIGITAL E CLUBE ===== */}
             <div className="mt-2"><StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 /></div>
 
@@ -331,7 +334,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 {tiles.map((g) => {
                     const apagado = g.est === 'off'
                     return (
-                        <button key={g.k} onClick={() => router.push(g.k === 'agenda' ? `/compromissos/${encodeURIComponent(slug)}` : `${editar}?secao=${g.k}`)} className="relative rounded-3xl p-3 text-left active:scale-95 transition" style={{ background: apagado ? colors.surface : `${g.cor}14`, border: `1.5px solid ${apagado ? colors.border : `${g.cor}55`}`, opacity: apagado ? 0.75 : 1 }}>
+                        <button key={g.k} onClick={() => router.push(rotaPropria(g.k, slug) || `${editar}?secao=${g.k}`)} className="relative rounded-3xl p-3 text-left active:scale-95 transition" style={{ background: apagado ? colors.surface : `${g.cor}14`, border: `1.5px solid ${apagado ? colors.border : `${g.cor}55`}`, opacity: apagado ? 0.75 : 1 }}>
                             <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full" style={{ background: SELO[g.est] }} />
                             <span className="w-9 h-9 rounded-2xl flex items-center justify-center" style={{ background: apagado ? `${colors.border}60` : `${g.cor}26`, color: apagado ? colors.textSecondary : g.cor }}>{g.ic}</span>
                             <span className="block text-[12.5px] font-black leading-tight mt-2" style={{ color: colors.textPrimary }}>{g.t}</span>

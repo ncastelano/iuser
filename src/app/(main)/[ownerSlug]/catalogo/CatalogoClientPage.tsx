@@ -198,6 +198,16 @@ export default function CatalogoClientPage() {
         }
     }, [storeConfig, deliveryOption])
 
+    // QR NA MESA (migration 20261130000086): quem chega pelo QR impresso (?mesa=N, 0 = balcão) conta uma leitura para a loja (1 por dia/pessoa)
+    const qrCounted = useRef(false)
+    useEffect(() => {
+        if (!storeInfo?.id || qrCounted.current) return
+        const m = new URLSearchParams(window.location.search).get('mesa')
+        if (m === null || !/^\d{1,3}$/.test(m)) return
+        qrCounted.current = true
+        void supabase.rpc('record_qr_scan', { p_store: storeInfo.id, p_table: Number(m) })
+    }, [storeInfo?.id])
+
     // ========== CARREGAR DADOS DA LOJA ==========
     useEffect(() => {
         async function loadStoreData() {

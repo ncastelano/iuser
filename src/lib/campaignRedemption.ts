@@ -8,18 +8,34 @@
 // cada fluxo (que já funciona e é arriscado tocar mais do que o necessário).
 import { supabase } from '@/lib/supabase/client'
 
+/** O cartão do iUser resgatado em /resgatar fica guardado neste aparelho até ser usado num pedido. */
+export const CREDIT_CODE_KEY = 'iuser_credit_code'
+
 export interface CampaignDiscount {
     redemptionId: string
     storeId: string
-    discountType: 'percent' | 'fixed' | 'full'
+    // 'iuser_credit' = cartão de crédito do iUSER (migration 20261130000085): vale em qualquer loja, o iUser paga o desconto à loja
+    discountType: 'percent' | 'fixed' | 'full' | 'iuser_credit'
     discountValue: number | null
     productIds: string[]
+    minOrder?: number
+    label?: string
 }
 
 // Confere o código e devolve o desconto — chamar antes de fechar o pedido.
 // Lança erro (com mensagem pronta pra toast) se o código não existir ou já
 // tiver sido usado.
-export async function validateCampaignCode(code: string): Promise<CampaignDiscount> {
+export async function validateCampaignCode(code: string, storeId?: string | null): Promise<CampaignDiscount> {
+    // 1º o cartão de crédito do iUser (só confere; quem gasta é o pedido, no banco)
+    const { data: ic } = await supabase.rpc('check_iuser_credit', { p_code: code.trim(), p_store: storeId || null })
+    const credit = ic as any
+    if (credit?.found) {
+        if (!credit.ok) throw new Error(credit.error || 'Este cartão do iUser não vale')
+        return {
+            redemptionId: '', storeId: storeId || '', discountType: 'iuser_credit', discountValue: Number(credit.value) || 0, productIds: [],
+            minOrder: Number(credit.min_order) || 0, label: 'Cartão iUser',
+        }
+    }
     const { data, error } = await supabase.rpc('validate_campaign_code', { p_code: code.trim() }).maybeSingle()
     if (error || !data) {
         throw new Error(error?.message || 'Código inválido ou já usado')
@@ -40,6 +56,11 @@ export function calculateCampaignDiscountAmount(
     discount: CampaignDiscount,
     items: { productId: string; lineTotal: number }[]
 ): number {
+    if (discount.discountType === 'iuser_credit') {
+        const total = items.reduce((sum, i) => sum + i.lineTotal, 0)
+        if (total < (discount.minOrder || 0)) return 0
+        return Math.min(discount.discountValue || 0, total)
+    }
     const eligibleItems = items.filter((i) => discount.productIds.includes(i.productId))
     const eligibleTotal = eligibleItems.reduce((sum, i) => sum + i.lineTotal, 0)
 
