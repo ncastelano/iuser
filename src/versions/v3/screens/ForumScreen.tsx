@@ -7,8 +7,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { ChevronUp, ChevronDown, MessageCircle, Lightbulb, Megaphone, Plus, Minus, Sparkles, X, Send, Trash2, BadgeCheck } from 'lucide-react'
+import { ChevronUp, ChevronDown, MessageCircle, Lightbulb, Megaphone, BookOpen, Plus, Minus, Sparkles, X, Send, Trash2, BadgeCheck } from 'lucide-react'
 import Header from '@/components/Header'
+import ForumGuide from '@/components/forum/ForumGuide'
 import PageTabs from '@/components/PageTabs'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
@@ -21,7 +22,7 @@ import {
 } from '@/modules/forum'
 
 const ORANGE = '#f97316'
-type Tab = 'novidades' | 'ideias'
+type Tab = 'guia' | 'novidades' | 'ideias'
 
 export default function ForumScreen() {
     const router = useRouter()
@@ -39,11 +40,12 @@ export default function ForumScreen() {
     useEffect(() => {
         const q = new URLSearchParams(window.location.search)
         if (q.get('aba') === 'ideias') setTab('ideias')
+        if (q.get('aba') === 'guia') setTab('guia')
         const i = q.get('ideia')
         if (i) { setTab('ideias'); setOpenIdea(i) }
         if (q.get('nova') === '1') { setTab('ideias'); setComposing(true) }
     }, [])
-    const goTab = (t: Tab) => { setTab(t); window.history.replaceState(window.history.state, '', t === 'ideias' ? '/forum?aba=ideias' : '/forum') }
+    const goTab = (t: Tab) => { setTab(t); window.history.replaceState(window.history.state, '', t === 'novidades' ? '/forum' : `/forum?aba=${t}`) }
 
     const reload = useCallback(() => {
         loadReleases().then(setReleases).catch(() => setReleases([]))
@@ -77,7 +79,7 @@ export default function ForumScreen() {
 
             <section className="mt-2 rounded-3xl p-4 text-white" style={{ background: `linear-gradient(140deg, ${ORANGE}, #dc2626)` }}>
                 <p className="text-[18px] font-black leading-tight flex items-center gap-2"><Sparkles size={19} /> O iUser é feito com você</p>
-                <p className="text-[13px] mt-1" style={{ opacity: 0.93 }}>Veja o que muda a cada versão, sugira o que você quer no app e vote nas ideias das outras pessoas. As mais votadas entram primeiro na nossa lista.</p>
+                <p className="text-[13px] mt-1" style={{ opacity: 0.93 }}>Aprenda como tudo funciona, veja o que muda a cada versão, sugira o que você quer no app e vote nas ideias das outras pessoas. As mais votadas entram primeiro na nossa lista.</p>
                 <button onClick={() => { if (!userId) needLogin(); else setComposing(true) }} className="mt-3 h-10 px-4 rounded-full text-[13.5px] font-black flex items-center gap-1.5" style={{ background: '#fff', color: '#dc2626' }}>
                     <Lightbulb size={16} /> Sugerir uma ideia
                 </button>
@@ -85,12 +87,13 @@ export default function ForumScreen() {
 
             <div className="mt-2">
                 <PageTabs tabs={[
+                    { id: 'guia', label: 'Como funciona', icon: BookOpen, isActive: tab === 'guia', onClick: () => goTab('guia') },
                     { id: 'novidades', label: 'Novidades', icon: Megaphone, isActive: tab === 'novidades', onClick: () => goTab('novidades') },
                     { id: 'ideias', label: 'Ideias', icon: Lightbulb, isActive: tab === 'ideias', onClick: () => goTab('ideias'), badge: ideas?.length ? { count: ideas.length } : null },
                 ]} />
             </div>
 
-            {tab === 'novidades' ? (
+            {tab === 'guia' ? <ForumGuide /> : tab === 'novidades' ? (
                 releases === null ? <Loading /> : releases.length === 0 ? <Empty text="Nenhuma novidade publicada ainda." /> : (
                     <div className="flex flex-col gap-3 mt-1">
                         {releases.map((r) => <ReleaseCard key={r.id} r={r} card={card} userId={userId || null} onNeedLogin={needLogin} />)}

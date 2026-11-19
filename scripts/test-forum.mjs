@@ -32,3 +32,21 @@ test('validação e textos', () => {
     assert.equal(ago(h(48), now), 'há 2 dias')
     assert.equal(Object.keys(STATUS_INFO).length, 6)
 })
+
+import { GUIDE, GUIDE_TOPICS } from '../src/modules/forum/guide.ts'
+import { readFileSync } from 'node:fs'
+test('guia: todo tópico tem texto, id único e atalho para uma página que existe no proxy', () => {
+    const proxy = readFileSync(new URL('../src/proxy.ts', import.meta.url), 'utf8')
+    const ids = new Set()
+    assert.ok(GUIDE.length >= 4 && GUIDE_TOPICS.length >= 15)
+    for (const t of GUIDE_TOPICS) {
+        assert.ok(!ids.has(t.id), 'id repetido: ' + t.id); ids.add(t.id)
+        assert.ok(t.title && t.summary.length > 40, t.id)
+        assert.ok(t.steps?.length || t.rules?.length, t.id + ' sem passos nem regras')
+        for (const l of [t.link, t.link2].filter(Boolean)) {
+            assert.ok(l.path.startsWith('/') && !l.path.startsWith('//'), l.path)
+            const first = '/' + l.path.split(/[/?]/)[1]
+            assert.ok(first === '/' || first === '/lojas' || proxy.includes(`'${first}'`) || proxy.includes(`'${first}/'`), 'rota fora do proxy: ' + l.path)
+        }
+    }
+})
