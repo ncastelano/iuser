@@ -4,7 +4,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { GraduationCap } from 'lucide-react'
+import { Package } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { supabase } from '@/lib/supabase/client'
@@ -19,7 +19,7 @@ export default function DigitalLibrary({ userId }: { userId: string }) {
     if (items.length === 0) {
         return (
             <div className="rounded-3xl p-6 text-center flex flex-col items-center gap-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                <GraduationCap size={28} style={{ color: colors.textSecondary }} />
+                <Package size={28} style={{ color: colors.textSecondary }} />
                 <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Nada liberado ainda</p>
                 <p className="text-[12px]" style={{ color: colors.textSecondary }}>Cursos, aulas e arquivos que você compra aparecem aqui quando a loja confirma o seu pagamento.</p>
             </div>

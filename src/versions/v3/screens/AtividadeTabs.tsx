@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { GraduationCap, Package, ShoppingCart } from 'lucide-react'
+import { History, Package, ShoppingCart } from 'lucide-react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import { useOrderStatusCounts } from '@/hooks/useOrderStatusCounts'
@@ -14,7 +14,7 @@ import { useCartStore } from '@/store/useCartStore'
 import { ATIVIDADE_ABAS, pathOfAba, type AtividadeAba } from '../atividade'
 
 export const LAST_ABA_KEY = 'iuser_atividade_last'
-const ICONS = { pedidos: Package, carrinho: ShoppingCart, biblioteca: GraduationCap } as const
+const ICONS = { pedidos: History, carrinho: ShoppingCart, biblioteca: Package } as const   // Histórico = relógio · Carrinho · Itens = caixa
 
 export default function AtividadeTabs({ aba }: { aba: AtividadeAba }) {
     const router = useRouter()

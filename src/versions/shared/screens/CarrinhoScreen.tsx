@@ -35,7 +35,7 @@ import {
     Plus,
     Minus,
     Trash2,
-    PackageCheck, GraduationCap } from 'lucide-react'
+    PackageCheck, GraduationCap, History } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -1408,7 +1408,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 {
                     id: 'pedidos',
                     label: 'Histórico',
-                    icon: Package,
+                    icon: History,
                     sectionId: 'section-pedidos',
                     indicator:
                         activeOrderCounts.pending > 0 ||
@@ -1426,7 +1426,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 {
                     id: 'digital',
                     label: 'Digital',
-                    icon: GraduationCap,
+                    icon: Package,
                     sectionId: 'section-digital',
                     indicator: null,
                     badge: digitalCount > 0 ? { count: digitalCount, color: '#f97316' } : null,

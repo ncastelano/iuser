@@ -10,7 +10,7 @@ import { ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } fro
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
     Store as StoreIcon, Car, User, ChevronRight, X, ShoppingBag, LayoutDashboard, Check, Plus, Pencil, Bike,
-    Search, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart,
+    Search, MessageCircle, ClipboardList, Wallet, Bell, Package, ShoppingCart, History,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -208,7 +208,7 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
     const personChips: ModeChip[] = [
         { key: 'chat', icon: ic(MessageCircle), count: counts.rooms.perfil || 0, label: (counts.rooms.perfil || 0) === 1 ? 'conversa' : 'conversas', color: '#16a34a', onClick: () => onGo('/conversas') },
         { key: 'cart', icon: ic(ShoppingCart), count: counts.cart, label: 'no carrinho', color: '#f97316', onClick: () => onGo('/atividade?aba=carrinho') },
-        { key: 'orders', icon: ic(Package), count: myOrders, label: myOrders === 1 ? 'pedido' : 'pedidos', color: counts.orders.ready > 0 ? '#a855f7' : '#16a34a', onClick: () => onGo('/atividade?aba=pedidos') },
+        { key: 'orders', icon: ic(History), count: myOrders, label: myOrders === 1 ? 'pedido' : 'pedidos', color: counts.orders.ready > 0 ? '#a855f7' : '#16a34a', onClick: () => onGo('/atividade?aba=pedidos') },   // Histórico
         { key: 'notifs', icon: ic(Bell), count: counts.notifs, label: counts.notifs === 1 ? 'notificação' : 'notificações', color: '#ef4444', onClick: () => onGo(NOTIFICATIONS_PATH) },
     ]
     const personActions: ModeAction[] = [
@@ -630,7 +630,7 @@ export default function ModeShell({ children }: {
 
     // As abas da barra (Explorar + três do modo): para onde cada uma leva e o selo
     const ICON: Record<BarKey, ReactNode> = {
-        home: <Search size={22} />, activity: <Bell size={22} />,
+        home: <Search size={22} />, activity: <Package size={22} />,   // aba Itens = a caixa (19/11/2026; antes o sino da Atividade)
         panel: <LayoutDashboard size={22} />, orders: <ClipboardList size={22} />, chat: <MessageCircle size={22} />,
         rides: <Car size={22} />, deliveries: <Bike size={22} />, earnings: <Wallet size={22} />,
     }

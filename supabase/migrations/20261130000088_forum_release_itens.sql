@@ -8,6 +8,7 @@ SELECT '3.0.1', 'Atividade agora se chama Itens',
        ARRAY['A aba "Atividade" da barra agora se chama "Itens"',
              '"Pedidos" virou "Histórico": os pedidos em andamento e os que já terminaram',
              '"Biblioteca" virou "Itens": tudo o que é seu (cursos, músicas, livros e programas)',
+             'Ícones novos: Itens é a caixa, Histórico é o relógio e Carrinho continua o carrinho',
              'O resumo do carrinho em cima da barra agora aparece também na aba Itens'],
        ARRAY[]::text[],
        now()
