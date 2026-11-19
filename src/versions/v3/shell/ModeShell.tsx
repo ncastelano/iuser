@@ -108,7 +108,7 @@ function ModeCard({ selected, kind, image, title, desc, dot, onClick, chips, act
     chips?: ModeChip[]; actions?: ModeAction[] | null
 }) {
     const Icon = kind === 'store' ? StoreIcon : kind === 'car' ? Car : User
-    const hasChips = (chips || []).some((c) => c.count > 0)
+    const hasChips = !selected && (chips || []).some((c) => c.count > 0)   // as fichinhas só nos modos NÃO escolhidos (19/11/2026: no escolhido elas repetiam a barra)
     const hasActions = selected && !!actions && actions.length > 0
     return (
         <div className="w-full rounded-2xl overflow-hidden transition" style={{ border: `1.5px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, background: selected ? '#f9731612' : 'transparent' }}>
@@ -637,6 +637,7 @@ export default function ModeShell({ children }: {
     const barStoreId = barStore ? drawerData.stores.find((st) => st.slug === barStore)?.id : null
     const barStoreNew = barStoreId ? (storeOrders[barStoreId]?.pending || 0) + (storeOrders[barStoreId]?.services || 0) : 0
     const openTab = (key: BarKey) => {
+        setDrawerOpen(false)   // tocar em outro ícone da barra fecha o menu Eu (19/11/2026)
         if (key === barActive) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }   // tocar na aba da página em que já está volta ao topo
         if (key === 'activity') {
             // a aba Atividade leva ao que pede atenção (pedido em andamento, carrinho); senão, à última subaba usada
@@ -705,12 +706,12 @@ export default function ModeShell({ children }: {
                 mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: drawerOpen ? () => setDrawerOpen(false) : openHub }}
                 hub={{ open: drawerOpen, label: 'Menu do iUser', vars: hubVars, children: hubInner }}
                 player={barPlayer}
-                onCart={() => go('/carrinho')}
+                onCart={() => { setDrawerOpen(false); go('/carrinho') }}
                 message={islandMsg && msgStyle ? { id: islandMsg.id, text: islandMsg.text, description: islandMsg.description, icon: islandMsg.icon, glyph: msgStyle.glyph, color: msgStyle.color, action: islandMsg.action ? { label: islandMsg.action.label, onClick: islandMsg.action.onClick } : undefined } : null}
                 extras={barExtras}
                 customCard={islandMsg?.custom ? islandMsg.custom(islandMsg.id) : null}
                 onDismiss={() => { if (islandMsg) toast.dismiss(islandMsg.id) }}
-                onGo={(path) => go(path)}
+                onGo={(path) => { setDrawerOpen(false); go(path) }}
             />
         )}
 

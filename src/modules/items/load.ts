@@ -47,3 +47,53 @@ export async function loadMyServices(me: string): Promise<MyService[]> {
         logo: !a.store_logo_url ? null : /^https?:\/\//.test(a.store_logo_url) ? a.store_logo_url : supabase.storage.from('store-logos').getPublicUrl(a.store_logo_url).data.publicUrl,
     }))
 }
+
+// ===== Pedidos favoritos e "Repetir pedido" (migration 20261130000090) =====
+export interface FavoriteOrder { orderId: string; storeName: string; storeSlug: string | null; logo: string | null; items: string; total: number; at: string }
+
+export async function loadFavoriteOrderIds(): Promise<Set<string>> {
+    const { data } = await supabase.from('order_favorites').select('order_id')
+    return new Set((data || []).map((r: any) => r.order_id))
+}
+
+export async function setOrderFavorite(orderId: string, on: boolean): Promise<void> {
+    const q = on ? supabase.from('order_favorites').insert({ order_id: orderId }) : supabase.from('order_favorites').delete().eq('order_id', orderId)
+    const { error } = await q
+    if (error && !(on && error.code === '23505')) throw error
+    window.dispatchEvent(new Event('iuser-order-favorites'))
+}
+
+export async function loadFavoriteOrders(): Promise<FavoriteOrder[]> {
+    const { data: favs } = await supabase.from('order_favorites').select('order_id, created_at').order('created_at', { ascending: false }).limit(30)
+    if (!favs?.length) return []
+    const { data: orders } = await supabase.from('orders').select('id, created_at, total_amount, stores(name, storeSlug, logo_url), order_items(product_name, quantity)').in('id', favs.map((f: any) => f.order_id))
+    const byId = new Map((orders || []).map((o: any) => [o.id, o]))
+    return favs.map((f: any) => byId.get(f.order_id)).filter(Boolean).map((o: any) => ({
+        orderId: o.id, storeName: o.stores?.name || 'Loja', storeSlug: o.stores?.storeSlug || null,
+        logo: !o.stores?.logo_url ? null : /^https?:\/\//.test(o.stores.logo_url) ? o.stores.logo_url : supabase.storage.from('store-logos').getPublicUrl(o.stores.logo_url).data.publicUrl,
+        items: (o.order_items || []).map((i: any) => `${i.quantity}× ${i.product_name}`).join(', '),
+        total: Number(o.total_amount) || 0, at: o.created_at,
+    }))
+}
+
+/** Põe de novo no carrinho os itens de um pedido (preço de HOJE; item que saiu do ar fica de fora). Devolve a loja e quantos entraram. */
+export async function repeatOrder(orderId: string): Promise<{ storeSlug: string | null; added: number; skipped: number }> {
+    const { useCartStore } = await import('@/store/useCartStore')
+    const { data: o, error } = await supabase.from('orders').select('id, stores(name, storeSlug, logo_url), order_items(product_id, quantity)').eq('id', orderId).single()
+    if (error || !o) throw error || new Error('Pedido não encontrado')
+    const store: any = (o as any).stores
+    const lines = ((o as any).order_items || []).filter((i: any) => i.product_id)
+    const ids = [...new Set(lines.map((i: any) => i.product_id))]
+    const { data: prods } = ids.length ? await supabase.from('products').select('id, name, price, image_url, slug, type, description, category, is_active').in('id', ids) : { data: [] as any[] }
+    const map = new Map((prods || []).map((p: any) => [p.id, p]))
+    let added = 0, skipped = 0
+    const add = useCartStore.getState().addItem
+    for (const l of lines) {
+        const p: any = map.get(l.product_id)
+        if (!p || !p.is_active || p.type === 'digital' || p.type === 'service' || !store?.storeSlug) { skipped++; continue }
+        const n = Math.max(1, Math.min(50, Number(l.quantity) || 1))
+        for (let k = 0; k < n; k++) add(store.storeSlug, { name: store.name, logo_url: store.logo_url ?? null }, { id: p.id, name: p.name, price: Number(p.price) || 0, image_url: p.image_url, type: p.type, slug: p.slug, description: p.description, category: p.category })
+        added += n
+    }
+    return { storeSlug: store?.storeSlug || null, added, skipped }
+}

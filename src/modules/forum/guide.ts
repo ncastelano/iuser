@@ -51,7 +51,7 @@ export const GUIDE: GuideGroup[] = [
                 summary: 'A barra de baixo leva ao que importa: Explorar (a página inicial, com a busca), Itens (o Carrinho e tudo o que você já tem, com o histórico dos pedidos), Conversas e Eu (seus modos). No modo Loja e no modo Motorista a barra muda e mostra as ferramentas de trabalho.',
                 steps: [
                     'Explorar: procure lojas, serviços, pessoas e produtos, ou use os atalhos "Preciso de" e "Quero ganhar".',
-                    'Itens: tem duas partes. Carrinho, com o que você vai comprar, e Itens, com tudo o que já é seu, separado por tipo (Produtos, Digitais, Serviços) e o Histórico dos pedidos.',
+                    'Itens: tem duas partes. Carrinho, com o que você vai comprar, e Itens, com tudo o que já é seu, nas abas Tudo, Histórico, Produtos, Serviços e Digitais. No Histórico dá para repetir um pedido inteiro e marcar pedidos favoritos (estrela), que ficam no alto para pedir com um toque.',
                     'Conversas: fale com lojas, profissionais e motoristas sem passar seu telefone.',
                     'A faixa em cima da barra mostra avisos e o que está acontecendo agora (pedido, corrida, carrinho).',
                 ],
@@ -156,7 +156,7 @@ export const GUIDE: GuideGroup[] = [
                     'Fique online. As corridas e entregas perto de você aparecem com o valor e quanto rendem por hora.',
                     'Nas corridas, mande até 3 valores; nas entregas, aceite pelo frete mostrado.',
                     'Na entrega: vá à loja, pegue o pedido com o código da loja, leve ao cliente e confirme com o código dele.',
-                    'Veja quanto ganhou hoje, na semana e no mês em Ganhos.',
+                    'Veja quanto ganhou hoje, na semana e no mês na própria página de Entregas (seção Seus ganhos).',
                 ],
                 rules: [
                     'Você precisa da CNH com atividade remunerada (EAR) e dos documentos do veículo.',

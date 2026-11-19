@@ -6,10 +6,10 @@ export type ItemsView = 'tudo' | 'produtos' | 'digitais' | 'servicos' | 'histori
 
 export const ITEMS_VIEWS: { key: ItemsView; label: string }[] = [
     { key: 'tudo', label: 'Tudo' },
-    { key: 'produtos', label: 'Produtos' },
-    { key: 'digitais', label: 'Digitais' },
-    { key: 'servicos', label: 'Serviços' },
     { key: 'historico', label: 'Histórico' },
+    { key: 'produtos', label: 'Produtos' },
+    { key: 'servicos', label: 'Serviços' },
+    { key: 'digitais', label: 'Digitais' },
 ]
 
 export const isItemsView = (v: string | null | undefined): v is ItemsView => ITEMS_VIEWS.some((x) => x.key === v)

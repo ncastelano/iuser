@@ -1,6 +1,7 @@
 // src/app/(main)/carrinho/page.tsx
 'use client'
 
+import OrderRepeatBar from '@/components/orders/OrderRepeatBar'
 import DeliveryProofCard from '@/components/deliveries/DeliveryProofCard'
 import DriverFirstNote from '@/components/checkout/DriverFirstNote'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/store/useCartStore'
@@ -1471,6 +1472,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                 // pedido acontecendo agora: a BORDA do cartão ganha a cor da etapa (o resto do cartão fica como está); finalizado e recusado voltam à borda comum
                 <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: ['pending', 'preparing', 'ready'].includes(order.status) ? `2px solid ${accent}` : `1px solid ${colors.border}`, transition: 'border-color 300ms ease' }}>
                     {/* o CÓDIGO de entrega (e o resultado) fica EM CIMA do pedido: é o que a pessoa precisa ver primeiro quando o entregador chega */}
+                    {order.order_id && ['paid', 'rejected'].includes(order.status) && <OrderRepeatBar orderId={order.order_id} colors={colors} />}
                     <DeliveryProofCard orderId={order.order_id} enabled={!!order.order_id && Number(order.deliveryFee) > 0 && (['preparing', 'ready'].includes(order.status) || (order.status === 'paid' && Date.now() - new Date(order.created_at).getTime() < 3 * 86400000))} finished={order.status === 'paid'} top />
                     {/* onde está o entregador (a caminho da loja, com o pedido, na porta); com o "entregador primeiro" ele já vem antes de a loja aceitar */}
                     {order.order_id && <OrderTrackingCard orderId={order.order_id} enabled={Number(order.deliveryFee) > 0 && ['pending', 'preparing', 'ready'].includes(order.status)} />}

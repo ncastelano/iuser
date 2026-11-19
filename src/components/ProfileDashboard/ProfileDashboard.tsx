@@ -1392,8 +1392,7 @@ export default function ProfileDashboard({
     const visitantesNode = <ProfileVisitors key={profile.id} profileId={profile.id} onLatestUpdate={onVisitantesUpdate} />
 
     const sortableSections = [
-        { key: 'financeiro', node: financeiroNode, ts: financeiroTimestamp },
-        { key: 'agenda', node: agendaNode, ts: sectionTimestamps.agenda },
+        // "Compras do perfil" (financeiroNode) SAIU em 19/11/2026: é o Histórico em Itens. A Agenda fica fixa entre Visitantes e Notificações.
         { key: 'publicacoes', node: publicacoesNode, ts: sectionTimestamps.publicacoes },
         { key: 'indicacoes', node: indicacoesNode, ts: sectionTimestamps.indicacoes },
     ].sort((a, b) => (b.ts || '1970-01-01').localeCompare(a.ts || '1970-01-01'))
@@ -1411,12 +1410,12 @@ export default function ProfileDashboard({
                         description: profile.description,
                     }}
                     onProfileUpdate={(updates) => setProfile((prev: any) => ({ ...prev, ...updates }))}
-                />
-            </div>
-
-            {/* ===== TIPO DO PERFIL (17/11/2026): Pessoal, Serviços, Agendamentos ou Motorista — o botão principal da página pública ===== */}
-            <div id="tipo-do-perfil" className="mb-6" style={{ scrollMarginTop: 'calc(var(--shell-top, 0px) + 12px)' }}>
-                <ProfileTypeEditor userId={profile.id} profileSlug={profile.profileSlug || profileSlug} />
+                >
+                    {/* TIPO DO PERFIL dentro das informações (19/11/2026, decisão do dono) */}
+                    <div id="tipo-do-perfil" style={{ scrollMarginTop: 'calc(var(--shell-top, 0px) + 12px)' }}>
+                        <ProfileTypeEditor userId={profile.id} profileSlug={profile.profileSlug || profileSlug} />
+                    </div>
+                </ProfileInfo>
             </div>
 
             {/* ===== ATALHOS DO PERFIL — logo abaixo das informações ===== */}
@@ -1432,6 +1431,9 @@ export default function ProfileDashboard({
 
             {/* ===== VISITANTES DO PERFIL — logo abaixo dos botões ===== */}
             {visitantesNode}
+
+            {/* ===== AGENDA — entre Visitantes e Notificações (19/11/2026) ===== */}
+            {agendaNode}
 
             {/* ===== NOTIFICAÇÕES DO PERFIL — tudo o que acontece com o perfil (o sininho da barra da 3.0 leva aqui: ?secao=notificacoes) ===== */}
             <div id="notificacoes-do-perfil" className="mb-6" style={{ scrollMarginTop: 'calc(var(--shell-top, 0px) + 12px)' }}>

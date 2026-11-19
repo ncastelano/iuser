@@ -5,14 +5,14 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ShoppingBag, PlayCircle, CalendarCheck, History, ChevronRight, RotateCcw } from 'lucide-react'
+import { Star, ShoppingBag, PlayCircle, CalendarCheck, History, ChevronRight, RotateCcw } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useOrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 import { Spinner } from '@/components/Spinner'
 import DigitalLibrary from '@/components/digital/DigitalLibrary'
 import CarrinhoScreen from '@/versions/shared/screens/CarrinhoScreen'
-import { ITEMS_VIEWS, loadMyServices, loadOwnedProducts, viewFromLegacy, type ItemsView, type MyService, type OwnedProductCard } from '@/modules/items'
+import { ITEMS_VIEWS, loadFavoriteOrders, repeatOrder, type FavoriteOrder, loadMyServices, loadOwnedProducts, viewFromLegacy, type ItemsView, type MyService, type OwnedProductCard } from '@/modules/items'
 
 const ORANGE = '#f97316'
 const fmtDate = (iso: string) => (iso ? new Date(iso.length <= 10 ? `${iso}T12:00:00` : iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '')
@@ -26,6 +26,15 @@ export default function ItensScreen({ abaParam }: { abaParam: string | null }) {
     const [view, setView] = useState<ItemsView>('tudo')
     const [products, setProducts] = useState<OwnedProductCard[] | null>(null)
     const [services, setServices] = useState<MyService[] | null>(null)
+    const [favorites, setFavorites] = useState<FavoriteOrder[]>([])
+    useEffect(() => {
+        if (!userId) return
+        const f = () => loadFavoriteOrders().then(setFavorites).catch(() => setFavorites([]))
+        f(); window.addEventListener('iuser-order-favorites', f); return () => window.removeEventListener('iuser-order-favorites', f)
+    }, [userId])
+    const again = async (id: string) => {
+        try { const r = await repeatOrder(id); if (!r.added) return; router.push('/atividade?aba=carrinho') } catch { /* o cartão do histórico mostra o erro */ }
+    }
 
     useEffect(() => { setView(viewFromLegacy(abaParam, new URLSearchParams(window.location.search).get('ver'))) }, [abaParam])
     useEffect(() => {
@@ -67,6 +76,35 @@ export default function ItensScreen({ abaParam }: { abaParam: string | null }) {
             ))}
         </div>
     )
+    // "Tudo" em FILEIRAS que rolam para o lado (19/11/2026, decisão do dono: ocupa menos espaço)
+    const row = (children: React.ReactNode) => <div className="flex gap-2.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1 snap-x">{children}</div>
+    const tile = 'w-[148px] flex-shrink-0 snap-start rounded-3xl p-2.5 text-left flex flex-col gap-1.5'
+    const productRow = (list: OwnedProductCard[]) => row(list.map((p) => (
+        <button key={p.key} onClick={() => p.storeSlug && router.push(p.slug ? `/${p.storeSlug}/${p.slug}` : `/${p.storeSlug}`)} className={tile} style={card}>
+            {p.image ? <img src={p.image} alt="" className="w-full h-24 rounded-2xl object-cover" /> : <div className="w-full h-24 rounded-2xl flex items-center justify-center" style={{ background: `${colors.border}40`, color: colors.textSecondary }}><ShoppingBag size={22} /></div>}
+            <p className="text-[13px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</p>
+            <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{p.storeName || 'Loja'} · {brl(p.lastPrice)}</p>
+            <span className="mt-auto text-[11.5px] font-black flex items-center gap-1" style={{ color: ORANGE }}><RotateCcw size={12} /> De novo</span>
+        </button>
+    )))
+    const serviceRow = (list: MyService[]) => row(list.map((s) => (
+        <button key={s.id} onClick={() => router.push(`/compromisso/${s.id}`)} className={tile} style={card}>
+            {s.logo ? <img src={s.logo} alt="" onError={(e) => { e.currentTarget.style.visibility = 'hidden' }} className="w-12 h-12 rounded-full object-cover" style={{ background: '#0ea5e91f' }} /> : <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: '#0ea5e91f', color: '#0ea5e9' }}><CalendarCheck size={20} /></div>}
+            <p className="text-[13px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{s.name}</p>
+            <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{fmtDate(s.date)} às {s.time}</p>
+            <span className="mt-auto text-[11px] font-black" style={{ color: s.status === 'completed' ? '#2563eb' : '#16a34a' }}>{s.status === 'completed' ? 'Feito' : 'Agendado'}</span>
+        </button>
+    )))
+    const favoriteRow = (list: FavoriteOrder[]) => row(list.map((f) => (
+        <div key={f.orderId} className={tile + ' w-[200px]'} style={card}>
+            <div className="flex items-center gap-2">
+                {f.logo ? <img src={f.logo} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" /> : <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: '#eab3081f', color: '#ca8a04' }}><Star size={16} /></div>}
+                <p className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{f.storeName}</p>
+            </div>
+            <p className="text-[11.5px] line-clamp-2" style={{ color: colors.textSecondary }}>{f.items}</p>
+            <button onClick={() => again(f.orderId)} className="mt-auto h-8 rounded-full text-[12px] font-black flex items-center justify-center gap-1" style={{ background: `${ORANGE}1f`, color: ORANGE }}><RotateCcw size={12} /> Pedir de novo · {brl(f.total)}</button>
+        </div>
+    )))
     const serviceList = (list: MyService[]) => (
         <div className="flex flex-col gap-2">
             {list.map((s) => (
@@ -97,7 +135,7 @@ export default function ItensScreen({ abaParam }: { abaParam: string | null }) {
             </div>
 
             {view === 'historico' ? (
-                <div className="mt-3"><CarrinhoScreen hideTabs tab={abaParam === 'avaliacoes' ? 'avaliacoes' : 'pedidos'} /></div>
+                <div className="mt-3">{favorites.length > 0 && <div className="mb-3">{favoriteRow(favorites)}</div>}<CarrinhoScreen hideTabs tab={abaParam === 'avaliacoes' ? 'avaliacoes' : 'pedidos'} /></div>
             ) : view === 'digitais' ? (
                 <div className="mt-3"><DigitalLibrary userId={userId} /></div>
             ) : view === 'produtos' ? (
@@ -113,17 +151,18 @@ export default function ItensScreen({ abaParam }: { abaParam: string | null }) {
                             <ChevronRight size={17} style={{ color: colors.textSecondary }} />
                         </button>
                     )}
-                    {head(ShoppingBag, 'Produtos', '#22c55e', products && products.length > 4 ? 'produtos' : undefined, products?.length)}
-                    {products === null ? loading : products.length ? productList(products.slice(0, 4)) : empty('Você ainda não comprou produtos.')}
-                    {head(PlayCircle, 'Digitais', '#8b5cf6')}
-                    <DigitalLibrary userId={userId} />
-                    {head(CalendarCheck, 'Serviços', '#0ea5e9', services && services.length > 4 ? 'servicos' : undefined, services?.length)}
-                    {services === null ? loading : services.length ? serviceList(services.slice(0, 4)) : empty('Nenhum serviço agendado ainda.')}
+                    {favorites.length > 0 && <>{head(Star, 'Pedidos favoritos', '#eab308')}{favoriteRow(favorites)}</>}
                     {head(History, 'Histórico de pedidos', '#64748b', 'historico')}
-                    <button onClick={() => pick('historico')} className="w-full rounded-3xl p-3.5 flex items-center gap-3 text-left" style={card}>
-                        <span className="flex-1 text-[13px]" style={{ color: colors.textSecondary }}>Todos os seus pedidos, em andamento e concluídos, para acompanhar e avaliar.</span>
+                    <button onClick={() => pick('historico')} className="w-full rounded-3xl p-3 flex items-center gap-3 text-left" style={card}>
+                        <span className="flex-1 text-[12.5px]" style={{ color: colors.textSecondary }}>Seus pedidos, para acompanhar, avaliar e repetir.</span>
                         <ChevronRight size={17} style={{ color: colors.textSecondary }} />
                     </button>
+                    {head(ShoppingBag, 'Produtos', '#22c55e', products && products.length > 8 ? 'produtos' : undefined, products?.length)}
+                    {products === null ? loading : products.length ? productRow(products.slice(0, 8)) : empty('Você ainda não comprou produtos.')}
+                    {head(CalendarCheck, 'Serviços', '#0ea5e9', services && services.length > 8 ? 'servicos' : undefined, services?.length)}
+                    {services === null ? loading : services.length ? serviceRow(services.slice(0, 8)) : empty('Nenhum serviço agendado ainda.')}
+                    {head(PlayCircle, 'Digitais', '#8b5cf6', 'digitais')}
+                    <DigitalLibrary userId={userId} />
                 </>
             )}
         </div>

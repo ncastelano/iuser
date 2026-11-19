@@ -20,7 +20,8 @@ const PERIODS: { key: EarningPeriod; label: string; title: string }[] = [
     { key: 'month', label: 'Mês', title: 'Ganhos do mês' },
 ]
 
-export default function GanhosScreen() {
+/** `embedded`: dentro da página de Entregas (19/11/2026: Ganhos foi mesclado em /entregas), sem o cabeçalho próprio */
+export default function GanhosScreen({ embedded = false }: { embedded?: boolean } = {}) {
     const { colors } = useTheme()
     const router = useRouter()
     const { userId, loading } = useProfile()
@@ -46,7 +47,7 @@ export default function GanhosScreen() {
     if (!loading && !userId) {
         return (
             <div className="space-y-3">
-            <Header title="Ganhos" showBack onBack={goBack} />
+            {!embedded && <Header title="Ganhos" showBack onBack={goBack} />}
             <div className="rounded-3xl p-8 text-center flex flex-col items-center gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                 <Wallet size={34} style={{ color: '#f97316' }} />
                 <p className="text-base font-black">Entre na sua conta para ver seus ganhos</p>
@@ -57,8 +58,8 @@ export default function GanhosScreen() {
     }
 
     return (
-        <div className="pb-8 space-y-3">
-            <Header title="Ganhos" showBack onBack={goBack} />
+        <div className={embedded ? 'space-y-3' : 'pb-8 space-y-3'}>
+            {!embedded && <Header title="Ganhos" showBack onBack={goBack} />}
             <div className="flex gap-2 pt-2">
                 {PERIODS.map((p) => (
                     <button key={p.key} onClick={() => setPeriod(p.key)} className="flex-1 h-10 rounded-full text-xs font-black active:scale-95 transition"

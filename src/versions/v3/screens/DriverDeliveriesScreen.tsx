@@ -11,6 +11,7 @@
 // Central quando a saída acaba, junto com o resumo dela. A tela do celular fica acesa (wake lock) enquanto ele está no Percurso.
 'use client'
 
+import GanhosScreen from './GanhosScreen'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from '@/lib/toast'
@@ -433,6 +434,7 @@ export default function DriverDeliveriesScreen() {
                         <div><p className="text-[10px] uppercase font-black opacity-80">Ganho de hoje</p><p className="text-lg font-black leading-tight">{brl(todayTotal)}</p></div>
                         <div><p className="text-[10px] uppercase font-black opacity-80">Entregas hoje</p><p className="text-lg font-black leading-tight">{done.length}</p></div>
                     </div>
+                    <button onClick={() => document.getElementById('ganhos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="h-8 px-3 rounded-full text-[11.5px] font-black flex-shrink-0" style={{ background: 'rgba(255,255,255,0.22)' }}>Ganhos ↓</button>
                 </div>
                 {state?.capacityUnits != null && (
                     <div className="mt-3">
@@ -675,6 +677,12 @@ export default function DriverDeliveriesScreen() {
             )}
 
             {/* NAVEGAÇÃO: com uma saída em andamento o foco é o MAPA (tela cheia abaixo da ilha) + uma folha de ação embaixo; Central volta ao resumo e às ofertas */}
+            {/* ===== GANHOS (19/11/2026: a página /ganhos foi mesclada aqui; /ganhos leva para cá) ===== */}
+            <section id="ganhos" className="scroll-mt-24">
+                <h2 className="text-base font-black mb-2" style={{ color: colors.textPrimary }}>Seus ganhos</h2>
+                <GanhosScreen embedded />
+            </section>
+
             {active.length > 0 && view === 'map' && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-x-0 bottom-0 z-[45] flex flex-col" style={{ top: shellTop, background: colors.background }}>
                     <div className="relative flex-1 min-h-0">
