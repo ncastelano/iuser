@@ -37,7 +37,7 @@ from _common import psql, q_local, ROOT  # noqa: E402
 UUID = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 R = random.Random()
 LOCK = threading.Lock()
-SLUG = 'pizzaria-forno-de-ouro'
+SLUG = os.environ.get('SIM_STORE') or 'pizzaria-forno-de-ouro'   # SIM_STORE=espetaria-brasa-viva move outra loja (mesmo ciclo)
 # Contas reservadas (Ana Silva e Felipe Costa) para a pessoa mexer na mão
 RESERVED = ('28e08603-96b0-49fc-867e-efc3d8e7d63b', 'e72ff0cd-7a15-4177-b615-a035d3ef569c')
 
@@ -127,10 +127,11 @@ def free_driver_slots():
 
 def make_order(c=None, force_delivery=False):
     c = c or R.choice(CUSTOMERS)
-    pizzas = [g for g in GOODS if g['category'] in ('Pizzas tradicionais', 'Pizzas especiais', 'Pizzas doces')]
     combos = [g for g in GOODS if g['category'] == 'Promoções']
     drinks = [g for g in GOODS if g['category'] == 'Refrigerantes e bebidas']
     extras = [g for g in GOODS if g['category'] in ('Entradas e porções', 'Sobremesas')]
+    pizzas = [g for g in GOODS if g['category'] in ('Pizzas tradicionais', 'Pizzas especiais', 'Pizzas doces')] \
+        or [g for g in GOODS if g not in combos and g not in drinks and g not in extras]   # outra loja (SIM_STORE): os pratos principais
     picks = []
     kind = R.random()
     if kind < 0.25 and combos:
@@ -982,7 +983,7 @@ def cycle_tick(speed):
     if CFG['mode'] == 'iuser':
         fns += [drivers_accept, drivers_run, rate_deliveries, settle_dues, pay_orders]
     elif CFG['couriers']:
-        fns += [dispatch_batches, run_couriers]
+        fns += [dispatch_batches, run_couriers, pay_orders]   # motoboys PRÓPRIOS da loja: o Pix do cliente também é pago direto à loja e conferido
     for fn in fns:
         try:
             fn(speed)
