@@ -68,7 +68,7 @@ export const GUIDE: GuideGroup[] = [
                     'Abra a loja (pela busca, pela home ou pelo QR da mesa) e toque em Comprar ou no catálogo.',
                     'Toque no "+" do produto, escolha os adicionais e deixe uma observação se quiser.',
                     'No carrinho, escolha entrega ou retirada, a forma de pagamento e, se tiver, o código de desconto.',
-                    'Confirme. Pagando por Pix, o QR que aparece é o DA LOJA: o dinheiro vai direto para ela. Depois toque em "Já paguei".',
+                    'Confirme. Pagando por Pix, o QR que aparece é o DA LOJA: o dinheiro vai direto para ela. Depois toque em "Já paguei" e, se quiser, anexe o comprovante do seu banco e diga em nome de quem foi o Pix (ajuda a loja a achar o pagamento).',
                     'Acompanhe as etapas na faixa da barra: aguardando a loja, preparando, pronto, a caminho.',
                     'Na entrega, passe ao entregador o código de 4 dígitos que aparece no seu pedido. Depois, avalie a compra.',
                 ],
