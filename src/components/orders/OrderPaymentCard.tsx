@@ -8,16 +8,18 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
-import { CheckCircle2, Copy, CreditCard, Hourglass, QrCode, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, Copy, CreditCard, Hourglass, QrCode, AlertTriangle, Paperclip, FileText } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from '@/lib/toast'
 import { pixBrCode } from '@/lib/pixBrCode'
-import { fetchOrderPayment, paymentStatusText, reportOrderPaid, type OrderPayment } from '@/modules/order-payment'
+import { fetchOrderPayment, paymentStatusText, receiptUrl, reportOrderPaid, type OrderPayment } from '@/modules/order-payment'
 
 // o cartão do pedido da tela do carrinho é recriado a cada atualização dela: guarda a última resposta por pedido
 const cache = new Map<string, { at: number; p: OrderPayment | null }>()
 // o mesmo vale para o "Mostrar QR" aberto (senão ele fecha sozinho a cada atualização da tela)
 const qrOpen = new Set<string>()
+// o formulário do "Já paguei" também sobrevive à recriação do cartão (aberto, campos e o arquivo escolhido)
+const forms = new Map<string, { payer: string; bank: string; e2e: string; file: File | null }>()
 const TONE: Record<string, string> = { pending: '#f97316', check: '#0ea5e9', ok: '#16a34a', bad: '#dc2626' }
 
 export default function OrderPaymentCard({ orderId, finished = false, paymentMethod }: { orderId: string; finished?: boolean; paymentMethod?: string | null }) {
@@ -27,6 +29,15 @@ export default function OrderPaymentCard({ orderId, finished = false, paymentMet
     const [showQr, setShowQrState] = useState(() => qrOpen.has(orderId))
     const setShowQr = (fn: (v: boolean) => boolean) => setShowQrState((v) => { const n = fn(v); if (n) qrOpen.add(orderId); else qrOpen.delete(orderId); return n })
     const [busy, setBusy] = useState(false)
+    // "Já paguei" abre o formulário: comprovante (opcional) e quem pagou — ajuda a loja a achar o Pix na conta dela (migration 091)
+    const saved = forms.get(orderId)
+    const [form, setFormState] = useState(!!saved)
+    const [payer, setPayer] = useState(saved?.payer ?? '')
+    const [bank, setBank] = useState(saved?.bank ?? '')
+    const [e2e, setE2e] = useState(saved?.e2e ?? '')
+    const [file, setFile] = useState<File | null>(saved?.file ?? null)
+    const setForm = (v: boolean) => { setFormState(v); if (v) forms.set(orderId, { payer, bank, e2e, file }); else forms.delete(orderId) }
+    useEffect(() => { if (form) forms.set(orderId, { payer, bank, e2e, file }) }, [form, payer, bank, e2e, file, orderId])
 
     const load = async (force = false) => {
         const hit = cache.get(orderId)
@@ -64,6 +75,8 @@ export default function OrderPaymentCard({ orderId, finished = false, paymentMet
             <Hourglass size={15} className="flex-shrink-0 mt-px" /> Pague depois: o Pix da loja aparece aqui assim que um entregador aceitar e a loja receber o pedido.
         </div>
     )
+    // a loja ainda não aceitou (o pedido pode mudar): o Pix aparece depois — quem explica agora é o OrderAgreementBox
+    if (p.awaitingStore && p.role === 'buyer' && p.status === 'awaiting') return null
     const st = paymentStatusText(p)
     if (!st || (finished && p.status === 'confirmed')) return null
     const color = TONE[st.tone]
@@ -74,9 +87,14 @@ export default function OrderPaymentCard({ orderId, finished = false, paymentMet
         try { await navigator.clipboard.writeText(brcode); toast.success('Código Pix copiado', { description: 'Cole no app do seu banco, na opção Pix copia e cola.' }) }
         catch { toast.error('Não deu para copiar. Toque em "Mostrar QR" e leia com o app do banco.') }
     }
+    const openForm = () => setForm(true)
     const paid = async () => {
         setBusy(true)
-        try { await reportOrderPaid(orderId); cache.delete(orderId); await load(true); toast.success('Avisamos a loja', { description: 'Ela confere na conta e confirma.' }) }
+        try {
+            await reportOrderPaid(orderId, { payerName: payer, payerBank: bank, e2e, receipt: file })
+            cache.delete(orderId); setForm(false); setFile(null); await load(true)
+            toast.success('Avisamos a loja', { description: file ? 'Ela vê o seu comprovante, confere na conta e confirma.' : 'Ela confere na conta e confirma.' })
+        }
         catch (e: any) { toast.error(e?.message || 'Não deu para avisar. Tente de novo.') }
         finally { setBusy(false) }
     }
@@ -87,6 +105,12 @@ export default function OrderPaymentCard({ orderId, finished = false, paymentMet
                 {st.tone === 'ok' ? <CheckCircle2 size={16} className="flex-shrink-0 mt-px" /> : st.tone === 'check' ? <Hourglass size={16} className="flex-shrink-0 mt-px" /> : st.tone === 'bad' ? <AlertTriangle size={16} className="flex-shrink-0 mt-px" /> : p.method === 'link_cartao' ? <CreditCard size={16} className="flex-shrink-0 mt-px" /> : <QrCode size={16} className="flex-shrink-0 mt-px" />}
                 <span>{st.text}</span>
             </p>
+            {p.role === 'buyer' && (p.payerName || p.receiptPath) && !canPay && (
+                <p className="mt-1.5 text-[11.5px] flex items-center gap-1.5 flex-wrap" style={{ color: colors.textSecondary }}>
+                    {p.payerName && <span>Pago por {p.payerName}{p.payerBank ? ` · ${p.payerBank}` : ''}</span>}
+                    {p.receiptPath && <button onClick={async () => { const u = await receiptUrl(p.receiptPath!); if (u) window.open(u, '_blank', 'noopener'); else toast.error('Não deu para abrir o comprovante.') }} className="font-black underline">Ver comprovante</button>}
+                </p>
+            )}
             {canPay && (
                 <>
                     {p.method === 'link_cartao' ? (
@@ -101,7 +125,28 @@ export default function OrderPaymentCard({ orderId, finished = false, paymentMet
                             {showQr && qr && <img src={qr} alt="QR Pix da loja" className="mt-2.5 mx-auto w-48 h-48 rounded-xl bg-white p-1.5" />}
                         </>
                     )}
-                    <button onClick={paid} disabled={busy} className="mt-2 w-full h-10 rounded-full text-[12.5px] font-black disabled:opacity-60" style={{ background: '#16a34a1a', color: '#16a34a' }}>{busy ? 'Avisando…' : 'Já paguei'}</button>
+                    {!form ? (
+                        <button onClick={openForm} className="mt-2 w-full h-10 rounded-full text-[12.5px] font-black" style={{ background: '#16a34a1a', color: '#16a34a' }}>Já paguei</button>
+                    ) : (
+                        <div className="mt-2.5 rounded-2xl p-3 flex flex-col gap-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                            <p className="text-[12px] font-black" style={{ color: colors.textPrimary }}>Ajude a loja a achar o seu Pix</p>
+                            <label className="h-11 rounded-xl flex items-center gap-2 px-3 text-[12.5px] font-bold cursor-pointer" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                {file?.type === 'application/pdf' ? <FileText size={16} /> : <Paperclip size={16} />}
+                                <span className="truncate flex-1">{file ? file.name : 'Anexar o comprovante do banco (foto ou PDF)'}</span>
+                                <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                            </label>
+                            <input value={payer} onChange={(e) => setPayer(e.target.value.slice(0, 80))} placeholder="Nome de quem pagou (titular da conta)" className="h-10 px-3 rounded-xl text-[13px]" style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }} />
+                            <div className="grid grid-cols-2 gap-2">
+                                <input value={bank} onChange={(e) => setBank(e.target.value.slice(0, 60))} placeholder="Banco (ex.: Nubank)" className="h-10 px-3 rounded-xl text-[13px] min-w-0" style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }} />
+                                <input value={e2e} onChange={(e) => setE2e(e.target.value.replace(/[^A-Za-z0-9-]/g, '').slice(0, 40))} placeholder="ID da transação (opcional)" className="h-10 px-3 rounded-xl text-[13px] min-w-0" style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }} />
+                            </div>
+                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>Tudo é opcional. Só a loja deste pedido vê. Quem confirma o pagamento é a loja, olhando a conta dela.</p>
+                            <div className="grid grid-cols-[1fr_auto] gap-2">
+                                <button onClick={paid} disabled={busy} className="h-10 rounded-full text-[12.5px] font-black text-white disabled:opacity-60" style={{ background: '#16a34a' }}>{busy ? 'Enviando…' : 'Avisar a loja'}</button>
+                                <button onClick={() => setForm(false)} className="h-10 px-4 rounded-full text-[12.5px] font-bold" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>Voltar</button>
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
         </div>

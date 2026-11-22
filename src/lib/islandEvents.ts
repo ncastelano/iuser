@@ -78,6 +78,7 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     store_reject_warning: { level: 'error', icon: '⚠️', label: 'Ver', duration: 12000 },         // loja: muitas recusas depois do aceite do entregador
     // pagamento do pedido direto à loja (migration ...74): a conferir (loja), confirmado / não encontrado (cliente), Pix na porta
     order_payment: { level: 'message', icon: '💳', label: 'Ver', duration: 12000 },
+    order_customer_update: { level: 'message', icon: '🛒', label: 'Ver', duration: 12000 },   // o cliente mudou o pedido / está de acordo (migration 092)
 }
 
 export function islandEventFor(n: RawNotification): IslandEvent | null {

@@ -30,7 +30,11 @@ BEGIN
     UPDATE public.orders SET total_amount = 33 WHERE id = v_order2;
     ASSERT (SELECT amount FROM public.order_payments WHERE order_id = v_order2) = 33, '1c: o pagamento nasce quando o total chega';
 
-    -- 2) o comprador recebe a chave; um estranho, nada
+    -- 2) (migration 092) antes de a loja aceitar a chave NÃO aparece; depois do aceite o comprador recebe a chave; um estranho, nada
+    PERFORM pg_temp.as_user(v_buyer);
+    ASSERT public.get_order_payment(v_order)->>'pix_key' IS NULL, '2-: sem a chave antes do aceite';
+    PERFORM pg_temp.as_user(NULL);
+    UPDATE public.orders SET status = 'preparing' WHERE id = v_order;
     PERFORM pg_temp.as_user(v_buyer);
     j := public.get_order_payment(v_order);
     ASSERT j->>'role' = 'buyer' AND j->>'pix_key' IS NOT NULL AND (j->>'amount')::numeric = 50, '2a: comprador vê a chave';
@@ -62,6 +66,8 @@ BEGIN
     PERFORM public.set_store_payment_link(v_store, 'https://link.mercadopago.com.br/loja-teste');
     INSERT INTO public.orders (store_id, buyer_id, total_amount, delivery_fee, payment_method, status, delivery_option, checkout_id)
     VALUES (v_store, v_buyer, 70, 8, 'cartao', 'pending', 'delivery', gen_random_uuid()) RETURNING id INTO v_order2;
+    PERFORM pg_temp.as_user(NULL);
+    UPDATE public.orders SET status = 'preparing' WHERE id = v_order2;   -- (092) o link só aparece depois do aceite
     PERFORM pg_temp.as_user(v_buyer);
     j := public.get_order_payment(v_order2);
     ASSERT j->>'method' = 'link_cartao' AND j->>'card_link' = 'https://link.mercadopago.com.br/loja-teste', '5b: comprador recebe o link';

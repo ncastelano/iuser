@@ -63,7 +63,7 @@ sql += f"""
 select 'CODE|' || coalesce((select code from delivery_pickup_codes where store_id = {esc(store['id'])}::uuid and driver_id = {esc(drv)}::uuid and used_at is null), 'SEM CÓDIGO');
 """
 sql += case('3 loja (dono) enxerga o código', store['owner_id'], f"if (select count(*) from get_store_pickup_codes({esc(store['id'])}::uuid)) <> 1 then raise exception 'esperava 1 código'; end if;", 'ok')
-sql += case('4 estranho NÃO enxerga o código', stranger, f"perform * from get_store_pickup_codes({esc(store['id'])}::uuid);", '42501|Só o dono')
+sql += case('4 estranho NÃO enxerga o código', stranger, f"perform * from get_store_pickup_codes({esc(store['id'])}::uuid);", '42501|Só o dono|Só a loja')
 sql += f"update orders set status = 'ready' where id = {esc(R1['order_id'])}::uuid;\n"
 sql += case('5 código errado (devolve wrong_code e conta a tentativa)', drv, f"if confirm_pickup(array[{esc(R1['id'])}::uuid], '----')->>'error' is distinct from 'wrong_code' then raise exception 'esperava wrong_code'; end if;", 'ok')
 sql += f"update orders set status = 'preparing' where id = {esc(R1['order_id'])}::uuid;\n"
@@ -114,7 +114,7 @@ sql += f"update delivery_proofs set locked_until = null, attempts = 0 where ride
 sql += case('8pb código certo registra a prova', drv, f"if (submit_delivery_proof({esc(R1['id'])}::uuid, 'pin', current_setting('t.pin'))->>'ok')::boolean is not true then raise exception 'esperava ok'; end if;", 'ok')
 sql += case('8pc o cliente vê "entregue com código" e o código some', buyer, f"if (get_delivery_proof_view({esc(R1['order_id'])}::uuid)->>'method') <> 'pin' or (get_delivery_proof_view({esc(R1['order_id'])}::uuid)->>'pin') is not null then raise exception 'estado errado'; end if;", 'ok')
 sql += case('8h depois do aviso, conclui a entrega', drv, f"perform complete_ride({esc(R1['id'])}::uuid, {DEST});", 'ok')
-sql += f"update orders set status = 'ready' where id = {esc(R2['order_id'])}::uuid;\n"
+sql += f"select set_config('request.jwt.claims', '', false); update orders set status = 'ready' where id = {esc(R2['order_id'])}::uuid;\n"   # preparo do teste (como o servidor): a trava do pronto (092) vale para a loja no app"
 sql += case('9a segunda entrega: aceita e chega', drv, f"insert into ride_applications (ride_request_id, applicant_id, proposed_price) select r.id, {esc(drv)}::uuid, r.offered_price from ride_offers r where r.id = {esc(R2['id'])}::uuid; update ride_requests set driver_en_route = true, driver_departed_at = now(), driver_arrived_at = now() where id = {esc(R2['id'])}::uuid;", 'ok')
 sql += case('9 segunda saída: 5 erros travam', drv, f"""
     for i in 1..5 loop perform confirm_pickup(array[{esc(R2['id'])}::uuid], '----'); end loop;

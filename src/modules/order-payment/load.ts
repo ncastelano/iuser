@@ -9,8 +9,29 @@ export async function fetchOrderPayment(orderId: string): Promise<OrderPayment |
     if (error) return null
     return parseOrderPayment(data)
 }
-export async function reportOrderPaid(orderId: string): Promise<void> {
-    const { error } = await supabase.rpc('report_order_paid', { p_order: orderId }); fail(error)
+export interface PaidInfo { payerName?: string; payerBank?: string; e2e?: string; receipt?: File | null }
+const RECEIPT_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' }
+/** "Já paguei": opcionalmente com o comprovante (foto/PDF, bucket privado payment-receipts) e os dados de quem pagou. O banco confere tudo (report_order_paid). */
+export async function reportOrderPaid(orderId: string, info: PaidInfo = {}): Promise<void> {
+    let receipt: string | null = null
+    if (info.receipt) {
+        const ext = RECEIPT_TYPES[info.receipt.type]
+        if (!ext) throw new Error('Envie o comprovante como foto (JPG, PNG, WebP) ou PDF.')
+        if (info.receipt.size > 6 * 1024 * 1024) throw new Error('O comprovante pode ter até 6 MB.')
+        const { data: u } = await supabase.auth.getUser()
+        if (!u.user) throw new Error('Entre na sua conta.')
+        receipt = `${u.user.id}/comprovante-${orderId.slice(0, 8)}-${Date.now()}.${ext}`
+        const { error: up } = await supabase.storage.from('payment-receipts').upload(receipt, info.receipt, { contentType: info.receipt.type, upsert: false })
+        if (up) throw new Error(up.message || 'Não deu para enviar o comprovante.')
+    }
+    const { error } = await supabase.rpc('report_order_paid', {
+        p_order: orderId, p_receipt: receipt, p_payer_name: info.payerName?.trim() || null, p_payer_bank: info.payerBank?.trim() || null, p_e2e: info.e2e?.replace(/\s/g, '') || null,
+    }); fail(error)
+}
+/** link de 10 min para abrir o comprovante (só quem enviou e a equipe da loja do pedido conseguem: política do Storage) */
+export async function receiptUrl(path: string): Promise<string | null> {
+    const { data, error } = await supabase.storage.from('payment-receipts').createSignedUrl(path, 600)
+    return error ? null : data?.signedUrl ?? null
 }
 export async function confirmOrderPayment(orderId: string, ok: boolean, note?: string): Promise<void> {
     const { error } = await supabase.rpc('confirm_order_payment', { p_order: orderId, p_ok: ok, p_note: note ?? null }); fail(error)
@@ -52,12 +73,33 @@ export async function fetchOrderTracking(orderId: string): Promise<OrderTracking
     }
 }
 
-export interface StoreOrderPayment { orderId: string; method: 'pix' | 'link_cartao' | 'pix_porta'; status: 'awaiting' | 'reported' | 'confirmed' | 'not_received'; amount: number; reportedAt: string | null }
+export interface StoreOrderPayment { orderId: string; method: 'pix' | 'link_cartao' | 'pix_porta'; status: 'awaiting' | 'reported' | 'confirmed' | 'not_received'; amount: number; reportedAt: string | null; hasReceipt?: boolean; payerName?: string | null }
 /** a loja: o estado do pagamento dos pedidos recentes, de uma vez (lista de pedidos e "Precisa de você agora") */
 export async function fetchStoreOrderPayments(storeId: string): Promise<Map<string, StoreOrderPayment>> {
     const { data, error } = await supabase.rpc('get_store_order_payments', { p_store: storeId })
     const m = new Map<string, StoreOrderPayment>()
     if (error) return m
-    for (const r of (data || []) as any[]) m.set(r.order_id, { orderId: r.order_id, method: r.method, status: r.status, amount: Number(r.amount) || 0, reportedAt: r.reported_at ?? null })
+    for (const r of (data || []) as any[]) m.set(r.order_id, { orderId: r.order_id, method: r.method, status: r.status, amount: Number(r.amount) || 0, reportedAt: r.reported_at ?? null, hasReceipt: !!r.has_receipt, payerName: r.payer_name ?? null })
     return m
+}
+
+// ===== Pedido combinado (migration 092): a loja responde, o cliente ajusta e diz que está de acordo =====
+export async function storeReplyOrder(orderId: string, message: string): Promise<{ conversationId: string; storeSlug: string }> {
+    const { data, error } = await supabase.rpc('store_reply_order', { p_order: orderId, p_message: message.trim() }); fail(error)
+    const d = data as any
+    return { conversationId: d.conversation_id, storeSlug: d.store_slug }
+}
+export async function customerAdjustOrder(orderId: string, lines: { id: string; quantity: number }[]): Promise<number> {
+    const { data, error } = await supabase.rpc('customer_adjust_order', { p_order: orderId, p_lines: lines }); fail(error)
+    return Number((data as any)?.total) || 0
+}
+export async function customerAgreeOrder(orderId: string): Promise<void> {
+    const { error } = await supabase.rpc('customer_agree_order', { p_order: orderId }); fail(error)
+}
+export async function getStoreAutoAccept(storeId: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('get_store_order_settings', { p_store: storeId })
+    return !error && !!(data as any)?.auto_accept
+}
+export async function setStoreAutoAccept(storeId: string, on: boolean): Promise<void> {
+    const { error } = await supabase.rpc('set_store_auto_accept', { p_store: storeId, p_on: on }); fail(error)
 }

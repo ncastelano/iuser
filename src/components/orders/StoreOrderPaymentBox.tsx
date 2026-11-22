@@ -6,9 +6,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Wallet } from 'lucide-react'
+import { CheckCircle2, Wallet, FileText } from 'lucide-react'
 import { toast } from '@/lib/toast'
-import { confirmOrderPayment, fetchOrderPayment, paymentStatusText, type OrderPayment } from '@/modules/order-payment'
+import { confirmOrderPayment, fetchOrderPayment, paymentStatusText, receiptUrl, type OrderPayment } from '@/modules/order-payment'
 
 const TONE: Record<string, [string, string, string]> = { pending: ['#c2410c', '#f9731614', '#f9731640'], check: ['#0369a1', '#0ea5e914', '#0ea5e940'], ok: ['#15803d', '#16a34a14', '#16a34a40'], bad: ['#b91c1c', '#ef444414', '#ef444440'] }
 
@@ -51,6 +51,21 @@ export default function StoreOrderPaymentBox({ orderId }: { orderId: string }) {
                 <span className="text-[10px] font-black uppercase tracking-wider">Pagamento direto à loja</span>
             </div>
             <p className="text-sm font-bold mt-1 text-gray-800">{st.text}</p>
+            {(p.payerName || p.payerBank || p.payerE2e || p.receiptPath) && (
+                <div className="mt-2 rounded-lg bg-white/80 p-2.5 text-[12px] text-gray-700 flex flex-col gap-0.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-500">Quem pagou (o cliente informou)</span>
+                    {p.payerName && <span><b>Nome:</b> {p.payerName}</span>}
+                    {p.payerBank && <span><b>Banco:</b> {p.payerBank}</span>}
+                    {p.payerE2e && <span className="break-all"><b>ID da transação:</b> {p.payerE2e}</span>}
+                    {p.receiptPath && (
+                        <button onClick={async () => { const u = await receiptUrl(p.receiptPath!); if (u) window.open(u, '_blank', 'noopener'); else toast.error('Não deu para abrir o comprovante.') }}
+                            className="mt-1.5 h-9 rounded-lg text-[12.5px] font-black flex items-center justify-center gap-1.5 text-white" style={{ background: '#0ea5e9' }}>
+                            <FileText size={14} /> Ver comprovante
+                        </button>
+                    )}
+                    <span className="text-[10.5px] text-gray-500 mt-1">O comprovante ajuda a achar o Pix, mas confirme olhando a sua conta.</span>
+                </div>
+            )}
             {(p.status === 'reported' || p.status === 'awaiting' || p.status === 'not_received') && (
                 <>
                     {p.status !== 'reported' && <p className="text-[11px] mt-1 text-gray-600">Quando o dinheiro cair na sua conta, confirme aqui.</p>}
