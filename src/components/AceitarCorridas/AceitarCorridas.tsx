@@ -289,9 +289,11 @@ export interface AceitarCorridasProps {
     onSummaryChange?: (summary: DriverRequestsSummary) => void
     // Abrir o cadastro de veículo (no painel: troca pra aba Meu veículo).
     onRegisterVehicle?: () => void
+    // Só corridas (sem as entregas de loja, que têm a Central /entregas): a aba "Solicitações de corrida" do Canal (22/11/2026)
+    onlyRides?: boolean
 }
 
-export default function AceitarCorridas({ embedded = false, tab, onTabChange, onSummaryChange, onRegisterVehicle }: AceitarCorridasProps = {}) {
+export default function AceitarCorridas({ embedded = false, tab, onTabChange, onSummaryChange, onRegisterVehicle, onlyRides = false }: AceitarCorridasProps = {}) {
     const router = useRouter()
     // ?ride=<id> (clique num card do Canal do Motorista na home): rola até o card
     // dessa corrida e destaca; ?tab=candidatos abre em "Me candidatei".
@@ -909,8 +911,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         [rides, driverCoords, myDeliveryRadius]
     )
     const visibleRides = useMemo(
-        () => radiusRides.filter((r) => !skippedIds.has(r.id)),
-        [radiusRides, skippedIds]
+        () => radiusRides.filter((r) => !skippedIds.has(r.id) && (!onlyRides || !r.order_id)),
+        [radiusRides, skippedIds, onlyRides]
     )
 
     const headerTabs: Tab[] = useMemo((): any[] => {

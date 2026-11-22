@@ -57,6 +57,8 @@ export function ProfileInfo({ profile, onProfileUpdate, children }: ProfileInfoP
     const surfaceRgb = hexToRgb(colors.surface)
 
     const [isExpanded, setIsExpanded] = usePersistedExpanded('profileInfo', true)
+    // ?secao=tipo (o "mudar para Motorista" do Canal, o "Mudar" da página do perfil): abre o cartão para o tipo do perfil aparecer
+    useEffect(() => { if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('secao') === 'tipo') setIsExpanded(true) }, [])   // eslint-disable-line react-hooks/exhaustive-deps
     const [name, setName] = useState(profile.name || '')
     const [slug, setSlug] = useState(profile.profileSlug || '')
     const [description, setDescription] = useState(profile.description || '')
@@ -397,7 +399,7 @@ export function ProfileInfo({ profile, onProfileUpdate, children }: ProfileInfoP
                         </div>
                     </>
                 )}
-                {children && <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${colors.border}` }}>{children}</div>}
+                {children && isExpanded && <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${colors.border}` }}>{children}</div>}
             </div>
 
             {showBorders && (

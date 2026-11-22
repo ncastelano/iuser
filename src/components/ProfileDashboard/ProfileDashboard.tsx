@@ -12,6 +12,9 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 import ColloriUser from '@/components/ColloriUser'
 import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
+import { Shimmer, SkeletonRegion } from '@/components/Skeleton'
+import { useMyGraduation } from './MyGraduation'
+import { commissionCardTheme } from './commissionCardTheme'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     Settings,
@@ -104,6 +107,7 @@ export default function ProfileDashboard({
     const { bgMode, customBgUrl, setBgMode, setCustomBgUrl } = useProfile()
     const { fontSize, setFontSize } = useFontStore()
     const surfaceRgb = hexToRgb(colors.surface)
+    const graduation = useMyGraduation()   // a cor do cartão Convidados iUser = a do cartão de Comissões
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [initialLoadDone, setInitialLoadDone] = useState(false)
@@ -857,7 +861,26 @@ export default function ProfileDashboard({
             </div>
         </div>
     )
-    if (!profile) return null
+    // ESQUELETO enquanto o perfil carrega (22/11/2026): a forma da página — informações, atalhos, visitantes, agenda e notificações
+    if (!profile) {
+        if (!loading) return null
+        const box = { background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, border: `1px solid ${colors.border}` }
+        return (
+            <SkeletonRegion label="Carregando o painel do perfil" className="w-full px-4 md:px-6 pb-28 mt-3 flex flex-col gap-4">
+                <div className="rounded-2xl p-4 flex items-center gap-3" style={box}>
+                    <Shimmer className="w-16 h-16 rounded-full flex-shrink-0" />
+                    <div className="flex-1 flex flex-col gap-2"><Shimmer className="h-4 w-2/3 rounded-full" /><Shimmer className="h-3 w-1/3 rounded-full" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2"><Shimmer className="h-11 rounded-full" /><Shimmer className="h-11 rounded-full" /></div>
+                {[0, 1, 2].map((i) => (
+                    <div key={i} className="rounded-2xl p-4 flex flex-col gap-3" style={box}>
+                        <Shimmer className="h-4 w-1/3 rounded-full" />
+                        <div className="flex gap-2.5">{[0, 1, 2].map((j) => <Shimmer key={j} className="h-16 flex-1 rounded-2xl" />)}</div>
+                    </div>
+                ))}
+            </SkeletonRegion>
+        )
+    }
 
     // ===== BLOCOS ORDENÁVEIS (Gastos até Visitantes) =====
 
@@ -1378,9 +1401,11 @@ export default function ProfileDashboard({
         </>
     )
     // Comissões, graduação e rede moram na página Convidados iUser (/convidados) desde 16/11/2026: aqui fica só o atalho
+    // as MESMAS cores do cartão de Comissões (a graduação da pessoa → laranja/vermelho do iUser)
+    const convidadosTheme = commissionCardTheme(graduation.data?.level)
     const indicacoesNode = (
         <button onClick={() => router.push('/convidados')} className="mb-6 w-full rounded-2xl p-4 flex items-center gap-3 text-left transition active:scale-[0.99]"
-            style={{ background: 'linear-gradient(140deg, #7c3aed, #db2777)', boxShadow: '0 10px 26px -12px #7c3aed99' }}>
+            style={{ background: convidadosTheme.background, boxShadow: `0 14px 34px ${convidadosTheme.shadow}` }}>
             <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: 'rgba(255,255,255,0.18)' }}><UserPlus size={20} /></span>
             <span className="min-w-0 flex-1 text-white">
                 <span className="block text-[15px] font-black leading-tight">Convidados iUser</span>

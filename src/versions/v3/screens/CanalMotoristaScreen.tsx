@@ -35,6 +35,7 @@ import DriverPanelHome from '@/components/v3/DriverPanelHome'
 import AcceptARider from '@/app/(main)/inicio/sections/AcceptARider'
 import { announceDriverMode } from '@/lib/driverMode'
 import ProfileQuoteCard from '@/components/driver/ProfileQuoteCard'
+import DriverModeHeader from '@/components/driver/DriverModeHeader'
 import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
@@ -832,7 +833,7 @@ function PainelMotoristaContent() {
             { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
             ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
             { id: 'entregas', label: 'Entregas', icon: Bike, isActive: false, onClick: () => router.push('/entregas'), badge: null },
-            { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides + rideSummary.deliveries > 0 ? { count: rideSummary.rides + rideSummary.deliveries } : null },
+            { id: 'solicitacoes', label: 'Solicitações de corrida', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides > 0 ? { count: rideSummary.rides } : null },
             // "Me candidatei" só aparece quando tem algo nela (candidatura pendente) ou há corrida aceita.
             ...(rideSummary.candidacies > 0 || rideSummary.hasAccepted ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null }] : []),
             {
@@ -843,7 +844,8 @@ function PainelMotoristaContent() {
             { id: 'avaliacoes', label: 'Avaliações', icon: Star, isActive: activeTab === 'avaliacoes', onClick: () => setActiveTab('avaliacoes'), badge: null },
         ]
 
-        return showActivationWizard ? allTabs.filter((t) => t.id === 'veiculo' || t.id === 'plano') : allTabs
+        // 22/11/2026 (decisão do dono): Veículo, Tarifa e Avaliações ficam DENTRO da aba Canal (uma página só); como abas, só no cadastro guiado
+        return showActivationWizard ? allTabs.filter((t) => t.id === 'veiculo' || t.id === 'plano') : allTabs.filter((t) => t.id !== 'veiculo' && t.id !== 'plano' && t.id !== 'avaliacoes')
     }, [userId, loading, showLogin, activeTab, showActivationWizard, driverStatus, missingFields.length, rideSummary])
 
     return (
@@ -860,6 +862,8 @@ function PainelMotoristaContent() {
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
+                    {/* quem está no modo motorista: o estado, o veículo e as DUAS páginas (perfil pessoal × página do veículo para compartilhar) */}
+                    {userId && !showActivationWizard && <DriverModeHeader userId={userId} profileSlug={profileSlug} avatarUrl={avatarUrl} colors={colors} />}
                     {/* ===== Aba Canal: Outdoor dos motoristas, ativar o modo, corridas e entregas abertas com quanto pagam (vale para visitante) ===== */}
                     {activeTab === 'canal' && !showActivationWizard && (
                         <>
@@ -885,6 +889,7 @@ function PainelMotoristaContent() {
                             onTabChange={handleRideTabChange}
                             onSummaryChange={setRideSummary}
                             onRegisterVehicle={() => setActiveTab('veiculo')}
+                            onlyRides
                         />
                     )}
 
@@ -1061,7 +1066,7 @@ function PainelMotoristaContent() {
                             </>
                             )}
 
-                            {activeTab === 'plano' && (
+                            {(activeTab === 'plano' || (activeTab === 'canal' && !showActivationWizard)) && (
                             <>
                             {/* o valor que o botão "Solicitar corrida" do perfil manda (Tarifa iUser, por km ou por tempo) */}
                             {userId && !showActivationWizard && <ProfileQuoteCard driverId={userId} profileSlug={profileSlug} />}
@@ -1347,7 +1352,7 @@ function PainelMotoristaContent() {
                             </>
                             )}
 
-                            {activeTab === 'veiculo' && (
+                            {(activeTab === 'veiculo' || (activeTab === 'canal' && !showActivationWizard)) && (
                             <>
                             {showActivationWizard && (
                                 <div className="flex flex-col gap-2 mt-2">
@@ -1668,7 +1673,7 @@ function PainelMotoristaContent() {
                             </>
                             )}
 
-                            {!showActivationWizard && activeTab === 'avaliacoes' && (
+                            {!showActivationWizard && (activeTab === 'avaliacoes' || activeTab === 'canal') && (
                             <>
                             {/* ===== AVALIAÇÕES RECEBIDAS ===== */}
                             <div className="flex items-center gap-3 mt-2">

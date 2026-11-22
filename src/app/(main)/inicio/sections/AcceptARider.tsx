@@ -529,7 +529,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
             {/* Outdoor Motoristas: os mais bem pontuados (corridas, entregas e notas); some se ninguém pontuou */}
             <Outdoor kind="motoristas" className="mb-4" />
 
-            {driverModeActive && (
+            {/* no próprio Canal do Motorista (embedded) os atalhos "painel do motorista" e "ver corridas" seriam repetidos: só na home */}
+            {driverModeActive && !embedded && (
                 <div className="flex gap-2 mb-4">
                     {/* Sem veículo cadastrado: convida a adicionar; com veículo: vai pro painel */}
                     <button

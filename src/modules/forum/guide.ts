@@ -159,6 +159,7 @@ export const GUIDE: GuideGroup[] = [
                     'Nas corridas, mande até 3 valores; nas entregas, aceite pelo frete mostrado.',
                     'Na entrega: vá à loja, pegue o pedido com o código da loja, leve ao cliente e confirme com o código dele.',
                     'Veja quanto ganhou hoje, na semana e no mês na própria página de Entregas (seção Seus ganhos).',
+                    'Divulgue: no alto do Canal do Motorista, "Compartilhar" manda o link da página do seu veículo (iuser.com.br/<seu-veículo>), por onde as pessoas chamam você. Ela é diferente do seu perfil pessoal.',
                 ],
                 rules: [
                     'Você precisa da CNH com atividade remunerada (EAR) e dos documentos do veículo.',

@@ -54,6 +54,7 @@ import {
     type MyStatus,
 } from '@/lib/benefits/types'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { commissionCardTheme } from './commissionCardTheme'
 import { useMyGraduation, GraduationOverview, GraduationCommissions, GraduationTree } from './MyGraduation'
 import { useMyPoints, MyPointsBody } from './MyPoints'
 import { rankStyle } from '@/components/social/SocialProfileCard'
@@ -1281,41 +1282,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
 
     // Cor do cartão de saldo: o lado esquerdo carrega as cores da graduação (vêm da configuração do nível, sem nomes
     // fixos) e o degradê termina nas cores originais do cartão (laranja → vermelho do iUser).
-    const cardTheme = (() => {
-        // aceita '#rrggbb' e também 'rgb(r, g, b)' (resultado de uma mistura anterior)
-        const parse = (v: string) => {
-            const m = v.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
-            return m ? { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) } : hexToRgb(v)
-        }
-        const mixHex = (a: string, b: string, t: number) => {
-            const A = parse(a); const B = parse(b)
-            const c = (x: number, y: number) => Math.round(x + (y - x) * t)
-            return `rgb(${c(A.r, B.r)}, ${c(A.g, B.g)}, ${c(A.b, B.b)})`
-        }
-        const lum = (v: string) => { const c = parse(v); return (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255 }
-        const lvl = graduation.data?.level
-        // Níveis claros (prata, ouro...) ganham um pouco de sombra pra o texto branco continuar legível
-        const tone = (c: string) => (lum(c) > 0.6 ? mixHex(c, '#000000', 0.38) : c)
-        const c1 = tone(lvl?.border_colors?.[0] || lvl?.border_color || '#f97316')
-        const c2 = tone(lvl?.border_colors?.[1] || lvl?.border_colors?.[0] || lvl?.border_color || '#f97316')
-        const ORANGE = '#ea580c'
-        const RED = '#b91c1c'
-        // a ponta esquerda é mais funda (identifica o nível de relance); a cor da graduação segura até ~40% antes de virar laranja
-        const bg = `linear-gradient(110deg, ${mixHex(c1, '#000000', 0.3)} 0%, ${c1} 18%, ${c2} 40%, ${mixHex(c2, ORANGE, 0.55)} 60%, ${ORANGE} 82%, ${RED} 100%)`
-        return {
-            background: bg,
-            text: '#ffffff',
-            shadow: 'rgba(185, 28, 28, 0.32)',
-            sheen: 'rgba(255,255,255,0.12)',
-            sheenSoft: 'rgba(255,255,255,0.08)',
-            buttonSolidBg: '#ffffff',
-            buttonSolidText: '#b91c1c',
-            buttonGhostBg: 'rgba(255,255,255,0.18)',
-            buttonGhostBorder: 'rgba(255,255,255,0.5)',
-            track: 'rgba(255,255,255,0.28)',
-            fill: '#ffffff',
-        }
-    })()
+    const cardTheme = commissionCardTheme(graduation.data?.level)
 
     if (view === 'rede') {
         const faces = members.slice(0, 5)
