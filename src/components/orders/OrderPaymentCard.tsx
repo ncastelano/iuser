@@ -75,6 +75,8 @@ export default function OrderPaymentCard({ orderId, finished = false, paymentMet
             <Hourglass size={15} className="flex-shrink-0 mt-px" /> Pague depois: o Pix da loja aparece aqui assim que um entregador aceitar e a loja receber o pedido.
         </div>
     )
+    // a loja ainda não aceitou (o pedido pode mudar): o Pix aparece depois — quem explica agora é o OrderAgreementBox
+    if (p.awaitingStore && p.role === 'buyer' && p.status === 'awaiting') return null
     const st = paymentStatusText(p)
     if (!st || (finished && p.status === 'confirmed')) return null
     const color = TONE[st.tone]

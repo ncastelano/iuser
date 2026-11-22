@@ -26,6 +26,8 @@ export interface OrderPayment {
     payerBank: string | null
     payerE2e: string | null
     receiptPath: string | null
+    /** a loja ainda não aceitou o pedido (migration 092): o Pix só aparece depois */
+    awaitingStore: boolean
 }
 
 export const brl = (n: number | null | undefined) => `R$ ${Number(n ?? 0).toFixed(2).replace('.', ',')}`
@@ -38,7 +40,7 @@ export function parseOrderPayment(raw: unknown): OrderPayment | null {
         role: r.role, method: r.method ?? null, paymentMethod: r.payment_method ?? null, status: r.status ?? null, amount: Number(r.amount) || 0,
         storeName: r.store_name || 'a loja', txid: r.txid ?? null, pixKey: r.pix_key ?? null, pixKeyType: r.pix_key_type ?? null, cardLink: r.card_link ?? null,
         reportedAt: r.reported_at ?? null, confirmedAt: r.confirmed_at ?? null, held: r.held === true,
-        payerName: r.payer_name ?? null, payerBank: r.payer_bank ?? null, payerE2e: r.payer_e2e ?? null, receiptPath: r.receipt_path ?? null,
+        payerName: r.payer_name ?? null, payerBank: r.payer_bank ?? null, payerE2e: r.payer_e2e ?? null, receiptPath: r.receipt_path ?? null, awaitingStore: r.awaiting_store === true,
     }
 }
 
@@ -108,4 +110,13 @@ export function storePayChip(p: { method: PayMethod; status: PayStatus } | null 
     if (p.status === 'reported') return { text: `${how} a conferir`, color: '#0284c7' }
     if (p.status === 'not_received') return { text: `${how} não encontrado`, color: '#dc2626' }
     return { text: `${how} não pago`, color: '#ea580c' }
+}
+
+/** A frase do combinado do pedido para a LOJA (linha do pedido novo): respondeu, cliente mudou, cliente de acordo (migration 092) */
+export function agreementLine(o: { status?: string | null; store_replied_at?: string | null; customer_agreed_at?: string | null; customer_adjusted_at?: string | null }): string | null {
+    if (o.status !== 'pending') return null
+    if (o.customer_agreed_at) return 'Cliente de acordo · pode aceitar'
+    if (o.customer_adjusted_at && (!o.store_replied_at || o.customer_adjusted_at > o.store_replied_at)) return 'Cliente mudou o pedido'
+    if (o.store_replied_at) return 'Combinando com o cliente'
+    return null
 }

@@ -60,6 +60,7 @@ import CarrinhoSkeleton from './CarrinhoSkeleton'
 import DeliveryIncreasePrompt from '@/components/DeliveryIncreasePrompt'
 import CancelPendingOrder from '@/components/orders/CancelPendingOrder'
 import OrderPaymentCard from '@/components/orders/OrderPaymentCard'
+import OrderAgreementBox from '@/components/orders/OrderAgreementBox'
 import OrderTrackingCard from '@/components/orders/OrderTrackingCard'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
@@ -1477,6 +1478,7 @@ export default function CarrinhoScreen({ hideTabs = false, tab }: { hideTabs?: b
                     {/* onde está o entregador (a caminho da loja, com o pedido, na porta); com o "entregador primeiro" ele já vem antes de a loja aceitar */}
                     {order.order_id && <OrderTrackingCard orderId={order.order_id} enabled={Number(order.deliveryFee) > 0 && ['pending', 'preparing', 'ready'].includes(order.status)} />}
                     {/* pagar direto à loja: o QR Pix dela (ou o link de cartão) e o "Já paguei" */}
+                    {order.order_id && order.status === 'pending' && !order.held && <OrderAgreementBox orderId={order.order_id} />}
                     {order.order_id && !rejected && <OrderPaymentCard orderId={order.order_id} finished={order.status === 'paid'} paymentMethod={order.payment_method} />}
                     <div className="p-3.5 flex items-center justify-between gap-3">
                         <h3 className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{order.storeName || order.store_name}</h3>

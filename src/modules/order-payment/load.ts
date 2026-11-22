@@ -82,3 +82,24 @@ export async function fetchStoreOrderPayments(storeId: string): Promise<Map<stri
     for (const r of (data || []) as any[]) m.set(r.order_id, { orderId: r.order_id, method: r.method, status: r.status, amount: Number(r.amount) || 0, reportedAt: r.reported_at ?? null, hasReceipt: !!r.has_receipt, payerName: r.payer_name ?? null })
     return m
 }
+
+// ===== Pedido combinado (migration 092): a loja responde, o cliente ajusta e diz que está de acordo =====
+export async function storeReplyOrder(orderId: string, message: string): Promise<{ conversationId: string; storeSlug: string }> {
+    const { data, error } = await supabase.rpc('store_reply_order', { p_order: orderId, p_message: message.trim() }); fail(error)
+    const d = data as any
+    return { conversationId: d.conversation_id, storeSlug: d.store_slug }
+}
+export async function customerAdjustOrder(orderId: string, lines: { id: string; quantity: number }[]): Promise<number> {
+    const { data, error } = await supabase.rpc('customer_adjust_order', { p_order: orderId, p_lines: lines }); fail(error)
+    return Number((data as any)?.total) || 0
+}
+export async function customerAgreeOrder(orderId: string): Promise<void> {
+    const { error } = await supabase.rpc('customer_agree_order', { p_order: orderId }); fail(error)
+}
+export async function getStoreAutoAccept(storeId: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('get_store_order_settings', { p_store: storeId })
+    return !error && !!(data as any)?.auto_accept
+}
+export async function setStoreAutoAccept(storeId: string, on: boolean): Promise<void> {
+    const { error } = await supabase.rpc('set_store_auto_accept', { p_store: storeId, p_on: on }); fail(error)
+}

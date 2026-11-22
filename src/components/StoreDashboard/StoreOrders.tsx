@@ -34,7 +34,9 @@ import { handleShareLink } from '@/lib/share'
 import { STORE_STATE_TEXT, brl as brlText } from '@/modules/delivery-search'
 import StoreDeliveryPayment from '@/components/DeliveryPayment/StoreDeliveryPayment'
 import { useFunnelFlip } from './painel/useFunnelFlip'
-import { fetchStoreOrderPayments, storePayChip, type StoreOrderPayment } from '@/modules/order-payment'
+import { fetchStoreOrderPayments, storePayChip, agreementLine, type StoreOrderPayment } from '@/modules/order-payment'
+import StoreOrderReply from '@/components/orders/StoreOrderReply'
+import AutoAcceptToggle from '@/components/orders/AutoAcceptToggle'
 
 // Entrega V2 vista pela loja: o estado vem da fase da entrega (o pedido continua com o status dele)
 const RELEASED_PHASES = ['ENTREGA_LIBERADA', 'A_CAMINHO_DA_LOJA', 'CHEGOU_NA_LOJA', 'PEDIDO_RETIRADO', 'A_CAMINHO_DO_CLIENTE', 'ENTREGUE', 'CONCLUIDO']
@@ -365,6 +367,9 @@ export default function StoreOrders({
                     delivery_lng,
                     status,
                     created_at,
+                    store_replied_at,
+                    customer_agreed_at,
+                    customer_adjusted_at,
                     order_items (
                         id,
                         product_id,
@@ -409,6 +414,9 @@ export default function StoreOrders({
                     buyer_profile_slug: order.buyer_profile_slug,
                     created_at: order.created_at,
                     status: order.status,
+                    store_replied_at: order.store_replied_at ?? null,
+                    customer_agreed_at: order.customer_agreed_at ?? null,
+                    customer_adjusted_at: order.customer_adjusted_at ?? null,
                     delivery_address: order.delivery_address,
                     delivery_lat: order.delivery_lat,
                     delivery_lng: order.delivery_lng,
@@ -1358,6 +1366,7 @@ export default function StoreOrders({
                 {/* ===== FUNIL DE PEDIDOS: novos → em preparo → prontos → a caminho. Cada linha tem só o que importa e a ação da etapa ===== */}
                 {isOrdersExpanded && ordersTab === 'products' && (
                     <div className="flex flex-col gap-4 relative z-10">
+                        <AutoAcceptToggle storeId={storeId} colors={colors} />
                         {(() => {
                             const act = async (o: any, next: string) => { setQuickBusy(o.checkout_id); await handleOrderAction(next, o); setQuickBusy(null) }
                             // muda de etapa COM a animação: fotografa antes, o pedido desce quando a lista nova chega
@@ -1416,7 +1425,7 @@ export default function StoreOrders({
                                                     {x.list.length === 0 && <span className="text-[11.5px] font-semibold" style={{ color: colors.textSecondary }}>nenhum agora</span>}
                                                 </div>
                                                 {list.slice(0, PER).map((o: any) => (
-                                                    <FlowRow key={o.checkout_id} order={o} color={x.color} line={x.key === 'done' ? { text: isDelivery(o) ? 'Entregue' : 'Retirado na loja', tone: 'plain' } : lineFor(o)} colors={colors} onOpen={() => setSelectedOrder(o)} pay={storePayChip(payments.get(o.id))}
+                                                    <FlowRow key={o.checkout_id} order={o} color={x.color} line={x.key === 'done' ? { text: isDelivery(o) ? 'Entregue' : 'Retirado na loja', tone: 'plain' } : agreementLine(o) ? { text: agreementLine(o)!, tone: o.customer_agreed_at ? 'ok' : 'wait' } : lineFor(o)} colors={colors} onOpen={() => setSelectedOrder(o)} pay={storePayChip(payments.get(o.id))}
                                                         flipKey={`o${o.checkout_id}`} glow={flipFx.chegou === `o${o.checkout_id}`}>
                                                         {x.key === 'new' && (
                                                             <>
@@ -1425,10 +1434,14 @@ export default function StoreOrders({
                                                                     className="w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90 disabled:opacity-60" style={{ background: '#ef444418', color: '#dc2626' }}>
                                                                     <X size={16} />
                                                                 </button>
+                                                                {o.buyer_id && <StoreOrderReply orderId={o.id} buyer={o.buyer_profile_slug} compact onDone={() => loadOrders?.()} />}
                                                                 <Btn o={o} next="preparing" label="Aceitar" color="#16a34a" from="new" to="prep" />
                                                             </>
                                                         )}
-                                                        {x.key === 'prep' && <Btn o={o} next="ready" label="Pronto" color="#ca8a04" from="prep" to="ready" />}
+                                                        {/* Pix/link: só fica pronto com o pagamento confirmado (o banco também trava: orders_ready_gate) */}
+                                                        {x.key === 'prep' && (() => { const pp = payments.get(o.id); return pp && (pp.method === 'pix' || pp.method === 'link_cartao') && pp.status !== 'confirmed'
+                                                            ? <button type="button" onClick={() => setSelectedOrder(o)} className="h-9 px-4 rounded-full text-[12px] font-black text-white" style={{ background: '#0284c7' }}>{pp.status === 'reported' ? 'Conferir Pix' : 'Esperando Pix'}</button>
+                                                            : <Btn o={o} next="ready" label="Pronto" color="#ca8a04" from="prep" to="ready" /> })()}
                                                         {/* entrega: quem conclui é o entregador; a loja só finaliza o que o cliente retira */}
                                                         {x.key === 'ready' && !isDelivery(o) && <Btn o={o} next="paid" label="Retirado" color="#7c3aed" from="ready" to="done" />}
                                                     </FlowRow>
