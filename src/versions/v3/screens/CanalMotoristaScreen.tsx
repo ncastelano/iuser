@@ -35,6 +35,7 @@ import DriverPanelHome from '@/components/v3/DriverPanelHome'
 import AcceptARider from '@/app/(main)/inicio/sections/AcceptARider'
 import { announceDriverMode } from '@/lib/driverMode'
 import ProfileQuoteCard from '@/components/driver/ProfileQuoteCard'
+import DriverModeHeader from '@/components/driver/DriverModeHeader'
 import DriverEarningGoalCard from '@/components/DriverEarningGoalCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
@@ -860,6 +861,8 @@ function PainelMotoristaContent() {
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
+                    {/* quem está no modo motorista: o estado, o veículo e as DUAS páginas (perfil pessoal × página do veículo para compartilhar) */}
+                    {userId && !showActivationWizard && <DriverModeHeader userId={userId} profileSlug={profileSlug} avatarUrl={avatarUrl} colors={colors} />}
                     {/* ===== Aba Canal: Outdoor dos motoristas, ativar o modo, corridas e entregas abertas com quanto pagam (vale para visitante) ===== */}
                     {activeTab === 'canal' && !showActivationWizard && (
                         <>

@@ -395,6 +395,32 @@ export default function AtalhoCompromissosPessoal({
                     </div>
                 </button>
 
+                {/* RECOLHIDA: no mínimo os PEDIDOS DE AGENDAMENTO que esperam a sua resposta (22/11/2026, decisão do dono) */}
+                {!isExpanded && (() => {
+                    const asks = personalAppointments.filter((a: any) => a.status === 'pending')   // os que pedem resposta (recebidos) e os que você pediu
+                    if (!asks.length) return null
+                    return (
+                        <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 snap-x">
+                            {asks.map((a: any) => {
+                                const av = getAvatarUrl(a)
+                                const when = new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) + (a.time ? ` · ${String(a.time).slice(0, 5)}` : '')
+                                return (
+                                    <a key={a.id} href={`/compromisso/${a.id}`} className="flex-shrink-0 w-[240px] snap-start flex items-center gap-2.5 p-2.5 rounded-2xl border" style={{ background: colors.surface, borderColor: '#f9731660', boxShadow: '0 0 0 2px #f9731630' }}>
+                                        <span className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT }}>
+                                            {av ? <img src={av} alt="" className="w-full h-full object-cover" /> : (getProfileSlugFromAppointment(a) || a.customer_slug || 'C').charAt(0).toUpperCase()}
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: '#f97316' }}>{a.direction === 'incoming' ? 'Pedido de agendamento' : 'Você pediu · aguardando'}</span>
+                                            <span className="block text-[13px] font-black truncate" style={{ color: textPrimary }}>{(() => { const o = getProfileSlugFromAppointment(a); return o ? `@${o}` : (a.customer_slug ? `@${a.customer_slug}` : 'Cliente') })()}</span>
+                                            <span className="block text-[11.5px] truncate" style={{ color: textSecondary }}>{a.service_name ? `${a.service_name} · ` : ''}{when}</span>
+                                        </span>
+                                    </a>
+                                )
+                            })}
+                        </div>
+                    )
+                })()}
+
                 {isExpanded && (
                     <>
                         {/* Resumo em números */}

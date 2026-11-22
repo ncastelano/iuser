@@ -234,7 +234,7 @@ function MenuDrawerContent({ data, active, storeOrders, slug, avatarUrl, counts,
         { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onSelect(`loja:${st.slug}`), solid: true },
     ]
     const vehicleActions = (v: DrawerData['vehicles'][number]): ModeAction[] => [
-        { label: 'Veículo', icon: act(Car), onClick: () => onGo('/canal-do-motorista?aba=veiculo') },
+        { label: 'Veículo', icon: act(Car), onClick: () => onGo(`/${v.slug}`) },   // a página do veículo (o link para compartilhar) voltou em 22/11/2026
         { label: 'Entregas', icon: act(Bike), onClick: () => onGo('/entregas') },
         { label: 'Painel', icon: act(LayoutDashboard), onClick: () => onGo('/canal-do-motorista?aba=painel'), solid: true },
     ]
