@@ -34,7 +34,7 @@ import { handleShareLink } from '@/lib/share'
 import { STORE_STATE_TEXT, brl as brlText } from '@/modules/delivery-search'
 import StoreDeliveryPayment from '@/components/DeliveryPayment/StoreDeliveryPayment'
 import { useFunnelFlip } from './painel/useFunnelFlip'
-import { fetchStoreOrderPayments, storePayChip, agreementLine, type StoreOrderPayment } from '@/modules/order-payment'
+import { fetchStoreOrderPayments, storePayChip, agreementLine, confirmOrderPayment, type StoreOrderPayment } from '@/modules/order-payment'
 import StoreOrderReply from '@/components/orders/StoreOrderReply'
 import AutoAcceptToggle from '@/components/orders/AutoAcceptToggle'
 
@@ -295,10 +295,33 @@ export default function StoreOrders({
 
     // o PAGAMENTO feito direto à loja (Pix com o QR dela, link de cartão, Pix na porta): o selo em cada pedido ("Pix a conferir", "Pix ✓")
     const [payments, setPayments] = useState<Map<string, StoreOrderPayment>>(new Map())
+    const prevPayRef = useRef<Map<string, string> | null>(null)
+    const [payFlash, setPayFlash] = useState<Set<string>>(new Set())   // pedidos cujo comprovante/aviso de Pix acabou de chegar
+    const [payBusy, setPayBusy] = useState<string | null>(null)
+    const receivedPix = async (o: any, pp: StoreOrderPayment) => {
+        const how = pp.method === 'link_cartao' ? 'o pagamento do cartão' : 'o Pix'
+        if (!window.confirm(`Confirmar que ${how} de R$ ${pp.amount.toFixed(2).replace('.', ',')} caiu na sua conta?${pp.status === 'reported' ? '' : ' (O cliente ainda não avisou que pagou.)'}`)) return
+        setPayBusy(o.id)
+        try { await confirmOrderPayment(o.id, true); toast.success('Pagamento confirmado', { description: 'Agora é só marcar "Pronto" quando terminar.' }); window.dispatchEvent(new Event('iuser-orders-changed')) }
+        catch (e: any) { toast.error(e?.message || 'Não deu para confirmar') } finally { setPayBusy(null) }
+    }
     useEffect(() => {
         if (!storeId) return
         let alive = true
-        const run = () => fetchStoreOrderPayments(storeId).then((m) => { if (alive) setPayments(m) }).catch(() => { })
+        const run = () => fetchStoreOrderPayments(storeId).then((m) => {
+            if (!alive) return
+            // o cliente acabou de avisar/mandar o comprovante (awaiting → reported): a linha pisca em azul por uns segundos
+            const prev = prevPayRef.current
+            if (prev) {
+                const fresh = Array.from(m.values()).filter((p) => p.status === 'reported' && prev.get(p.orderId) && prev.get(p.orderId) !== 'reported').map((p) => p.orderId)
+                if (fresh.length) {
+                    setPayFlash((cur) => new Set([...Array.from(cur), ...fresh]))
+                    setTimeout(() => setPayFlash((cur) => { const n = new Set(cur); fresh.forEach((id) => n.delete(id)); return n }), 7000)
+                }
+            }
+            prevPayRef.current = new Map(Array.from(m.values()).map((p) => [p.orderId, p.status]))
+            setPayments(m)
+        }).catch(() => { })
         run()
         const t = setInterval(run, 15000)
         window.addEventListener('iuser-orders-changed', run)
@@ -1398,7 +1421,7 @@ export default function StoreOrders({
                             const total = sections.slice(0, 4).reduce((n, x) => n + x.list.length, 0)
                             return (
                                 <>
-                                    <style>{`@keyframes funilBrilho { 0% { box-shadow: 0 0 0 0 var(--funil-cor) } 40% { box-shadow: 0 0 0 5px var(--funil-cor) } 100% { box-shadow: 0 0 0 0 transparent } } @media (prefers-reduced-motion: reduce) { .funil-anim { animation: none !important } }`}</style>
+                                    <style>{`@keyframes funilBrilho { 0% { box-shadow: 0 0 0 0 var(--funil-cor) } 40% { box-shadow: 0 0 0 5px var(--funil-cor) } 100% { box-shadow: 0 0 0 0 transparent } } @keyframes pixChegou { 0% { box-shadow: 0 0 0 0 #0ea5e9aa } 60% { box-shadow: 0 0 0 7px #0ea5e900 } 100% { box-shadow: 0 0 0 0 #0ea5e900 } } @keyframes pixChip { 0% { transform: scale(1) } 40% { transform: scale(1.18) } 100% { transform: scale(1) } } @media (prefers-reduced-motion: reduce) { .funil-anim, .pix-chip { animation: none !important } }`}</style>
                                     {/* resumo do funil: tocar leva à seção */}
                                     <div className="flex items-center justify-between gap-0.5">
                                         {sections.map((x, i) => (
@@ -1425,7 +1448,7 @@ export default function StoreOrders({
                                                     {x.list.length === 0 && <span className="text-[11.5px] font-semibold" style={{ color: colors.textSecondary }}>nenhum agora</span>}
                                                 </div>
                                                 {list.slice(0, PER).map((o: any) => (
-                                                    <FlowRow key={o.checkout_id} order={o} color={x.color} line={x.key === 'done' ? { text: isDelivery(o) ? 'Entregue' : 'Retirado na loja', tone: 'plain' } : agreementLine(o) ? { text: agreementLine(o)!, tone: o.customer_agreed_at ? 'ok' : 'wait' } : lineFor(o)} colors={colors} onOpen={() => setSelectedOrder(o)} pay={storePayChip(payments.get(o.id))}
+                                                    <FlowRow key={o.checkout_id} order={o} color={x.color} line={x.key === 'done' ? { text: isDelivery(o) ? 'Entregue' : 'Retirado na loja', tone: 'plain' } : agreementLine(o) ? { text: agreementLine(o)!, tone: o.customer_agreed_at ? 'ok' : 'wait' } : lineFor(o)} colors={colors} onOpen={() => setSelectedOrder(o)} pay={x.key === 'new' && payments.get(o.id)?.status === 'awaiting' ? { text: payments.get(o.id)?.method === 'link_cartao' ? 'Cartão depois do aceite' : 'Pix depois do aceite', color: '#64748b' } : storePayChip(payments.get(o.id))} payFlash={payFlash.has(o.id)}
                                                         flipKey={`o${o.checkout_id}`} glow={flipFx.chegou === `o${o.checkout_id}`}>
                                                         {x.key === 'new' && (
                                                             <>
@@ -1440,7 +1463,7 @@ export default function StoreOrders({
                                                         )}
                                                         {/* Pix/link: só fica pronto com o pagamento confirmado (o banco também trava: orders_ready_gate) */}
                                                         {x.key === 'prep' && (() => { const pp = payments.get(o.id); return pp && (pp.method === 'pix' || pp.method === 'link_cartao') && pp.status !== 'confirmed'
-                                                            ? <button type="button" onClick={() => setSelectedOrder(o)} className="h-9 px-4 rounded-full text-[12px] font-black text-white" style={{ background: '#0284c7' }}>{pp.status === 'reported' ? 'Conferir Pix' : 'Esperando Pix'}</button>
+                                                            ? <button type="button" disabled={payBusy === o.id} onClick={() => receivedPix(o, pp)} className="h-9 px-3.5 rounded-full text-[12px] font-black text-white disabled:opacity-60" style={{ background: '#16a34a' }}>{payBusy === o.id ? '…' : pp.method === 'link_cartao' ? 'Recebi o cartão' : 'Recebi o Pix'}</button>
                                                             : <Btn o={o} next="ready" label="Pronto" color="#ca8a04" from="prep" to="ready" /> })()}
                                                         {/* entrega: quem conclui é o entregador; a loja só finaliza o que o cliente retira */}
                                                         {x.key === 'ready' && !isDelivery(o) && <Btn o={o} next="paid" label="Retirado" color="#7c3aed" from="ready" to="done" />}
@@ -1569,7 +1592,7 @@ export default function StoreOrders({
 }
 
 /** Uma linha do FUNIL de pedidos do painel da loja: quem pediu, o que é, quanto, e UMA frase sobre a entrega — com a ação da etapa à direita */
-function FlowRow({ order, color, line, onOpen, children, colors, flipKey, glow, pay }: { order: any; color: string; line: { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain'; code?: string }; onOpen: () => void; children?: React.ReactNode; colors: any; flipKey?: string; glow?: boolean; pay?: { text: string; color: string } | null }) {
+function FlowRow({ order, color, line, onOpen, children, colors, flipKey, glow, pay, payFlash }: { order: any; color: string; line: { text: string; tone: 'ok' | 'wait' | 'warn' | 'plain'; code?: string }; onOpen: () => void; children?: React.ReactNode; colors: any; flipKey?: string; glow?: boolean; pay?: { text: string; color: string; pulse?: boolean } | null; payFlash?: boolean }) {
     const who = order.buyer_profile_slug ? `@${order.buyer_profile_slug}` : (order.buyer_name || 'Cliente')
     const first = order.items?.[0]
     const more = (order.items?.length || 0) - 1
@@ -1579,7 +1602,7 @@ function FlowRow({ order, color, line, onOpen, children, colors, flipKey, glow, 
     return (
         // a PLACA colorida (a cor da etapa) fica por trás e o cartão por cima, deslocado 4 px: na troca de etapa o cartão cobre a faixa e a cor
         // muda escondida (useFunnelFlip)
-        <div data-flip={flipKey} data-stage={color} className="funil-anim relative rounded-2xl overflow-hidden" style={{ background: color, ['--funil-cor' as string]: `${color}66`, animation: glow ? 'funilBrilho 1.5s ease-out 1.5s backwards' : undefined }}>
+        <div data-flip={flipKey} data-stage={color} className="funil-anim relative rounded-2xl overflow-hidden" style={{ background: color, ['--funil-cor' as string]: `${color}66`, animation: glow ? 'funilBrilho 1.5s ease-out 1.5s backwards' : payFlash ? 'pixChegou 1.2s ease-out 0s 4' : undefined }}>
         <div data-card onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }} className="rounded-2xl pl-3 pr-2 py-2.5 flex items-center gap-2 cursor-pointer active:scale-[0.995] transition" style={{ background: colors.background, border: `1px solid ${colors.border}`, marginLeft: 4 }}>
             <div className="min-w-0 flex-1">
                 <p className="flex items-baseline gap-1.5">
@@ -1589,7 +1612,7 @@ function FlowRow({ order, color, line, onOpen, children, colors, flipKey, glow, 
                 </p>
                 <p className="text-[11px] flex items-center gap-1.5 min-w-0" style={{ color: colors.textSecondary }}>
                     <span className="truncate">{summary}</span>
-                    {pay && <span className="flex-shrink-0 px-1.5 py-px rounded-md text-[10px] font-black" style={{ background: `${pay.color}1a`, color: pay.color }}>{pay.text}</span>}
+                    {pay && <span className={`flex-shrink-0 px-1.5 py-px rounded-md text-[10px] font-black ${pay.pulse ? 'pix-chip' : ''}`} style={{ background: `${pay.color}1a`, color: pay.color, animation: payFlash ? 'pixChip .6s ease-out 0s 3' : undefined }}>{pay.pulse && '📎 '}{pay.text}</span>}
                 </p>
                 <p className="text-[11px] font-bold flex items-center gap-1.5 min-w-0" style={{ color: tone }}>
                     <span className="truncate">{line.text}</span>

@@ -103,13 +103,14 @@ export function cardLinkProblem(link: string): string | null {
 }
 
 /** O selo curto na linha do pedido (painel da loja) */
-export function storePayChip(p: { method: PayMethod; status: PayStatus } | null | undefined): { text: string; color: string } | null {
+/** O selo do pagamento na linha do pedido (loja). Pix: Esperando Pix → Comprovante no pedido / Pix avisado (pulsa: a loja precisa conferir) → Pix ✓ */
+export function storePayChip(p: { method: PayMethod; status: PayStatus; hasReceipt?: boolean } | null | undefined): { text: string; color: string; pulse?: boolean } | null {
     if (!p) return null
     const how = p.method === 'link_cartao' ? 'Cartão' : p.method === 'pix_porta' ? 'Pix na porta' : 'Pix'
     if (p.status === 'confirmed') return { text: `${how} ✓`, color: '#16a34a' }
-    if (p.status === 'reported') return { text: `${how} a conferir`, color: '#0284c7' }
+    if (p.status === 'reported') return p.hasReceipt ? { text: 'Comprovante no pedido · conferir', color: '#0284c7', pulse: true } : { text: `${how} avisado · conferir`, color: '#0284c7', pulse: true }
     if (p.status === 'not_received') return { text: `${how} não encontrado`, color: '#dc2626' }
-    return { text: `${how} não pago`, color: '#ea580c' }
+    return { text: p.method === 'link_cartao' ? 'Esperando o cartão' : `Esperando ${how}`, color: '#ea580c' }
 }
 
 /** A frase do combinado do pedido para a LOJA (linha do pedido novo): respondeu, cliente mudou, cliente de acordo (migration 092) */
