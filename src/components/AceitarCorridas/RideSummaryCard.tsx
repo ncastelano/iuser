@@ -7,7 +7,7 @@
 'use client'
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import { ArrowRight, Bike, Car, ChevronDown, Clock, Flame, TrendingUp, Truck, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Bike, Car, ChevronDown, Clock, Flame, Package, PawPrint, Store, TrendingUp, Truck, User, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import SlideToConfirm from '@/components/SlideToConfirm'
@@ -37,6 +37,13 @@ function Money({ value, color, size = 44 }: { value: number; color: string; size
 }
 
 const ASKED_FOR: Record<VehicleType, string> = { carro: 'um carro', van: 'uma van', 'van-grande': 'uma van grande', moto: 'uma moto', bicicleta: 'uma bicicleta', qualquer: 'uma corrida' }
+// O TIPO do pedido, para saber num olhar o que se está escolhendo (23/11/2026, decisão do dono): cada um com cor e ícone próprios
+const KIND_STYLE = {
+    store: { label: 'Entrega de loja', color: '#16a34a', icon: Store },
+    pessoa: { label: 'Corrida · passageiro', color: '#f97316', icon: User },
+    objeto: { label: 'Levar um objeto', color: '#2563eb', icon: Package },
+    animal: { label: 'Levar um animal', color: '#9333ea', icon: PawPrint },
+} as const
 const VEHICLE_ICON: Record<VehicleType, LucideIcon> = { carro: Car, van: Car, 'van-grande': Car, moto: Bike, bicicleta: Bike, qualquer: Car }
 
 function ago(iso: string): string {
@@ -101,6 +108,9 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
     const extraCount = pickedPrices ? pickedPrices.length - 1 : 0
     const name = requester.name || (requester.slug ? `@${requester.slug}` : 'Passageiro')
     const KindIcon = isStore ? Truck : VEHICLE_ICON[ride.vehicle_type] ?? Car
+    const kind = KIND_STYLE[isStore ? 'store' : ((ride as { ride_type?: string }).ride_type === 'objeto' ? 'objeto' : (ride as { ride_type?: string }).ride_type === 'animal' ? 'animal' : 'pessoa')]
+    const KIcon = kind.icon
+    const pay = (ride as { payment_method?: string | null }).payment_method
     const waited = Math.floor((Date.now() - new Date(ride.created_at).getTime()) / 60000)
     const perHour = perHourOf(shownPrice, totalMin)
     const spec = humanizeRideSpecs(ride)[0]
@@ -119,7 +129,12 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                     )
 
     return (
-        <article className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${hot ? `${ORANGE}66` : colors.border}`, boxShadow: hot ? `0 10px 30px ${ORANGE}26` : colors.shadow }}>
+        <article className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${hot ? `${ORANGE}66` : `${kind.color}55`}`, borderLeft: `5px solid ${kind.color}`, boxShadow: hot ? `0 10px 30px ${ORANGE}26` : colors.shadow }}>
+            <div className="flex items-center gap-2 px-4 py-2 text-[12px] font-black" style={{ background: `${kind.color}14`, color: kind.color }}>
+                <KIcon size={15} />
+                <span>{kind.label}</span>
+                {pay && <span className="ml-auto font-bold opacity-90">{pay === 'pix' ? 'Pix' : pay === 'dinheiro' ? 'Dinheiro' : pay === 'cartao' || pay === 'card' ? 'Cartão' : pay}</span>}
+            </div>
             {tier !== 'none' && (
                 <div className="flex items-center gap-2 px-4 py-2 text-[12px] font-black" style={{ background: hot ? GRADIENT : `${GREEN}1a`, color: hot ? '#fff' : GREEN }}>
                     {hot ? <Flame size={15} /> : <TrendingUp size={15} />}
@@ -136,12 +151,12 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                         {requester.avatarUrl ? (
                             <img src={requester.avatarUrl} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
                         ) : (
-                            <span className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[14px] font-black flex-shrink-0" style={{ background: ORANGE }}>{name.charAt(0).toUpperCase()}</span>
+                            <span className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: kind.color }}>{isStore ? <Store size={17} /> : name === 'Passageiro' ? <User size={17} /> : <span className="text-[14px] font-black">{name.charAt(0).toUpperCase()}</span>}</span>
                         )}
                     </PlanAvatarRing>
                     <p className="min-w-0 text-[13px] leading-tight">
                         <strong className="font-black">{name}</strong>{' '}
-                        <span style={{ color: colors.textSecondary }}>{isStore ? 'pediu uma entrega' : `pediu ${ASKED_FOR[ride.vehicle_type] ?? 'uma corrida'}`} · {when}</span>
+                        <span style={{ color: colors.textSecondary }}>{isStore ? 'pediu uma entrega' : `pediu ${ASKED_FOR[ride.vehicle_type] ?? 'uma corrida'}`}{!isStore && requester.rating.count > 0 ? ` · ★ ${requester.rating.avg.toFixed(1).replace('.', ',')}` : ''} · {when}</span>
                     </p>
                 </div>
 

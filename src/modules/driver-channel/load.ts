@@ -2,6 +2,7 @@
 // card de /aceitar-corridas (lib/rideQuote, como inicio/sections/AcceptARider): rota do mapa (partida → chegada), deslocamento do motorista
 // até a partida (GPS → posição ao vivo → local salvo), Tarifa iUser e Minha tarifa pelo veículo da corrida, piso do ganho mínimo por hora e
 // mínimo da plataforma. Assim o valor, o tempo, a distância e o R$/h do cartão batem com a página da corrida.
+import { offerIsStale } from '@/lib/rideOfferAge'
 import { supabase } from '@/lib/supabase/client'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { computeConditionExtras, computePickupFee, computeSuggestedPrice, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
@@ -66,7 +67,7 @@ export async function loadChannelTiles(opts: { userId: string; minPerMinute: num
     if (error) return null
     // mesmas corridas de /aceitar-corridas: do veículo da pessoa (sem veículo, todas), sem as que ela já se candidatou e sem as lotadas
     const acceptable = new Set<string>(opts.myKinds.length ? opts.myKinds.flatMap((k) => ridesAcceptableForVehicleKind(k)) : ['carro', 'van', 'van-grande', 'moto', 'bicicleta', 'qualquer'])
-    const rows = ((data || []) as Row[]).filter((r) => !applied.has(r.id) && (r.applicant_count ?? 0) < 5 && (rideAcceptsAnyVehicle(r.vehicle_type as VehicleType) || acceptable.has(r.vehicle_type || '')))
+    const rows = ((data || []) as Row[]).filter((r) => !offerIsStale(r) && !applied.has(r.id) && (r.applicant_count ?? 0) < 5 && (rideAcceptsAnyVehicle(r.vehicle_type as VehicleType) || acceptable.has(r.vehicle_type || '')))
     const top = rows.slice(0, opts.limit ?? 12)
 
     // rotas (corrida e ir buscar), em paralelo e guardadas

@@ -1,6 +1,7 @@
 // src/app/(main)/inicio/sections/AcceptARider.tsx
 'use client'
 
+import { offerIsStale } from '@/lib/rideOfferAge'
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
@@ -257,30 +258,29 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
 
             let openQuery = supabase
                 .from('ride_offers')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, passenger_offer, order_id, applicant_count, stop1_address, stop2_address, stop1_lat, stop1_lng, stop2_lat, stop2_lng')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, passenger_offer, order_id, store_id, applicant_count, stop1_address, stop2_address, stop1_lat, stop1_lng, stop2_lat, stop2_lng')
                 .eq('status', 'pending')
             const { data: rows } = await openQuery
                 .order('created_at', { ascending: false })
                 .limit(120)   // folga: o filtro do veículo descarta parte delas
             if (!active) return
 
-            const candidateRows = (rows || []).filter((r) => !appliedIds.has(r.id) && (r.applicant_count ?? 0) < 5 && (rideAcceptsAnyVehicle(r.vehicle_type) || acceptableTypes.has(r.vehicle_type)))
+            const candidateRows = (rows || []).filter((r) => !offerIsStale(r) && !appliedIds.has(r.id) && (r.applicant_count ?? 0) < 5 && (rideAcceptsAnyVehicle(r.vehicle_type) || acceptableTypes.has(r.vehicle_type)))
             const top = candidateRows.slice(0, 3)
             setOpenRidesTotal(candidateRows.length)
 
-            const requesterIds = Array.from(new Set(top.map((r) => r.requester_id).filter(Boolean))) as string[]
-            const { data: profiles } = requesterIds.length > 0
-                ? await supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', requesterIds)
-                : { data: [] as { id: string; name: string | null; profileSlug: string | null; avatar_url: string | null }[] }
+            // PRIVACIDADE: antes de ser escolhido o motorista não vê quem pede — entrega = a LOJA, corrida = "Passageiro"
+            const storeIds = Array.from(new Set(top.map((r) => (r as { store_id?: string | null }).store_id).filter(Boolean))) as string[]
+            const { data: storeRows } = storeIds.length > 0 ? await supabase.from('stores').select('id, name, logo_url').in('id', storeIds) : { data: [] as { id: string; name: string; logo_url: string | null }[] }
             if (!active) return
-            const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
+            const storeById = new Map((storeRows || []).map((st) => [st.id, st]))
 
             setOpenRides(
                 top.map((r) => {
                     const rideKind = kindForRideType(r.vehicle_type)
                     const pricingShape = getEffectivePricing(pricing, rideKind)
                     const customShape = getCustomPricing(pricing as any, rideKind)
-                    const p = profilesById.get(r.requester_id)
+                    const st = (r as { store_id?: string | null }).store_id ? storeById.get((r as { store_id: string }).store_id) : undefined
                     const conditionFlags: RideConditionFlags = {
                         origin_needs_access: r.origin_needs_access,
                         destination_needs_access: r.destination_needs_access,
@@ -301,10 +301,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
                     return {
                         ride: r as unknown as OfferRide,
                         requester: {
-                            id: r.requester_id as string,
-                            name: p?.name || (r.requester_id ? null : 'Passageiro'),
-                            slug: p?.profileSlug || null,
-                            avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                            id: null,
+                            name: r.order_id ? (st?.name || 'Loja') : 'Passageiro',
+                            slug: null,
+                            avatarUrl: st?.logo_url ? (/^https?:/.test(st.logo_url) ? st.logo_url : supabase.storage.from('store-logos').getPublicUrl(st.logo_url).data.publicUrl) : undefined,
                             rating: { avg: 0, count: 0 },
                         },
                         // Frete de loja já vem com valor fechado; o resto sai da tarifa
@@ -363,7 +363,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange, horizontal = 
                     id: r.id,
                     ride_type: r.ride_type,
                     requesterId: r.requester_id as string,
-                    requesterName: p?.name || 'Passageiro',
+                    requesterName: 'Passageiro',   // nome só depois de ser escolhido
                     requesterSlug: p?.profileSlug || null,
                     requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                     proposedPrice: a.proposed_price,
