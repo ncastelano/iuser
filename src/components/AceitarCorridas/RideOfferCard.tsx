@@ -185,7 +185,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const embedded = !!pick
     const [marked, setMarked] = useState<string[] | null>(null)   // null = só o valor que o card enxuto mostrava
     const [limitHint, setLimitHint] = useState(false)
-    const [showMore, setShowMore] = useState(false)
+    // 23/11/2026 (decisão do dono): aberto, o card mostra TUDO (como a corrida aceita); dá para recolher
+    const [showMore, setShowMore] = useState(true)
     type Opt = { key: string; label: string; value: number; tag?: string }
     const options: Opt[] = (() => {
         if (!embedded || ride.offered_price != null || footer || valueBox) return []
@@ -304,8 +305,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
 
     return (
         <div className="flex flex-col gap-2">
-            {/* Quem pediu e quando (no card aberto dentro do enxuto, ele já disse) */}
-            {!embedded && <div className="flex items-center gap-2">
+            {/* Quem pediu, quando e a nota (também no card aberto dentro do enxuto: a pessoa quer ver tudo) */}
+            {<div className="flex items-center gap-2">
                 <PlanAvatarRing userId={requester.id}>
                 {requester.avatarUrl ? (
                     <img src={requester.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
@@ -434,8 +435,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
 
             {miniMap}
 
-            {/* De onde pra onde (o card enxuto já diz; aberto dentro dele sobram só as paradas) */}
-            {embedded ? ((ride.stop1_address || ride.stop2_address) ? (
+            {/* De onde pra onde: sempre inteiro (23/11/2026, o dono quer tudo à vista como na corrida aceita) */}
+            {false ? ((ride.stop1_address || ride.stop2_address) ? (
                 <p className="text-[11px] leading-tight" style={{ color: colors.textSecondary }}>Paradas: {[ride.stop1_address, ride.stop2_address].filter(Boolean).map((a) => placeLabel(a as string)).join(' · ')}</p>
             ) : null) : <div className="flex items-stretch gap-2.5">
                 <div className="flex flex-col items-center py-1 flex-shrink-0">
