@@ -5,14 +5,13 @@
 // avaliações, corridas feitas) e (4) as preferências (som, voz, raio das entregas). Só apresentação: o estado e as ações vêm da página.
 'use client'
 
-import { Fragment, type ReactNode } from 'react'
-import { Bike, Car, Package, CheckCircle2, ChevronRight, Hand, Navigation2, Power, Radar, Star, TrendingUp, Volume2, VolumeX, History, Wallet } from 'lucide-react'
+import { type ReactNode } from 'react'
+import { Bike, Car, Package, CheckCircle2, ChevronRight, Hand, Navigation2, Power, Radar, Star, Volume2, VolumeX, History, Wallet } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { toast } from '@/lib/toast'
 
 const ORANGE = '#f97316'
 
-type Tab = 'painel' | 'veiculo' | 'plano' | 'avaliacoes' | 'solicitacoes' | 'candidaturas' | 'aceita'
+type Tab = 'painel' | 'cadastro' | 'veiculo' | 'plano' | 'avaliacoes' | 'solicitacoes' | 'candidaturas' | 'aceita'
 
 function Switch({ on, color = ORANGE, label, onClick, busy }: { on: boolean; color?: string; label: string; onClick: () => void; busy?: boolean }) {
     return (
@@ -130,46 +129,15 @@ export default function DriverPanelHome({
                     <Switch on={driverModeActive} color="#16a34a" label="Modo motorista" onClick={onToggleMode} busy={togglingMode} />
                 </div>
                 <p className="mt-3 text-xs leading-snug" style={{ color: colors.textSecondary }}>{stateText}</p>
-                {online && (rides > 0 || deliveries > 0) && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                        {rides > 0 && <button onClick={() => goTab('solicitacoes')} className="h-8 px-3 rounded-full text-xs font-black text-white" style={{ background: ORANGE }}>{rides} {rides === 1 ? 'corrida esperando' : 'corridas esperando'}</button>}
-                        {deliveries > 0 && onDeliveries && <button onClick={onDeliveries} className="h-8 px-3 rounded-full text-xs font-black text-white" style={{ background: '#16a34a' }}>{deliveries} {deliveries === 1 ? 'entrega de loja' : 'entregas de lojas'}</button>}
-                    </div>
-                )}
                 {driverStatus === 'incomplete' && (
                     <button onClick={onContinueSignup} className="mt-3 w-full h-11 rounded-full text-sm font-black text-white transition active:scale-[0.98]" style={{ background: ORANGE }}>Continuar cadastro</button>
                 )}
             </section>
 
-            {/* Atalhos: os MESMOS itens das abas do painel (menos o próprio Painel) + Ganhos; os selos seguem as abas (corridas só aparecem online) */}
-            <div className="grid grid-cols-4 gap-2 -mt-3">
-                {([
-                    ...(onEarnings ? [{ k: 'ganhos', label: 'Ganhos', icon: Wallet, go: onEarnings, badge: 0, badgeColor: ORANGE, empty: null as string | null }] : []),
-                    ...(onDeliveries ? [{ k: 'entregas', label: 'Entregas', icon: Bike, go: onDeliveries, badge: 0, badgeColor: ORANGE, empty: null as string | null }] : []),
-                    // "Corrida aceita" e "Me candidatei" aparecem SEMPRE (a grade mostra todas as abas); sem nada nelas o botão fica esmaecido e avisa em vez de abrir uma aba vazia
-                    { k: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, go: () => (acceptedIsDelivery && onDeliveries ? onDeliveries() : goTab('aceita')), badge: 0, badgeColor: '#16a34a', empty: hasAccepted ? null : 'Você não tem corrida aceita agora.' },
-                    { k: 'solicitacoes', label: 'Solicitações', icon: Radar, go: () => goTab('solicitacoes'), badge: driverModeActive ? rides + deliveries : 0, badgeColor: '#ef4444', empty: null as string | null },
-                    { k: 'candidaturas', label: 'Me candidatei', icon: Hand, go: () => goTab('candidaturas'), badge: candidacies, badgeColor: '#ef4444', empty: candidacies > 0 || hasAccepted ? null : 'Você não tem candidaturas pendentes.' },
-                    { k: 'veiculo', label: 'Veículo', icon: Car, go: () => goTab('veiculo'), badge: driverStatus === 'incomplete' ? (missingCount || 1) : 0, badgeColor: '#eab308', empty: null as string | null },
-                    { k: 'tarifa', label: 'Tarifa', icon: TrendingUp, go: () => goTab('plano'), badge: 0, badgeColor: ORANGE, empty: null as string | null },
-                    { k: 'avaliacoes', label: 'Avaliações', icon: Star, go: () => goTab('avaliacoes'), badge: 0, badgeColor: ORANGE, empty: null as string | null },
-                ]).map((it) => {
-                    const Icon = it.icon
-                    return (
-                        <button
-                            key={it.k}
-                            onClick={() => (it.empty ? toast.info(it.empty) : it.go())}
-                            aria-disabled={!!it.empty}
-                            className="relative rounded-2xl py-3 px-1 flex flex-col items-center gap-1.5 transition active:scale-95"
-                            style={{ background: soft, opacity: it.empty ? 0.5 : 1 }}
-                        >
-                            {it.badge > 0 && <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: it.badgeColor }}>{it.badge > 99 ? '99+' : it.badge}</span>}
-                            <span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${ORANGE}1f`, color: ORANGE }}><Icon size={18} /></span>
-                            <span className="text-[11px] font-black leading-tight text-center" style={{ color: colors.textPrimary }}>{it.label}</span>
-                        </button>
-                    )
-                })}
-            </div>
+            {/* Ganhos (as entregas estão em "Agora" e na barra de baixo) */}
+            {onEarnings && (
+                <button onClick={onEarnings} className="-mt-3 h-12 rounded-2xl flex items-center justify-center gap-2 text-sm font-black transition active:scale-[0.98]" style={{ background: soft, color: colors.textPrimary }}><Wallet size={18} style={{ color: ORANGE }} /> Meus ganhos</button>
+            )}
 
             {/* 2. Agora */}
             {section('Agora', (
@@ -184,21 +152,21 @@ export default function DriverPanelHome({
                             <ChevronRight size={16} style={{ color: '#16a34a' }} />
                         </button>
                     )}
-                    {driverModeActive && <div className="grid grid-cols-2 gap-2.5">
+                    {driverModeActive && <div className="grid grid-cols-3 gap-2">
                         {([
                             { id: 'solicitacoes' as Tab | 'entregas', n: rides, label: 'Corridas', hint: rides === 1 ? 'passageiro esperando' : 'esperando você', icon: Radar },
-                            ...(onDeliveries ? [{ id: 'entregas' as Tab | 'entregas', n: deliveries, label: 'Entregas de lojas', hint: deliveries === 1 ? 'pedido para entregar' : 'pedidos para entregar', icon: Package }] : []),
+                            ...(onDeliveries ? [{ id: 'entregas' as Tab | 'entregas', n: deliveries, label: 'Entregas', hint: deliveries === 1 ? 'pedido para entregar' : 'pedidos para entregar', icon: Package }] : []),
                             { id: 'candidaturas' as Tab | 'entregas', n: candidacies, label: 'Me candidatei', hint: 'aguardando resposta', icon: Hand },
                         ]).map((t) => {
                             const Icon = t.icon
                             return (
-                                <button key={t.id} onClick={() => (t.id === 'entregas' ? onDeliveries?.() : goTab(t.id as Tab))} className="rounded-2xl p-3.5 text-left transition active:scale-[0.98]" style={{ background: soft }}>
+                                <button key={t.id} onClick={() => (t.id === 'entregas' ? onDeliveries?.() : goTab(t.id as Tab))} className="rounded-2xl p-3 text-left transition active:scale-[0.98]" style={{ background: soft }}>
                                     <span className="flex items-center justify-between">
-                                        <span className="text-3xl font-black leading-none" style={{ color: t.n > 0 ? ORANGE : colors.textPrimary }}>{t.n}</span>
+                                        <span className="text-2xl font-black leading-none" style={{ color: t.n > 0 ? ORANGE : colors.textPrimary }}>{t.n}</span>
                                         <Icon size={18} style={{ color: colors.textSecondary }} />
                                     </span>
-                                    <span className="block text-sm font-black mt-2" style={{ color: colors.textPrimary }}>{t.label}</span>
-                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{t.hint}</span>
+                                    <span className="block text-[13px] font-black mt-1.5 truncate" style={{ color: colors.textPrimary }}>{t.label}</span>
+                                    <span className="block text-[10.5px] leading-tight" style={{ color: colors.textSecondary }}>{t.hint}</span>
                                 </button>
                             )
                         })}
@@ -233,22 +201,24 @@ export default function DriverPanelHome({
                 </div>
             ))}
 
-            {/* 3. Seu cadastro de motorista */}
-            {section('Seu cadastro de motorista', (
-                <div className="flex flex-col gap-2.5">
-                    {driverStatus === 'incomplete' || vehicles.length === 0
-                        ? row(<Car size={20} />, 'Veículo', driverStatus === 'incomplete' ? `Falta: ${missingCount} ${missingCount === 1 ? 'item' : 'itens'}` : (vehicleLabel || 'Cadastre seu veículo'), () => goTab('veiculo'), true, vehicles[0]?.photoUrl)
-                        : vehicles.map((v) => <Fragment key={v.id}>{row(<Car size={20} />, 'Veículo', v.label, () => goTab('veiculo'), false, v.photoUrl)}</Fragment>)}
-                    {row(<TrendingUp size={20} />, 'Tarifa', (
-                        <>
-                            <span className="block font-bold" style={{ color: colors.textPrimary }}>{pricingLabel}</span>
-                            {tariffLines.map((l, i) => <span key={i} className="block">{l}</span>)}
-                        </>
-                    ), () => goTab('plano'), false, null, true)}
-                    {row(<Star size={20} />, 'Avaliações', reviewsCount > 0 ? `${reviewsAvg != null ? reviewsAvg.toFixed(1).replace('.', ',') : '–'} ★ · ${reviewsCount} ${reviewsCount === 1 ? 'avaliação' : 'avaliações'}` : 'Ainda sem avaliações', () => goTab('avaliacoes'))}
-                    {row(<History size={20} />, 'Corridas feitas', ridesDone > 0 ? `${ridesDone} ${ridesDone === 1 ? 'concluída' : 'concluídas'}` : 'Nenhuma concluída ainda', () => goTab('avaliacoes'))}
-                </div>
-            ))}
+            {/* 3. Meu cadastro: UM resumo (veículo, tarifa, nota, corridas feitas); o detalhe mora na aba Meu cadastro */}
+            {section('Meu cadastro', (
+                <button onClick={() => goTab('cadastro')} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: driverStatus === 'incomplete' ? '#eab30818' : soft }}>
+                    {vehicles[0]?.photoUrl
+                        ? <img src={vehicles[0].photoUrl} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
+                        : <span className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}1f`, color: ORANGE }}><Car size={24} /></span>}
+                    <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{vehicles.length > 1 ? `${vehicles.length} veículos` : (vehicleLabel || 'Cadastre seu veículo')}</span>
+                        <span className="block text-xs mt-0.5 truncate" style={{ color: colors.textSecondary }}>{pricingLabel}{tariffLines[0] ? ` · ${tariffLines[0]}` : ''}</span>
+                        <span className="flex items-center gap-1 text-xs mt-0.5" style={{ color: driverStatus === 'incomplete' ? '#ca8a04' : colors.textSecondary }}>
+                            {driverStatus === 'incomplete'
+                                ? `Falta: ${missingCount} ${missingCount === 1 ? 'item' : 'itens'}`
+                                : <><Star size={12} style={{ color: '#eab308', fill: '#eab308' }} />{reviewsCount > 0 && reviewsAvg != null ? `${reviewsAvg.toFixed(1).replace('.', ',')} (${reviewsCount})` : 'sem avaliações'} · <History size={12} /> {ridesDone} {ridesDone === 1 ? 'corrida' : 'corridas'}</>}
+                        </span>
+                    </span>
+                    <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                </button>
+            ), 'Veículo, tarifa e avaliações')}
 
             {/* 4. Preferências */}
             {section('Preferências', (
