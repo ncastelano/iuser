@@ -77,7 +77,9 @@ function ConviteContent() {
                 }
 
                 console.log('✅ Convidante encontrado:', inviterData.name, inviterData.id)
-                setInviter(inviterData)
+                const raw = inviterData.avatar_url as string | null
+                const avatarLink = !raw ? null : /^https?:\/\//.test(raw) ? raw : supabase.storage.from('avatars').getPublicUrl(raw).data.publicUrl
+                setInviter({ ...inviterData, avatar_url: avatarLink })
 
                 // Abrir o link de convite já guarda quem convidou (7 dias): se a pessoa se cadastrar depois,
                 // por qualquer tela (não só pelo botão desta página), ela entra como convidada.

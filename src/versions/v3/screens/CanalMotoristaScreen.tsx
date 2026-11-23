@@ -162,20 +162,24 @@ function PainelMotoristaContent() {
     const [showFirstVehicleDialog, setShowFirstVehicleDialog] = useState(false)
     const [showActivationWizard, setShowActivationWizard] = useState(false)
     // ===== ABA ATIVA (header em abas, mesmo modelo de /carrinho) =====
-    type PainelTab = 'canal' | 'painel' | 'veiculo' | 'plano' | 'avaliacoes' | 'solicitacoes' | 'candidaturas' | 'aceita'
+    type PainelTab = 'canal' | 'painel' | 'cadastro' | 'veiculo' | 'plano' | 'avaliacoes' | 'solicitacoes' | 'candidaturas' | 'aceita'
     const [activeTab, setActiveTab] = useState<PainelTab>(() => {
         const aba = searchParams.get('aba')
         // sem aba: a aba Canal (as corridas abertas). ?aba=veiculo/plano são resolvidas depois de carregar o veículo
-        return aba === 'solicitacoes' || aba === 'candidaturas' || aba === 'plano' || aba === 'painel' || aba === 'avaliacoes' ? aba : 'canal'
+        // 22/11/2026: sem aba = o Painel (visitante cai no Canal depois de saber que não há login)
+        return aba === 'solicitacoes' || aba === 'candidaturas' || aba === 'plano' || aba === 'painel' || aba === 'avaliacoes' || aba === 'cadastro' || aba === 'canal' ? aba : 'painel'
     })
+
+    // Meu cadastro = veículo + tarifa + avaliações numa página (?aba=veiculo|plano|avaliacoes abrem nela, rolando até a parte)
+    const inCadastro = !showActivationWizard && (activeTab === 'cadastro' || activeTab === 'veiculo' || activeTab === 'plano' || activeTab === 'avaliacoes')
 
     // Já nesta página e um link muda a aba (ex.: o botão "Painel" do menu de modos, /canal-do-motorista?aba=painel): troca a aba
     const abaParam = searchParams.get('aba')
     const firstAba = useRef(true)
     useEffect(() => {
         if (firstAba.current) { firstAba.current = false; return }
-        if (abaParam === 'painel' || abaParam === 'veiculo' || abaParam === 'plano' || abaParam === 'avaliacoes' || abaParam === 'solicitacoes' || abaParam === 'candidaturas' || abaParam === 'canal') setActiveTab(abaParam)
-        else if (!abaParam) setActiveTab('canal')
+        if (abaParam === 'painel' || abaParam === 'veiculo' || abaParam === 'plano' || abaParam === 'avaliacoes' || abaParam === 'solicitacoes' || abaParam === 'candidaturas' || abaParam === 'canal' || abaParam === 'cadastro') setActiveTab(abaParam)
+        else if (!abaParam) setActiveTab('painel')
     }, [abaParam])
 
     // Abas que eram do /aceitar-corridas (Solicitações de motorista / Me candidatei /
@@ -754,6 +758,17 @@ function PainelMotoristaContent() {
         return () => clearTimeout(t)
     }, [activeTab, pricingMode, searchParams])
 
+    // ?aba=veiculo|avaliacoes dentro de Meu cadastro: rola até a parte
+    useEffect(() => {
+        if (!inCadastro || loading || (activeTab !== 'veiculo' && activeTab !== 'avaliacoes')) return
+        const t = setTimeout(() => document.getElementById(activeTab === 'veiculo' ? 'cad-veiculo' : 'cad-avaliacoes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 500)
+        return () => clearTimeout(t)
+    }, [inCadastro, activeTab, loading])
+    // visitante sem aba escolhida: o Canal (o Painel pede login)
+    useEffect(() => {
+        if (!loading && (!userId || showLogin) && activeTab !== 'canal' && !searchParams.get('aba')) setActiveTab('canal')
+    }, [loading, userId, showLogin, activeTab, searchParams])
+
     const previewDistance = 10
     const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
     const activePricing = pricingMode === 'platform'
@@ -827,26 +842,21 @@ function PainelMotoristaContent() {
         const canalTab = { id: 'canal', label: 'Canal', icon: Radio, isActive: activeTab === 'canal', onClick: () => setActiveTab('canal'), badge: null }
         // visitante (ou ainda carregando): só a aba Canal — as corridas abertas e quanto pagam aparecem para todo mundo
         if (!userId || loading || showLogin) return [canalTab]
-
-        const allTabs = [
-            canalTab,
-            { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
-            ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
-            { id: 'entregas', label: 'Entregas', icon: Bike, isActive: false, onClick: () => router.push('/entregas'), badge: null },
-            { id: 'solicitacoes', label: 'Solicitações de corrida', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides > 0 ? { count: rideSummary.rides } : null },
-            // "Me candidatei" só aparece quando tem algo nela (candidatura pendente) ou há corrida aceita.
-            ...(rideSummary.candidacies > 0 || rideSummary.hasAccepted ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null }] : []),
-            {
-                id: 'veiculo', label: 'Veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'),
-                badge: driverStatus === 'incomplete' ? { count: missingFields.length || 1, color: '#eab308' } : null,
-            },
+        // durante o cadastro guiado: só as duas etapas
+        if (showActivationWizard) return [
+            { id: 'veiculo', label: 'Veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'), badge: driverStatus === 'incomplete' && missingFields.length > 0 ? { count: missingFields.length } : null },
             { id: 'plano', label: 'Tarifa', icon: TrendingUp, isActive: activeTab === 'plano', onClick: () => setActiveTab('plano'), badge: null },
-            { id: 'avaliacoes', label: 'Avaliações', icon: Star, isActive: activeTab === 'avaliacoes', onClick: () => setActiveTab('avaliacoes'), badge: null },
         ]
-
-        // 22/11/2026 (decisão do dono): Veículo, Tarifa e Avaliações ficam DENTRO da aba Canal (uma página só); como abas, só no cadastro guiado
-        return showActivationWizard ? allTabs.filter((t) => t.id === 'veiculo' || t.id === 'plano') : allTabs.filter((t) => t.id !== 'veiculo' && t.id !== 'plano' && t.id !== 'avaliacoes')
-    }, [userId, loading, showLogin, activeTab, showActivationWizard, driverStatus, missingFields.length, rideSummary])
+        // 22/11/2026 (decisão do dono, refeito): Painel · Corridas · Meu cadastro · Canal; "Corrida aceita" e "Me candidatei" só quando existem
+        return [
+            { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
+            { id: 'solicitacoes', label: 'Corridas', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides > 0 ? { count: rideSummary.rides } : null },
+            ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
+            ...(rideSummary.candidacies > 0 ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: { count: rideSummary.candidacies } }] : []),
+            { id: 'cadastro', label: 'Meu cadastro', icon: Star, isActive: inCadastro, onClick: () => setActiveTab('cadastro'), badge: driverStatus === 'incomplete' && missingFields.length > 0 ? { count: missingFields.length } : null },
+            canalTab,
+        ]
+    }, [userId, loading, showLogin, activeTab, inCadastro, showActivationWizard, driverStatus, driverModeActive, missingFields.length, rideSummary])
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -863,7 +873,7 @@ function PainelMotoristaContent() {
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
                     {/* quem está no modo motorista: o estado, o veículo e as DUAS páginas (perfil pessoal × página do veículo para compartilhar) */}
-                    {userId && !showActivationWizard && <DriverModeHeader userId={userId} profileSlug={profileSlug} avatarUrl={avatarUrl} colors={colors} />}
+                    {userId && !showActivationWizard && activeTab === 'painel' && <DriverModeHeader userId={userId} profileSlug={profileSlug} avatarUrl={avatarUrl} colors={colors} />}
                     {/* ===== Aba Canal: Outdoor dos motoristas, ativar o modo, corridas e entregas abertas com quanto pagam (vale para visitante) ===== */}
                     {activeTab === 'canal' && !showActivationWizard && (
                         <>
@@ -1066,9 +1076,17 @@ function PainelMotoristaContent() {
                             </>
                             )}
 
-                            {(activeTab === 'plano' || (activeTab === 'canal' && !showActivationWizard)) && (
+                            {(activeTab === 'plano' || inCadastro) && (
                             <>
+                            {inCadastro && (
+                                <div id="cad-tarifa" className="flex gap-2 overflow-x-auto -mx-4 px-4 scroll-mt-28">
+                                    {([['cad-veiculo', 'Veículo', Car], ['cad-tarifa-detalhe', 'Tarifa', TrendingUp], ['cad-avaliacoes', 'Avaliações e corridas', Star]] as const).map(([id, label, Icon]) => (
+                                        <button key={id} onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="h-9 px-3.5 rounded-full text-xs font-black flex items-center gap-1.5 flex-shrink-0" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><Icon size={14} style={{ color: '#f97316' }} />{label}</button>
+                                    ))}
+                                </div>
+                            )}
                             {/* o valor que o botão "Solicitar corrida" do perfil manda (Tarifa iUser, por km ou por tempo) */}
+                            <span id="cad-tarifa-detalhe" className="block scroll-mt-28" />
                             {userId && !showActivationWizard && <ProfileQuoteCard driverId={userId} profileSlug={profileSlug} />}
                             {showActivationWizard && (
                                 <div className="flex flex-col gap-2">
@@ -1352,7 +1370,7 @@ function PainelMotoristaContent() {
                             </>
                             )}
 
-                            {(activeTab === 'veiculo' || (activeTab === 'canal' && !showActivationWizard)) && (
+                            {(activeTab === 'veiculo' || inCadastro) && (
                             <>
                             {showActivationWizard && (
                                 <div className="flex flex-col gap-2 mt-2">
@@ -1366,7 +1384,7 @@ function PainelMotoristaContent() {
                                 </div>
                             )}
                             {/* ===== MEU CARRO ===== */}
-                            <div className="flex items-center gap-3 mt-2">
+                            <div id="cad-veiculo" className="flex items-center gap-3 mt-2 scroll-mt-28">
                                 <div
                                     className={iconBadgeCls}
                                     style={iconBadgeStyle}
@@ -1673,10 +1691,10 @@ function PainelMotoristaContent() {
                             </>
                             )}
 
-                            {!showActivationWizard && (activeTab === 'avaliacoes' || activeTab === 'canal') && (
+                            {inCadastro && (
                             <>
                             {/* ===== AVALIAÇÕES RECEBIDAS ===== */}
-                            <div className="flex items-center gap-3 mt-2">
+                            <div id="cad-avaliacoes" className="flex items-center gap-3 mt-2 scroll-mt-28">
                                 <div
                                     className={iconBadgeCls}
                                     style={iconBadgeStyle}

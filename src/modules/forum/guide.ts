@@ -154,12 +154,13 @@ export const GUIDE: GuideGroup[] = [
                 id: 'motorista', icon: 'car', color: '#16a34a', title: 'Ser motorista ou entregador',
                 summary: 'Com carro, moto ou bicicleta você faz corridas e entregas das lojas, escolhe quais aceitar e define a sua tarifa.',
                 steps: [
-                    'No Canal do Motorista, cadastre o veículo, a selfie e a sua chave Pix, e aceite a declaração do motorista.',
+                    'No Canal do Motorista, aba Meu cadastro: cadastre o veículo, a selfie, a tarifa e a sua chave Pix, e aceite a declaração do motorista.',
+                    'A aba Painel mostra se você está online, o que está acontecendo agora e os seus ganhos; a aba Corridas mostra os pedidos de passageiros.',
                     'Fique online. As corridas e entregas perto de você aparecem com o valor e quanto rendem por hora.',
                     'Nas corridas, mande até 3 valores; nas entregas, aceite pelo frete mostrado.',
                     'Na entrega: vá à loja, pegue o pedido com o código da loja, leve ao cliente e confirme com o código dele.',
                     'Veja quanto ganhou hoje, na semana e no mês na própria página de Entregas (seção Seus ganhos).',
-                    'Divulgue: no alto do Canal do Motorista, "Compartilhar" manda o link da página do seu veículo (iuser.com.br/<seu-veículo>), por onde as pessoas chamam você. Ela é diferente do seu perfil pessoal.',
+                    'Divulgue: no alto do Painel do Canal do Motorista, "Compartilhar" manda o link da página do seu veículo (iuser.com.br/<seu-veículo>), por onde as pessoas chamam você. Ela é diferente do seu perfil pessoal.',
                 ],
                 rules: [
                     'Você precisa da CNH com atividade remunerada (EAR) e dos documentos do veículo.',

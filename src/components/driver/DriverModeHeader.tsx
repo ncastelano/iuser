@@ -48,15 +48,15 @@ export default function DriverModeHeader({ userId, profileSlug, avatarUrl, color
                     <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ background: on ? '#16a34a' : '#94a3b8', boxShadow: `0 0 0 2px ${colors.surface}` }}><Car size={11} /></span>
                 </span>
                 <div className="min-w-0 flex-1">
-                    <p className="text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>Modo motorista {on ? <span style={{ color: '#16a34a' }}>ligado</span> : <span style={{ color: colors.textSecondary }}>desligado</span>}</p>
-                    <p className="text-[12px] truncate" style={{ color: colors.textSecondary }}>{label}{profileSlug ? ` · @${profileSlug}` : ''}</p>
+                    <p className="text-[14px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{label}</p>
+                    <p className="text-[12px] truncate" style={{ color: colors.textSecondary }}>{profileSlug ? `@${profileSlug} · ` : ''}seu link para chamarem você</p>
                     {ptype && ptype !== 'motorista' && (
                         <button onClick={() => router.push('/painel-perfil?secao=tipo')} className="text-[11.5px] font-bold underline" style={{ color: '#ea580c' }}>Seu perfil está como "{ptype === 'pessoal' ? 'Pessoal' : ptype === 'servicos' ? 'Serviços' : 'Agendamentos'}": mudar para Motorista</button>
                     )}
                 </div>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2">
-                {vehicle.vehicle_slug && <button onClick={() => router.push(`/${vehicle.vehicle_slug}`)} className="h-10 rounded-full text-[11.5px] font-black flex items-center justify-center gap-1" style={btn}><ExternalLink size={13} /> Página do veículo</button>}
+                {vehicle.vehicle_slug && <button onClick={() => router.push(`/${vehicle.vehicle_slug}`)} className="h-10 rounded-full text-[11.5px] font-black flex items-center justify-center gap-1" style={btn}><ExternalLink size={13} /> Ver página</button>}
                 {link && <button onClick={share} className="h-10 rounded-full text-[11.5px] font-black flex items-center justify-center gap-1 text-white" style={{ background: '#f97316' }}><Share2 size={13} /> Compartilhar</button>}
                 {profileSlug && <button onClick={() => router.push(`/${profileSlug}`)} className="h-10 rounded-full text-[11.5px] font-black flex items-center justify-center gap-1" style={btn}><User size={13} /> Meu perfil</button>}
             </div>
