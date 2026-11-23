@@ -61,15 +61,18 @@ export function stripVisible({ onCartPage, cartExpanded, cartCount, extras = 0 }
     return cartExpanded && cartCount > 0
 }
 
+// A cor do MODO (23/11/2026, decisão do dono): a barra ganha o tom do modo em uso — pessoa azul, loja laranja, motorista verde (as mesmas do menu Eu)
+export const MODE_COLOR = { user: '#2563eb', store: '#f97316', car: '#16a34a' } as const
+
 const ORDER_ICONS: Record<string, typeof Store> = { hourglass: Hourglass, chef: ChefHat, package: PackageCheck, search: Search, bike: Bike, store: Store, truck: Truck }
 
 // Botão da barra: ícone dentro de uma pílula (laranja quando é a página atual) + nome embaixo + (selo de quantidade)
-function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, badges = [], colors, children }: {
-    active: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; badges?: BarBadge[]; colors: any; children: ReactNode
+function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, badges = [], colors, accent = '#f97316', children }: {
+    accent?: string; active: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; badges?: BarBadge[]; colors: any; children: ReactNode
 }) {
     return (
         <button onClick={onClick} aria-label={label} aria-current={active ? 'page' : undefined} className="relative flex-1 min-w-0 h-full flex flex-col items-center justify-center gap-[3px] transition active:scale-90">
-            <span className="relative flex items-center justify-center h-8 rounded-full transition-all duration-300" style={{ width: active ? 52 : 36, background: active ? '#f9731624' : 'transparent', color: active ? '#f97316' : colors.textPrimary }}>
+            <span className="relative flex items-center justify-center h-8 rounded-full transition-all duration-300" style={{ width: active ? 52 : 36, background: active ? `${accent}24` : 'transparent', color: active ? accent : colors.textPrimary }}>
                 {children}
                 {badge > 0 && pulse && !active && <span aria-hidden className="absolute -top-0.5 -right-1.5 min-w-[17px] h-[17px] rounded-full animate-ping pointer-events-none" style={{ background: badgeColor, opacity: 0.55 }} />}
                 {badge > 0 && (
@@ -88,7 +91,7 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
                     </span>
                 )}
             </span>
-            <span className="text-[10.5px] leading-none truncate max-w-full px-0.5" style={{ fontWeight: active ? 900 : 700, color: active ? '#f97316' : colors.textSecondary }}>{label}</span>
+            <span className="text-[10.5px] leading-none truncate max-w-full px-0.5" style={{ fontWeight: active ? 900 : 700, color: active ? accent : colors.textSecondary }}>{label}</span>
         </button>
     )
 }
@@ -100,15 +103,16 @@ export interface ModeButtonProps { avatar: ReactNode; kind: 'user' | 'store' | '
 // A aba "Eu": a foto do modo (28 px) com o selinho do tipo; tocar abre o menu de modos
 function ModeButton({ mode, open, colors }: { mode: ModeButtonProps; open: boolean; colors: any }) {
     const Glyph = mode.kind === 'store' ? Store : mode.kind === 'car' ? Car : User
+    const c = MODE_COLOR[mode.kind]
     return (
         <button onClick={mode.onOpen} aria-label={`${mode.label}: trocar de modo`} aria-haspopup="dialog" aria-expanded={open} className="relative flex-1 min-w-0 h-full flex flex-col items-center justify-center gap-[3px] transition active:scale-90">
             <span className="relative flex items-center justify-center h-8 w-9">
-                <span className="rounded-full flex items-center justify-center" style={{ boxShadow: `0 0 0 ${open ? 2 : 1.5}px ${open ? '#f97316' : colors.border}` }}>{mode.avatar}</span>
-                <span aria-hidden className="absolute bottom-[-1px] right-[1px] w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: colors.textPrimary, color: colors.background, boxShadow: `0 0 0 2px ${colors.background}` }}>
+                <span className="rounded-full flex items-center justify-center" style={{ boxShadow: `0 0 0 ${open ? 2.5 : 2}px ${c}` }}>{mode.avatar}</span>
+                <span aria-hidden className="absolute bottom-[-1px] right-[1px] w-[15px] h-[15px] rounded-full flex items-center justify-center" style={{ background: c, color: '#fff', boxShadow: `0 0 0 2px ${colors.background}` }}>
                     <Glyph size={9} strokeWidth={2.8} />
                 </span>
             </span>
-            <span className="text-[10.5px] leading-none truncate max-w-full px-0.5" style={{ fontWeight: open ? 900 : 700, color: open ? '#f97316' : colors.textSecondary }}>{mode.name || 'Eu'}</span>
+            <span className="text-[10.5px] leading-none truncate max-w-full px-0.5" style={{ fontWeight: 900, color: c }}>{mode.name || 'Eu'}</span>
         </button>
     )
 }
@@ -152,6 +156,7 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
     onGo: (path: string) => void
     onCart: () => void
 }) {
+    const modeColor: string = mode ? MODE_COLOR[mode.kind] : MODE_COLOR.store
     const showCart = cartExpanded && cartCount > 0 && !onCartPage
     const hubOpen = !!hub?.open
     const playerFull = !!player?.full && !hubOpen
@@ -173,7 +178,7 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
             {customCard && <ExpandUp><div className="max-w-md w-full mx-auto px-3 pointer-events-auto">{customCard}</div></ExpandUp>}
             <div className="max-w-md w-full mx-auto px-3">
                 {/* Uma peça só e sólida: a faixa de cima é só uma área da própria barra, sem divisória */}
-                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : accent && strip ? `2px solid ${accent}` : `1px solid ${colors.border}`, boxShadow: hubOpen || playerFull ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease, box-shadow 480ms ease' }}>
+                <div className="pointer-events-auto relative overflow-hidden" style={{ background: colors.background, border: message ? `2px solid ${message.color}` : accent && strip ? `2px solid ${accent}` : `1.5px solid ${modeColor}66`, boxShadow: hubOpen || playerFull ? '0 24px 60px rgba(0,0,0,0.45)' : '0 10px 28px rgba(0,0,0,0.14)', borderRadius: 26, transition: 'border-color 200ms ease, box-shadow 480ms ease' }}>
                     {/* MENU DE MODOS: cresce para cima de dentro da própria barra (mesma peça, mesma cor, mesmas bordas) */}
                     {hub && (
                         <div role="dialog" aria-label={hub.label} aria-hidden={!hubOpen}
@@ -280,9 +285,9 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                             </div>
                         )}
                     </div>
-                    <div className="flex items-stretch px-1.5" style={{ height: BAR_H, borderTop: `1px solid ${hubOpen || playerFull ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
+                    <div className="flex items-stretch px-1.5" style={{ height: BAR_H, background: `linear-gradient(180deg, ${modeColor}0d, ${modeColor}26)`, borderTop: `1px solid ${hubOpen || playerFull ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
                         {tabs.map((t) => (
-                            <BarButton key={t.key} colors={colors} active={t.active} label={t.label} onClick={t.onClick} badge={t.badge} badgeColor={t.badgeColor} pulse={t.pulse} badges={t.badges}>
+                            <BarButton key={t.key} colors={colors} accent={modeColor} active={t.active} label={t.label} onClick={t.onClick} badge={t.badge} badgeColor={t.badgeColor} pulse={t.pulse} badges={t.badges}>
                                 {t.icon}
                             </BarButton>
                         ))}
