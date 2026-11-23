@@ -4,6 +4,7 @@
 // Só apresentação: todos os dados e ações vêm de `Store.tsx`.
 'use client'
 
+import ImageZoomDialog from '@/components/ImageZoomDialog'
 import type { StoreModel } from '@/lib/storeModel'
 import { useState, type ReactNode } from 'react'
 import LinkLinesV3, { type LinkLine } from './LinkLinesV3'
@@ -77,6 +78,7 @@ export interface StoreHeaderV3Props {
 export default function StoreHeaderV3(p: StoreHeaderV3Props) {
     const { colors } = p
     const [expanded, setExpanded] = useState(false)
+    const [zoom, setZoom] = useState(false)   // tocar no logo abre ele grande
     const soft = `${colors.border}40`
     const statusColor = p.isOpen ? '#16a34a' : '#ef4444'
     const DESC_LIMIT = 90
@@ -87,6 +89,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
     
     return (
         <section>
+            {zoom && p.imageUrl && <ImageZoomDialog src={p.imageUrl} alt={p.name} onClose={() => setZoom(false)} />}
             <div className="px-1 pt-0 pb-2">
                 {/* voltar + logo + nome + situação, numa linha só */}
                 <div className="flex items-center gap-2.5">
@@ -96,7 +99,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                         </button>
                     )}
                     <StoreFrame level={p.level} size={46} innerRadius={16} ring={3} bg={colors.background} className="flex-shrink-0">
-                    <div className="flex-shrink-0 w-[46px] h-[46px] rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: colors.surface, outline: `2px solid ${statusColor}`, outlineOffset: 1 }}>
+                    <div onClick={() => p.imageUrl && setZoom(true)} role={p.imageUrl ? 'button' : undefined} aria-label={p.imageUrl ? 'Ver o logo grande' : undefined} className={`flex-shrink-0 w-[46px] h-[46px] rounded-2xl overflow-hidden flex items-center justify-center ${p.imageUrl ? 'cursor-zoom-in' : ''}`} style={{ background: colors.surface, outline: `2px solid ${statusColor}`, outlineOffset: 1 }}>
                         {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-xl font-black" style={{ color: ORANGE }}>{initial}</span>}
                     </div>
                     </StoreFrame>
@@ -114,7 +117,8 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                 </div>
 
                 {/* atalhos em cápsulas, numa fileira só (rola para o lado se não couber) */}
-                <div className="mt-3 flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: 'none' }}>
+                {/* 23/11/2026: as cápsulas QUEBRAM de linha (uma embaixo da outra quando não cabem), compactas, em vez de rolar de lado */}
+                <div className="mt-3 flex flex-wrap gap-1.5">
                     {p.ratingsCount > 0 && (
                         <button onClick={p.onOpenReviews} aria-label="Ver as avaliações da loja" className={`${capsule} flex-shrink-0 active:scale-95 transition`} style={{ background: soft, color: colors.textPrimary }}>
                             <Star size={13} className="flex-shrink-0" style={{ color: ORANGE, fill: ORANGE }} />
@@ -138,7 +142,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     {p.address && (
                         <button onClick={p.onOpenMaps} className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textPrimary }}>
                             <MapPin size={13} className="flex-shrink-0" style={{ color: ORANGE }} />
-                            <span className="truncate max-w-[210px]">{p.address}</span>
+                            <span className="truncate">{p.address}</span>
                         </button>
                     )}
                 </div>
@@ -169,10 +173,10 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     const follow = p.canFollow ? (
                         <button
                             onClick={p.onFollowToggle}
-                            className="flex-1 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
+                            className="flex-shrink-0 h-9 px-4 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
                             style={p.isFollowing ? { background: soft, color: colors.textPrimary } : { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` }}
                         >
-                            {p.isFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}
+                            {p.isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
                             {p.isFollowing ? 'Seguindo' : 'Seguir'}
                         </button>
                     ) : null
