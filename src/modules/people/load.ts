@@ -102,7 +102,7 @@ export interface CommunityCard { id: string; slug: string; name: string; city: s
 export async function loadCommunities(limit = 8): Promise<CommunityCard[]> {
     const { data, error } = await supabase.from('communities').select('id, slug, name, city, image_url').eq('is_listed', true).order('created_at', { ascending: true }).limit(limit)
     if (error) throw error
-    return (data || []).map((c: any) => ({ id: c.id, slug: c.slug, name: c.name, city: c.city || null, image: c.image_url ? supabase.storage.from('community-photos').getPublicUrl(c.image_url).data.publicUrl : null }))
+    return (data || []).map((c: any) => ({ id: c.id, slug: c.slug, name: c.name, city: c.city || null, image: !c.image_url ? null : /^https?:\/\//.test(c.image_url) ? c.image_url : supabase.storage.from('community-photos').getPublicUrl(c.image_url).data.publicUrl }))   // a foto já vem com o endereço completo
 }
 
 /** `mode='following'`: só de quem a pessoa segue (sem login volta vazio) */

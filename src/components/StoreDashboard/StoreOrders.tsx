@@ -109,6 +109,8 @@ interface StoreOrdersProps {
     variant?: 'panel' | 'page'
     /** O endereço da loja (o atalho "Ver todos os pedidos" do painel leva a /painel-loja/<storeSlug>/pedidos) */
     storeSlug?: string
+    /** 23/11/2026 (decisão do dono): a página "Pedidos" da barra usa o MESMO funil do painel, com todos os pedidos de cada etapa e o histórico embaixo */
+    fullPage?: boolean
 }
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -161,7 +163,9 @@ export default function StoreOrders({
     onRefresh,
     variant = 'panel',
     storeSlug,
+    fullPage = false,
 }: StoreOrdersProps) {
+    const [showHistory, setShowHistory] = useState(false)
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
@@ -1417,7 +1421,7 @@ export default function StoreOrders({
                                 { key: 'done', title: 'Finalizados hoje', short: 'Feitos', color: '#2563eb', list: finishedToday },
                             ]
                             const firstMoved = (list: any[]) => (movedId ? [...list].sort((a, b) => Number(b.checkout_id === movedId) - Number(a.checkout_id === movedId)) : list)
-                            const PER = 2
+                            const PER = fullPage ? Number.POSITIVE_INFINITY : 2
                             const total = sections.slice(0, 4).reduce((n, x) => n + x.list.length, 0)
                             return (
                                 <>
@@ -1477,7 +1481,11 @@ export default function StoreOrders({
                                             </div>
                                         )
                                     })}
-                                    {storeSlug && (
+                                    {fullPage ? (
+                                        <button type="button" onClick={() => setShowHistory((v) => !v)} className="h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-2 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                            {showHistory ? 'Esconder o histórico' : 'Ver o histórico (finalizados e recusados)'}
+                                        </button>
+                                    ) : storeSlug && (
                                         <button type="button" onClick={() => router.push(`/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`)} className="h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-2 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
                                             Ver todos os pedidos e o histórico
                                         </button>
@@ -1489,6 +1497,8 @@ export default function StoreOrders({
                 )}
             </div>
             )}
+            {/* página Pedidos: o histórico (a lista completa de sempre) embaixo do funil */}
+            {fullPage && showHistory && <div className="mt-4">{renderPage()}</div>}
 
             {/* Modais */}
             {showAssignModal && (

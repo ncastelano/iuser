@@ -54,7 +54,7 @@ export default function PedidosDaLojaPage() {
             ) : (
                 <div className="mt-3">
                     <p className="text-[12px] font-bold mb-3" style={{ color: colors.textSecondary }}>{store.name}</p>
-                    <StoreOrders variant="page" storeId={store.id} storeName={store.name} storeSlug={storeSlug} />
+                    <StoreOrders fullPage storeId={store.id} storeName={store.name} storeSlug={storeSlug} />
                 </div>
             )}
         </div>
