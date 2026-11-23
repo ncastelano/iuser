@@ -58,6 +58,7 @@ interface Driver {
     id: string; name: string | null; slug: string; avatar: string | null
     kind: CallVehicleKind; model: string | null; color: string | null; services: string[]; seats: number | null; babySeat: boolean | null
     rating: number | null; ratingCount: number; rides: number
+    photo: string | null
 }
 interface Route { coords: [number, number][]; distanceKm: number; durationMin: number }
 
@@ -77,7 +78,7 @@ async function fetchRoute(a: [number, number], b: [number, number]): Promise<Rou
     } catch { return null }
 }
 /** o veículo principal do motorista (o mexido por último, como no Radar e no perfil) */
-const fetchVehicle = (driverId: string) => supabase.from('driver_vehicles').select('vehicle_kind, car_model, car_color, services, passenger_capacity, has_baby_seat').eq('driver_id', driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle()
+const fetchVehicle = (driverId: string) => supabase.from('driver_vehicles').select('vehicle_kind, car_model, car_color, services, passenger_capacity, has_baby_seat, car_photo_url').eq('driver_id', driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle()
 const short = (a: string) => a.split(',').slice(0, 2).join(',').trim()
 
 // ===== o mapa da rota (sem interação: só mostra) =====
@@ -176,6 +177,7 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                 id, name: (pr as any).name, slug: (pr as any).profileSlug, avatar: getAvatarUrl(supabase, (pr as any).avatar_url) || null,
                 kind: (vv.vehicle_kind || 'carro') as CallVehicleKind, model: vv.car_model, color: vv.car_color, services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat,
                 rating: s?.rating_avg != null ? Number(s.rating_avg) : null, ratingCount: Number(s?.rating_count) || 0, rides: Number(s?.rides_completed) || 0,
+                photo: vv.car_photo_url ? (/^https?:/.test(vv.car_photo_url) ? vv.car_photo_url : supabase.storage.from('driver-car-photos').getPublicUrl(vv.car_photo_url).data.publicUrl) : null,
             })
         })()
         return () => { alive = false }
@@ -382,41 +384,46 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                 </div>
             </section>
 
-            {/* 2. QUEM: o motorista que você está chamando, embaixo do pedido */}
-            <section className="mt-3 rounded-[28px] p-4" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
-                <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: ORANGE }}>Você está chamando</p>
-                <div className="mt-2 flex items-center gap-3.5">
-                    <button onClick={() => router.push(`/${driver.slug}`)} className="relative flex-shrink-0" aria-label={`Ver o perfil de ${fname}`}>
-                        <span className="block w-[72px] h-[72px] rounded-full p-[3px]" style={{ background: quote?.active ? GREEN : `${colors.textSecondary}55` }}>
-                            <span className="block w-full h-full rounded-full overflow-hidden flex items-center justify-center text-white text-[24px] font-black" style={{ background: GRADIENT, boxShadow: `0 0 0 2px ${colors.surface}` }}>
+            {/* 2. QUEM: o mesmo desenho da página do veículo (foto do carro à esquerda, o motorista à direita), embaixo do pedido */}
+            <section className="mt-3">
+                <p className="text-[11px] font-black uppercase tracking-wider mb-1.5 px-1" style={{ color: ORANGE }}>Você está chamando</p>
+                <div className="grid grid-cols-[1.12fr_1fr] gap-2.5">
+                    <div className="relative rounded-3xl overflow-hidden min-h-[170px]" style={{ background: `${ORANGE}22` }}>
+                        {driver.photo
+                            ? <img src={driver.photo} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                            : <span className="absolute inset-0 flex items-center justify-center" style={{ color: ORANGE }}><Icon size={52} /></span>}
+                        <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.78) 100%)' }} />
+                        <span className="absolute left-2.5 top-2.5 text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-full text-white" style={{ background: ORANGE }}>{KIND_LABEL[kind]}</span>
+                        <div className="absolute left-3 right-3 bottom-2.5">
+                            <span className="inline-flex items-center gap-1 mb-1.5 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: quote?.active ? '#16a34a' : '#6b7280' }}>
+                                {quote?.active ? 'Dirigindo agora' : 'Fora do ar'}
+                            </span>
+                            <p className="text-[18px] font-black leading-tight text-white line-clamp-2">{driver.model || KIND_LABEL[kind]}</p>
+                            {driver.color && <p className="text-xs font-bold text-white/85 truncate">{driver.color}</p>}
+                        </div>
+                    </div>
+                    <div className="rounded-3xl p-3 flex flex-col justify-center gap-2" style={{ background: soft }}>
+                        <button onClick={() => router.push(`/${driver.slug}`)} className="flex items-center gap-2.5 text-left min-w-0" aria-label={`Ver o perfil de ${fname}`}>
+                            <span className="block w-11 h-11 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-black" style={{ background: GRADIENT }}>
                                 {driver.avatar ? <img src={driver.avatar} alt="" className="w-full h-full object-cover" /> : (driver.name || '?').slice(0, 1).toUpperCase()}
                             </span>
-                        </span>
-                        <span className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: GREEN, boxShadow: `0 0 0 3px ${colors.surface}` }}><Icon size={14} /></span>
-                    </button>
-                    <div className="min-w-0 flex-1">
-                        <p className="text-[20px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{driver.name || `@${driver.slug}`}</p>
-                        <p className="text-[12.5px] font-bold truncate" style={{ color: colors.textSecondary }}>@{driver.slug}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-[12px] font-bold" style={{ color: colors.textSecondary }}>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[10px] leading-none" style={{ color: colors.textSecondary }}>Motorista</span>
+                                <span className="block text-[13px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{driver.name || `@${driver.slug}`}</span>
+                                <span className="block text-[11px] leading-tight truncate" style={{ color: colors.textSecondary }}>@{driver.slug}</span>
+                            </span>
+                        </button>
+                        <p className="flex items-center gap-1 text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>
                             {driver.rating != null
                                 ? <><Star size={12} className="fill-amber-400 text-amber-400" /><span style={{ color: colors.textPrimary }}>{driver.rating.toFixed(1).replace('.', ',')}</span><span>({driver.ratingCount})</span></>
                                 : <span>Novo no iUser</span>}
                             <span>·</span><span>{driver.rides} {driver.rides === 1 ? 'corrida' : 'corridas'}</span>
                         </p>
+                        {eta && <span className="h-7 px-2.5 rounded-full inline-flex items-center gap-1 text-[11px] font-black self-start" style={{ background: `${ORANGE}1a`, color: ORANGE_DARK }}><Navigation size={12} />chega em ~{eta.minutes} min</span>}
+                        {kind === 'carro' && <CarAmenities services={driver.services} seats={driver.seats} babySeat={driver.babySeat} />}
                     </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="h-8 px-3 rounded-full inline-flex items-center gap-1.5 text-[12px] font-black" style={{ background: quote?.active ? '#22c55e1f' : soft, color: quote?.active ? GREEN : colors.textSecondary }}>
-                        <span className={`w-2 h-2 rounded-full ${quote?.active ? 'animate-pulse' : ''}`} style={{ background: quote?.active ? '#22c55e' : `${colors.textSecondary}90` }} />
-                        {quote?.active ? 'Dirigindo agora' : 'Fora do ar agora'}
-                    </span>
-                    <span className="h-8 px-3 rounded-full inline-flex items-center gap-1.5 text-[12px] font-black min-w-0" style={{ background: soft, color: colors.textPrimary }}>
-                        <Icon size={13} /><span className="truncate">{[KIND_LABEL[kind], driver.model, driver.color].filter(Boolean).join(' · ')}</span>
-                    </span>
-                    {eta && <span className="h-8 px-3 rounded-full inline-flex items-center gap-1.5 text-[12px] font-black" style={{ background: `${ORANGE}1a`, color: ORANGE_DARK }}><Navigation size={13} />chega em ~{eta.minutes} min</span>}
-                </div>
-                {kind === 'carro' && <div className="mt-3"><CarAmenities services={driver.services} seats={driver.seats} babySeat={driver.babySeat} /></div>}
-                {!quote?.active && <p className="mt-3 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{fname} não está dirigindo agora, mas recebe o aviso no celular. Outros motoristas por perto também veem o pedido.</p>}
+                {!quote?.active && <p className="mt-2 px-1 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{fname} não está dirigindo agora, mas recebe o aviso no celular. Outros motoristas por perto também veem o pedido.</p>}
             </section>
 
             {/* 3. O VALOR (laranja do iUser) */}
@@ -440,8 +447,8 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                 )}
             </section>
 
-            {/* 4. O PAGAMENTO */}
-            <section id="pagamento" className="mt-3 rounded-[28px] p-4" style={{ background: colors.surface, border: `1px solid ${missing === 'payment' ? RED : colors.border}` }}>
+            {/* 4. O PAGAMENTO — só depois de escolher a partida E a chegada (23/11/2026, decisão do dono) */}
+            {origin && destination && <section id="pagamento" className="mt-3 rounded-[28px] p-4" style={{ background: colors.surface, border: `1px solid ${missing === 'payment' ? RED : colors.border}` }}>
                 <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>Como você vai pagar?</p>
                 <div className="mt-2.5 grid grid-cols-3 gap-2">
                     {([
@@ -468,7 +475,7 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                 )}
                 {payment === 'pix' && <p className="mt-2 text-[11.5px]" style={{ color: colors.textSecondary }}>Você paga direto para {fname}, no fim da corrida.</p>}
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value.slice(0, 200))} rows={2} placeholder={`Recado para ${fname} (opcional): "estou no portão azul"`} className="mt-3 w-full px-3 py-2.5 rounded-2xl text-[13px] outline-none resize-none" style={{ background: soft, color: colors.textPrimary }} />
-            </section>
+            </section>}
 
             <button onClick={() => router.push(`/pedir-motorista?motorista=${driver.id}`)} className="mt-3 w-full flex items-center justify-center gap-1.5 text-[12px] font-bold py-2" style={{ color: colors.textSecondary }}>
                 <Package size={14} />Levar um objeto ou animal? Use o pedido completo

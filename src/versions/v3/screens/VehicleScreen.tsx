@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
-    Baby, Bike, Camera, Car, ChevronRight, Copy, Hash, Luggage, MapPin, Palette, Pencil, Route, Star, Store as StoreIcon,
+    Baby, Bike, Camera, Car, ChevronRight, Copy, Hash, Luggage, ShoppingBag, MapPin, Palette, Pencil, Route, Star, Store as StoreIcon,
     Users, X, Check, Gauge, Calendar, Clock, CheckCircle2, ArrowRight, Wallet, Share2, Radio, PhoneCall, Maximize2,
 } from 'lucide-react'
 import { toast } from '@/lib/toast'
@@ -239,9 +239,12 @@ export default function VehicleScreen() {
         }
         if (vehicle.passenger_capacity != null) chips.push({ icon: <Users size={12} />, text: String(vehicle.passenger_capacity), title: `${vehicle.passenger_capacity} passageiros` })
         if (vehicle.vehicle_kind === 'carro' && vehicle.has_baby_seat) chips.push({ icon: <Baby size={13} />, title: 'Cadeirinha' })
-        const sum = (...n: (number | null)[]) => n.reduce<number>((t, x) => t + (x || 0), 0)
-        const luggage = sum(vehicle.trunk_bags_pequena, vehicle.trunk_bags_media, vehicle.trunk_bags_grande, vehicle.trunk_suitcases_pequena, vehicle.trunk_suitcases_media, vehicle.trunk_suitcases_grande)
-        if (luggage > 0) chips.push({ icon: <Luggage size={12} />, text: String(luggage), title: `Porta-malas: ${[vehicle.trunk_bags_pequena, vehicle.trunk_bags_media, vehicle.trunk_bags_grande].map((x, i) => x ? `${x} ${['P', 'M', 'G'][i]}` : null).filter(Boolean).join(' · ')} bolsas, ${[vehicle.trunk_suitcases_pequena, vehicle.trunk_suitcases_media, vehicle.trunk_suitcases_grande].map((x, i) => x ? `${x} ${['P', 'M', 'G'][i]}` : null).filter(Boolean).join(' · ')} malas` })
+        // porta-malas por TAMANHO, como era antes (somar engana: cada número é quantos cabem daquele tamanho)
+        const sizes = (p: number | null, m: number | null, g: number | null) => [p ? `${p}P` : null, m ? `${m}M` : null, g ? `${g}G` : null].filter(Boolean).join('·')
+        const bags = sizes(vehicle.trunk_bags_pequena, vehicle.trunk_bags_media, vehicle.trunk_bags_grande)
+        const cases = sizes(vehicle.trunk_suitcases_pequena, vehicle.trunk_suitcases_media, vehicle.trunk_suitcases_grande)
+        if (bags) chips.push({ icon: <ShoppingBag size={12} />, text: `Bolsas ${bags}`, title: 'Bolsas no porta-malas (P, M, G)' })
+        if (cases) chips.push({ icon: <Luggage size={12} />, text: `Malas ${cases}`, title: 'Malas no porta-malas (P, M, G)' })
         if (ownerView && vehicle.car_plate) chips.push({ icon: <Hash size={12} />, text: vehicle.car_plate, title: 'Placa' })
         if (chips.length === 0) return null
         return (
