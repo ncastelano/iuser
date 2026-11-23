@@ -38,7 +38,7 @@ import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { platformFloor } from '@/modules/negotiation/domain'
 import { setPassengerOffer } from '@/modules/negotiation'
 import { etaFromViewer, parseQuote, quoteExamples, quoteModeClientLabel, quotePrice, type DriverQuote } from '@/modules/driver-profile'
-import { brl, buildCallRide, callCta, extraCharge, extraMinutes, MAX_STOPS, TASK_MINUTE_OPTIONS, type CallTask, firstName, placeFromParams, tripMinutes, type CallPayment, type CallPlace, type CallVehicleKind } from '@/modules/driver-call'
+import { brl, buildCallRide, callCta, extraCharge, extraMinutes, MAX_STOPS, firstName, placeFromParams, tripMinutes, type CallPayment, type CallPlace, type CallVehicleKind } from '@/modules/driver-call'
 import PlaceSearchExtras from '@/components/ride/PlaceSearchExtras'
 import { fetchPlaceSuggestions, newSearchSession, retrievePlace, type PlaceSuggestion } from '@/lib/placeSearch'
 import CarAmenities from '@/components/ride/CarAmenities'
@@ -83,7 +83,7 @@ const fetchVehicle = (driverId: string) => supabase.from('driver_vehicles').sele
 const short = (a: string) => a.split(',').slice(0, 2).join(',').trim()
 
 // ===== o mapa da rota (sem interação: só mostra) =====
-function RouteMap({ origin, destination, route, driverPos, kind }: { origin: CallPlace | null; destination: CallPlace | null; route: Route | null; driverPos: { lat: number; lng: number } | null; kind: CallVehicleKind }) {
+function RouteMap({ origin, destination, stops = [], route, driverPos, kind }: { origin: CallPlace | null; destination: CallPlace | null; stops?: CallPlace[]; route: Route | null; driverPos: { lat: number; lng: number } | null; kind: CallVehicleKind }) {
     const box = useRef<HTMLDivElement | null>(null)
     const map = useRef<mapboxgl.Map | null>(null)
     const markers = useRef<mapboxgl.Marker[]>([])
@@ -104,6 +104,11 @@ function RouteMap({ origin, destination, route, driverPos, kind }: { origin: Cal
         const dot = (color: string) => { const el = document.createElement('div'); el.style.cssText = `width:18px;height:18px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)`; return el }
         const pts: [number, number][] = []
         if (origin?.coords) { markers.current.push(new mapboxgl.Marker({ element: dot(GREEN) }).setLngLat(origin.coords).addTo(m)); pts.push(origin.coords) }
+        stops.forEach((st, i) => {
+            if (!st.coords) return
+            const el = dot(ORANGE); el.style.cssText += ';display:flex;align-items:center;justify-content:center;color:#fff;font:900 10px sans-serif;width:22px;height:22px'; el.textContent = String(i + 1)
+            markers.current.push(new mapboxgl.Marker({ element: el }).setLngLat(st.coords).addTo(m)); pts.push(st.coords)
+        })
         if (destination?.coords) { markers.current.push(new mapboxgl.Marker({ element: dot(RED) }).setLngLat(destination.coords).addTo(m)); pts.push(destination.coords) }
         if (driverPos) {
             const el = document.createElement('div'); el.innerHTML = vehicleMarkerHtml(kind, GREEN)
@@ -122,7 +127,7 @@ function RouteMap({ origin, destination, route, driverPos, kind }: { origin: Cal
             const b = new mapboxgl.LngLatBounds(pts[0], pts[0]); pts.forEach((p) => b.extend(p))
             m.fitBounds(b, { padding: { top: 40, bottom: 28, left: 36, right: 36 }, maxZoom: 15.5, duration: 400 })
         }
-    }, [ready, origin, destination, route, driverPos, kind])
+    }, [ready, origin, destination, stops, route, driverPos, kind])
     return <div ref={box} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
 }
 
@@ -150,9 +155,6 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
     const [activeRide, setActiveRide] = useState<string | null>(null)
     const [field, setField] = useState<'origin' | 'destination' | 'stop' | null>(null)
     const [stops, setStops] = useState<CallPlace[]>([])          // paradas no caminho (até 2)
-    const [tasks, setTasks] = useState<CallTask[]>([])            // tarefas: "pegar uma encomenda", "levar alguém até…"
-    const [taskText, setTaskText] = useState('')
-    const [taskMin, setTaskMin] = useState<number>(10)
     const [query, setQuery] = useState('')
     const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([])
     const [locating, setLocating] = useState(false)
@@ -250,9 +252,9 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
         const raw = quotePrice(quote, shape, { km: route.distanceKm, minutes: route.durationMin }, hourly, extras)
         if (raw == null) return null
         const base = Math.max(raw, platformFloor(route.durationMin, minPerMinute))
-        return Math.round((base + extraCharge(extraMinutes(stops.length, tasks), quote.price_per_minute, minPerMinute)) * 100) / 100
-    }, [quote, shape, route, hourly, minPerMinute, stops.length, tasks])
-    const extraMin = extraMinutes(stops.length, tasks)
+        return Math.round((base + extraCharge(extraMinutes(stops.length, []), quote.price_per_minute, minPerMinute)) * 100) / 100
+    }, [quote, shape, route, hourly, minPerMinute, stops.length])
+    const extraMin = extraMinutes(stops.length, [])
     const extraValue = quote ? extraCharge(extraMin, quote.price_per_minute, minPerMinute) : 0
     const fromPrice = useMemo(() => {
         if (!quote || !shape) return null
@@ -327,7 +329,7 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
         try {
             const { data, error } = await supabase.from('ride_requests').insert(buildCallRide({
                 requesterId: userId, driverId: driver.id, vehicleKind: driver.kind, origin: origin!, destination: destination!, originComplement: complement, notes,
-                payment: payment!, cashChange, contactless, route: route ? { distanceKm: route.distanceKm, durationMin: route.durationMin } : null, stops, tasks,
+                payment: payment!, cashChange, contactless, route: route ? { distanceKm: route.distanceKm, durationMin: route.durationMin } : null, stops,
             })).select('id').single()
             if (error) throw error
             // o valor dele vai como a OFERTA do passageiro: o motorista só aceita
@@ -372,39 +374,36 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
             {/* 1. O TRAJETO (primeiro: o pedido; 23/11/2026, decisão do dono) */}
             <section className="mt-2 rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                 <div className="relative h-[170px]" style={{ background: soft }}>
-                    {mounted && <RouteMap origin={origin} destination={destination} route={route} driverPos={quote?.live ?? null} kind={kind} />}
+                    {mounted && <RouteMap origin={origin} destination={destination} stops={stops} route={route} driverPos={quote?.live ?? null} kind={kind} />}
                 </div>
                 <div className="p-3">
-                    {([
-                        { f: 'origin' as const, label: 'Partida', place: origin, empty: 'De onde você sai?', color: GREEN },
-                        { f: 'destination' as const, label: 'Chegada', place: destination, empty: 'Para onde você vai?', color: RED },
-                    ]).map((r, i) => (
-                        <div key={r.f}>
-                            {i === 1 && <div className="ml-[19px] h-3 border-l-2 border-dashed" style={{ borderColor: colors.border }} />}
-                            <button onClick={() => openSearch(r.f)} className="w-full flex items-center gap-3 px-1 py-1.5 text-left rounded-2xl active:scale-[0.99] transition"
-                                style={missing === r.f ? { boxShadow: `0 0 0 2px ${RED}` } : undefined}>
-                                <span className="w-[38px] h-[38px] rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${r.color}1f` }}><span className="w-3 h-3 rounded-full" style={{ background: r.color, boxShadow: '0 0 0 3px #fff' }} /></span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="block text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{r.label}</span>
-                                    <span className="block text-[14.5px] font-black truncate" style={{ color: r.place ? colors.textPrimary : colors.textSecondary }}>{r.place ? short(r.place.address) : r.empty}</span>
-                                </span>
-                                <ChevronRight size={18} style={{ color: colors.textSecondary }} />
-                            </button>
-                        </div>
-                    ))}
-                    {/* PARADAS no caminho (até 2): mudam a rota e somam um tempinho de parada */}
-                    {stops.map((st, i) => (
-                        <div key={i} className="mt-1 flex items-center gap-3 px-1 py-1">
-                            <span className="w-[38px] h-[38px] rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-black" style={{ background: `${ORANGE}1f`, color: ORANGE }}>{i + 1}</span>
-                            <span className="min-w-0 flex-1">
-                                <span className="block text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Parada {i + 1}</span>
-                                <span className="block text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{short(st.address)}</span>
-                            </span>
-                            <button onClick={() => setStops((cur) => cur.filter((_, k) => k !== i))} aria-label="Tirar a parada" className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: soft, color: colors.textSecondary }}><X size={15} /></button>
-                        </div>
-                    ))}
+                    {/* Partida → paradas → Chegada (a parada entra ENTRE as duas) */}
+                    {(() => {
+                        const row = (key: string, label: string, place: CallPlace | null, empty: string, color: string, onClick: () => void, miss: boolean, onRemove?: () => void, badge?: string) => (
+                            <div key={key} className="flex items-center gap-1">
+                                <button onClick={onClick} className="flex-1 min-w-0 flex items-center gap-3 px-1 py-1.5 text-left rounded-2xl active:scale-[0.99] transition" style={miss ? { boxShadow: `0 0 0 2px ${RED}` } : undefined}>
+                                    <span className="w-[38px] h-[38px] rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-black" style={{ background: `${color}1f`, color }}>{badge || <span className="w-3 h-3 rounded-full" style={{ background: color, boxShadow: '0 0 0 3px #fff' }} />}</span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{label}</span>
+                                        <span className="block text-[14.5px] font-black truncate" style={{ color: place ? colors.textPrimary : colors.textSecondary }}>{place ? short(place.address) : empty}</span>
+                                    </span>
+                                    {!onRemove && <ChevronRight size={18} style={{ color: colors.textSecondary }} />}
+                                </button>
+                                {onRemove && <button onClick={onRemove} aria-label="Tirar a parada" className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: soft, color: colors.textSecondary }}><X size={15} /></button>}
+                            </div>
+                        )
+                        const line = (k: string) => <div key={k} className="ml-[19px] h-2.5 border-l-2 border-dashed" style={{ borderColor: colors.border }} />
+                        return (
+                            <>
+                                {row('o', 'Partida', origin, 'De onde você sai?', GREEN, () => openSearch('origin'), missing === 'origin')}
+                                {stops.map((st, i) => [line(`l${i}`), row(`s${i}`, `Parada ${i + 1}`, st, '', ORANGE, () => {}, false, () => setStops((cur) => cur.filter((_, k) => k !== i)), String(i + 1))])}
+                                {line('ld')}
+                                {row('d', 'Chegada', destination, 'Para onde você vai?', RED, () => openSearch('destination'), missing === 'destination')}
+                            </>
+                        )
+                    })()}
                     {origin && destination && stops.length < MAX_STOPS && (
-                        <button onClick={() => openSearch('stop')} className="mt-1 h-9 px-3 rounded-full text-[12.5px] font-black inline-flex items-center gap-1" style={{ background: `${ORANGE}14`, color: ORANGE_DARK }}>+ Adicionar parada</button>
+                        <button onClick={() => openSearch('stop')} className="mt-1.5 ml-1 h-9 px-3 rounded-full text-[12.5px] font-black inline-flex items-center gap-1" style={{ background: `${ORANGE}14`, color: ORANGE_DARK }}>+ Adicionar parada</button>
                     )}
                     {origin && <input value={complement} onChange={(e) => setComplement(e.target.value.slice(0, 80))} placeholder="Complemento da partida (opcional)" className="mt-2 w-full h-10 px-3 rounded-2xl text-[13px] outline-none" style={{ background: soft, color: colors.textPrimary }} />}
                 </div>
@@ -452,33 +451,6 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                 {!quote?.active && <p className="mt-2 px-1 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{fname} não está dirigindo agora, mas recebe o aviso no celular. Outros motoristas por perto também veem o pedido.</p>}
             </section>
 
-            {/* TAREFAS (só depois do trajeto): cada uma soma os minutos estimados, cobrados pelo tempo */}
-            {origin && destination && (
-                <section className="mt-3 rounded-[28px] p-4" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                    <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>Precisa de algo a mais?</p>
-                    <p className="text-[11.5px] mt-0.5" style={{ color: colors.textSecondary }}>Ex.: pegar uma encomenda, levar alguém até um lugar. Cada tarefa é cobrada pelo tempo que leva.</p>
-                    {tasks.map((t, i) => (
-                        <div key={i} className="mt-2 flex items-center gap-2 rounded-2xl px-3 py-2" style={{ background: soft }}>
-                            <span className="min-w-0 flex-1 text-[13px] font-bold truncate" style={{ color: colors.textPrimary }}>{t.text}</span>
-                            <span className="text-[11.5px] font-black flex-shrink-0" style={{ color: ORANGE_DARK }}>~{t.minutes} min</span>
-                            <button onClick={() => setTasks((cur) => cur.filter((_, k) => k !== i))} aria-label="Tirar a tarefa" className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: colors.textSecondary }}><X size={14} /></button>
-                        </div>
-                    ))}
-                    {tasks.length < 5 && (
-                        <div className="mt-2">
-                            <input value={taskText} onChange={(e) => setTaskText(e.target.value.slice(0, 80))} placeholder="O que é? (ex.: pegar uma encomenda na farmácia)" className="w-full h-10 px-3 rounded-2xl text-[13px] outline-none" style={{ background: soft, color: colors.textPrimary }} />
-                            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[11.5px] font-bold mr-1" style={{ color: colors.textSecondary }}>Leva uns</span>
-                                {TASK_MINUTE_OPTIONS.map((m) => (
-                                    <button key={m} onClick={() => setTaskMin(m)} className="h-8 px-3 rounded-full text-[12px] font-black" style={taskMin === m ? { background: `${ORANGE}1a`, color: ORANGE_DARK, boxShadow: `inset 0 0 0 1.5px ${ORANGE}` } : { background: soft, color: colors.textPrimary }}>{m} min</button>
-                                ))}
-                                <button disabled={!taskText.trim()} onClick={() => { setTasks((cur) => [...cur, { text: taskText.trim(), minutes: taskMin }]); setTaskText('') }} className="ml-auto h-8 px-3.5 rounded-full text-[12px] font-black text-white disabled:opacity-40" style={{ background: ORANGE }}>Adicionar</button>
-                            </div>
-                        </div>
-                    )}
-                </section>
-            )}
-
             {/* 3. O VALOR (laranja do iUser) */}
             <section className="mt-3 rounded-[28px] p-4" style={{ background: `linear-gradient(135deg, ${ORANGE}14, ${ORANGE}05)`, border: `1.5px solid ${ORANGE}55` }}>
                 <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: ORANGE_DARK }}>Valor da corrida</p>
@@ -488,8 +460,8 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                         <p className="mt-2 text-[12.5px] font-bold" style={{ color: colors.textPrimary }}>
                             {route.distanceKm.toFixed(1).replace('.', ',')} km · ~{Math.max(1, Math.round(route.durationMin))} min · pela {quote?.mode === 'km' ? 'tarifa por km' : quote?.mode === 'time' ? 'tarifa por tempo' : 'Tarifa iUser'} de {fname}
                         </p>
-                        {extraMin > 0 && <p className="mt-1 text-[12px] font-bold" style={{ color: ORANGE_DARK }}>Inclui {extraMin} min de paradas e tarefas: {brl(extraValue)}</p>}
-                        <p className="mt-1 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>O valor já vai como a sua oferta: {fname} só precisa aceitar. Espera além disso é cobrada por minuto.</p>
+                        {extraMin > 0 && <p className="mt-1 text-[12px] font-bold" style={{ color: ORANGE_DARK }}>Inclui {stops.length} {stops.length === 1 ? 'parada' : 'paradas'} (~{extraMin} min): {brl(extraValue)}</p>}
+                        <p className="mt-1 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>O valor já vai como a sua oferta: {fname} só precisa aceitar. Durante a corrida você pode solicitar outra parada; o motorista aprova e o tempo é somado.</p>
                     </>
                 ) : routing ? (
                     <p className="mt-2 flex items-center gap-2 text-[13px] font-bold" style={{ color: colors.textSecondary }}><Spinner size={15} />Calculando a rota…</p>

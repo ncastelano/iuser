@@ -231,7 +231,7 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
                     </div>
                 ) : (
                     <button onClick={() => setAsking(true)} className="h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition" style={{ border: `1px solid ${ORANGE}`, color: ORANGE }}>
-                        <Clock size={15} /> Pedir tempo de espera
+                        <Clock size={15} /> {rideStarted ? 'Solicitar parada' : 'Pedir tempo de espera'}
                     </button>
                 )
             )}
