@@ -227,6 +227,7 @@ export const GUIDE: GuideGroup[] = [
                 id: 'radar', icon: 'radar', color: '#14b8a6', title: 'Radar: ver o que tem perto',
                 summary: 'O Radar mostra no mapa as lojas, serviços, produtos, pessoas, imóveis e motoristas ao seu redor.',
                 rules: ['As posições de pessoas e motoristas são aproximadas (nunca o endereço exato).',
+                        'Se você está longe de tudo e nada aparece perto, o Radar se afasta sozinho até mostrar você e o que há na sua região.',
                         'A borda da sua foto no Radar diz se você aparece para os outros: verde = visível, vermelho = não. Para mudar, toque na sua foto.',
                         'A lista do alto mostra a colocação de cada um pelo filtro escolhido (Outdoor, mais vistos, mais vendidos...).',
                         'Estou aqui: se você deixou o navegador usar a localização e chega perto de uma loja do iUser, o app pergunta se você está lá. Dizendo sim, você aparece na página da loja por 3 horas (só nome e foto; a sua posição não é guardada). Para sair antes, toque em "Saí daqui" na página da loja.'],

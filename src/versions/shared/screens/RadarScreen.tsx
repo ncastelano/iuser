@@ -496,6 +496,7 @@ export default function RadarScreen() {
     }, [referenceLocation?.lat, referenceLocation?.lng, mapStyle])
 
     // /radar?modo=pessoas&lat=&lng=&zoom= (ex.: o mapinha de "Locais com mais pessoas"): abre no modo e voa até o lugar
+    const autoFitModes = useRef<Set<string>>(new Set())
     const focusRef = useRef<{ lat: number; lng: number; zoom: number } | null | undefined>(undefined)
     useEffect(() => {
         const q = new URLSearchParams(window.location.search)
@@ -1070,6 +1071,26 @@ export default function RadarScreen() {
 
         console.log('[MapPage] ✅ Marcadores criados:', markersRef.current.length)
         maybeBeginScan()
+
+        // 23/11/2026 (decisão do dono): se NADA aparece na tela (a pessoa está longe de tudo e só vê a si mesma), afasta o mapa até
+        // mostrar ela e o que há por perto (os 12 mais próximos, até 80 km) — uma vez por modo, e nunca quando veio de um link com lugar
+        if (dataReady && !loadingLocation && !focusRef.current && !autoFitModes.current.has(mode) && filtered.length > 0) {
+            autoFitModes.current.add(mode)
+            const pts = filtered.map((it) => resolveItemCoords(it, mode, stores)).filter((c): c is [number, number] => !!c)
+            const b = map.getBounds()
+            const anyVisible = !!b && pts.some((c) => b.contains(c))
+            if (!anyVisible && pts.length > 0) {
+                const ref = referenceLocation ? [referenceLocation.lng, referenceLocation.lat] as [number, number] : null
+                const near = ref
+                    ? pts.map((c) => ({ c, d: haversineKm(ref, c) })).filter((x) => x.d <= 80).sort((x, y) => x.d - y.d).slice(0, 12).map((x) => x.c)
+                    : pts.slice(0, 12)
+                const all = ref ? [ref, ...near] : near
+                if (all.length > 1) {
+                    const bounds = all.reduce((bb, c) => bb.extend(c), new mapboxgl.LngLatBounds(all[0], all[0]))
+                    map.fitBounds(bounds, { padding: { top: 230, bottom: 190, left: 60, right: 60 }, maxZoom: 15, duration: 1400 })
+                }
+            }
+        }
     }, [filtered, mode, stores, mapReady, dataReady, loadingLocation])
 
     // PROFILE MARKER
@@ -1616,8 +1637,9 @@ export default function RadarScreen() {
                                             <CrownBadge rank={rank} size={30} />
                                         </span>
                                     )}
-                                    {mode !== 'motoristas' && mode !== 'flash' && (
-                                        <span className="absolute z-10 left-1/2 -translate-x-1/2 -bottom-2.5 min-w-[20px] h-[18px] rounded-full px-1 flex items-center justify-center text-[10px] font-black whitespace-nowrap leading-none" style={rank ? { background: RANK_COLORS[rank].fill, color: RANK_COLORS[rank].text, boxShadow: '0 0 0 2px #fff' } : { background: '#1f2937', color: '#fff', boxShadow: '0 0 0 2px #fff' }}>
+                                    {/* colocação no canto de cima (do 4º em diante: o 1º, 2º e 3º já têm o número na coroa) */}
+                                    {mode !== 'motoristas' && mode !== 'flash' && !rank && (
+                                        <span className="absolute z-10 -right-1.5 -top-1.5 min-w-[20px] h-[18px] rounded-full px-1 flex items-center justify-center text-[10px] font-black whitespace-nowrap leading-none" style={{ background: '#1f2937', color: '#fff', boxShadow: '0 0 0 2px #fff' }}>
                                             {idx + 1}º
                                         </span>
                                     )}
@@ -1626,7 +1648,7 @@ export default function RadarScreen() {
                                         const km = c && referenceLocation ? haversineKm([referenceLocation.lng, referenceLocation.lat], c) : null
                                         const label = formatDistance(km)
                                         return label ? (
-                                            <span className="absolute z-10 -right-1.5 -top-1.5 rounded-full px-1.5 py-px text-[8.5px] font-black text-white leading-tight" style={{ background: 'rgba(0,0,0,0.72)', boxShadow: '0 0 0 1.5px #fff' }}>{label}</span>
+                                            <span className="absolute z-10 left-1/2 -translate-x-1/2 -bottom-2.5 rounded-full px-1.5 py-px text-[9px] font-black text-white leading-tight whitespace-nowrap" style={{ background: 'rgba(0,0,0,0.78)', boxShadow: '0 0 0 1.5px #fff' }}>{label}</span>
                                         ) : null
                                     })())}
                                     <div
