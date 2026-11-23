@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation'
 import { Shield, User } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { Spinner } from '@/components/Spinner'
+import { Shimmer, SkeletonRegion } from '@/components/Skeleton'
 import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
 import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
 import PageTabs, { type Tab } from '@/components/PageTabs'
@@ -48,7 +48,10 @@ export default function PainelPerfilPage() {
     return (
         <>
             {loading ? (
-                <div className="flex justify-center py-16"><Spinner size={28} color={colors.accent} /></div>
+                <SkeletonRegion label="Carregando o painel do perfil" className="px-4 mt-3 flex flex-col gap-4">
+                    <div className="flex items-center gap-3"><Shimmer className="w-16 h-16 rounded-full" /><div className="flex-1 flex flex-col gap-2"><Shimmer className="h-4 w-2/3 rounded-full" /><Shimmer className="h-3 w-1/3 rounded-full" /></div></div>
+                    {[0, 1, 2].map((i) => <Shimmer key={i} className="h-24 rounded-2xl" />)}
+                </SkeletonRegion>
             ) : !userId ? (
                 <div className="mt-6 rounded-3xl border p-6 text-center" style={{ background: colors.surface, borderColor: colors.border }}>
                     <p className="text-sm font-bold mb-3" style={{ color: colors.textPrimary }}>Entre na sua conta para ver o painel do seu perfil.</p>

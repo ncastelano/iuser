@@ -41,7 +41,13 @@ export async function GET(req: NextRequest) {
     // Só busca imagens do nosso próprio Supabase Storage — sem isso, essa
     // rota vira um proxy aberto pra buscar qualquer URL da internet.
     const allowedOrigin = SUPABASE_URL ? new URL(SUPABASE_URL).origin : null
-    if (!allowedOrigin || parsed.origin !== allowedOrigin) {
+    if (!allowedOrigin) return fallbackLogo()
+    // O link público das fotos passou a ser o do próprio site (/img/<bucket>/<arquivo>, ver lib/imageProxy.ts): traduz de volta para o
+    // Storage. Sem isso TODA prévia de perfil/loja/produto caía no logo genérico.
+    if (parsed.origin !== allowedOrigin && /^\/img\/[a-z0-9-]+\/.+/.test(parsed.pathname) && /(^|\.)iuser\.com\.br$|vercel\.app$|localhost$|127\.0\.0\.1$/.test(parsed.hostname)) {
+        parsed = new URL(`${allowedOrigin}/storage/v1/object/public/${parsed.pathname.slice(5)}`)
+    }
+    if (parsed.origin !== allowedOrigin) {
         return fallbackLogo()
     }
 

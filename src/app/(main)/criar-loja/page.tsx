@@ -1,6 +1,7 @@
 // src/app/(main)/criar-loja/page.tsx
 "use client";
 
+import { cropOnPick } from '@/lib/imageCrop'
 import { addLeafletCredits } from '@/lib/mapCredits';
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -607,7 +608,7 @@ export default function CriarLoja() {
 
   const handleImageChange = async (file: File) => {
     try {
-      const squareFile = await createSquareImage(file, 400);
+      const squareFile = await createSquareImage(await cropOnPick(file, 'logo'), 400);
       setImageFile(squareFile);
     } catch (err) {
       toast.error("Erro ao processar imagem");

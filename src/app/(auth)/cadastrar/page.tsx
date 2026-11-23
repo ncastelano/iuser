@@ -2,6 +2,7 @@
 
 'use client'
 
+import { cropOnPick } from '@/lib/imageCrop'
 import { normalizeReferralSlug } from '@/lib/referralCapture'
 import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -144,9 +145,10 @@ function RegisterContent() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0]
+    if (!picked) return
+    const file = await cropOnPick(picked, 'avatar')   // recorte da foto já na escolha
     setAvatarFile(file)
     const reader = new FileReader()
     reader.onloadend = () => setAvatarPreview(reader.result as string)

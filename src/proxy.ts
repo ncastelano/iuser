@@ -21,6 +21,7 @@ const IGNORED_ROUTES = [
     '/login',
     '/registro',
     '/cadastrar',
+    '/cadastro',
     '/recuperar-senha',
     '/404',
     '/500',

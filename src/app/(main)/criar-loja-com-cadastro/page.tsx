@@ -2,6 +2,7 @@
 
 'use client'
 
+import { cropOnPick } from '@/lib/imageCrop'
 import { addLeafletCredits } from '@/lib/mapCredits'
 import { useState, useRef, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -285,9 +286,10 @@ function CriarLojaComCadastroContent() {
     const [, setCreatedUserId] = useState<string | null>(null)
     const [pendingStorePayload, setPendingStorePayload] = useState<PendingStorePayload | null>(null)
 
-    const handleAccountAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
+    const handleAccountAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const picked = e.target.files?.[0]
+        if (!picked) return
+        const file = await cropOnPick(picked, 'avatar')
         setAccountAvatarFile(file)
         const reader = new FileReader()
         reader.onloadend = () => setAccountAvatarPreview(reader.result as string)
@@ -558,7 +560,7 @@ function CriarLojaComCadastroContent() {
 
     const handleImageChange = async (file: File) => {
         try {
-            const squareFile = await createSquareImage(file, 400)
+            const squareFile = await createSquareImage(await cropOnPick(file, 'logo'), 400)
             setImageFile(squareFile)
         } catch {
             toast.error('Erro ao processar imagem')
