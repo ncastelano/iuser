@@ -40,7 +40,7 @@ export default function ForumHomeCard() {
                 <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}1f`, color: ORANGE }}><Sparkles size={22} /></span>
                 <span className="min-w-0 flex-1">
                     <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>Fórum do iUser</span>
-                    <span className="block text-xs mt-0.5" style={{ color: colors.textSecondary }}>Tutorial, novidades, ideias e votos{ideas ? ` · ${ideas} ${ideas === 1 ? 'ideia' : 'ideias'}` : ''}</span>
+                    <span className="block text-xs mt-0.5" style={{ color: colors.textSecondary }}>Novidades, ideias, votos e tutorial{ideas ? ` · ${ideas} ${ideas === 1 ? 'ideia' : 'ideias'}` : ''}</span>
                 </span>
                 <ChevronRight size={17} style={{ color: colors.textSecondary }} />
             </button>
@@ -63,9 +63,9 @@ export default function ForumHomeCard() {
             )}
 
             <div className="mt-3 grid grid-cols-3 gap-2">
-                <button onClick={() => router.push('/forum?aba=guia')} className="h-10 rounded-full text-[13px] font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>Tutorial</button>
                 <button onClick={() => router.push('/forum')} className="h-10 rounded-full text-[13px] font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>Novidades</button>
                 <button onClick={() => router.push('/forum?nova=1')} className="h-10 rounded-full text-[13px] font-black text-white flex items-center justify-center gap-1.5" style={{ background: ORANGE }}><Lightbulb size={14} /> Ideia</button>
+                <button onClick={() => router.push('/forum?aba=guia')} className="h-10 rounded-full text-[13px] font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>Tutorial</button>
             </div>
         </section>
     )

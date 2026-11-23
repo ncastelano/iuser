@@ -47,7 +47,7 @@ export default function StoreImageCard({ s, onClick, fluid = false }: {
     return (
         <button
             onClick={onClick}
-            className={`${fluid ? 'w-full' : 'snap-start flex-shrink-0 w-[168px] sm:w-[188px]'} h-[290px] text-left rounded-3xl border flex flex-col items-center px-3 pt-4 pb-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]`}
+            className={`${fluid ? 'w-full' : 'snap-start flex-shrink-0 w-[168px] sm:w-[188px]'} text-left rounded-3xl border flex flex-col items-center px-3 pt-4 pb-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]`}
             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
             {/* logo redondo: anel de aberta/fechada + moldura do nível por fora */}
@@ -76,7 +76,7 @@ export default function StoreImageCard({ s, onClick, fluid = false }: {
                 </span>
             </span>
 
-            <span className="mt-auto w-full flex flex-col gap-0.5 pt-2 text-[10.5px] font-bold" style={{ color: colors.textSecondary }}>
+            <span className="mt-2 w-full flex flex-col gap-0.5 text-[10.5px] font-bold" style={{ color: colors.textSecondary }}>
                 {s.price && <span className="flex items-center justify-center gap-1 min-w-0"><Tag size={10} className="flex-shrink-0" /><span className="truncate">{s.price}</span></span>}
                 {(s.delivery || s.time) && (
                     <span className="flex items-center justify-center gap-x-2 flex-wrap">

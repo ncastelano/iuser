@@ -87,9 +87,9 @@ export default function ForumScreen() {
 
             <div className="mt-2">
                 <PageTabs tabs={[
-                    { id: 'guia', label: 'Tutorial', icon: BookOpen, isActive: tab === 'guia', onClick: () => goTab('guia') },
                     { id: 'novidades', label: 'Novidades', icon: Megaphone, isActive: tab === 'novidades', onClick: () => goTab('novidades') },
                     { id: 'ideias', label: 'Ideias', icon: Lightbulb, isActive: tab === 'ideias', onClick: () => goTab('ideias'), badge: ideas?.length ? { count: ideas.length } : null },
+                    { id: 'guia', label: 'Tutorial', icon: BookOpen, isActive: tab === 'guia', onClick: () => goTab('guia') },
                 ]} />
             </div>
 
