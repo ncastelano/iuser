@@ -4,6 +4,7 @@ import { processLock } from '@supabase/supabase-js'
 import { trackEgressBytes, trackRealtimeMessage } from '@/lib/usageTelemetry'
 import { optimizeImageForUpload } from '@/lib/optimizeImage'
 import { checkPhotoUpload } from '@/lib/uploadLimits'
+import { CROP_BUCKETS, requestCrop } from '@/lib/imageCrop'
 import { registerMediaAsset } from '@/lib/mediaAssets'
 import { authorizeUpload, uploadBodyInfo, uploadDeniedStatus } from '@/lib/uploadAuthorization'
 import { proxyImageUrl } from '@/lib/imageProxy'
@@ -104,6 +105,8 @@ supabase.storage.from = ((bucket: string) => {
     let nextBody = body
     let nextOptions = options
     if (typeof Blob !== 'undefined' && body instanceof Blob) {
+      // foto do perfil e logo da loja: a pessoa RECORTA antes (lib/imageCrop.ts; sem a janela, segue como veio)
+      if (CROP_BUCKETS.has(bucket)) { body = await requestCrop(body, bucket); nextBody = body }
       const optimized = await optimizeImageForUpload(body, bucket)
       if (optimized !== body) {
         nextBody = optimized
