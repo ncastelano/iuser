@@ -38,10 +38,11 @@ import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { platformFloor } from '@/modules/negotiation/domain'
 import { setPassengerOffer } from '@/modules/negotiation'
 import { etaFromViewer, parseQuote, quoteExamples, quoteModeClientLabel, quotePrice, type DriverQuote } from '@/modules/driver-profile'
-import { brl, buildCallRide, callCta, extraCharge, extraMinutes, MAX_STOPS, firstName, placeFromParams, tripMinutes, type CallPayment, type CallPlace, type CallVehicleKind } from '@/modules/driver-call'
+import { brl, buildCallRide, callCta, MAX_STOPS, firstName, placeFromParams, tripMinutes, type CallPayment, type CallPlace, type CallVehicleKind } from '@/modules/driver-call'
 import PlaceSearchExtras from '@/components/ride/PlaceSearchExtras'
 import { fetchPlaceSuggestions, newSearchSession, retrievePlace, type PlaceSuggestion } from '@/lib/placeSearch'
 import CarAmenities from '@/components/ride/CarAmenities'
+import { loadWaitSettings, ruleText } from '@/modules/ridewait'
 import { Spinner } from '@/components/Spinner'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -252,10 +253,11 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
         const raw = quotePrice(quote, shape, { km: route.distanceKm, minutes: route.durationMin }, hourly, extras)
         if (raw == null) return null
         const base = Math.max(raw, platformFloor(route.durationMin, minPerMinute))
-        return Math.round((base + extraCharge(extraMinutes(stops.length, []), quote.price_per_minute, minPerMinute)) * 100) / 100
+        return Math.round(base * 100) / 100   // a parada entra pela ROTA; o tempo PARADO é cobrado na hora, pela espera da corrida
     }, [quote, shape, route, hourly, minPerMinute, stops.length])
-    const extraMin = extraMinutes(stops.length, [])
-    const extraValue = quote ? extraCharge(extraMin, quote.price_per_minute, minPerMinute) : 0
+    // a REGRA da espera/parada (do iUser: valor ao parar + por minuto depois), para avisar quanto a parada soma
+    const [waitRule, setWaitRule] = useState<string | null>(null)
+    useEffect(() => { void loadWaitSettings().then((w) => setWaitRule(ruleText(w.graceMinutes * 60, Math.round(w.ratePerMinute * 100), Math.round(w.baseFee * 100)).replace(' Cobrado depois, junto com a corrida.', ''))).catch(() => {}) }, [])
     const fromPrice = useMemo(() => {
         if (!quote || !shape) return null
         const ex = quoteExamples(quote, shape, hourly)
@@ -453,15 +455,20 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
 
             {/* 3. O VALOR (laranja do iUser) */}
             <section className="mt-3 rounded-[28px] p-4" style={{ background: `linear-gradient(135deg, ${ORANGE}14, ${ORANGE}05)`, border: `1.5px solid ${ORANGE}55` }}>
-                <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: ORANGE_DARK }}>Valor da corrida</p>
+                <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: ORANGE_DARK }}>{route && price != null ? 'Valor aproximado' : 'Valor da corrida'}</p>
                 {route && price != null ? (
                     <>
                         <p className="mt-1 text-[40px] leading-none font-black tracking-tight" style={{ color: ORANGE }}>{brl(price)}</p>
                         <p className="mt-2 text-[12.5px] font-bold" style={{ color: colors.textPrimary }}>
                             {route.distanceKm.toFixed(1).replace('.', ',')} km · ~{Math.max(1, Math.round(route.durationMin))} min · pela {quote?.mode === 'km' ? 'tarifa por km' : quote?.mode === 'time' ? 'tarifa por tempo' : 'Tarifa iUser'} de {fname}
                         </p>
-                        {extraMin > 0 && <p className="mt-1 text-[12px] font-bold" style={{ color: ORANGE_DARK }}>Inclui {stops.length} {stops.length === 1 ? 'parada' : 'paradas'} (~{extraMin} min): {brl(extraValue)}</p>}
-                        <p className="mt-1 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>O valor já vai como a sua oferta: {fname} só precisa aceitar. Durante a corrida você pode solicitar outra parada; o motorista aprova e o tempo é somado.</p>
+                        {/* 23/11/2026 (decisão do dono): o valor é APROXIMADO — o tempo parado (nas paradas marcadas ou pedidas no caminho) soma */}
+                        <p className="mt-2 text-[12px] leading-snug rounded-2xl px-3 py-2" style={{ background: `${ORANGE}12`, color: colors.textPrimary }}>
+                            {stops.length > 0
+                                ? <>A rota já passa {stops.length === 1 ? 'pela parada' : `pelas ${stops.length} paradas`}. Ao chegar nela, toque em <b>Solicitar parada</b>: <b>o tempo que você ficar parado é somado ao valor</b>, então o total pode ficar maior.{waitRule ? ` ${waitRule}` : ''}</>
+                                : <>Se você <b>solicitar uma parada</b> durante a corrida, o motorista aprova e o tempo parado é somado ao valor.{waitRule ? ` ${waitRule}` : ''}</>}
+                        </p>
+                        <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: colors.textSecondary }}>Esse valor já vai como a sua oferta: {fname} só precisa aceitar. Você paga no fim da corrida.</p>
                     </>
                 ) : routing ? (
                     <p className="mt-2 flex items-center gap-2 text-[13px] font-bold" style={{ color: colors.textSecondary }}><Spinner size={15} />Calculando a rota…</p>
