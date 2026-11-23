@@ -42,8 +42,12 @@ export default function RideDriverPix({ rideId, driverName, amount }: { rideId: 
         <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: '#16a34a12', border: '1px solid #16a34a55' }}>
             <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: '#16a34a' }}><QrCode size={18} /></span>
             <div className="min-w-0 flex-1">
+                {/* 23/11/2026 (decisão do dono): a corrida só é paga NO FIM — paradas e esperas pedidas no caminho entram no valor */}
                 <p className="text-[12px] font-black" style={{ color: colors.textPrimary }}>
-                    Pague {amount != null ? `R$ ${amount.toFixed(2).replace('.', ',')} ` : ''}no Pix de {first}
+                    Pague no Pix de {first} só no fim da corrida
+                </p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                    {amount != null ? `R$ ${amount.toFixed(2).replace('.', ',')}` : 'O valor combinado'} + paradas e esperas que você pedir no caminho
                 </p>
                 <p className="text-[11px] font-bold truncate select-all" style={{ color: colors.textSecondary }}>
                     {PIX_TYPE_LABEL[pix.type || ''] || 'Chave'}: {pix.key}
