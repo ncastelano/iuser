@@ -27,6 +27,7 @@ import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
 import { useShellCompact } from '@/lib/shellCompact'
 import { toastStyle } from '@/lib/toastStyle'
 import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarExtra, type BarPlayer, type BarTab } from '@/components/BottomNavBar'
+import { MODE_COLOR as BAR_MODE_COLOR } from '@/components/BottomNavBar'
 import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import { miniHidden, subtitleOf } from '@/modules/player'
@@ -76,7 +77,8 @@ function modePath(mode: string, data: DrawerData): string {
 // ===== MENU DE MODOS (o hub; desenho aprovado em /paginateste): uma lista de cartões IGUAIS, um por modo. CADA CARTÃO É COMPLETO: o cabeçalho (foto, nome, subtítulo, ✓),
 // as fichinhas de NOTIFICAÇÃO do que é daquele modo (conversas, carrinho, pedidos...) e, no modo escolhido, os botões dele (Ver perfil/Painel, Ver loja/Editar/Painel...).
 // Escolher um cartão (tocar no cabeçalho) seleciona o modo e abre a página dele, como sempre.
-const MODE_COLOR = { user: '#3b82f6', store: '#f97316', car: '#16a34a' } as const
+// a MESMA paleta da barra de baixo (BottomNavBar.MODE_COLOR): o cartão de cada modo tem a cor que a barra terá nesse modo
+const MODE_COLOR = BAR_MODE_COLOR
 
 /** Uma fichinha de notificação do cartão: ícone, número e nome, na cor do assunto; leva ao lugar dele */
 interface ModeChip { key: string; icon: ReactNode; count: number; label: string; color: string; onClick: () => void }
@@ -108,16 +110,17 @@ function ModeCard({ selected, kind, image, title, desc, dot, onClick, chips, act
     chips?: ModeChip[]; actions?: ModeAction[] | null
 }) {
     const Icon = kind === 'store' ? StoreIcon : kind === 'car' ? Car : User
+    const c = MODE_COLOR[kind]
     const hasChips = !selected && (chips || []).some((c) => c.count > 0)   // as fichinhas só nos modos NÃO escolhidos (19/11/2026: no escolhido elas repetiam a barra)
     const hasActions = selected && !!actions && actions.length > 0
     return (
-        <div className="w-full rounded-2xl overflow-hidden transition" style={{ border: `1.5px solid ${selected ? '#f97316' : 'var(--hub-line)'}`, background: selected ? '#f9731612' : 'transparent' }}>
+        <div className="w-full rounded-2xl overflow-hidden transition" style={{ border: `1.5px solid ${selected ? c : `${c}40`}`, background: selected ? `linear-gradient(0deg, ${c}33, ${c}0a)` : `${c}08` }}>
             <button
                 onClick={onClick}
                 aria-pressed={selected}
                 className="w-full flex items-center gap-3 p-2.5 text-left transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f97316]"
             >
-                <span className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden" style={{ background: image ? 'var(--hub-soft)' : MODE_COLOR[kind] }}>
+                <span className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden" style={{ background: image ? 'var(--hub-soft)' : c, boxShadow: `0 0 0 2px ${c}` }}>
                     {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : <Icon size={18} />}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -128,12 +131,12 @@ function ModeCard({ selected, kind, image, title, desc, dot, onClick, chips, act
                         </span>
                     )}
                 </span>
-                {selected ? <Check size={17} className="flex-shrink-0" style={{ color: '#f97316' }} /> : <ChevronRight size={16} className="flex-shrink-0 opacity-60" />}
+                {selected ? <Check size={17} className="flex-shrink-0" style={{ color: c }} /> : <ChevronRight size={16} className="flex-shrink-0 opacity-60" />}
             </button>
             {(hasChips || hasActions) && (
                 <div className="px-2.5 pb-2.5 flex flex-col gap-2">
                     {hasChips && <ModeChips items={chips!} />}
-                    {hasActions && <ModeActions items={actions!} />}
+                    {hasActions && <ModeActions items={actions!} color={c} />}
                 </div>
             )}
         </div>
@@ -156,7 +159,7 @@ function ModeCta({ kind, title, desc, onClick }: { kind: keyof typeof MODE_COLOR
 }
 
 /** A linha de botões iguais do modo escolhido (2 ou 3, mesma largura e altura) */
-function ModeActions({ items }: { items: ModeAction[] }) {
+function ModeActions({ items, color = '#f97316' }: { items: ModeAction[]; color?: string }) {
     return (
         <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
             {items.map((it) => (
@@ -164,7 +167,7 @@ function ModeActions({ items }: { items: ModeAction[] }) {
                     key={it.label}
                     onClick={it.onClick}
                     className="h-10 px-2 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-black transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                    style={it.solid ? { background: '#f97316', color: '#fff' } : { border: '1px solid var(--hub-line)', color: 'var(--hub-fg)' }}
+                    style={it.solid ? { background: color, color: '#fff' } : { border: `1px solid ${color}55`, color: 'var(--hub-fg)' }}
                 >
                     {it.icon}<span className="truncate">{it.label}</span>
                 </button>
