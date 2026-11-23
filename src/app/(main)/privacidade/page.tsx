@@ -41,7 +41,7 @@ export default function PrivacidadePage() {
                     <li><b>Segurança e prevenção a fraudes</b> (legítimo interesse e proteção ao crédito — art. 7º, IX e X): CPF único, limites de uso, liberação por etapas para entregadores, moderação de conteúdo, investigação de golpes.</li>
                     <li><b>Cumprir a lei</b> (art. 7º, II): guardar registros de acesso, dados fiscais e responder a ordens judiciais.</li>
                     <li><b>Melhorar o iUser</b> (legítimo interesse): estatísticas de uso, sempre que possível sem identificar você.</li>
-                    <li><b>Com o seu consentimento</b> (art. 7º, I): localização do aparelho, notificações e aparecer no mapa do Radar. Você pode retirar o consentimento a qualquer momento nas configurações do aparelho ou do app.</li>
+                    <li><b>Com o seu consentimento</b> (art. 7º, I): localização do aparelho, notificações, aparecer no mapa do Radar e o "Estou aqui" (só quando você confirma que está numa loja: o seu nome e foto aparecem na página dela por até 3 horas; a sua posição não é guardada). Você pode retirar o consentimento a qualquer momento nas configurações do aparelho ou do app.</li>
                 </Ul>
             </Sec>
 

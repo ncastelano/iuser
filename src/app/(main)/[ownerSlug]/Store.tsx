@@ -1,6 +1,7 @@
 // src/components/owner/Store.tsx
 'use client'
 
+import StoreHere from '@/components/checkin/StoreHere'
 import { useReportStorePresence } from '@/modules/store-presence'
 import { profileLabel } from '@/lib/profileDisplay'
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
@@ -1085,6 +1086,7 @@ export function Store({
                     allowScheduling={!!owner.allow_scheduling}
                     onOpenSchedule={() => { setScheduleProductId(null); setSchedulePick(null); setShowScheduleModal(true) }}
                     onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
+                    hereSlot={<StoreHere storeId={owner.id} colors={colors} />}
                     agendaSlot={creator?.hero && featured ? <FeaturedHero item={featured} ownerHint={isOwner} /> : owner.allow_scheduling && model !== 'products' && !isCreatorModel(model) ? (
                         <StoreAgendaV3
                             storeId={owner.id}

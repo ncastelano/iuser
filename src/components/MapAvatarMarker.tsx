@@ -28,7 +28,7 @@ export function MapAvatarMarker({ userId, imageUrl, fallbackText, size = 48, bor
     const avatar = (
         <span
             className="relative block rounded-full overflow-hidden"
-            style={{ width: size, height: size, border: `3px solid ${borderColor}`, background: 'linear-gradient(135deg,#fed7aa,#fecaca)', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}
+            style={{ width: size, height: size, border: ring ? 'none' : `3px solid ${borderColor}`, background: 'linear-gradient(135deg,#fed7aa,#fecaca)', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}
         >
             <span className="absolute inset-0 flex items-center justify-center font-black italic" style={{ color: '#ea580c', fontSize: Math.round(size * 0.38) }}>{initial}</span>
             {imageUrl && <img src={imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />}
@@ -36,7 +36,8 @@ export function MapAvatarMarker({ userId, imageUrl, fallbackText, size = 48, bor
     )
     return (
         <span className="relative inline-block" style={{ width: size, height: size, lineHeight: 0 }}>
-            {ring ? <PlanRingFrame colors={ring} width={2}>{avatar}</PlanRingFrame> : avatar}
+            {/* com a borda que a pessoa escolheu, só ELA (23/11/2026, decisão do dono: nada de duas bordas) */}
+            {ring ? <PlanRingFrame colors={ring} width={3}>{avatar}</PlanRingFrame> : avatar}
             {badgeSvg && (
                 <span
                     className="absolute flex items-center justify-center rounded-full bg-white"

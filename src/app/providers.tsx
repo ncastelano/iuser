@@ -17,6 +17,7 @@ import { DriverLiveLocationBroadcaster } from '@/components/DriverLiveLocationBr
 import { DriverRideAlertListener } from '@/components/DriverRideAlertListener'
 import { IslandToastFallback } from '@/components/IslandToastFallback'
 import { SystemEventsListener } from '@/components/SystemEventsListener'
+import CheckinPrompt from '@/components/checkin/CheckinPrompt'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { MaintenanceBanner } from '@/components/MaintenanceNotice'
 import ShareDialogHost from '@/components/ShareDialogHost'
@@ -71,6 +72,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         {/* Avisos: a ilha da 3.0 os mostra (lib/toast); sem ilha (2.0) uma pílula no topo */}
         <IslandToastFallback />
         <SystemEventsListener />
+        <CheckinPrompt />
         {children}
       </ProfileProvider>
     </QueryClientProvider>

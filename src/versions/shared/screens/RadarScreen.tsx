@@ -881,6 +881,8 @@ export default function RadarScreen() {
 
         Object.values(coordGroups).forEach(group => {
             group.forEach((entry, index) => {
+                // vários no MESMO ponto: só o primeiro vira marcador, com os outros empilhados atrás dele (o "cluster")
+                if (index > 0) return
                 const { item, coords } = entry
 
                 let lng = coords[0]
@@ -985,45 +987,37 @@ export default function RadarScreen() {
                 }
 
                 if (index === 0 && group.length > 1) {
-                    // O número do cluster é um marcador PRÓPRIO, com z-index acima de qualquer
-                    // marcador de loja/produto (inclusive os do top 3, z 600). Dentro do marcador da
-                    // loja ele ficava preso no z-index dele e sumia atrás da imagem de outro.
-                    const badge = document.createElement('div')
-                    badge.innerHTML = `${group.length}`
-                    badge.style.cssText = `
-                        background: linear-gradient(135deg, #f97316, #ef4444);
-                        color: white;
-                        font-size: 12px;
-                        font-weight: 900;
-                        line-height: 1;
-                        min-width: 24px;
-                        text-align: center;
-                        padding: 5px 8px;
-                        border-radius: 20px;
-                        border: 2px solid white;
-                        z-index: 2000;
-                        cursor: pointer;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-                    `
-                    badge.onclick = (e) => {
-                        e.stopPropagation()
-                        setClusterItems(group.map(g => g.item))
-                        setClusterLocation({
-                            lng,
-                            lat,
-                            name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : mode === 'flash' ? `${group.length} flashes neste lugar` : `${group.length} estabelecimentos nesta localização`
-                        })
-                        map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
+                    // 23/11/2026 (decisão do dono): no lugar do número, as IMAGENS empilhadas — 2 = duas, 3 = três, 4+ = três e um "+";
+                    // o marcador tem o mesmo tamanho, só que com as outras aparecendo atrás em leque
+                    const round = !!(item.isPerson || item.isDriver)
+                    const backs = group.slice(1, 3)
+                    backs.forEach((g, k) => {
+                        const b = document.createElement('div')
+                        const url = g.item.logo_url || g.item.image_url
+                        const side = k === 0 ? -1 : 1
+                        b.style.cssText = `position:absolute;bottom:2px;left:50%;width:${boxSize - 8}px;height:${boxSize - 8}px;margin-left:${-(boxSize - 8) / 2 + side * 13}px;transform:rotate(${side * 12}deg);border-radius:${round ? '50%' : '11px'};overflow:hidden;background:#fff center/cover no-repeat;border:2.5px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.3);z-index:-1;pointer-events:none;`
+                        if (url) b.style.backgroundImage = `url("${String(url).replace(/"/g, '%22')}")`
+                        else b.style.background = 'linear-gradient(135deg,#fed7aa,#fecaca)'
+                        el.appendChild(b)
+                    })
+                    el.style.position = 'relative'
+                    inner.style.position = 'relative'
+                    inner.style.zIndex = '1'
+                    if (group.length > 3) {
+                        const plus = document.createElement('div')
+                        plus.textContent = '+'
+                        plus.style.cssText = 'position:absolute;right:-8px;bottom:-4px;width:20px;height:20px;border-radius:50%;background:#111827;color:#fff;font-size:15px;font-weight:900;line-height:18px;text-align:center;border:2px solid #fff;z-index:2;pointer-events:none;'
+                        el.appendChild(plus)
                     }
-                    // Canto inferior direito do marcador da loja (âncora 'bottom' = base no ponto)
-                    badgeEl = badge
-                    const badgeMarker = new mapboxgl.Marker({ element: badge, anchor: 'center', offset: [boxSize / 2 - 2, -2] })
-                        .setLngLat([lng, lat])
-                        .addTo(map)
-                    markersRef.current.push(badgeMarker)
                 }
 
                 el.onclick = async () => {
+                    if (group.length > 1) {
+                        setClusterItems(group.map(g => g.item))
+                        setClusterLocation({ lng, lat, name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : mode === 'flash' ? `${group.length} flashes neste lugar` : mode === 'pessoas' ? `${group.length} pessoas neste lugar` : `${group.length} neste local` })
+                        map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
+                        return
+                    }
                     if (item.isFlash) { router.push(`/flash?de=${item.id}`); return }   // flash: abre o feed já nele
                     setSelectedItem(item)
                     map.flyTo({ center: [lng, lat], zoom: 16, duration: 600 })
@@ -1588,20 +1582,19 @@ export default function RadarScreen() {
                 <div className={`absolute ${('top-[22px] z-[55]')} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(({})), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
                     {/* 23/11/2026 (decisão do dono): um painel só, com respiro — em cima o filtro (à esquerda) e quantos são; embaixo a fileira,
                         cada item com o NÚMERO da colocação (em qualquer filtro: mais vistos, mais vendidos...), sem os pontos */}
-                    <div className="rounded-3xl px-3 pt-2.5 pb-1 bg-white/85 backdrop-blur-md shadow-lg" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
+                    <div className="px-1 pt-1">
                     <div className="flex items-center justify-between gap-2 relative">
                         {mode !== 'motoristas' && mode !== 'flash' ? (
                             <button
                                 onClick={() => setShowRankMenu(v => !v)}
-                                className="flex items-center gap-1.5 rounded-full pl-2.5 pr-2 h-8 text-[11.5px] font-black text-gray-800"
-                                style={{ background: 'rgba(249,115,22,0.12)' }}
+                                className="flex items-center gap-1.5 rounded-full pl-2.5 pr-2 h-8 text-[11.5px] font-black text-gray-800 bg-white shadow-md"
                                 aria-expanded={showRankMenu}
                             >
                                 <Flame className="w-3.5 h-3.5 text-orange-500" />
                                 {rankLabel(rankKey, mode)}
                                 <ChevronDown className={`w-3.5 h-3.5 text-orange-500 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
                             </button>
-                        ) : <span className="text-[11.5px] font-black text-gray-800 pl-1">{mode === 'motoristas' ? 'Do mais perto ao mais longe' : 'Os mais recentes'}</span>}
+                        ) : <span className="text-[11.5px] font-black text-gray-800 px-3 h-8 rounded-full bg-white shadow-md inline-flex items-center">{mode === 'motoristas' ? 'Do mais perto ao mais longe' : 'Os mais recentes'}</span>}
                         {rankMenuNode}
                     </div>
                     <div className="flex gap-3.5 overflow-x-auto pt-7 pb-4 px-1 scrollbar-hide snap-x items-end">
