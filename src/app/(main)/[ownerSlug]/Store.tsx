@@ -1213,7 +1213,9 @@ export function Store({
                     // loja de criador: os conteúdos primeiro; Produtos e Serviços só se existirem (a dona sempre vê Produtos, para poder cadastrar)
                     const catalogTabs = creator
                         ? [digitalTab, ...(goods.length > 0 || isOwner ? [productsTab] : []), ...(services.length > 0 ? [servicesTab] : [])]
-                        : (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab, ...digitalTabs] : [productsTab, ...digitalTabs, servicesTab]
+                        : ((goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab, ...digitalTabs] : [productsTab, ...digitalTabs, servicesTab])
+                            // 23/11/2026 (decisão do dono): aba sem nada some para quem visita (a dona continua vendo, para cadastrar)
+                            .filter((t) => t.id === 'digital' || t.count > 0 || isOwner)
                     return (catalogTabs)
                 })().map(tab => {
                     const isActive = activeTab === tab.id
@@ -1369,32 +1371,34 @@ export function Store({
                                         <span className="text-[10px] font-black px-1.5 py-px rounded-full" style={{ background: `${colors.border}55`, color: colors.textSecondary }}>{products.length}</span>
                                     </button>
                                     {!isCollapsed && (
-                                    <div className={(activeTab === 'services') && actions.serviceRows ? 'flex flex-col' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
+                                    <div className={(activeTab === 'services') && (actions.serviceRows || goods.length === 0) ? 'relative flex flex-col pl-5' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
+                                        {/* 23/11/2026 (decisão do dono): serviços em LINHA DO TEMPO — um fio vertical com um ponto por serviço, compacto */}
+                                        {(activeTab === 'services') && (actions.serviceRows || goods.length === 0) && <span aria-hidden className="absolute left-[7px] top-3 bottom-3 w-[2px] rounded-full" style={{ background: `${colors.border}` }} />}
                                         {products.map(product => {
                                             const isHourly = product.price_type === 'hourly'
                                             const hasImage = !!product.image_url
 
                                             // v3, lojas de atendimento e mistas: serviços em LINHAS (foto pequena, nome, duração e preço, botão Agendar)
-                                            if ((activeTab === 'services') && actions.serviceRows) {
+                                            if ((activeTab === 'services') && (actions.serviceRows || goods.length === 0)) {
                                                 return (
                                                     <div
                                                         key={product.id}
                                                         id={`produto-${product.id}`}
                                                         onClick={(e) => handleProductClick(product, e)}
-                                                        className="flex items-center gap-3 py-3 cursor-pointer transition active:opacity-80"
-                                                        style={{ borderBottom: `1px solid ${colors.border}50` }}
+                                                        className="relative flex items-center gap-3 py-2 cursor-pointer transition active:opacity-80"
                                                     >
-                                                        <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.accentLight}` }}>
+                                                        <span aria-hidden className="absolute -left-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full" style={{ background: colors.background, border: '3px solid #f97316' }} />
+                                                        <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.accentLight}` }}>
                                                             {hasImage ? <img src={product.image_url!} className="w-full h-full object-cover" alt="" /> : <span className="text-xl font-black" style={{ color: '#f97316' }}>{product.name.charAt(0).toUpperCase()}</span>}
                                                         </div>
                                                         <div className="min-w-0 flex-1">
                                                             <h4 className="text-[14px] font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{product.name}</h4>
-                                                            <p className="text-[12px] mt-0.5" style={{ color: colors.textSecondary }}>
-                                                                {product.duration_minutes ? `${product.duration_minutes} min` : 'Duração a combinar'}
-                                                            </p>
-                                                            <span className="text-sm font-black" style={{ color: '#f97316' }}>
+                                                            <p className="text-[12px] mt-0.5 flex flex-wrap items-center gap-x-1.5" style={{ color: colors.textSecondary }}>
+                                                                <span>{product.duration_minutes ? `${product.duration_minutes} min` : 'Duração a combinar'}</span><span>·</span>
+                                                            <span className="font-black" style={{ color: '#f97316' }}>
                                                                 {(product.price || 0) > 0 ? `R$ ${(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : product.type === 'service' ? 'Valor a combinar' : 'Sem custo'}{isHourly && (product.price || 0) > 0 ? '/h' : ''}
                                                             </span>
+                                                            </p>
                                                         </div>
                                                         {isOwner ? (
                                                             <button onClick={e => { e.stopPropagation(); setEditingProductId(product.id) }} className="h-9 px-4 rounded-full flex items-center gap-1.5 text-[12px] font-black flex-shrink-0" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>

@@ -65,12 +65,7 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick, on
         })
     }, [cfg, busy, mine, durationMin])
 
-    // abre no primeiro dia com vaga
-    useEffect(() => {
-        if (!days || picked) return
-        const first = days.find((d) => d.free > 0)
-        if (first) setPicked(first.key)
-    }, [days, picked])
+    // 23/11/2026 (decisão do dono): os horários só aparecem DEPOIS de a pessoa escolher o dia (nada aberto de início); tocar de novo fecha
 
     if (!days) {
         return (
@@ -108,7 +103,7 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick, on
                             return (
                                 <button
                                     key={d.key}
-                                    onClick={() => !closed && setPicked(d.key)}
+                                    onClick={() => !closed && setPicked(picked === d.key ? null : d.key)}
                                     disabled={closed}
                                     className="flex-shrink-0 w-[58px] py-2.5 rounded-2xl flex flex-col items-center gap-0.5 transition active:scale-95 disabled:cursor-not-allowed"
                                     style={on ? { background: ORANGE, color: '#fff' } : { background: soft, color: closed ? colors.textSecondary : colors.textPrimary, opacity: closed ? 0.5 : 1 }}
@@ -121,6 +116,7 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick, on
                         })}
                     </div>
 
+                    {!current && <p className="mt-2.5 text-[12px]" style={{ color: colors.textSecondary }}>Toque num dia para ver os horários.</p>}
                     {current && (
                         <>
                             <p className="mt-3.5 text-[11px] font-black" style={{ color: colors.textSecondary }}>{longDay(current.date)}</p>
