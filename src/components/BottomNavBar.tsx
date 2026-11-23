@@ -285,7 +285,7 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                             </div>
                         )}
                     </div>
-                    <div className="flex items-stretch px-1.5" style={{ height: BAR_H, background: `linear-gradient(180deg, ${modeColor}0d, ${modeColor}26)`, borderTop: `1px solid ${hubOpen || playerFull ? colors.border : 'transparent'}`, transition: 'border-color 300ms ease' }}>
+                    <div className="flex items-stretch px-1.5" style={{ height: BAR_H, background: `linear-gradient(0deg, ${modeColor}66 0%, ${modeColor}2e 55%, ${modeColor}08 100%)` }}>
                         {tabs.map((t) => (
                             <BarButton key={t.key} colors={colors} accent={modeColor} active={t.active} label={t.label} onClick={t.onClick} badge={t.badge} badgeColor={t.badgeColor} pulse={t.pulse} badges={t.badges}>
                                 {t.icon}
