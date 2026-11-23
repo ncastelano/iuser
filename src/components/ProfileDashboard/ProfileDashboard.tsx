@@ -853,17 +853,9 @@ export default function ProfileDashboard({
         [orders]
     )
 
-    if (loading && !initialLoadDone) return (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
-            <div className="text-center">
-                <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando perfil...</p>
-            </div>
-        </div>
-    )
-    // ESQUELETO enquanto o perfil carrega (22/11/2026): a forma da página — informações, atalhos, visitantes, agenda e notificações
-    if (!profile) {
-        if (!loading) return null
+    // ESQUELETO enquanto o perfil carrega (22/11/2026; 23/11: no lugar da rodinha "Carregando perfil...", que aparecia antes dele)
+    if (!profile || (loading && !initialLoadDone)) {
+        if (!loading && !profile) return null
         const box = { background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, border: `1px solid ${colors.border}` }
         return (
             <SkeletonRegion label="Carregando o painel do perfil" className="w-full px-4 md:px-6 pb-28 mt-3 flex flex-col gap-4">

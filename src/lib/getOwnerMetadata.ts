@@ -310,7 +310,12 @@ export async function generateProductOrPublicationMetadata(
             // produto digital de preço 0 é GRÁTIS (a pessoa pega direto, sem pedido)
             const formattedPrice = isSale && product.price != null ? (product.type === 'digital' && Number(product.price) <= 0 ? ' - Grátis' : ` - R$ ${Number(product.price).toFixed(2).replace('.', ',')}`) : ''
             const title = `${product.name}${formattedPrice} | ${ownerName}`
-            const description = product.description || `Confira ${product.name} no iUser!`
+            // o TIPO do link na prévia (23/11/2026, decisão do dono): produto, serviço, conteúdo digital ou publicação
+            const kindLabel = product.type === 'service' || product.listing_type === 'service_offer' ? 'Serviço'
+                : product.type === 'digital' ? 'Conteúdo digital'
+                : product.listing_type === 'publication' ? 'Publicação'
+                : 'Produto'
+            const description = `${kindLabel} de ${ownerName} — ${(product.description || '').trim() || `confira ${product.name} no iUser.`}`
 
             const rawImageUrl = getPublicStorageUrl('product-images', product.image_url) || ownerImage
             const imageUrl = rawImageUrl ? toThumbUrl(rawImageUrl) : defaultLogoUrl
