@@ -80,6 +80,7 @@ export default function VehicleScreen() {
     const [recent, setRecent] = useState<{ at: string; km: number | null; from: string; to: string; rating: number | null; comment: string | null; who: string | null }[]>([])
     const [shareOpen, setShareOpen] = useState(false)
     const [zoom, setZoom] = useState(false)
+    const [showAllReviews, setShowAllReviews] = useState(false)
     const [feeOpen, setFeeOpen] = useState(false)
     const touchedTab = useRef(false)
     const [editing, setEditing] = useState(false)
@@ -228,6 +229,59 @@ export default function VehicleScreen() {
         : null
     const examples = pricing ? [3, 5, 10, 20].map((km) => ({ km, price: computeSuggestedPrice(km, pricing) })) : []
 
+    // O que o carro tem, COMPACTO (23/11/2026): só ícones + números curtos, colado embaixo do motorista e do Chamar
+    const amenitiesNode = (() => {
+        const svcs = vehicle.services || []
+        const chips: { icon: React.ReactNode; text?: string; title: string }[] = []
+        for (const sv of svcs) {
+            const Icon = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sv)?.icon
+            if (Icon) chips.push({ icon: <Icon size={13} />, title: driverServiceLabel(sv) })
+        }
+        if (vehicle.passenger_capacity != null) chips.push({ icon: <Users size={12} />, text: String(vehicle.passenger_capacity), title: `${vehicle.passenger_capacity} passageiros` })
+        if (vehicle.vehicle_kind === 'carro' && vehicle.has_baby_seat) chips.push({ icon: <Baby size={13} />, title: 'Cadeirinha' })
+        const sum = (...n: (number | null)[]) => n.reduce<number>((t, x) => t + (x || 0), 0)
+        const luggage = sum(vehicle.trunk_bags_pequena, vehicle.trunk_bags_media, vehicle.trunk_bags_grande, vehicle.trunk_suitcases_pequena, vehicle.trunk_suitcases_media, vehicle.trunk_suitcases_grande)
+        if (luggage > 0) chips.push({ icon: <Luggage size={12} />, text: String(luggage), title: `Porta-malas: ${[vehicle.trunk_bags_pequena, vehicle.trunk_bags_media, vehicle.trunk_bags_grande].map((x, i) => x ? `${x} ${['P', 'M', 'G'][i]}` : null).filter(Boolean).join(' · ')} bolsas, ${[vehicle.trunk_suitcases_pequena, vehicle.trunk_suitcases_media, vehicle.trunk_suitcases_grande].map((x, i) => x ? `${x} ${['P', 'M', 'G'][i]}` : null).filter(Boolean).join(' · ')} malas` })
+        if (ownerView && vehicle.car_plate) chips.push({ icon: <Hash size={12} />, text: vehicle.car_plate, title: 'Placa' })
+        if (chips.length === 0) return null
+        return (
+            <div className="flex flex-wrap gap-1" aria-label="O que o carro tem">
+                {chips.map((c, i) => (
+                    <span key={i} title={c.title} aria-label={c.title} className="h-6 min-w-[24px] px-1.5 rounded-full text-[10.5px] font-black flex items-center justify-center gap-0.5" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
+                        {c.icon}{c.text}
+                    </span>
+                ))}
+            </div>
+        )
+    })()
+
+    // Avaliações das corridas: a nota e o que disseram (comentários primeiro), até 4 e "ver todas"
+    const rated = recent.filter((r) => r.rating != null).sort((a, b) => Number(!!b.comment) - Number(!!a.comment))
+    const reviewsNode = rated.length === 0 ? null : (
+        <section className="mt-3 rounded-2xl p-3" style={soft}>
+            <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Avaliações das corridas</p>
+                {stats?.rating != null && <span className="text-[12px] font-black flex items-center gap-1" style={{ color: '#ca8a04' }}><Star size={12} className="fill-current" />{stats.rating.toFixed(1).replace('.', ',')} <span style={{ color: colors.textSecondary }}>({stats.ratingCount})</span></span>}
+            </div>
+            <div className="mt-2 flex flex-col gap-1.5">
+                {(showAllReviews ? rated : rated.slice(0, 4)).map((r, i) => (
+                    <div key={i} className="rounded-xl px-3 py-2" style={{ background: colors.surface }}>
+                        <p className="text-[12px] leading-snug" style={{ color: colors.textPrimary }}>
+                            <span className="font-black" style={{ color: '#ca8a04' }}>{'★'.repeat(Math.round(r.rating || 0))}</span>
+                            {r.comment ? <> “{r.comment}”</> : <span style={{ color: colors.textSecondary }}> sem comentário</span>}
+                        </p>
+                        <p className="text-[10.5px] mt-0.5" style={{ color: colors.textSecondary }}>
+                            {r.who ? `${r.who} · ` : ''}{r.from} → {r.to} · {new Date(r.at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                        </p>
+                    </div>
+                ))}
+            </div>
+            {rated.length > 4 && (
+                <button onClick={() => setShowAllReviews((v) => !v)} className="mt-2 text-[12px] font-black" style={{ color: ORANGE }}>{showAllReviews ? 'Ver menos' : `Ver todas (${rated.length})`}</button>
+            )}
+        </section>
+    )
+
     return (
         <div className="pb-6">
             {/* Dono: o veículo, os clientes (pedidos acontecendo), o histórico e a prévia do que o cliente enxerga */}
@@ -325,6 +379,7 @@ export default function VehicleScreen() {
                             <span className="text-[10px] opacity-90">{pricing ? `a partir de ${brl(pricing.baseFee)}` : 'ele é avisado na hora'}</span>
                         </button>
                     ) : null}
+                    {amenitiesNode}
                 </div>
             </section>
 
@@ -352,44 +407,8 @@ export default function VehicleScreen() {
                 </button>
             </section>
 
-            {/* O carro tem + dados do veículo, num cartão só */}
-            {(() => {
-                const svcs = vehicle.services || []
-                const facts: { icon: React.ReactNode; text: string }[] = []
-                if (vehicle.passenger_capacity != null) facts.push({ icon: <Users size={13} />, text: `${vehicle.passenger_capacity} ${vehicle.passenger_capacity === 1 ? 'passageiro' : 'passageiros'}` })
-                if (ownerView && vehicle.car_plate) facts.push({ icon: <Hash size={13} />, text: vehicle.car_plate })
-                if (vehicle.vehicle_kind === 'carro' && vehicle.has_baby_seat) facts.push({ icon: <Baby size={13} />, text: 'Cadeirinha' })
-                // porta-malas por tamanho (a soma engana: cada número é quantos cabem daquele tamanho)
-                const sizes = (label: string, p: number | null, m: number | null, g: number | null) => {
-                    const parts = [p ? `${p} P` : null, m ? `${m} M` : null, g ? `${g} G` : null].filter(Boolean)
-                    return parts.length ? `${label} ${parts.join(' · ')}` : null
-                }
-                const bags = sizes('Bolsas', vehicle.trunk_bags_pequena, vehicle.trunk_bags_media, vehicle.trunk_bags_grande)
-                const cases = sizes('Malas', vehicle.trunk_suitcases_pequena, vehicle.trunk_suitcases_media, vehicle.trunk_suitcases_grande)
-                if (bags) facts.push({ icon: <Luggage size={13} />, text: bags })
-                if (cases) facts.push({ icon: <Luggage size={13} />, text: cases })
-                if (svcs.length === 0 && facts.length === 0) return null
-                return (
-                    <section className="mt-2.5 rounded-2xl p-3" style={soft}>
-                        <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>O carro tem</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                            {svcs.map((sv) => {
-                                const Icon = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sv)?.icon
-                                return (
-                                    <span key={sv} className="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
-                                        {Icon && <Icon size={12} className="flex-shrink-0" />}{driverServiceLabel(sv)}
-                                    </span>
-                                )
-                            })}
-                            {facts.map((f, i) => (
-                                <span key={i} className="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1" style={{ background: `${colors.border}55`, color: colors.textPrimary }}>
-                                    <span className="flex-shrink-0" style={{ color: colors.textSecondary }}>{f.icon}</span>{f.text}
-                                </span>
-                            ))}
-                        </div>
-                    </section>
-                )
-            })()}
+            {/* Avaliações das corridas (no lugar do antigo "O carro tem", que foi para o cartão do motorista) */}
+            {reviewsNode}
 
             {/* Dono: painel */}
             {ownerView && (
@@ -422,38 +441,6 @@ export default function VehicleScreen() {
                 </span>
                 <span className="text-xs font-black flex-shrink-0 flex items-center gap-0.5" style={{ color: ORANGE }}>Ver como é cobrado <ChevronRight size={14} /></span>
             </button>
-
-            {/* Corridas, cada uma com o que disseram dela: mostra se as pessoas estão falando ou não */}
-            {(stats?.rides ?? 0) > 0 && (
-                <section className="mt-4">
-                    <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Corridas ({stats?.rides ?? 0})</h2>
-                    <div className="mt-2 flex flex-col gap-2">
-                        {recent.map((r, i) => (
-                            <div key={i} className="rounded-2xl px-3.5 py-2.5" style={soft}>
-                                <div className="flex items-start justify-between gap-2">
-                                    <p className="text-xs font-black min-w-0" style={{ color: colors.textPrimary }}>
-                                        Corrida de {r.from} <span style={{ color: colors.textSecondary }}>para</span> {r.to}
-                                    </p>
-                                    <span className="text-[10px] flex-shrink-0" style={{ color: colors.textSecondary }}>
-                                        {new Date(r.at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
-                                        {r.km != null ? ` · ${r.km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : ''}
-                                    </span>
-                                </div>
-                                {r.comment ? (
-                                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                        <span className="font-black inline-flex items-center gap-0.5" style={{ color: '#ca8a04' }}><Star size={11} className="fill-current" />{r.rating}</span>
-                                        {' '}“{r.comment}”{r.who ? <span className="font-bold"> — {r.who}</span> : null}
-                                    </p>
-                                ) : (
-                                    <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>
-                                        {r.rating != null ? <><span className="font-black" style={{ color: '#ca8a04' }}>★ {r.rating}</span> · sem comentário</> : 'Ainda sem avaliação'}
-                                    </p>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
 
             {/* Loja do motorista */}
             {stats?.store && (

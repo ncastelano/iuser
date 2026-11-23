@@ -161,7 +161,7 @@ export const GUIDE: GuideGroup[] = [
                     'Cada pedido tem a sua cor: laranja = passageiro, verde = entrega de loja, azul = objeto, roxo = animal. Antes de você ser escolhido aparece só "Passageiro" (com a nota) ou o nome da loja; o nome de quem pediu aparece depois.',
                     'Na entrega: vá à loja, pegue o pedido com o código da loja, leve ao cliente e confirme com o código dele.',
                     'Veja quanto ganhou hoje, na semana e no mês na própria página de Entregas (seção Seus ganhos).',
-                    'Divulgue: no alto do Painel do Canal do Motorista, "Compartilhar" manda o link da página do seu veículo (iuser.com.br/<seu-veículo>), por onde as pessoas chamam você. Ela é diferente do seu perfil pessoal.',
+                    'Divulgue: no alto do Painel do Canal do Motorista, "Compartilhar" manda o link da página do seu veículo (iuser.com.br/<seu @>-<modelo do carro>), por onde as pessoas chamam você. Ela é diferente do seu perfil pessoal.',
                 ],
                 rules: [
                     'Você precisa da CNH com atividade remunerada (EAR) e dos documentos do veículo.',

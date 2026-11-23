@@ -380,6 +380,16 @@ export async function proxy(request: NextRequest) {
             return rewriteToVehicle()
         }
 
+        // Endereço ANTIGO de um veículo (23/11/2026: o link virou <@>-<modelo>; o anterior fica em old_slugs): leva ao novo
+        {
+            const { data: moved } = await supabaseAdmin.from('driver_vehicles').select('vehicle_slug').contains('old_slugs', [slug.toLowerCase()]).limit(1).maybeSingle()
+            if (moved?.vehicle_slug) {
+                const to = request.nextUrl.clone()
+                to.pathname = `/${moved.vehicle_slug}`
+                return NextResponse.redirect(to, 301)
+            }
+        }
+
         // Banco indisponível (402/queda) em alguma das consultas e nada achado: não dá para afirmar que o endereço não existe.
         // Libera a rota (a página mostra o aviso de manutenção) em vez de cair no 404. Categorias e rotas fixas continuam valendo.
         if (!CATEGORIAS_VALIDAS.includes(slug) && slug !== 'publicacoes' && dbUnavailable(profileResult, storeResult, vehicleResult)) {
