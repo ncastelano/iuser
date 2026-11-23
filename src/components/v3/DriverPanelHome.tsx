@@ -203,39 +203,47 @@ export default function DriverPanelHome({
                 </div>
             ))}
 
-            {/* 3. Meu cadastro: tudo à vista (cada veículo, a tarifa inteira, a nota e as corridas); tocar abre a aba Meu cadastro */}
+            {/* 3. Meu cadastro: cada parte com o SEU botão de mudar (23/11/2026: antes não dava para saber que os valores podem ser mudados) */}
             {section('Meu cadastro', (
-                <button onClick={() => goTab('cadastro')} className="w-full rounded-2xl p-3.5 flex flex-col gap-3 text-left transition active:scale-[0.99]" style={{ background: driverStatus === 'incomplete' ? '#eab30818' : soft }}>
+                <div className="flex flex-col gap-2.5">
                     {(vehicles.length ? vehicles : [{ id: 'none', label: vehicleLabel || 'Cadastre seu veículo', photoUrl: null }]).map((v) => (
-                        <span key={v.id} className="flex items-center gap-3">
+                        <button key={v.id} onClick={() => goTab('veiculo')} className="w-full rounded-2xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: driverStatus === 'incomplete' ? '#eab30818' : soft }}>
                             {v.photoUrl
                                 ? <img src={v.photoUrl} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
                                 : <span className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}1f`, color: ORANGE }}><Car size={24} /></span>}
                             <span className="min-w-0 flex-1">
                                 <span className="block text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Veículo</span>
                                 <span className="block text-sm font-black leading-snug" style={{ color: colors.textPrimary }}>{v.label}</span>
+                                {driverStatus === 'incomplete' && <span className="block text-[11.5px] font-black" style={{ color: '#ca8a04' }}>Falta: {missingCount} {missingCount === 1 ? 'item' : 'itens'}</span>}
                             </span>
-                            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
-                        </span>
+                            <span className="inline-flex items-center gap-1 h-8 px-3 rounded-full text-[12px] font-black flex-shrink-0" style={{ background: `${ORANGE}1a`, color: ORANGE }}>Editar <ChevronRight size={13} /></span>
+                        </button>
                     ))}
-                    <span className="block rounded-xl p-2.5" style={{ background: `${colors.border}30` }}>
-                        <span className="block text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Tarifa</span>
-                        <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{pricingLabel}</span>
-                        {tariffLines.map((l, i) => <span key={i} className="block text-xs leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{l}</span>)}
-                    </span>
-                    <span className="grid grid-cols-2 gap-2">
-                        <span className="rounded-xl p-2.5" style={{ background: `${colors.border}30` }}>
+                    <div className="rounded-2xl p-3" style={{ background: soft }}>
+                        <div className="flex items-start gap-2">
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Quanto você cobra</span>
+                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{pricingLabel}</span>
+                            </span>
+                            <button onClick={() => goTab('plano')} className="inline-flex items-center gap-1 h-8 px-3 rounded-full text-[12px] font-black flex-shrink-0 text-white" style={{ background: ORANGE }}>Mudar valores <ChevronRight size={13} /></button>
+                        </div>
+                        {tariffLines.map((l, i) => <span key={i} className="block text-xs leading-snug mt-1" style={{ color: colors.textSecondary }}>{l}</span>)}
+                        <span className="block text-[11.5px] leading-snug mt-2 rounded-xl px-2.5 py-2" style={{ background: `${ORANGE}10`, color: colors.textPrimary }}>
+                            Você escolhe como cobrar: pela <b>Tarifa iUser</b>, pela <b>sua tarifa por km</b> ou pela <b>sua tarifa por tempo</b> — e qual valor aparece no botão do seu perfil.
+                        </span>
+                    </div>
+                    <button onClick={() => goTab('avaliacoes')} className="w-full grid grid-cols-2 gap-2 text-left transition active:scale-[0.99]">
+                        <span className="rounded-2xl p-3" style={{ background: soft }}>
                             <span className="flex items-center gap-1 text-lg font-black leading-none" style={{ color: colors.textPrimary }}><Star size={15} style={{ color: '#eab308', fill: '#eab308' }} />{reviewsCount > 0 && reviewsAvg != null ? reviewsAvg.toFixed(1).replace('.', ',') : '–'}</span>
-                            <span className="block text-[11px] mt-1" style={{ color: colors.textSecondary }}>{reviewsCount} {reviewsCount === 1 ? 'avaliação' : 'avaliações'}</span>
+                            <span className="flex items-center justify-between text-[11px] mt-1" style={{ color: colors.textSecondary }}>{reviewsCount} {reviewsCount === 1 ? 'avaliação' : 'avaliações'} <ChevronRight size={12} /></span>
                         </span>
-                        <span className="rounded-xl p-2.5" style={{ background: `${colors.border}30` }}>
+                        <span className="rounded-2xl p-3" style={{ background: soft }}>
                             <span className="flex items-center gap-1 text-lg font-black leading-none" style={{ color: colors.textPrimary }}><History size={15} style={{ color: ORANGE }} />{ridesDone}</span>
-                            <span className="block text-[11px] mt-1" style={{ color: colors.textSecondary }}>{ridesDone === 1 ? 'corrida feita' : 'corridas feitas'}</span>
+                            <span className="flex items-center justify-between text-[11px] mt-1" style={{ color: colors.textSecondary }}>{ridesDone === 1 ? 'corrida feita' : 'corridas feitas'} <ChevronRight size={12} /></span>
                         </span>
-                    </span>
-                    {driverStatus === 'incomplete' && <span className="text-xs font-black" style={{ color: '#ca8a04' }}>Falta: {missingCount} {missingCount === 1 ? 'item' : 'itens'} para completar</span>}
-                </button>
-            ), 'Veículo, tarifa e avaliações')}
+                    </button>
+                </div>
+            ), 'Veículo, quanto você cobra e avaliações')}
 
             {outdoor}
 
