@@ -62,6 +62,8 @@ export interface StoreHeaderV3Props {
     onBack?: () => void
     /** agenda de horários disponíveis (lojas de atendimento): logo abaixo das ações */
     agendaSlot?: ReactNode
+    /** "Estou aqui": quem está na loja agora (componente StoreHere) */
+    hereSlot?: ReactNode
     /** Clube VIP e demais blocos que já existiam no cabeçalho da v2 */
     extraSlot?: ReactNode
     /** só o dono: ajustar dias e horários */
@@ -213,6 +215,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     </div>
                 )}
 
+                {p.hereSlot}
                 {p.agendaSlot}
 
                 {p.extraSlot && <div className="mt-2">{p.extraSlot}</div>}

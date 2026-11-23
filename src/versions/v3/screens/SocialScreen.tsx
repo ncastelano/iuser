@@ -226,6 +226,15 @@ export default function SocialScreen() {
                                                     {i === 0 && <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0" style={on ? { background: 'rgba(255,255,255,0.3)' } : { background: `${ORANGE}22`, color: ORANGE }}>+ gente</span>}
                                                 </span>
                                                 <span className="text-[12px] font-bold" style={{ opacity: on ? 0.95 : 0.7 }}>{peopleLabel(pl.count)}</span>
+                                                {pl.lat != null && pl.lng != null && process.env.NEXT_PUBLIC_MAPBOX_TOKEN && (
+                                                    /* mapinha do bairro: tocar abre o Radar ali, no modo Pessoas */
+                                                    <span role="link" tabIndex={0} aria-label={`Ver ${pl.place} no Radar`} onClick={(e) => { e.stopPropagation(); router.push(`/radar?modo=pessoas&lat=${pl.lat}&lng=${pl.lng}&zoom=14.5`) }} onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); router.push(`/radar?modo=pessoas&lat=${pl.lat}&lng=${pl.lng}&zoom=14.5`) } }} className="relative block w-full h-[72px] rounded-2xl overflow-hidden" style={{ background: `${colors.border}40` }}>
+                                                        <img src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${pl.lng},${pl.lat},13.5,0/280x144@2x?attribution=false&logo=false&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`} alt="" loading="lazy" className="w-full h-full object-cover" />
+                                                        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full" style={{ background: `${ORANGE}55`, boxShadow: `0 0 0 2px #fff` }}><span className="absolute inset-1 rounded-full" style={{ background: ORANGE }} /></span>
+                                                        <span className="absolute right-1.5 bottom-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-white/90 text-gray-800">Ver no Radar</span>
+                                                        <span className="absolute left-1 bottom-0.5 text-[7px] text-gray-700/80">© Mapbox © OSM</span>
+                                                    </span>
+                                                )}
                                                 <span className="flex">
                                                     {pl.avatars.slice(0, 5).map((a, k) => (
                                                         <span key={k} className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0" style={{ marginLeft: k ? -8 : 0, boxShadow: `0 0 0 2px ${on ? ORANGE : colors.surface}`, background: `${colors.border}80` }}>

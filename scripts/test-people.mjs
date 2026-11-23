@@ -32,7 +32,7 @@ test('textos: distância, pessoas e quando entrou', () => {
 })
 test('local e busca', () => {
     assert.equal(placeFromRow({}), null)
-    assert.deepEqual(placeFromRow({ place: 'Centro', people_count: '37', avatars: ['a', null, 'b'] }), { place: 'Centro', count: 37, avatars: ['a', 'b'] })
+    assert.deepEqual(placeFromRow({ place: 'Centro', people_count: '37', avatars: ['a', null, 'b'] }), { place: 'Centro', count: 37, avatars: ['a', 'b'], lat: null, lng: null })
     assert.equal(normalizeQuery('  @João  '), 'joao')
     assert.equal(canSearch('a'), false); assert.equal(canSearch('jo'), true)
 })

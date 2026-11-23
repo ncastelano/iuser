@@ -495,6 +495,21 @@ export default function RadarScreen() {
         }
     }, [referenceLocation?.lat, referenceLocation?.lng, mapStyle])
 
+    // /radar?modo=pessoas&lat=&lng=&zoom= (ex.: o mapinha de "Locais com mais pessoas"): abre no modo e voa até o lugar
+    const focusRef = useRef<{ lat: number; lng: number; zoom: number } | null | undefined>(undefined)
+    useEffect(() => {
+        const q = new URLSearchParams(window.location.search)
+        const m = q.get('modo')
+        if (m === 'lojas' || m === 'servicos' || m === 'produtos' || m === 'pessoas' || m === 'motoristas' || m === 'flash') setMode(m)
+        const lat = Number(q.get('lat')), lng = Number(q.get('lng'))
+        focusRef.current = q.get('lat') && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng, zoom: Number(q.get('zoom')) || 14.5 } : null
+    }, [])
+    useEffect(() => {
+        const f = focusRef.current
+        if (!mapReady || !f || !mapRef.current) return
+        mapRef.current.flyTo({ center: [f.lng, f.lat], zoom: f.zoom, duration: 1200 })
+    }, [mapReady])
+
     // LOAD DATA
     useEffect(() => {
         const load = async () => {
@@ -866,6 +881,8 @@ export default function RadarScreen() {
 
         Object.values(coordGroups).forEach(group => {
             group.forEach((entry, index) => {
+                // vários no MESMO ponto: só o primeiro vira marcador, com os outros empilhados atrás dele (o "cluster")
+                if (index > 0) return
                 const { item, coords } = entry
 
                 let lng = coords[0]
@@ -970,45 +987,37 @@ export default function RadarScreen() {
                 }
 
                 if (index === 0 && group.length > 1) {
-                    // O número do cluster é um marcador PRÓPRIO, com z-index acima de qualquer
-                    // marcador de loja/produto (inclusive os do top 3, z 600). Dentro do marcador da
-                    // loja ele ficava preso no z-index dele e sumia atrás da imagem de outro.
-                    const badge = document.createElement('div')
-                    badge.innerHTML = `${group.length}`
-                    badge.style.cssText = `
-                        background: linear-gradient(135deg, #f97316, #ef4444);
-                        color: white;
-                        font-size: 12px;
-                        font-weight: 900;
-                        line-height: 1;
-                        min-width: 24px;
-                        text-align: center;
-                        padding: 5px 8px;
-                        border-radius: 20px;
-                        border: 2px solid white;
-                        z-index: 2000;
-                        cursor: pointer;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-                    `
-                    badge.onclick = (e) => {
-                        e.stopPropagation()
-                        setClusterItems(group.map(g => g.item))
-                        setClusterLocation({
-                            lng,
-                            lat,
-                            name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : mode === 'flash' ? `${group.length} flashes neste lugar` : `${group.length} estabelecimentos nesta localização`
-                        })
-                        map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
+                    // 23/11/2026 (decisão do dono): no lugar do número, as IMAGENS empilhadas — 2 = duas, 3 = três, 4+ = três e um "+";
+                    // o marcador tem o mesmo tamanho, só que com as outras aparecendo atrás em leque
+                    const round = !!(item.isPerson || item.isDriver)
+                    const backs = group.slice(1, 3)
+                    backs.forEach((g, k) => {
+                        const b = document.createElement('div')
+                        const url = g.item.logo_url || g.item.image_url
+                        const side = k === 0 ? -1 : 1
+                        b.style.cssText = `position:absolute;bottom:2px;left:50%;width:${boxSize - 8}px;height:${boxSize - 8}px;margin-left:${-(boxSize - 8) / 2 + side * 13}px;transform:rotate(${side * 12}deg);border-radius:${round ? '50%' : '11px'};overflow:hidden;background:#fff center/cover no-repeat;border:2.5px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.3);z-index:-1;pointer-events:none;`
+                        if (url) b.style.backgroundImage = `url("${String(url).replace(/"/g, '%22')}")`
+                        else b.style.background = 'linear-gradient(135deg,#fed7aa,#fecaca)'
+                        el.appendChild(b)
+                    })
+                    el.style.position = 'relative'
+                    inner.style.position = 'relative'
+                    inner.style.zIndex = '1'
+                    if (group.length > 3) {
+                        const plus = document.createElement('div')
+                        plus.textContent = '+'
+                        plus.style.cssText = 'position:absolute;right:-8px;bottom:-4px;width:20px;height:20px;border-radius:50%;background:#111827;color:#fff;font-size:15px;font-weight:900;line-height:18px;text-align:center;border:2px solid #fff;z-index:2;pointer-events:none;'
+                        el.appendChild(plus)
                     }
-                    // Canto inferior direito do marcador da loja (âncora 'bottom' = base no ponto)
-                    badgeEl = badge
-                    const badgeMarker = new mapboxgl.Marker({ element: badge, anchor: 'center', offset: [boxSize / 2 - 2, -2] })
-                        .setLngLat([lng, lat])
-                        .addTo(map)
-                    markersRef.current.push(badgeMarker)
                 }
 
                 el.onclick = async () => {
+                    if (group.length > 1) {
+                        setClusterItems(group.map(g => g.item))
+                        setClusterLocation({ lng, lat, name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : mode === 'flash' ? `${group.length} flashes neste lugar` : mode === 'pessoas' ? `${group.length} pessoas neste lugar` : `${group.length} neste local` })
+                        map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
+                        return
+                    }
                     if (item.isFlash) { router.push(`/flash?de=${item.id}`); return }   // flash: abre o feed já nele
                     setSelectedItem(item)
                     map.flyTo({ center: [lng, lat], zoom: 16, duration: 600 })
@@ -1072,6 +1081,11 @@ export default function RadarScreen() {
         }
 
         if (profileLocation && isLoggedIn && (userAvatar || userName)) {
+            // 23/11/2026 (decisão do dono): a borda diz se a pessoa APARECE no Radar — verde = visível, vermelho = não (pulsando)
+            const visible = !!profileData?.show_on_map && profileData?.show_location !== false
+            const ring = visible ? '#16a34a' : '#dc2626'
+            const ringSoft = visible ? 'rgba(22,163,74,0.3)' : 'rgba(220,38,38,0.3)'
+            const ringHover = visible ? 'rgba(22,163,74,0.45)' : 'rgba(220,38,38,0.45)'
             // Criar container principal
             const el = document.createElement('div')
             // z-index bem acima do máximo usado pelos marcadores de loja/produto
@@ -1094,8 +1108,8 @@ export default function RadarScreen() {
             width: 34px;
             height: 34px;
             border-radius: 50%;
-            border: 3px solid #f97316;
-            animation: profilePulse 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+            border: 3px solid ${ring};
+            animation: profilePulse2 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
             pointer-events: none;
         `
 
@@ -1111,8 +1125,8 @@ export default function RadarScreen() {
             border-radius: 50%;
             overflow: hidden;
             background: white;
-            border: 3px solid #f97316;
-            box-shadow: 0 0 0 3px rgba(249,115,22,0.3), 0 8px 20px rgba(0,0,0,0.2);
+            border: 3px solid ${ring};
+            box-shadow: 0 0 0 3px ${ringSoft}, 0 8px 20px rgba(0,0,0,0.2);
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.3s;
             z-index: 1;
@@ -1149,8 +1163,8 @@ export default function RadarScreen() {
             width: 34px;
             height: 34px;
             border-radius: 50%;
-            border: 3px solid #f97316;
-            animation: profilePulse 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.5s infinite;
+            border: 3px solid ${ring};
+            animation: profilePulse2 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.5s infinite;
             pointer-events: none;
         `
 
@@ -1162,15 +1176,16 @@ export default function RadarScreen() {
             // Eventos de hover
             avatarCircle.addEventListener('mouseenter', () => {
                 avatarCircle.style.transform = 'translate(-50%, -50%) scale(1.1)'
-                avatarCircle.style.boxShadow = '0 0 0 6px rgba(249,115,22,0.4), 0 12px 28px rgba(0,0,0,0.3)'
+                avatarCircle.style.boxShadow = `0 0 0 6px ${ringHover}, 0 12px 28px rgba(0,0,0,0.3)`
             })
 
             avatarCircle.addEventListener('mouseleave', () => {
                 avatarCircle.style.transform = 'translate(-50%, -50%) scale(1)'
-                avatarCircle.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.3), 0 8px 20px rgba(0,0,0,0.2)'
+                avatarCircle.style.boxShadow = `0 0 0 3px ${ringSoft}, 0 8px 20px rgba(0,0,0,0.2)`
             })
 
             // Evento de clique
+            el.title = visible ? 'Você está visível no Radar' : 'Você não aparece no Radar'
             el.addEventListener('click', () => {
                 if (mapRef.current && profileLocation) {
                     mapRef.current.flyTo({
@@ -1183,26 +1198,23 @@ export default function RadarScreen() {
             })
 
             // Injetar a animação CSS
-            const styleId = 'profile-pulse-animation'
+            const styleId = 'profile-pulse-animation-v2'
             if (!document.getElementById(styleId)) {
                 const style = document.createElement('style')
                 style.id = styleId
                 style.textContent = `
-                @keyframes profilePulse {
+                @keyframes profilePulse2 {
                     0% {
                         transform: translate(-50%, -50%) scale(1);
                         opacity: 1;
-                        border-color: #f97316;
                     }
                     50% {
                         transform: translate(-50%, -50%) scale(1.5);
                         opacity: 0.5;
-                        border-color: #fb923c;
                     }
                     100% {
                         transform: translate(-50%, -50%) scale(1.8);
                         opacity: 0;
-                        border-color: #fdba74;
                     }
                 }
             `
@@ -1218,7 +1230,7 @@ export default function RadarScreen() {
 
             console.log('[MapPage] 👤 Marcador de perfil adicionado com efeito pulsante')
         }
-    }, [mapReady, profileLocation, userAvatar, userName, isLoggedIn, userAddress])
+    }, [mapReady, profileLocation, userAvatar, userName, isLoggedIn, userAddress, profileData?.show_on_map, profileData?.show_location])
 
     const selectedStore = mode === 'produtos' || mode === 'servicos'
         ? stores.find(s => s.id === selectedItem?.store_id)
@@ -1303,7 +1315,7 @@ export default function RadarScreen() {
     }
     // menu do filtro (mais/menos vistos, vendidos...) — o mesmo nas duas versões
     const rankMenuNode = showRankMenu ? (
-<div className={`absolute right-0 ${('top-full mt-2')} w-64 max-h-[46vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5`}>
+<div className={`absolute left-0 ${('top-full mt-2')} w-64 max-h-[46vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5`}>
                                 {RANK_GROUPS.filter(g => !g.storesOnly || mode === 'lojas').map(g => (
                                     <div key={g.id} className="px-3 py-1.5">
                                         <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">{g.title}</p>
@@ -1568,7 +1580,24 @@ export default function RadarScreen() {
             {/* Horizontal List — do mais visto ao menos visto (esquerda → direita) */}
             {filtered.length > 0 && !clusterItems && !selectedItem && (
                 <div className={`absolute ${('top-[22px] z-[55]')} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(({})), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
-                    <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
+                    {/* 23/11/2026 (decisão do dono): um painel só, com respiro — em cima o filtro (à esquerda) e quantos são; embaixo a fileira,
+                        cada item com o NÚMERO da colocação (em qualquer filtro: mais vistos, mais vendidos...), sem os pontos */}
+                    <div className="px-1 pt-1">
+                    <div className="flex items-center justify-between gap-2 relative">
+                        {mode !== 'motoristas' && mode !== 'flash' ? (
+                            <button
+                                onClick={() => setShowRankMenu(v => !v)}
+                                className="flex items-center gap-1.5 rounded-full pl-2.5 pr-2 h-8 text-[11.5px] font-black text-gray-800 bg-white shadow-md"
+                                aria-expanded={showRankMenu}
+                            >
+                                <Flame className="w-3.5 h-3.5 text-orange-500" />
+                                {rankLabel(rankKey, mode)}
+                                <ChevronDown className={`w-3.5 h-3.5 text-orange-500 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                        ) : <span className="text-[11.5px] font-black text-gray-800 px-3 h-8 rounded-full bg-white shadow-md inline-flex items-center">{mode === 'motoristas' ? 'Do mais perto ao mais longe' : 'Os mais recentes'}</span>}
+                        {rankMenuNode}
+                    </div>
+                    <div className="flex gap-3.5 overflow-x-auto pt-7 pb-4 px-1 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
                             const rank = idx < 3 && mode !== 'motoristas' && mode !== 'flash' ? idx + 1 : 0
                             const size = rank ? 62 : 52
@@ -1601,9 +1630,9 @@ export default function RadarScreen() {
                                             <CrownBadge rank={rank} size={30} />
                                         </span>
                                     )}
-                                    {rankKey.startsWith('outdoor') && mode !== 'motoristas' && mode !== 'flash' && (
-                                        <span className="absolute z-10 left-1/2 -translate-x-1/2 -bottom-2.5 rounded-full px-1.5 py-px text-[9px] font-black text-white whitespace-nowrap leading-tight" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
-                                            {pointsLabel(outdoorPts[item.id] || 0)}
+                                    {mode !== 'motoristas' && mode !== 'flash' && (
+                                        <span className="absolute z-10 left-1/2 -translate-x-1/2 -bottom-2.5 min-w-[20px] h-[18px] rounded-full px-1 flex items-center justify-center text-[10px] font-black whitespace-nowrap leading-none" style={rank ? { background: RANK_COLORS[rank].fill, color: RANK_COLORS[rank].text, boxShadow: '0 0 0 2px #fff' } : { background: '#1f2937', color: '#fff', boxShadow: '0 0 0 2px #fff' }}>
+                                            {idx + 1}º
                                         </span>
                                     )}
                                     {((() => {
@@ -1611,7 +1640,7 @@ export default function RadarScreen() {
                                         const km = c && referenceLocation ? haversineKm([referenceLocation.lng, referenceLocation.lat], c) : null
                                         const label = formatDistance(km)
                                         return label ? (
-                                            <span className="absolute z-10 right-0.5 bottom-0.5 rounded-full px-1.5 py-px text-[9px] font-black text-white leading-tight" style={{ background: 'rgba(0,0,0,0.72)' }}>{label}</span>
+                                            <span className="absolute z-10 -right-1.5 -top-1.5 rounded-full px-1.5 py-px text-[8.5px] font-black text-white leading-tight" style={{ background: 'rgba(0,0,0,0.72)', boxShadow: '0 0 0 1.5px #fff' }}>{label}</span>
                                         ) : null
                                     })())}
                                     <div
@@ -1630,20 +1659,7 @@ export default function RadarScreen() {
                         })}
                     </div>
 
-                    {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos. Motoristas ficam do mais perto pro mais longe, sem filtro. */}
-                    {mode !== 'motoristas' && mode !== 'flash' && <div className={`flex justify-end relative ${('-mt-1')}`}>
-                        <button
-                            onClick={() => setShowRankMenu(v => !v)}
-                            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow-lg"
-                            style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 4px 14px #f9731660' }}
-                            aria-expanded={showRankMenu}
-                        >
-                            <Flame className="w-3.5 h-3.5" />
-                            Filtro: {rankLabel(rankKey, mode)}
-                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
-                        </button>
-                        {rankMenuNode}
-                    </div>}
+                    </div>
                 </div>
             )}
 

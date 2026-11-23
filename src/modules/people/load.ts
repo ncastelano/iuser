@@ -22,7 +22,36 @@ export async function loadNearbyPeople(origin: { lat: number; lng: number } | nu
 export async function loadPlaces(limit = 8): Promise<Place[]> {
     const { data, error } = await supabase.rpc('get_people_places', { p_limit: limit })
     if (error) throw error
-    return ((data || []) as Record<string, any>[]).map(placeFromRow).filter((p): p is Place => !!p)
+    const places = ((data || []) as Record<string, any>[]).map(placeFromRow).filter((p): p is Place => !!p)
+    return fillPlaceCenters(places)
+}
+
+// Bairro sem centro (menos de 2 pessoas com local): procura o BAIRRO pelo nome no Mapbox, perto de um bairro que já tem centro
+// (só o nome do bairro sai do aparelho; guardado nesta aba)
+async function fillPlaceCenters(places: Place[]): Promise<Place[]> {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    const near = places.find((p) => p.lat != null && p.lng != null)
+    if (!token || !near || typeof window === 'undefined') return places
+    return Promise.all(places.map(async (p) => {
+        if (p.lat != null && p.lng != null) return p
+        const key = `iuser_place_center:${p.place}`
+        try {
+            const cached = sessionStorage.getItem(key)
+            if (cached) { const [lat, lng] = JSON.parse(cached); return { ...p, lat, lng } }
+        } catch { /* sem armazenamento */ }
+        try {
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(p.place)}.json?types=neighborhood,locality,district&country=br&limit=1&language=pt&proximity=${near.lng},${near.lat}&access_token=${token}`
+            const j = await fetch(url).then((r) => r.json())
+            const c = j?.features?.[0]?.center as [number, number] | undefined
+            if (!c) return p
+            // longe demais do bairro de referência (> 40 km): outro lugar com o mesmo nome, não usa
+            const dLat = c[1] - (near.lat as number), dLng = c[0] - (near.lng as number)
+            if (Math.sqrt(dLat * dLat + dLng * dLng) > 0.4) return p
+            const lat = Math.round(c[1] * 100) / 100, lng = Math.round(c[0] * 100) / 100
+            try { sessionStorage.setItem(key, JSON.stringify([lat, lng])) } catch { /* ok */ }
+            return { ...p, lat, lng }
+        } catch { return p }
+    }))
 }
 
 export async function loadPeopleInPlace(place: string, limit = 24): Promise<Person[]> {
