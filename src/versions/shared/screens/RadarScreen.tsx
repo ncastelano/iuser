@@ -1637,8 +1637,9 @@ export default function RadarScreen() {
                                             <CrownBadge rank={rank} size={30} />
                                         </span>
                                     )}
-                                    {mode !== 'motoristas' && mode !== 'flash' && (
-                                        <span className="absolute z-10 left-1/2 -translate-x-1/2 -bottom-2.5 min-w-[20px] h-[18px] rounded-full px-1 flex items-center justify-center text-[10px] font-black whitespace-nowrap leading-none" style={rank ? { background: RANK_COLORS[rank].fill, color: RANK_COLORS[rank].text, boxShadow: '0 0 0 2px #fff' } : { background: '#1f2937', color: '#fff', boxShadow: '0 0 0 2px #fff' }}>
+                                    {/* colocação no canto de cima (do 4º em diante: o 1º, 2º e 3º já têm o número na coroa) */}
+                                    {mode !== 'motoristas' && mode !== 'flash' && !rank && (
+                                        <span className="absolute z-10 -right-1.5 -top-1.5 min-w-[20px] h-[18px] rounded-full px-1 flex items-center justify-center text-[10px] font-black whitespace-nowrap leading-none" style={{ background: '#1f2937', color: '#fff', boxShadow: '0 0 0 2px #fff' }}>
                                             {idx + 1}º
                                         </span>
                                     )}
@@ -1647,7 +1648,7 @@ export default function RadarScreen() {
                                         const km = c && referenceLocation ? haversineKm([referenceLocation.lng, referenceLocation.lat], c) : null
                                         const label = formatDistance(km)
                                         return label ? (
-                                            <span className="absolute z-10 -right-1.5 -top-1.5 rounded-full px-1.5 py-px text-[8.5px] font-black text-white leading-tight" style={{ background: 'rgba(0,0,0,0.72)', boxShadow: '0 0 0 1.5px #fff' }}>{label}</span>
+                                            <span className="absolute z-10 left-1/2 -translate-x-1/2 -bottom-2.5 rounded-full px-1.5 py-px text-[9px] font-black text-white leading-tight whitespace-nowrap" style={{ background: 'rgba(0,0,0,0.78)', boxShadow: '0 0 0 1.5px #fff' }}>{label}</span>
                                         ) : null
                                     })())}
                                     <div
