@@ -15,7 +15,7 @@ export interface Person {
     offers?: string | null
     ratingAvg?: number | null
 }
-export interface Place { place: string; count: number; avatars: string[] }
+export interface Place { place: string; count: number; avatars: string[]; /** centro aproximado do bairro (~1 km), só com 2+ pessoas */ lat: number | null; lng: number | null }
 
 const toRad = (d: number) => (d * Math.PI) / 180
 /** Distância em km entre dois pontos (haversine) */
@@ -70,7 +70,8 @@ export function joinedLabel(iso: string | null | undefined, now = Date.now()): s
 /** A linha de get_people_places → local */
 export function placeFromRow(r: Record<string, any>): Place | null {
     if (!r?.place) return null
-    return { place: String(r.place), count: Number(r.people_count) || 0, avatars: Array.isArray(r.avatars) ? r.avatars.filter(Boolean).map(String) : [] }
+    const lat = r.lat == null ? null : Number(r.lat), lng = r.lng == null ? null : Number(r.lng)
+    return { place: String(r.place), count: Number(r.people_count) || 0, avatars: Array.isArray(r.avatars) ? r.avatars.filter(Boolean).map(String) : [], lat: Number.isFinite(lat) ? lat : null, lng: Number.isFinite(lng) ? lng : null }
 }
 
 /** Busca simples de pessoas: tira acento/maiúscula; precisa de 2 letras ou mais */
