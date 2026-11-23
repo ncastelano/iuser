@@ -85,6 +85,8 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
     const desc = p.description || ''
     const initial = (p.name || '?').charAt(0).toUpperCase()
 
+    // Seguir SOZINHO na linha (sem Comprar e sem Conversar): a nota e as visitas vão para o lado dele, em vez de ficar na fileira de cápsulas
+    const followAlone = !!p.canFollow && !(p.showBuy ?? true) && !p.contactSlot
     const capsule = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-bold transition active:scale-95 max-w-full'
     
     return (
@@ -119,6 +121,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                 {/* atalhos em cápsulas, numa fileira só (rola para o lado se não couber) */}
                 {/* 23/11/2026: as cápsulas QUEBRAM de linha (uma embaixo da outra quando não cabem), compactas, em vez de rolar de lado */}
                 <div className="mt-3 flex flex-wrap gap-1.5">
+                    {!followAlone && <>
                     {p.ratingsCount > 0 && (
                         <button onClick={p.onOpenReviews} aria-label="Ver as avaliações da loja" className={`${capsule} flex-shrink-0 active:scale-95 transition`} style={{ background: soft, color: colors.textPrimary }}>
                             <Star size={13} className="flex-shrink-0" style={{ color: ORANGE, fill: ORANGE }} />
@@ -129,6 +132,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                         <Eye size={13} className="flex-shrink-0" />
                         <b style={{ color: colors.textPrimary }}>{p.visitors}</b>
                     </span>
+                    </>}
                     <button onClick={p.onOpenFollowers} className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textSecondary }}>
                         <Users size={13} className="flex-shrink-0" />
                         <b style={{ color: colors.textPrimary }}>{p.followers}</b> seguidores
@@ -173,7 +177,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     const follow = p.canFollow ? (
                         <button
                             onClick={p.onFollowToggle}
-                            className="flex-shrink-0 h-9 px-4 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
+                            className="flex-shrink-0 px-4 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
                             style={p.isFollowing ? { background: soft, color: colors.textPrimary } : { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` }}
                         >
                             {p.isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
@@ -189,6 +193,18 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                                 </button>
                             )}
                             {follow}
+                            {followAlone && <div className="flex flex-wrap gap-1.5 min-w-0">
+                    {p.ratingsCount > 0 && (
+                        <button onClick={p.onOpenReviews} aria-label="Ver as avaliações da loja" className={`${capsule} flex-shrink-0 active:scale-95 transition`} style={{ background: soft, color: colors.textPrimary }}>
+                            <Star size={13} className="flex-shrink-0" style={{ color: ORANGE, fill: ORANGE }} />
+                            {p.rating.toFixed(1).replace('.', ',')} ({p.ratingsCount})
+                        </button>
+                    )}
+                    <span className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textSecondary }}>
+                        <Eye size={13} className="flex-shrink-0" />
+                        <b style={{ color: colors.textPrimary }}>{p.visitors}</b>
+                    </span>
+                            </div>}
                             {p.contactSlot}
                         </div>
                     )
@@ -226,7 +242,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
 
                 {p.ownerToolsSlot && <div className="mt-2">{p.ownerToolsSlot}</div>}
 
-                {(p.seller || p.reportSlot) && (
+                {p.seller && (
                     <div className="mt-2 flex items-start justify-between gap-3">
                         {p.seller ? (
                             <details className="text-[11.5px] min-w-0" style={{ color: colors.textSecondary }}>
@@ -234,7 +250,6 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                                 <p className="mt-1 leading-snug">{p.seller.name}{p.seller.doc ? ` · ${p.seller.doc}` : ''}{p.seller.address ? <><br />{p.seller.address}</> : null}</p>
                             </details>
                         ) : <span />}
-                        {p.reportSlot}
                     </div>
                 )}
             </div>
