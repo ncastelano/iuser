@@ -881,6 +881,8 @@ export default function RadarScreen() {
         console.log('[MapPage] 📍 Grupos de coordenadas encontrados:', Object.keys(coordGroups).length)
 
         Object.values(coordGroups).forEach(group => {
+            // no ponto com vários, o de MELHOR colocação vai na frente (a coroa fica no item certo)
+            group.sort((a, b) => (rankOf.get(a.item.id) || 99) - (rankOf.get(b.item.id) || 99))
             group.forEach((entry, index) => {
                 // vários no MESMO ponto: só o primeiro vira marcador, com os outros empilhados atrás dele (o "cluster")
                 if (index > 0) return
@@ -1001,7 +1003,6 @@ export default function RadarScreen() {
                         else b.style.background = 'linear-gradient(135deg,#fed7aa,#fecaca)'
                         el.appendChild(b)
                     })
-                    el.style.position = 'relative'
                     inner.style.position = 'relative'
                     inner.style.zIndex = '1'
                     if (group.length > 3) {
@@ -1015,7 +1016,7 @@ export default function RadarScreen() {
                 el.onclick = async () => {
                     if (group.length > 1) {
                         setClusterItems(group.map(g => g.item))
-                        setClusterLocation({ lng, lat, name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : mode === 'flash' ? `${group.length} flashes neste lugar` : mode === 'pessoas' ? `${group.length} pessoas neste lugar` : `${group.length} neste local` })
+                        setClusterLocation({ lng, lat, name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : mode === 'flash' ? `${group.length} flashes neste lugar` : mode === 'pessoas' ? `${group.length} pessoas neste lugar` : mode === 'servicos' ? `${group.length} serviços aqui` : mode === 'produtos' ? `${group.length} produtos aqui` : `${group.length} lojas aqui` })
                         map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
                         return
                     }
@@ -1539,7 +1540,7 @@ export default function RadarScreen() {
                             <Building2 className="w-5 h-5 text-white" />
                             <div>
                                 <p className="text-xs font-bold text-white">{clusterLocation.name}</p>
-                                <p className="text-[10px] text-white/80">{clusterItems.length} estabelecimentos</p>
+                                <p className="text-[10px] text-white/80">{clusterItems.length} {mode === 'servicos' ? 'serviços' : mode === 'produtos' ? 'produtos' : mode === 'pessoas' ? 'pessoas' : mode === 'motoristas' ? 'motoristas' : mode === 'flash' ? 'flashes' : 'lojas'} no mesmo lugar</p>
                             </div>
                         </div>
                         <button
