@@ -12,6 +12,8 @@ interface ProfileContextType {
     userId: string | null
     isLoggedIn: boolean
     profileSlug: string | null
+    /** o nome do perfil (a barra de baixo mostra o primeiro nome) */
+    profileName: string | null
     avatarUrl: string | null
     bgMode: BgMode
     customBgUrl: string | null
@@ -25,6 +27,7 @@ const ProfileContext = createContext<ProfileContextType>({
     userId: null,
     isLoggedIn: false,
     profileSlug: null,
+    profileName: null,
     avatarUrl: null,
     bgMode: 'black',
     customBgUrl: null,
@@ -37,6 +40,7 @@ const ProfileContext = createContext<ProfileContextType>({
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
     const [userId, setUserId] = useState<string | null>(null)
     const [profileSlug, setProfileSlug] = useState<string | null>(null)
+    const [profileName, setProfileName] = useState<string | null>(null)
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
     const [bgMode, setBgMode] = useState<BgMode>('black')
     const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
@@ -57,14 +61,14 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
             // Seleciona também as colunas de tema e fonte
             const { data, error } = await supabase
                 .from('profiles')
-                .select('profileSlug, avatar_url, background_mode, background_image_url, app_theme, font_size')
+                .select('profileSlug, name, avatar_url, background_mode, background_image_url, app_theme, font_size')
                 .eq('id', userId)
                 .single()
 
             if (error) throw error
 
             if (data) {
-                setProfileSlug(data.profileSlug)
+                setProfileSlug(data.profileSlug); setProfileName((data as { name?: string | null }).name ?? null)
                 setAvatarUrl(getPublicUrl(data.avatar_url, 'avatars'))
                 if (data.background_mode) setBgMode(data.background_mode as BgMode)
                 if (data.background_image_url) setCustomBgUrl(data.background_image_url)
@@ -83,11 +87,11 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
             try {
                 const { data } = await supabase
                     .from('profiles')
-                    .select('profileSlug, avatar_url, app_theme, font_size')
+                    .select('profileSlug, name, avatar_url, app_theme, font_size')
                     .eq('id', userId)
                     .single()
                 if (data) {
-                    setProfileSlug(data.profileSlug)
+                    setProfileSlug(data.profileSlug); setProfileName((data as { name?: string | null }).name ?? null)
                     setAvatarUrl(getPublicUrl(data.avatar_url, 'avatars'))
                     if (data.app_theme) setTheme(data.app_theme)
                     if (data.font_size) setFontSize(data.font_size)
@@ -120,6 +124,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
                 // Reset ao deslogar
                 setUserId(null)
                 setProfileSlug(null)
+                setProfileName(null)
                 setAvatarUrl(null)
                 setBgMode('black')
                 setCustomBgUrl(null)
@@ -204,6 +209,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
                 userId,
                 isLoggedIn: userId !== null,
                 profileSlug,
+                profileName,
                 avatarUrl,
                 bgMode,
                 customBgUrl,

@@ -56,7 +56,13 @@ export function FlashSection({ colors, onOpen, onNew, onAll, following = false }
     if (following && flashes && flashes.length === 0) return null
     return (
         <Section colors={colors} icon={Zap} title={following ? 'Flash de quem você segue' : 'Flash'} subtitle={following ? 'Os posts rápidos dos seus contatos' : 'Posts rápidos das pessoas, em tela cheia'} onAll={onAll} allLabel={following ? 'Ver no feed' : 'Abrir o feed'}>
-            {flashes === null ? <SkelRow colors={colors} w={128} h={210} n={3} /> : (
+            {flashes === null ? <SkelRow colors={colors} w={128} h={210} n={3} /> : flashes.length === 0 ? (
+                /* sem nenhum flash: uma linha baixa, sem o espaço do cartão alto vazio */
+                <button onClick={onNew} className="w-full h-14 rounded-2xl flex items-center gap-3 px-3 text-left transition active:scale-[0.99]" style={{ border: `1.5px dashed ${ORANGE}`, background: `${ORANGE}10`, color: ORANGE }}>
+                    <span className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: ORANGE }}><Plus size={18} strokeWidth={3} /></span>
+                    <span className="text-[13px] font-black">Seja o primeiro: postar um flash</span>
+                </button>
+            ) : (
                 <Row>
                     {!following && <button onClick={onNew} className="snap-start flex-shrink-0 w-[128px] h-[210px] rounded-3xl flex flex-col items-center justify-center gap-2 transition active:scale-95" style={{ border: `2px dashed ${ORANGE}`, color: ORANGE, background: `${ORANGE}10` }}>
                         <span className="w-11 h-11 rounded-full flex items-center justify-center text-white" style={{ background: ORANGE }}><Plus size={22} strokeWidth={3} /></span>
