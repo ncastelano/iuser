@@ -278,6 +278,17 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
         if (field === 'origin') { setOrigin(p); addRecentRideOrigin(p) } else { setDestination(p); addRecentRideDestination(p) }
         setField(null)
     }, [field])
+    // Ao ENTRAR, sempre pergunta de onde a pessoa sai (23/11/2026, decisão do dono): localização do aparelho ou digitar
+    const [askOrigin, setAskOrigin] = useState(true)
+    const locateOrigin = () => {
+        setLocating(true)
+        getCurrentPosition(async (pos) => {
+            const c: [number, number] = [pos.coords.longitude, pos.coords.latitude]
+            const a = (await reverse(c)) || 'Minha localização'
+            setLocating(false); setAskOrigin(false)
+            const p = { address: a, coords: c }; setOrigin(p); addRecentRideOrigin(p)
+        }, () => { setLocating(false); toast.error('Não deu para pegar a sua localização. Digite o endereço.') }, { timeout: 10000, maximumAge: 60000 })
+    }
     const useMyLocation = () => {
         setLocating(true)
         getCurrentPosition(async (pos) => {
@@ -344,8 +355,35 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                 <span className="text-[15px] font-black" style={{ color: colors.textPrimary }}>Chamar motorista</span>
             </div>
 
-            {/* 1. QUEM: o motorista em destaque */}
-            <section className="mt-2 rounded-[28px] p-4" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
+            {/* 1. O TRAJETO (primeiro: o pedido; 23/11/2026, decisão do dono) */}
+            <section className="mt-2 rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                <div className="relative h-[170px]" style={{ background: soft }}>
+                    {mounted && <RouteMap origin={origin} destination={destination} route={route} driverPos={quote?.live ?? null} kind={kind} />}
+                </div>
+                <div className="p-3">
+                    {([
+                        { f: 'origin' as const, label: 'Partida', place: origin, empty: 'De onde você sai?', color: GREEN },
+                        { f: 'destination' as const, label: 'Chegada', place: destination, empty: 'Para onde você vai?', color: RED },
+                    ]).map((r, i) => (
+                        <div key={r.f}>
+                            {i === 1 && <div className="ml-[19px] h-3 border-l-2 border-dashed" style={{ borderColor: colors.border }} />}
+                            <button onClick={() => openSearch(r.f)} className="w-full flex items-center gap-3 px-1 py-1.5 text-left rounded-2xl active:scale-[0.99] transition"
+                                style={missing === r.f ? { boxShadow: `0 0 0 2px ${RED}` } : undefined}>
+                                <span className="w-[38px] h-[38px] rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${r.color}1f` }}><span className="w-3 h-3 rounded-full" style={{ background: r.color, boxShadow: '0 0 0 3px #fff' }} /></span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{r.label}</span>
+                                    <span className="block text-[14.5px] font-black truncate" style={{ color: r.place ? colors.textPrimary : colors.textSecondary }}>{r.place ? short(r.place.address) : r.empty}</span>
+                                </span>
+                                <ChevronRight size={18} style={{ color: colors.textSecondary }} />
+                            </button>
+                        </div>
+                    ))}
+                    {origin && <input value={complement} onChange={(e) => setComplement(e.target.value.slice(0, 80))} placeholder="Complemento da partida (opcional)" className="mt-2 w-full h-10 px-3 rounded-2xl text-[13px] outline-none" style={{ background: soft, color: colors.textPrimary }} />}
+                </div>
+            </section>
+
+            {/* 2. QUEM: o motorista que você está chamando, embaixo do pedido */}
+            <section className="mt-3 rounded-[28px] p-4" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
                 <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: ORANGE }}>Você está chamando</p>
                 <div className="mt-2 flex items-center gap-3.5">
                     <button onClick={() => router.push(`/${driver.slug}`)} className="relative flex-shrink-0" aria-label={`Ver o perfil de ${fname}`}>
@@ -379,33 +417,6 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                 </div>
                 {kind === 'carro' && <div className="mt-3"><CarAmenities services={driver.services} seats={driver.seats} babySeat={driver.babySeat} /></div>}
                 {!quote?.active && <p className="mt-3 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{fname} não está dirigindo agora, mas recebe o aviso no celular. Outros motoristas por perto também veem o pedido.</p>}
-            </section>
-
-            {/* 2. O TRAJETO */}
-            <section className="mt-3 rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                <div className="relative h-[170px]" style={{ background: soft }}>
-                    {mounted && <RouteMap origin={origin} destination={destination} route={route} driverPos={quote?.live ?? null} kind={kind} />}
-                </div>
-                <div className="p-3">
-                    {([
-                        { f: 'origin' as const, label: 'Partida', place: origin, empty: 'De onde você sai?', color: GREEN },
-                        { f: 'destination' as const, label: 'Chegada', place: destination, empty: 'Para onde você vai?', color: RED },
-                    ]).map((r, i) => (
-                        <div key={r.f}>
-                            {i === 1 && <div className="ml-[19px] h-3 border-l-2 border-dashed" style={{ borderColor: colors.border }} />}
-                            <button onClick={() => openSearch(r.f)} className="w-full flex items-center gap-3 px-1 py-1.5 text-left rounded-2xl active:scale-[0.99] transition"
-                                style={missing === r.f ? { boxShadow: `0 0 0 2px ${RED}` } : undefined}>
-                                <span className="w-[38px] h-[38px] rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${r.color}1f` }}><span className="w-3 h-3 rounded-full" style={{ background: r.color, boxShadow: '0 0 0 3px #fff' }} /></span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="block text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{r.label}</span>
-                                    <span className="block text-[14.5px] font-black truncate" style={{ color: r.place ? colors.textPrimary : colors.textSecondary }}>{r.place ? short(r.place.address) : r.empty}</span>
-                                </span>
-                                <ChevronRight size={18} style={{ color: colors.textSecondary }} />
-                            </button>
-                        </div>
-                    ))}
-                    {origin && <input value={complement} onChange={(e) => setComplement(e.target.value.slice(0, 80))} placeholder="Complemento da partida (opcional)" className="mt-2 w-full h-10 px-3 rounded-2xl text-[13px] outline-none" style={{ background: soft, color: colors.textPrimary }} />}
-                </div>
             </section>
 
             {/* 3. O VALOR (laranja do iUser) */}
@@ -475,6 +486,30 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                     </button>
                 </div>
             </div>
+
+            {/* "De onde você sai?": aparece sempre ao entrar */}
+            {mounted && askOrigin && !field && createPortal(
+                <div className="fixed inset-0 z-[94] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setAskOrigin(false)}>
+                    <div className="w-full max-w-xl rounded-t-[28px] p-5" style={{ background: colors.surface, paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }} onClick={(e) => e.stopPropagation()}>
+                        <p className="text-[18px] font-black" style={{ color: colors.textPrimary }}>De onde você sai?</p>
+                        <p className="text-[12.5px] mt-0.5" style={{ color: colors.textSecondary }}>É o ponto de partida da corrida{driver ? ` com ${fname}` : ''}.</p>
+                        <div className="mt-4 flex flex-col gap-2">
+                            <button onClick={locateOrigin} disabled={locating} className="h-12 rounded-2xl text-[14px] font-black text-white flex items-center justify-center gap-2 disabled:opacity-70" style={{ background: GRADIENT }}>
+                                {locating ? <Spinner size={16} /> : <Navigation size={16} />} Usar minha localização
+                            </button>
+                            <button onClick={() => { setAskOrigin(false); openSearch('origin') }} className="h-12 rounded-2xl text-[14px] font-black flex items-center justify-center gap-2" style={{ background: soft, color: colors.textPrimary }}>
+                                <Search size={16} /> Digitar o endereço
+                            </button>
+                            {origin && (
+                                <button onClick={() => setAskOrigin(false)} className="h-11 rounded-2xl text-[12.5px] font-bold truncate px-3" style={{ color: colors.textSecondary }}>
+                                    Continuar com {short(origin.address)}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>,
+                document.body,
+            )}
 
             {/* a busca (partida ou chegada), em tela cheia por cima */}
             {mounted && field && createPortal(
