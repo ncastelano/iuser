@@ -5,6 +5,7 @@ SELECT '3.0.12', 'Home mais enxuta',
        ARRAY[]::text[],
        ARRAY['Fórum: Novidades, Ideias e Tutorial, nessa ordem (na home e na página)',
              'Cartões de "Lojas para conhecer" sem o espaço vazio no meio',
+             'O botão "Eu" da barra agora mostra o nome do modo: o seu primeiro nome, a loja ou o veículo',
              'Flash sem posts vira uma linha baixa "Seja o primeiro: postar um flash", em vez de um cartão alto vazio'],
        ARRAY[]::text[],
        now() + interval '11 seconds'

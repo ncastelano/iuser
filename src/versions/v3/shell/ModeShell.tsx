@@ -310,7 +310,7 @@ export default function ModeShell({ children }: {
     const router = useRouter()
     const pathname = usePathname()
     const { colors } = useTheme()
-    const { userId, profileSlug, avatarUrl, loading: profileLoading } = useProfile()
+    const { userId, profileSlug, profileName, avatarUrl, loading: profileLoading } = useProfile()
     const go = (path: string) => router.push(path)
 
     // Selos do topo: não lidas do chat e itens do carrinho
@@ -592,6 +592,11 @@ export default function ModeShell({ children }: {
     const playerShown = !!barPlayer
 
     const idle = headerView
+    // 23/11/2026 (decisão do dono): a aba "Eu" mostra o NOME do modo — o primeiro nome da pessoa, a loja ou o veículo
+    const barName = !userId ? null
+        : activeStore ? activeStore.name
+        : activeVehicle ? (activeVehicle.model || VEHICLE_LABEL[activeVehicle.kind] || 'Veículo')
+        : (profileName?.trim().split(/\s+/)[0] || null)
     // O conteúdo do menu de modos (vive dentro da barra: BottomNavBar o faz crescer para cima)
     const hubInner = (
         <>
@@ -703,7 +708,7 @@ export default function ModeShell({ children }: {
                 cartTotal={cartTotal}
                 cartExpanded={cartStrip}
                 onCartPage={onCartPage}
-                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, onOpen: drawerOpen ? () => setDrawerOpen(false) : openHub }}
+                mode={{ avatar: <ModeAvatar userId={userId} image={idle.image} noRing={true} modeIcon={idle.modeIcon} popToken={modeTick} colors={colors} size={28} />, kind: view.icon, label: idle.label, name: barName, onOpen: drawerOpen ? () => setDrawerOpen(false) : openHub }}
                 hub={{ open: drawerOpen, label: 'Menu do iUser', vars: hubVars, children: hubInner }}
                 player={barPlayer}
                 onCart={() => { setDrawerOpen(false); go('/carrinho') }}

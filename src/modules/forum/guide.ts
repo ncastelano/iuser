@@ -33,12 +33,12 @@ export const GUIDE: GuideGroup[] = [
             },
             {
                 id: 'conta', icon: 'user', color: '#3b82f6', title: 'Sua conta e os modos de uso',
-                summary: 'Com uma conta só você usa o iUser de jeitos diferentes. Cada jeito é um MODO: Pessoa (comprar, contratar, pedir corrida, conversar), Loja (vender e atender pedidos) e Motorista (fazer corridas e entregas). Você troca de modo no botão "Eu", no canto da barra de baixo.',
+                summary: 'Com uma conta só você usa o iUser de jeitos diferentes. Cada jeito é um MODO: Pessoa (comprar, contratar, pedir corrida, conversar), Loja (vender e atender pedidos) e Motorista (fazer corridas e entregas). Você troca de modo no último botão da barra de baixo, que mostra o nome do modo em uso (o seu primeiro nome, a loja ou o veículo).',
                 steps: [
                     'Crie a conta com seu nome, e-mail e CPF, e aceite os Termos de Uso.',
                     'Escolha o tipo do seu perfil: pessoal, serviços, agendamentos ou motorista. Isso muda só como seu perfil aparece.',
                     'Defina o seu local ("Perto de..." na home) para ver o que tem perto de você.',
-                    'Toque em "Eu" para trocar de modo ou abrir o painel do modo em que você está.',
+                    'Toque no último botão da barra (o seu nome, a loja ou o veículo) para trocar de modo ou abrir o painel do modo em que você está.',
                 ],
                 rules: [
                     'Seus dados pessoais (CPF, telefone, endereço completo) não aparecem para os outros. No seu perfil público aparece só o bairro, se você deixar.',

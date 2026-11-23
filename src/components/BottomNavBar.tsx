@@ -95,7 +95,7 @@ function BarButton({ active, label, onClick, badge = 0, badgeColor = '#ef4444', 
 
 
 /** O modo ativo: a foto do modo (perfil, loja ou motorista) e, no canto, o selinho do tipo */
-export interface ModeButtonProps { avatar: ReactNode; kind: 'user' | 'store' | 'car'; label: string; onOpen: () => void }
+export interface ModeButtonProps { avatar: ReactNode; kind: 'user' | 'store' | 'car'; label: string; onOpen: () => void; /** o NOME na aba (primeiro nome, loja ou veículo); sem ele, "Eu" */ name?: string | null }
 
 // A aba "Eu": a foto do modo (28 px) com o selinho do tipo; tocar abre o menu de modos
 function ModeButton({ mode, open, colors }: { mode: ModeButtonProps; open: boolean; colors: any }) {
@@ -108,7 +108,7 @@ function ModeButton({ mode, open, colors }: { mode: ModeButtonProps; open: boole
                     <Glyph size={9} strokeWidth={2.8} />
                 </span>
             </span>
-            <span className="text-[10.5px] leading-none truncate max-w-full px-0.5" style={{ fontWeight: open ? 900 : 700, color: open ? '#f97316' : colors.textSecondary }}>Eu</span>
+            <span className="text-[10.5px] leading-none truncate max-w-full px-0.5" style={{ fontWeight: open ? 900 : 700, color: open ? '#f97316' : colors.textSecondary }}>{mode.name || 'Eu'}</span>
         </button>
     )
 }
