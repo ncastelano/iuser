@@ -496,6 +496,7 @@ export default function RadarScreen() {
     }, [referenceLocation?.lat, referenceLocation?.lng, mapStyle])
 
     // /radar?modo=pessoas&lat=&lng=&zoom= (ex.: o mapinha de "Locais com mais pessoas"): abre no modo e voa até o lugar
+    const autoFitModes = useRef<Set<string>>(new Set())
     const focusRef = useRef<{ lat: number; lng: number; zoom: number } | null | undefined>(undefined)
     useEffect(() => {
         const q = new URLSearchParams(window.location.search)
@@ -1070,6 +1071,26 @@ export default function RadarScreen() {
 
         console.log('[MapPage] ✅ Marcadores criados:', markersRef.current.length)
         maybeBeginScan()
+
+        // 23/11/2026 (decisão do dono): se NADA aparece na tela (a pessoa está longe de tudo e só vê a si mesma), afasta o mapa até
+        // mostrar ela e o que há por perto (os 12 mais próximos, até 80 km) — uma vez por modo, e nunca quando veio de um link com lugar
+        if (dataReady && !loadingLocation && !focusRef.current && !autoFitModes.current.has(mode) && filtered.length > 0) {
+            autoFitModes.current.add(mode)
+            const pts = filtered.map((it) => resolveItemCoords(it, mode, stores)).filter((c): c is [number, number] => !!c)
+            const b = map.getBounds()
+            const anyVisible = !!b && pts.some((c) => b.contains(c))
+            if (!anyVisible && pts.length > 0) {
+                const ref = referenceLocation ? [referenceLocation.lng, referenceLocation.lat] as [number, number] : null
+                const near = ref
+                    ? pts.map((c) => ({ c, d: haversineKm(ref, c) })).filter((x) => x.d <= 80).sort((x, y) => x.d - y.d).slice(0, 12).map((x) => x.c)
+                    : pts.slice(0, 12)
+                const all = ref ? [ref, ...near] : near
+                if (all.length > 1) {
+                    const bounds = all.reduce((bb, c) => bb.extend(c), new mapboxgl.LngLatBounds(all[0], all[0]))
+                    map.fitBounds(bounds, { padding: { top: 230, bottom: 190, left: 60, right: 60 }, maxZoom: 15, duration: 1400 })
+                }
+            }
+        }
     }, [filtered, mode, stores, mapReady, dataReady, loadingLocation])
 
     // PROFILE MARKER
