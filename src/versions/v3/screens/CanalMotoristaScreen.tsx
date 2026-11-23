@@ -856,7 +856,7 @@ function PainelMotoristaContent() {
         return [
             { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
             { id: 'solicitacoes', label: 'Corridas e entregas', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides + rideSummary.deliveries > 0 ? { count: rideSummary.rides + rideSummary.deliveries } : null },
-            ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
+            ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: rideSummary.acceptedIsDelivery ? 'Entrega aceita' : 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
             ...(rideSummary.candidacies > 0 ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: { count: rideSummary.candidacies } }] : []),
             { id: 'cadastro', label: 'Meu cadastro', icon: Star, isActive: inCadastro, onClick: () => setActiveTab('cadastro'), badge: driverStatus === 'incomplete' && missingFields.length > 0 ? { count: missingFields.length } : null },
         ]
@@ -896,7 +896,6 @@ function PainelMotoristaContent() {
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} initialMode="register" />
                     )}
 
-                    {!loading && !showLogin && !showActivationWizard && activeTab === 'solicitacoes' && <Outdoor kind="motoristas" className="mb-4" />}
                     {!loading && !showLogin && !showActivationWizard && (activeTab === 'solicitacoes' || activeTab === 'candidaturas' || activeTab === 'aceita') && (
                         <AceitarCorridas
                             embedded
@@ -955,6 +954,7 @@ function PainelMotoristaContent() {
                                     onDeliveryRadius={handleDeliveryRadius}
                                     debt={hasDriver ? <DriverDebtBanner userId={userId} /> : null}
                                     invite={<InviteButton label="Convide amigos e ganhe" showCount />}
+                                    outdoor={<Outdoor kind="motoristas" />}
                                 />
                             )}
                             {activeTab === 'painel' && false && (

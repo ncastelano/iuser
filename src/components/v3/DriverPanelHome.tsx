@@ -26,7 +26,7 @@ export default function DriverPanelHome({
     rides, deliveries = 0, candidacies, hasAccepted, acceptedIsDelivery = false, incoming = [], goTab,
     vehicleLabel, vehicles, pricingLabel, tariffLines, reviewsAvg, reviewsCount, ridesDone,
     alertSound, onToggleAlert, voiceNav, onToggleVoice, deliveryRadius, onDeliveryRadius,
-    debt, invite, onDeliveries, onEarnings,
+    debt, invite, outdoor, onDeliveries, onEarnings,
 }: {
     colors: any
     driverStatus: 'inactive' | 'incomplete' | 'active'
@@ -63,6 +63,8 @@ export default function DriverPanelHome({
     onDeliveryRadius: (km: number | null) => void
     debt?: ReactNode
     invite?: ReactNode
+    /** Outdoor dos motoristas (o ranking) */
+    outdoor?: ReactNode
     /** Abre a Central de entregas (/entregas): entregas das lojas, mochila e rota guiada */
     onDeliveries?: () => void
     /** Abre os Ganhos (/ganhos) */
@@ -143,7 +145,7 @@ export default function DriverPanelHome({
             {section('Agora', (
                 <div className="flex flex-col gap-2.5">
                     {hasAccepted && (
-                        <button onClick={() => (acceptedIsDelivery && onDeliveries ? onDeliveries() : goTab('aceita'))} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: '#16a34a18', border: '1.5px solid #16a34a66' }}>
+                        <button onClick={() => goTab('aceita')} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: '#16a34a18', border: '1.5px solid #16a34a66' }}>
                             <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: '#16a34a' }}>{acceptedIsDelivery ? <Package size={20} /> : <CheckCircle2 size={20} />}</span>
                             <span className="min-w-0 flex-1">
                                 <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{acceptedIsDelivery ? 'Você tem uma entrega em andamento' : 'Você tem uma corrida aceita'}</span>
@@ -201,24 +203,41 @@ export default function DriverPanelHome({
                 </div>
             ))}
 
-            {/* 3. Meu cadastro: UM resumo (veículo, tarifa, nota, corridas feitas); o detalhe mora na aba Meu cadastro */}
+            {/* 3. Meu cadastro: tudo à vista (cada veículo, a tarifa inteira, a nota e as corridas); tocar abre a aba Meu cadastro */}
             {section('Meu cadastro', (
-                <button onClick={() => goTab('cadastro')} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: driverStatus === 'incomplete' ? '#eab30818' : soft }}>
-                    {vehicles[0]?.photoUrl
-                        ? <img src={vehicles[0].photoUrl} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
-                        : <span className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}1f`, color: ORANGE }}><Car size={24} /></span>}
-                    <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{vehicles.length > 1 ? `${vehicles.length} veículos` : (vehicleLabel || 'Cadastre seu veículo')}</span>
-                        <span className="block text-xs mt-0.5 truncate" style={{ color: colors.textSecondary }}>{pricingLabel}{tariffLines[0] ? ` · ${tariffLines[0]}` : ''}</span>
-                        <span className="flex items-center gap-1 text-xs mt-0.5" style={{ color: driverStatus === 'incomplete' ? '#ca8a04' : colors.textSecondary }}>
-                            {driverStatus === 'incomplete'
-                                ? `Falta: ${missingCount} ${missingCount === 1 ? 'item' : 'itens'}`
-                                : <><Star size={12} style={{ color: '#eab308', fill: '#eab308' }} />{reviewsCount > 0 && reviewsAvg != null ? `${reviewsAvg.toFixed(1).replace('.', ',')} (${reviewsCount})` : 'sem avaliações'} · <History size={12} /> {ridesDone} {ridesDone === 1 ? 'corrida' : 'corridas'}</>}
+                <button onClick={() => goTab('cadastro')} className="w-full rounded-2xl p-3.5 flex flex-col gap-3 text-left transition active:scale-[0.99]" style={{ background: driverStatus === 'incomplete' ? '#eab30818' : soft }}>
+                    {(vehicles.length ? vehicles : [{ id: 'none', label: vehicleLabel || 'Cadastre seu veículo', photoUrl: null }]).map((v) => (
+                        <span key={v.id} className="flex items-center gap-3">
+                            {v.photoUrl
+                                ? <img src={v.photoUrl} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
+                                : <span className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}1f`, color: ORANGE }}><Car size={24} /></span>}
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Veículo</span>
+                                <span className="block text-sm font-black leading-snug" style={{ color: colors.textPrimary }}>{v.label}</span>
+                            </span>
+                            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                        </span>
+                    ))}
+                    <span className="block rounded-xl p-2.5" style={{ background: `${colors.border}30` }}>
+                        <span className="block text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Tarifa</span>
+                        <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{pricingLabel}</span>
+                        {tariffLines.map((l, i) => <span key={i} className="block text-xs leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{l}</span>)}
+                    </span>
+                    <span className="grid grid-cols-2 gap-2">
+                        <span className="rounded-xl p-2.5" style={{ background: `${colors.border}30` }}>
+                            <span className="flex items-center gap-1 text-lg font-black leading-none" style={{ color: colors.textPrimary }}><Star size={15} style={{ color: '#eab308', fill: '#eab308' }} />{reviewsCount > 0 && reviewsAvg != null ? reviewsAvg.toFixed(1).replace('.', ',') : '–'}</span>
+                            <span className="block text-[11px] mt-1" style={{ color: colors.textSecondary }}>{reviewsCount} {reviewsCount === 1 ? 'avaliação' : 'avaliações'}</span>
+                        </span>
+                        <span className="rounded-xl p-2.5" style={{ background: `${colors.border}30` }}>
+                            <span className="flex items-center gap-1 text-lg font-black leading-none" style={{ color: colors.textPrimary }}><History size={15} style={{ color: ORANGE }} />{ridesDone}</span>
+                            <span className="block text-[11px] mt-1" style={{ color: colors.textSecondary }}>{ridesDone === 1 ? 'corrida feita' : 'corridas feitas'}</span>
                         </span>
                     </span>
-                    <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                    {driverStatus === 'incomplete' && <span className="text-xs font-black" style={{ color: '#ca8a04' }}>Falta: {missingCount} {missingCount === 1 ? 'item' : 'itens'} para completar</span>}
                 </button>
             ), 'Veículo, tarifa e avaliações')}
+
+            {outdoor}
 
             {/* 4. Preferências */}
             {section('Preferências', (
