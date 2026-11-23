@@ -6,6 +6,7 @@
 // com a aba controlada pelo painel).
 'use client'
 
+import { offerIsStale } from '@/lib/rideOfferAge'
 import { useEffect, useLayoutEffect, useMemo, useState, useCallback, useRef, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -651,7 +652,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             .order('scheduled_for', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: false })
 
-        const candidateRides = (openRides || []).filter((r) => !appliedIds.has(r.id) && (rideAcceptsAnyVehicle(r.vehicle_type) || acceptableVehicleTypes.has(r.vehicle_type)))
+        const candidateRides = (openRides || []).filter((r) => !offerIsStale(r) && !appliedIds.has(r.id) && (rideAcceptsAnyVehicle(r.vehicle_type) || acceptableVehicleTypes.has(r.vehicle_type)))
 
         // Consulta separada e best-effort: se a coluna ainda não existir (migração
         // pendente), isso não pode derrubar o quadro de corridas inteiro — só
@@ -685,23 +686,27 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         }
 
         const requesterIds = Array.from(new Set([...openList, ...myRideRows].map((r) => r.requester_id).filter(Boolean))) as string[]
-        const [{ data: profiles }, ratingsMap] = requesterIds.length > 0
-            ? await Promise.all([
-                supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', requesterIds),
-                getProfileRideRatingsBatch(supabase, requesterIds),
-            ])
-            : [{ data: [] as { id: string; name: string | null; profileSlug: string | null; avatar_url: string | null }[] }, new Map<string, ProfileRideRating>()]
-        const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
+        // só a NOTA de quem pede (nome e foto aparecem depois de o motorista ser escolhido)
+        const ratingsMap = requesterIds.length > 0 ? await getProfileRideRatingsBatch(supabase, requesterIds) : new Map<string, ProfileRideRating>()
 
-        const storeIds = Array.from(new Set(openList.map((r) => r.store_id).filter(Boolean))) as string[]
+        const storeIds = Array.from(new Set([...openList, ...myRideRows].map((r) => r.store_id).filter(Boolean))) as string[]
         const storeNamesById = new Map<string, string>()
+        const storeLogosById = new Map<string, string | undefined>()
         if (storeIds.length > 0) {
-            const { data: storeRows } = await supabase.from('stores').select('id, name').in('id', storeIds)
-            for (const st of storeRows || []) storeNamesById.set(st.id, st.name)
+            const { data: storeRows } = await supabase.from('stores').select('id, name, logo_url').in('id', storeIds)
+            for (const st of storeRows || []) {
+                storeNamesById.set(st.id, st.name)
+                const raw = (st as { logo_url?: string | null }).logo_url
+                storeLogosById.set(st.id, !raw ? undefined : /^https?:/.test(raw) ? raw : supabase.storage.from('store-logos').getPublicUrl(raw).data.publicUrl)
+            }
         }
+        // PRIVACIDADE (23/11/2026, decisão do dono): antes de o motorista ser escolhido ele não vê QUEM pede.
+        // Corrida de pessoa = "Passageiro" (só a nota); entrega = a LOJA (nome e logo), nunca o nome do dono nem do cliente.
+        const whoAsks = (r: { requester_id: string; store_id?: string | null }) => r.store_id
+            ? { requesterName: storeNamesById.get(r.store_id) || 'Loja', requesterSlug: null, requesterAvatarUrl: storeLogosById.get(r.store_id), requesterRating: { avg: 0, count: 0 } }
+            : { requesterName: 'Passageiro', requesterSlug: null, requesterAvatarUrl: undefined, requesterRating: ratingsMap.get(r.requester_id) || { avg: 0, count: 0 } }
 
         const cards: RideCardData[] = openList.map((r) => {
-            const p = profilesById.get(r.requester_id)
             const hasDistance = r.distance_km != null
             const rideKind = kindForRideType(r.vehicle_type)
             const pricingShape = getEffectivePricing(pricing, rideKind)
@@ -729,10 +734,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             const suggestedPrice = r.offered_price != null ? Number(r.offered_price) : priceWith(pricingShape)
             return {
                 ...r,
-                requesterName: p?.name || (r.requester_id ? null : 'Passageiro'),
-                requesterSlug: p?.profileSlug || null,
-                requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
-                requesterRating: ratingsMap.get(r.requester_id) || { avg: 0, count: 0 },
+                ...whoAsks(r),
                 suggestedPrice,
                 platformPrice,
                 customPrice,
@@ -746,15 +748,11 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         const applicationByRideId = new Map(myApplications.map((a) => [a.ride_request_id, a]))
         const candidacyCards: CandidacyCardData[] = myRideRows.map((r) => {
-            const p = profilesById.get(r.requester_id)
             const application = applicationByRideId.get(r.id)
             return {
                 ...r,
                 applicant_count: 0,
-                requesterName: p?.name || (r.requester_id ? null : 'Passageiro'),
-                requesterSlug: p?.profileSlug || null,
-                requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
-                requesterRating: ratingsMap.get(r.requester_id) || { avg: 0, count: 0 },
+                ...whoAsks(r),
                 applicationId: application?.id || '',
                 myProposedPrice: application?.proposed_price ?? null,
                 hasDistance: r.distance_km != null,
@@ -1583,7 +1581,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 const details = (
                                     <RideOfferCard
                                         ride={ride}
-                                        requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                        requester={{ id: null, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
                                         storeName={ride.storeName}
                                         platformPrice={tripPlatformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
                                         pickup={pickup}
@@ -1632,7 +1630,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         >
                                             <RideSummaryCard
                                                 ride={ride}
-                                                requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                                requester={{ id: null, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
                                                 price={price}
                                                 approx={!fromPassenger && rq.shownKind === 'platform' && pickup.state !== 'ready'}
                                                 reference={rq.platform}
@@ -1701,7 +1699,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                     >
                                         <RideOfferCard
                                             ride={ride}
-                                            requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                            requester={{ id: null, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
                                             storeName={null}
                                             toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
                                             trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
