@@ -1102,7 +1102,6 @@ export function Store({
                     model={model}
                     isOwner={isOwner}
                     seller={owner.seller}
-                    reportSlot={!isOwner ? <ReportButton type="store" id={owner.id} label="Denunciar loja" size={12} className="opacity-70" /> : undefined}
                     chatEnabled={!!owner.chat_enabled}
                     chatSaving={chatSaving}
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
@@ -1393,6 +1392,7 @@ export function Store({
                                                         </div>
                                                         <div className="min-w-0 flex-1">
                                                             <h4 className="text-[14px] font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{product.name}</h4>
+                                                            {product.description && <p className="text-[12px] leading-snug mt-0.5 line-clamp-2" style={{ color: colors.textSecondary }}>{product.description}</p>}
                                                             <p className="text-[12px] mt-0.5 flex flex-wrap items-center gap-x-1.5" style={{ color: colors.textSecondary }}>
                                                                 <span>{product.duration_minutes ? `${product.duration_minutes} min` : 'Duração a combinar'}</span><span>·</span>
                                                             <span className="font-black" style={{ color: '#f97316' }}>
@@ -1670,6 +1670,13 @@ export function Store({
                     type="followers"
                     onClose={() => setShowFollowers(false)}
                 />
+            )}
+
+            {/* 23/11/2026 (decisão do dono): "Denunciar loja" mora no RODAPÉ da página, bem no fim */}
+            {!isOwner && owner && (
+                <div className="mt-10 mb-4 flex justify-center">
+                    <ReportButton type="store" id={owner.id} label="Denunciar loja" size={12} className="opacity-60" />
+                </div>
             )}
         </div>
     )
