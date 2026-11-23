@@ -13,6 +13,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { signedPoints } from '@/modules/points'
 import { loadOutdoor, loadOutdoorRules, outdoorImageUrl, OUTDOOR_INFO, outdoorHref, medalOf, pointsLabel, type OutdoorItem, type OutdoorKind, type Medal } from '@/modules/outdoor'
 import StoreFrame from '@/components/store/StoreFrame'
+import { PlanRingFrame, useAvatarBorder } from '@/components/PlanAvatarRing'
 
 const MEDAL: Record<Medal, { ring: string; glow: string; text: string }> = {
     gold:   { ring: '#facc15', glow: 'rgba(250,204,21,0.65)',  text: '#713f12' },
@@ -24,6 +25,8 @@ function Logo({ kind, item, size, medal, index }: { kind: OutdoorKind; item: Out
     const info = OUTDOOR_INFO[kind]
     const url = outdoorImageUrl(kind, item.image)
     const radius = info.shape === 'circle' ? '9999px' : `${Math.round(size * 0.26)}px`
+    // pessoa/motorista: a BORDA que a pessoa escolheu (avatar_borders) por fora da foto (23/11/2026, decisão do dono)
+    const border = useAvatarBorder(kind === 'pessoas' || kind === 'motoristas' ? item.id : null)
     // loja com NÍVEL: a moldura do nível no lugar da borda branca/medalha (a colocação já aparece no selo "1º" e na coroa)
     if (kind === 'lojas' && item.level > 0) {
         return (
@@ -35,7 +38,7 @@ function Logo({ kind, item, size, medal, index }: { kind: OutdoorKind; item: Out
             </StoreFrame>
         )
     }
-    return (
+    const photo = (
         <span
             className="relative block flex-shrink-0 overflow-hidden"
             style={{
@@ -50,6 +53,7 @@ function Logo({ kind, item, size, medal, index }: { kind: OutdoorKind; item: Out
             {url && <img src={url} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />}
         </span>
     )
+    return border ? <PlanRingFrame colors={border} width={4}>{photo}</PlanRingFrame> : photo
 }
 
 function RulesSheet({ kind, onClose }: { kind: OutdoorKind; onClose: () => void }) {
