@@ -273,7 +273,6 @@ const SHELL_BOTTOM = BAR_SPACE
 const LOGO_RING = { border: '2px solid #fff', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
 // Páginas "raiz" que mostram a barra de baixo (as demais têm o próprio rodapé, mapa ou campo de digitar)
 // Nas páginas de compra, o carrinho vira uma faixa FUNDIDA à barra de baixo (uma peça só) quando há itens
-const CART_STRIP_PATHS = ['/', '/comprar', '/lojas', '/produtos', '/atividade']   // na aba Itens também (menos na subaba Carrinho: onCartPage)
 const BAR_PATHS = ['/', '/convidados', '/forum', '/social', '/flash', '/entregas', '/comprar', '/lojas', '/produtos', '/digitais', '/servicos-disponiveis', '/atividade', '/carrinho', '/conversas', '/aceitar-corridas', '/ganhos', '/canal-do-motorista', '/painel-perfil', '/modoprestador', '/imoveis', '/meus-imoveis', '/anunciar-imovel']
 
 // Foto do modo (perfil, logo da loja, foto do carro) — ou o ícone do modo quando não há imagem. Troca de modo = pequeno "estouro".
@@ -520,7 +519,8 @@ export default function ModeShell({ children }: {
     const onCartPage = shellPath.startsWith('/carrinho') || (shellPath === '/atividade' && abaParam === 'carrinho')   // a faixa não repete o carrinho na própria aba do carrinho
     // A barra de baixo só nas páginas "raiz"
     const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/') || isOwnVehiclePage(shellPath, drawerData.vehicles.map((v) => v.slug))) && !((shellPath === '/conversas' || (shellPath === '/atividade' && abaParam === 'conversas')) && threadOpen)
-    const cartStrip = barShown && topCart > 0 && CART_STRIP_PATHS.includes(shellPath)
+    // 23/11/2026 (decisão do dono): com itens no carrinho a faixa aparece SEMPRE, em toda página com a barra (menos no próprio carrinho: onCartPage)
+    const cartStrip = barShown && topCart > 0
     // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha
     const storeNew = (() => {
         const modeSlug = activeMode.startsWith('loja:') ? activeMode.slice(5) : null
