@@ -1579,25 +1579,11 @@ export default function RadarScreen() {
 
             {/* Horizontal List — do mais visto ao menos visto (esquerda → direita) */}
             {filtered.length > 0 && !clusterItems && !selectedItem && (
-                <div className={`absolute ${('top-[22px] z-[55]')} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(({})), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
+                <div className={`absolute ${('top-[6px] z-[55]')} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ ...(({})), opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
                     {/* 23/11/2026 (decisão do dono): um painel só, com respiro — em cima o filtro (à esquerda) e quantos são; embaixo a fileira,
                         cada item com o NÚMERO da colocação (em qualquer filtro: mais vistos, mais vendidos...), sem os pontos */}
                     <div className="px-1 pt-1">
-                    <div className="flex items-center justify-between gap-2 relative">
-                        {mode !== 'motoristas' && mode !== 'flash' ? (
-                            <button
-                                onClick={() => setShowRankMenu(v => !v)}
-                                className="flex items-center gap-1.5 rounded-full pl-2.5 pr-2 h-8 text-[11.5px] font-black text-gray-800 bg-white shadow-md"
-                                aria-expanded={showRankMenu}
-                            >
-                                <Flame className="w-3.5 h-3.5 text-orange-500" />
-                                {rankLabel(rankKey, mode)}
-                                <ChevronDown className={`w-3.5 h-3.5 text-orange-500 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
-                            </button>
-                        ) : <span className="text-[11.5px] font-black text-gray-800 px-3 h-8 rounded-full bg-white shadow-md inline-flex items-center">{mode === 'motoristas' ? 'Do mais perto ao mais longe' : 'Os mais recentes'}</span>}
-                        {rankMenuNode}
-                    </div>
-                    <div className="flex gap-3.5 overflow-x-auto pt-7 pb-4 px-1 scrollbar-hide snap-x items-end">
+                    <div className="flex gap-3.5 overflow-x-auto pt-6 pb-4 px-1 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
                             const rank = idx < 3 && mode !== 'motoristas' && mode !== 'flash' ? idx + 1 : 0
                             const size = rank ? 62 : 52
@@ -1657,6 +1643,20 @@ export default function RadarScreen() {
                                 </button>
                             )
                         })}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 relative -mt-1">
+                        {mode !== 'motoristas' && mode !== 'flash' ? (
+                            <button
+                                onClick={() => setShowRankMenu(v => !v)}
+                                className="flex items-center gap-1.5 rounded-full pl-2.5 pr-2 h-8 text-[11.5px] font-black text-gray-800 bg-white shadow-md"
+                                aria-expanded={showRankMenu}
+                            >
+                                <Flame className="w-3.5 h-3.5 text-orange-500" />
+                                {rankLabel(rankKey, mode)}
+                                <ChevronDown className={`w-3.5 h-3.5 text-orange-500 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                        ) : <span className="text-[11.5px] font-black text-gray-800 px-3 h-8 rounded-full bg-white shadow-md inline-flex items-center">{mode === 'motoristas' ? 'Do mais perto ao mais longe' : 'Os mais recentes'}</span>}
+                        {rankMenuNode}
                     </div>
 
                     </div>
