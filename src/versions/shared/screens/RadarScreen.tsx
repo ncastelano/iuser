@@ -881,6 +881,8 @@ export default function RadarScreen() {
         console.log('[MapPage] 📍 Grupos de coordenadas encontrados:', Object.keys(coordGroups).length)
 
         Object.values(coordGroups).forEach(group => {
+            // no ponto com vários, o de MELHOR colocação vai na frente (a coroa fica no item certo)
+            group.sort((a, b) => (rankOf.get(a.item.id) || 99) - (rankOf.get(b.item.id) || 99))
             group.forEach((entry, index) => {
                 // vários no MESMO ponto: só o primeiro vira marcador, com os outros empilhados atrás dele (o "cluster")
                 if (index > 0) return
@@ -1001,7 +1003,6 @@ export default function RadarScreen() {
                         else b.style.background = 'linear-gradient(135deg,#fed7aa,#fecaca)'
                         el.appendChild(b)
                     })
-                    el.style.position = 'relative'
                     inner.style.position = 'relative'
                     inner.style.zIndex = '1'
                     if (group.length > 3) {
@@ -1015,7 +1016,7 @@ export default function RadarScreen() {
                 el.onclick = async () => {
                     if (group.length > 1) {
                         setClusterItems(group.map(g => g.item))
-                        setClusterLocation({ lng, lat, name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : mode === 'flash' ? `${group.length} flashes neste lugar` : mode === 'pessoas' ? `${group.length} pessoas neste lugar` : `${group.length} neste local` })
+                        setClusterLocation({ lng, lat, name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : mode === 'flash' ? `${group.length} flashes neste lugar` : mode === 'pessoas' ? `${group.length} pessoas neste lugar` : mode === 'servicos' ? `${group.length} serviços aqui` : mode === 'produtos' ? `${group.length} produtos aqui` : `${group.length} lojas aqui` })
                         map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
                         return
                     }
@@ -1539,7 +1540,7 @@ export default function RadarScreen() {
                             <Building2 className="w-5 h-5 text-white" />
                             <div>
                                 <p className="text-xs font-bold text-white">{clusterLocation.name}</p>
-                                <p className="text-[10px] text-white/80">{clusterItems.length} estabelecimentos</p>
+                                <p className="text-[10px] text-white/80">{clusterItems.length} {mode === 'servicos' ? 'serviços' : mode === 'produtos' ? 'produtos' : mode === 'pessoas' ? 'pessoas' : mode === 'motoristas' ? 'motoristas' : mode === 'flash' ? 'flashes' : 'lojas'} no mesmo lugar</p>
                             </div>
                         </div>
                         <button
@@ -1554,7 +1555,11 @@ export default function RadarScreen() {
                         </button>
                     </div>
                     <div className="mt-2 bg-white rounded-2xl shadow-xl overflow-hidden max-h-80 overflow-y-auto">
-                        {clusterItems.map((item, idx) => (
+                        {/* do mais bem colocado ao menos (a mesma ordem da lista do alto), com a coroa/número de cada um */}
+                        {[...clusterItems].sort((a, b) => filtered.findIndex((x) => x.id === a.id) - filtered.findIndex((x) => x.id === b.id)).map((item, idx) => {
+                            const pos = mode === 'motoristas' || mode === 'flash' ? -1 : filtered.findIndex((x) => x.id === item.id)
+                            const crown = pos >= 0 && pos < 3 ? pos + 1 : 0
+                            return (
                             <button
                                 key={idx}
                                 onClick={() => {
@@ -1576,7 +1581,10 @@ export default function RadarScreen() {
                                 }}
                                 className="w-full p-3 flex items-center gap-3 border-b border-gray-100 hover:bg-orange-50 transition-all"
                             >
-                                <div className={`w-10 h-10 ${item.isPerson || item.isDriver ? 'rounded-full' : 'rounded-xl'} overflow-hidden bg-gray-100 flex-shrink-0`}>
+                                <div className="relative flex-shrink-0">
+                                {crown > 0 && <span className="absolute left-1/2 -translate-x-1/2 -top-3.5 z-10 leading-none"><CrownBadge rank={crown} size={20} /></span>}
+                                {pos >= 3 && <span className="absolute -right-1.5 -top-1.5 z-10 min-w-[18px] h-[16px] px-1 rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: '#1f2937', boxShadow: '0 0 0 1.5px #fff' }}>{pos + 1}º</span>}
+                                <div className={`w-10 h-10 ${item.isPerson || item.isDriver ? 'rounded-full' : 'rounded-xl'} overflow-hidden bg-gray-100 flex-shrink-0`} style={crown ? { boxShadow: `0 0 0 2.5px ${RANK_COLORS[crown].fill}` } : undefined}>
                                     {(item.logo_url || item.image_url) ? (
                                         <img src={item.logo_url || item.image_url} className="w-full h-full object-cover" alt="" />
                                     ) : (
@@ -1585,15 +1593,17 @@ export default function RadarScreen() {
                                         </div>
                                     )}
                                 </div>
+                                </div>
                                 <div className="flex-1 text-left">
                                     <p className="text-sm font-semibold text-gray-900">{item.name}</p>
                                     <p className="text-xs text-gray-500">
-                                        {mode === 'lojas' && item.is_open ? 'Aberto' : mode === 'lojas' ? 'Fechado' : ''}
+                                        {pos >= 0 ? `${pos + 1}º no ${rankLabel(rankKey, mode).toLowerCase()}` : ''}{mode === 'lojas' ? `${pos >= 0 ? ' · ' : ''}${item.is_open ? 'Aberto' : 'Fechado'}` : ''}
                                     </p>
                                 </div>
                                 <ChevronRight className="w-4 h-4 text-gray-400" />
                             </button>
-                        ))}
+                            )
+                        })}
                     </div>
                 </div>
             )}
