@@ -28,6 +28,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import InviteButton from '@/components/InviteButton'
+import Outdoor from '@/components/outdoor/Outdoor'
 import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab, type DriverRequestsSummary } from '@/components/AceitarCorridas/AceitarCorridas'
 import { callAdminApi } from '@/lib/callAdminApi'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -764,6 +765,10 @@ function PainelMotoristaContent() {
         const t = setTimeout(() => document.getElementById(activeTab === 'veiculo' ? 'cad-veiculo' : 'cad-avaliacoes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 500)
         return () => clearTimeout(t)
     }, [inCadastro, activeTab, loading])
+    // quem entrou não tem mais a aba Canal: ?aba=canal abre Corridas e entregas
+    useEffect(() => {
+        if (!loading && userId && !showLogin && activeTab === 'canal') setActiveTab('solicitacoes')
+    }, [loading, userId, showLogin, activeTab])
     // visitante sem aba escolhida: o Canal (o Painel pede login)
     useEffect(() => {
         if (!loading && (!userId || showLogin) && activeTab !== 'canal' && !searchParams.get('aba')) setActiveTab('canal')
@@ -847,14 +852,13 @@ function PainelMotoristaContent() {
             { id: 'veiculo', label: 'Veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'), badge: driverStatus === 'incomplete' && missingFields.length > 0 ? { count: missingFields.length } : null },
             { id: 'plano', label: 'Tarifa', icon: TrendingUp, isActive: activeTab === 'plano', onClick: () => setActiveTab('plano'), badge: null },
         ]
-        // 22/11/2026 (decisão do dono, refeito): Painel · Corridas · Meu cadastro · Canal; "Corrida aceita" e "Me candidatei" só quando existem
+        // 22/11/2026 (decisão do dono, refeito): Painel · Corridas e entregas · Meu cadastro (o Canal, que repetia a lista, ficou só para quem não entrou); "Corrida aceita" e "Me candidatei" só quando existem
         return [
             { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
-            { id: 'solicitacoes', label: 'Corridas', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides > 0 ? { count: rideSummary.rides } : null },
+            { id: 'solicitacoes', label: 'Corridas e entregas', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: driverModeActive && rideSummary.rides + rideSummary.deliveries > 0 ? { count: rideSummary.rides + rideSummary.deliveries } : null },
             ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
             ...(rideSummary.candidacies > 0 ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: { count: rideSummary.candidacies } }] : []),
             { id: 'cadastro', label: 'Meu cadastro', icon: Star, isActive: inCadastro, onClick: () => setActiveTab('cadastro'), badge: driverStatus === 'incomplete' && missingFields.length > 0 ? { count: missingFields.length } : null },
-            canalTab,
         ]
     }, [userId, loading, showLogin, activeTab, inCadastro, showActivationWizard, driverStatus, driverModeActive, missingFields.length, rideSummary])
 
@@ -892,6 +896,7 @@ function PainelMotoristaContent() {
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} initialMode="register" />
                     )}
 
+                    {!loading && !showLogin && !showActivationWizard && activeTab === 'solicitacoes' && <Outdoor kind="motoristas" className="mb-4" />}
                     {!loading && !showLogin && !showActivationWizard && (activeTab === 'solicitacoes' || activeTab === 'candidaturas' || activeTab === 'aceita') && (
                         <AceitarCorridas
                             embedded
@@ -899,7 +904,6 @@ function PainelMotoristaContent() {
                             onTabChange={handleRideTabChange}
                             onSummaryChange={setRideSummary}
                             onRegisterVehicle={() => setActiveTab('veiculo')}
-                            onlyRides
                         />
                     )}
 

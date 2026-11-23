@@ -155,7 +155,7 @@ export const GUIDE: GuideGroup[] = [
                 summary: 'Com carro, moto ou bicicleta você faz corridas e entregas das lojas, escolhe quais aceitar e define a sua tarifa.',
                 steps: [
                     'No Canal do Motorista, aba Meu cadastro: cadastre o veículo, a selfie, a tarifa e a sua chave Pix, e aceite a declaração do motorista.',
-                    'A aba Painel mostra se você está online, o que está acontecendo agora e os seus ganhos; a aba Corridas mostra os pedidos de passageiros.',
+                    'A aba Painel mostra se você está online, o que está acontecendo agora e os seus ganhos; a aba Corridas e entregas mostra tudo o que está aberto para você.',
                     'Fique online. As corridas e entregas perto de você aparecem com o valor e quanto rendem por hora.',
                     'Nas corridas, mande até 3 valores; nas entregas, aceite pelo frete mostrado.',
                     'Na entrega: vá à loja, pegue o pedido com o código da loja, leve ao cliente e confirme com o código dele.',
