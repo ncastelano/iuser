@@ -38,7 +38,7 @@ import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { platformFloor } from '@/modules/negotiation/domain'
 import { setPassengerOffer } from '@/modules/negotiation'
 import { etaFromViewer, parseQuote, quoteExamples, quoteModeClientLabel, quotePrice, type DriverQuote } from '@/modules/driver-profile'
-import { brl, buildCallRide, callCta, firstName, placeFromParams, tripMinutes, type CallPayment, type CallPlace, type CallVehicleKind } from '@/modules/driver-call'
+import { brl, buildCallRide, callCta, extraCharge, extraMinutes, MAX_STOPS, TASK_MINUTE_OPTIONS, type CallTask, firstName, placeFromParams, tripMinutes, type CallPayment, type CallPlace, type CallVehicleKind } from '@/modules/driver-call'
 import PlaceSearchExtras from '@/components/ride/PlaceSearchExtras'
 import { fetchPlaceSuggestions, newSearchSession, retrievePlace, type PlaceSuggestion } from '@/lib/placeSearch'
 import CarAmenities from '@/components/ride/CarAmenities'
@@ -68,9 +68,10 @@ async function reverse(c: [number, number]): Promise<string | null> {
         return ((await r.json()).features?.[0]?.place_name as string) || null
     } catch { return null }
 }
-async function fetchRoute(a: [number, number], b: [number, number]): Promise<Route | null> {
+async function fetchRoute(a: [number, number], b: [number, number], via: [number, number][] = []): Promise<Route | null> {
     try {
-        const r = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${a[0]},${a[1]};${b[0]},${b[1]}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`)
+        const pts = [a, ...via, b].map((c) => `${c[0]},${c[1]}`).join(';')
+        const r = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${pts}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`)
         const route = (await r.json()).routes?.[0]
         if (!route) return null
         const km = route.distance / 1000
@@ -147,7 +148,11 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
     const [missing, setMissing] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const [activeRide, setActiveRide] = useState<string | null>(null)
-    const [field, setField] = useState<'origin' | 'destination' | null>(null)
+    const [field, setField] = useState<'origin' | 'destination' | 'stop' | null>(null)
+    const [stops, setStops] = useState<CallPlace[]>([])          // paradas no caminho (até 2)
+    const [tasks, setTasks] = useState<CallTask[]>([])            // tarefas: "pegar uma encomenda", "levar alguém até…"
+    const [taskText, setTaskText] = useState('')
+    const [taskMin, setTaskMin] = useState<number>(10)
     const [query, setQuery] = useState('')
     const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([])
     const [locating, setLocating] = useState(false)
@@ -222,9 +227,10 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
         if (!origin?.coords || !destination?.coords) { setRoute(null); return }
         let alive = true
         setRouting(true)
-        void fetchRoute(origin.coords, destination.coords).then((r) => { if (alive) { setRoute(r); setRouting(false) } })
+        const via = stops.map((x) => x.coords).filter((c): c is [number, number] => !!c)
+        void fetchRoute(origin.coords, destination.coords, via).then((r) => { if (alive) { setRoute(r); setRouting(false) } })
         return () => { alive = false }
-    }, [origin?.coords?.[0], origin?.coords?.[1], destination?.coords?.[0], destination?.coords?.[1]]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [origin?.coords?.[0], origin?.coords?.[1], destination?.coords?.[0], destination?.coords?.[1], stops.map((x) => x.address).join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ===== já tem corrida em andamento? =====
     useEffect(() => {
@@ -242,8 +248,12 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
         if (!quote || !shape || !route) return null
         const extras = computeRideExtras('pessoa', {}, shape)
         const raw = quotePrice(quote, shape, { km: route.distanceKm, minutes: route.durationMin }, hourly, extras)
-        return raw == null ? null : Math.max(raw, platformFloor(route.durationMin, minPerMinute))
-    }, [quote, shape, route, hourly, minPerMinute])
+        if (raw == null) return null
+        const base = Math.max(raw, platformFloor(route.durationMin, minPerMinute))
+        return Math.round((base + extraCharge(extraMinutes(stops.length, tasks), quote.price_per_minute, minPerMinute)) * 100) / 100
+    }, [quote, shape, route, hourly, minPerMinute, stops.length, tasks])
+    const extraMin = extraMinutes(stops.length, tasks)
+    const extraValue = quote ? extraCharge(extraMin, quote.price_per_minute, minPerMinute) : 0
     const fromPrice = useMemo(() => {
         if (!quote || !shape) return null
         const ex = quoteExamples(quote, shape, hourly)
@@ -259,7 +269,7 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const session = useRef('')
     const searchSeq = useRef(0)
-    const openSearch = (f: 'origin' | 'destination') => { setField(f); setQuery(''); setSuggestions([]); setMissing(null); session.current = newSearchSession() }
+    const openSearch = (f: 'origin' | 'destination' | 'stop') => { setField(f); setQuery(''); setSuggestions([]); setMissing(null); session.current = newSearchSession() }
     useEffect(() => {
         if (!field) return
         if (searchTimer.current) clearTimeout(searchTimer.current)
@@ -277,7 +287,9 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
         pick({ address: pos.label, coords: [pos.lng, pos.lat] })
     }
     const pick = useCallback((p: CallPlace) => {
-        if (field === 'origin') { setOrigin(p); addRecentRideOrigin(p) } else { setDestination(p); addRecentRideDestination(p) }
+        if (field === 'origin') { setOrigin(p); addRecentRideOrigin(p) }
+        else if (field === 'stop') setStops((cur) => (cur.length < MAX_STOPS ? [...cur, p] : cur))
+        else { setDestination(p); addRecentRideDestination(p) }
         setField(null)
     }, [field])
     // Ao ENTRAR, sempre pergunta de onde a pessoa sai (23/11/2026, decisão do dono): localização do aparelho ou digitar
@@ -315,7 +327,7 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
         try {
             const { data, error } = await supabase.from('ride_requests').insert(buildCallRide({
                 requesterId: userId, driverId: driver.id, vehicleKind: driver.kind, origin: origin!, destination: destination!, originComplement: complement, notes,
-                payment: payment!, cashChange, contactless, route: route ? { distanceKm: route.distanceKm, durationMin: route.durationMin } : null,
+                payment: payment!, cashChange, contactless, route: route ? { distanceKm: route.distanceKm, durationMin: route.durationMin } : null, stops, tasks,
             })).select('id').single()
             if (error) throw error
             // o valor dele vai como a OFERTA do passageiro: o motorista só aceita
@@ -380,6 +392,20 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                             </button>
                         </div>
                     ))}
+                    {/* PARADAS no caminho (até 2): mudam a rota e somam um tempinho de parada */}
+                    {stops.map((st, i) => (
+                        <div key={i} className="mt-1 flex items-center gap-3 px-1 py-1">
+                            <span className="w-[38px] h-[38px] rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-black" style={{ background: `${ORANGE}1f`, color: ORANGE }}>{i + 1}</span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Parada {i + 1}</span>
+                                <span className="block text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{short(st.address)}</span>
+                            </span>
+                            <button onClick={() => setStops((cur) => cur.filter((_, k) => k !== i))} aria-label="Tirar a parada" className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: soft, color: colors.textSecondary }}><X size={15} /></button>
+                        </div>
+                    ))}
+                    {origin && destination && stops.length < MAX_STOPS && (
+                        <button onClick={() => openSearch('stop')} className="mt-1 h-9 px-3 rounded-full text-[12.5px] font-black inline-flex items-center gap-1" style={{ background: `${ORANGE}14`, color: ORANGE_DARK }}>+ Adicionar parada</button>
+                    )}
                     {origin && <input value={complement} onChange={(e) => setComplement(e.target.value.slice(0, 80))} placeholder="Complemento da partida (opcional)" className="mt-2 w-full h-10 px-3 rounded-2xl text-[13px] outline-none" style={{ background: soft, color: colors.textPrimary }} />}
                 </div>
             </section>
@@ -426,6 +452,33 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                 {!quote?.active && <p className="mt-2 px-1 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{fname} não está dirigindo agora, mas recebe o aviso no celular. Outros motoristas por perto também veem o pedido.</p>}
             </section>
 
+            {/* TAREFAS (só depois do trajeto): cada uma soma os minutos estimados, cobrados pelo tempo */}
+            {origin && destination && (
+                <section className="mt-3 rounded-[28px] p-4" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                    <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>Precisa de algo a mais?</p>
+                    <p className="text-[11.5px] mt-0.5" style={{ color: colors.textSecondary }}>Ex.: pegar uma encomenda, levar alguém até um lugar. Cada tarefa é cobrada pelo tempo que leva.</p>
+                    {tasks.map((t, i) => (
+                        <div key={i} className="mt-2 flex items-center gap-2 rounded-2xl px-3 py-2" style={{ background: soft }}>
+                            <span className="min-w-0 flex-1 text-[13px] font-bold truncate" style={{ color: colors.textPrimary }}>{t.text}</span>
+                            <span className="text-[11.5px] font-black flex-shrink-0" style={{ color: ORANGE_DARK }}>~{t.minutes} min</span>
+                            <button onClick={() => setTasks((cur) => cur.filter((_, k) => k !== i))} aria-label="Tirar a tarefa" className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: colors.textSecondary }}><X size={14} /></button>
+                        </div>
+                    ))}
+                    {tasks.length < 5 && (
+                        <div className="mt-2">
+                            <input value={taskText} onChange={(e) => setTaskText(e.target.value.slice(0, 80))} placeholder="O que é? (ex.: pegar uma encomenda na farmácia)" className="w-full h-10 px-3 rounded-2xl text-[13px] outline-none" style={{ background: soft, color: colors.textPrimary }} />
+                            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[11.5px] font-bold mr-1" style={{ color: colors.textSecondary }}>Leva uns</span>
+                                {TASK_MINUTE_OPTIONS.map((m) => (
+                                    <button key={m} onClick={() => setTaskMin(m)} className="h-8 px-3 rounded-full text-[12px] font-black" style={taskMin === m ? { background: `${ORANGE}1a`, color: ORANGE_DARK, boxShadow: `inset 0 0 0 1.5px ${ORANGE}` } : { background: soft, color: colors.textPrimary }}>{m} min</button>
+                                ))}
+                                <button disabled={!taskText.trim()} onClick={() => { setTasks((cur) => [...cur, { text: taskText.trim(), minutes: taskMin }]); setTaskText('') }} className="ml-auto h-8 px-3.5 rounded-full text-[12px] font-black text-white disabled:opacity-40" style={{ background: ORANGE }}>Adicionar</button>
+                            </div>
+                        </div>
+                    )}
+                </section>
+            )}
+
             {/* 3. O VALOR (laranja do iUser) */}
             <section className="mt-3 rounded-[28px] p-4" style={{ background: `linear-gradient(135deg, ${ORANGE}14, ${ORANGE}05)`, border: `1.5px solid ${ORANGE}55` }}>
                 <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: ORANGE_DARK }}>Valor da corrida</p>
@@ -435,7 +488,8 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                         <p className="mt-2 text-[12.5px] font-bold" style={{ color: colors.textPrimary }}>
                             {route.distanceKm.toFixed(1).replace('.', ',')} km · ~{Math.max(1, Math.round(route.durationMin))} min · pela {quote?.mode === 'km' ? 'tarifa por km' : quote?.mode === 'time' ? 'tarifa por tempo' : 'Tarifa iUser'} de {fname}
                         </p>
-                        <p className="mt-1 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>O valor já vai como a sua oferta: {fname} só precisa aceitar.</p>
+                        {extraMin > 0 && <p className="mt-1 text-[12px] font-bold" style={{ color: ORANGE_DARK }}>Inclui {extraMin} min de paradas e tarefas: {brl(extraValue)}</p>}
+                        <p className="mt-1 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>O valor já vai como a sua oferta: {fname} só precisa aceitar. Espera além disso é cobrada por minuto.</p>
                     </>
                 ) : routing ? (
                     <p className="mt-2 flex items-center gap-2 text-[13px] font-bold" style={{ color: colors.textSecondary }}><Spinner size={15} />Calculando a rota…</p>
@@ -524,8 +578,8 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                     <div className="flex items-center gap-2 px-3" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}>
                         <button onClick={() => setField(null)} aria-label="Fechar" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: soft, color: colors.textPrimary }}><X size={19} /></button>
                         <div className="flex-1 h-12 rounded-2xl flex items-center gap-2 px-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: field === 'origin' ? GREEN : RED }} />
-                            <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={field === 'origin' ? 'De onde você sai?' : 'Para onde você vai?'} className="flex-1 min-w-0 bg-transparent outline-none text-[15px] font-bold" style={{ color: colors.textPrimary }}
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: field === 'origin' ? GREEN : field === 'stop' ? ORANGE : RED }} />
+                            <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={field === 'origin' ? 'De onde você sai?' : field === 'stop' ? 'Onde é a parada?' : 'Para onde você vai?'} className="flex-1 min-w-0 bg-transparent outline-none text-[15px] font-bold" style={{ color: colors.textPrimary }}
                                 onKeyDown={(e) => { if (e.key === 'Enter' && suggestions[0]) void pickSuggestion(suggestions[0]) }} />
                             <Search size={17} style={{ color: colors.textSecondary }} />
                         </div>

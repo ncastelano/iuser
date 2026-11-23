@@ -51,6 +51,24 @@ export function parseChange(text: string): number | null {
 }
 
 /** O pedido de corrida (1 pessoa) que vai para ride_requests, com o motorista como PREFERIDO */
+// PARADAS e TAREFAS (23/11/2026, decisão do dono: "tudo pelo tempo"): a parada muda a rota (distância e tempo) e soma um tempinho
+// de parada; cada tarefa ("pegar uma encomenda", "levar alguém até…") soma os minutos estimados. Esses minutos são cobrados pelo
+// valor por minuto do motorista (nunca abaixo do mínimo do iUser). A espera que passar disso segue pela espera da corrida.
+export const MAX_STOPS = 2
+export const STOP_MINUTES = 3
+export const TASK_MINUTE_OPTIONS = [5, 10, 15, 30] as const
+export interface CallTask { text: string; minutes: number }
+export function extraMinutes(stops: number, tasks: CallTask[]): number {
+    return Math.max(0, stops) * STOP_MINUTES + tasks.reduce((t, x) => t + Math.max(0, x.minutes || 0), 0)
+}
+export function extraCharge(minutes: number, driverPerMinute: number | null, minPerMinute: number): number {
+    const rate = Math.max(driverPerMinute || 0, minPerMinute || 0)
+    return Math.round(minutes * rate * 100) / 100
+}
+export function tasksNote(tasks: CallTask[]): string {
+    return tasks.filter((t) => t.text.trim()).map((t) => `• ${t.text.trim()} (~${t.minutes} min)`).join('\n')
+}
+
 export function buildCallRide(a: {
     requesterId: string
     driverId: string
@@ -63,7 +81,12 @@ export function buildCallRide(a: {
     cashChange: string
     contactless: boolean | null
     route: { distanceKm: number; durationMin: number } | null
+    stops?: CallPlace[]
+    tasks?: CallTask[]
 }): Record<string, unknown> {
+    const stops = (a.stops || []).slice(0, MAX_STOPS)
+    const tasks = tasksNote(a.tasks || [])
+    const notes = [a.notes.trim(), tasks ? `Tarefas:\n${tasks}` : ''].filter(Boolean).join('\n\n')
     return {
         requester_id: a.requesterId,
         preferred_driver_id: a.driverId !== a.requesterId ? a.driverId : null,
@@ -73,7 +96,7 @@ export function buildCallRide(a: {
         origin_address: a.origin.address.trim(),
         destination_address: a.destination.address.trim(),
         origin_complement: a.originComplement.trim() || null,
-        notes: a.notes.trim() || null,
+        notes: notes || null,
         payment_method: a.payment,
         cash_change_for: a.payment === 'dinheiro' ? parseChange(a.cashChange) : null,
         card_is_contactless: a.payment === 'cartao' ? a.contactless : null,
@@ -84,6 +107,12 @@ export function buildCallRide(a: {
         destination_lng: a.destination.coords ? a.destination.coords[0] : null,
         distance_km: a.route?.distanceKm ?? null,
         duration_min: a.route?.durationMin ?? null,
+        stop1_address: stops[0]?.address.trim() || null,
+        stop1_lat: stops[0]?.coords ? stops[0].coords[1] : null,
+        stop1_lng: stops[0]?.coords ? stops[0].coords[0] : null,
+        stop2_address: stops[1]?.address.trim() || null,
+        stop2_lat: stops[1]?.coords ? stops[1].coords[1] : null,
+        stop2_lng: stops[1]?.coords ? stops[1].coords[0] : null,
     }
 }
 

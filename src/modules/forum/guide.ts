@@ -168,6 +168,7 @@ export const GUIDE: GuideGroup[] = [
                     'Entregador novo começa só com pedidos pagos por Pix; o dinheiro vivo e a maquininha são liberados com o tempo e boas avaliações.',
                     'O dinheiro recebido na porta é da loja: você fica com o frete e repassa o resto. Repasse atrasado trava novas entregas.',
                     'Desistir de muitas entregas aceitas pausa as suas entregas por 24 horas.',
+                    'Chamando um motorista pelo link dele você pode pôr até 2 paradas e pedir tarefas (pegar uma encomenda, levar alguém): cada coisa soma o tempo estimado, cobrado pelo valor por minuto do motorista.',
                     'Uma corrida por vez: com uma corrida em andamento você não aceita outra. Entregas de loja podem ser juntadas, mas não durante uma corrida de passageiro.',
                     'Pedido esquecido some da lista: corrida com mais de 3 horas e entrega com mais de 90 minutos (a agendada vale até a hora marcada).',
                 ],
