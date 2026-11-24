@@ -378,6 +378,23 @@ function RoomSwitch({ tabs, colors }: { tabs: any[]; colors: any }) {
 }
 
 function ConversasInner({ embedded = false, basePath = '/conversas', defaultRoom = null }: { embedded?: boolean; basePath?: string; defaultRoom?: string | null }) {
+    // a conversa aberta ocupa ATÉ O FIM da tela (a caixa de escrever colada embaixo; 23/11/2026): mede onde ela começa e o espaço que sobra
+    const threadBoxRef = useRef<HTMLDivElement | null>(null)
+    const [threadH, setThreadH] = useState<number | null>(null)
+    useEffect(() => {
+        const fit = () => {
+            const el = threadBoxRef.current
+            if (!el) return
+            const vh = window.visualViewport?.height ?? window.innerHeight
+            const top = el.getBoundingClientRect().top
+            setThreadH(Math.max(320, Math.floor(vh - top - 8)))
+        }
+        fit()
+        const t = setTimeout(fit, 300)
+        window.addEventListener('resize', fit)
+        window.visualViewport?.addEventListener('resize', fit)
+        return () => { clearTimeout(t); window.removeEventListener('resize', fit); window.visualViewport?.removeEventListener('resize', fit) }
+    })
     const router = useRouter()
     const search = useSearchParams()
     const { colors } = useTheme()
@@ -619,7 +636,7 @@ function ConversasInner({ embedded = false, basePath = '/conversas', defaultRoom
                             </div>
 
                             {/* Conversa aberta */}
-                            <div className={`${active ? 'flex' : 'hidden md:flex'} flex-col min-h-0 overflow-hidden`} style={{ height: active ? 'calc(100dvh - 250px)' : undefined, minHeight: 360, ...(({ background: `${colors.border}18`, borderRadius: 28 })) }}>
+                            <div ref={threadBoxRef} className={`${active ? 'flex' : 'hidden md:flex'} flex-col min-h-0 overflow-hidden`} style={{ height: active ? (threadH != null ? `${threadH}px` : 'calc(100dvh - 250px)') : undefined, minHeight: 360, ...(({ background: `${colors.border}18`, borderRadius: 28 })) }}>
                                 {active && userId ? (
                                     <Thread key={active.id} conversation={active} userId={userId} colors={colors} modern={true}
                                         onOpenInfo={() => setShowInfo(true)} infoVersion={infoVersion}
