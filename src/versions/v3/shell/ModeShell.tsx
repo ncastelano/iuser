@@ -698,8 +698,8 @@ export default function ModeShell({ children }: {
             className="relative"
             style={{
                 background: colors.background,
-                marginTop: navH,
-                minHeight: `calc(100dvh - ${navH})`,
+                paddingTop: navH,
+                minHeight: '100dvh',
                 ['--shell-top' as string]: `calc(${navH} + var(--maintenance-h, 0px))`,   // + a faixa de manutenção, quando aparece (MaintenanceNotice)
                 paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : 40,
                 ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : '0px',
