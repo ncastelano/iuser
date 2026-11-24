@@ -341,9 +341,10 @@ export default function VehicleScreen() {
                         </button>
                     )}
                     <div className="absolute left-3 right-3 bottom-2.5">
-                        {driverActive != null && (
-                            <span className="inline-flex items-center gap-1 mb-1.5 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: driverActive ? '#16a34a' : '#6b7280' }}>
-                                {driverActive ? 'Disponível' : 'Indisponível'}
+                        {/* só o "Disponível" aparece; indisponível não mostra nada (decisão do dono) */}
+                        {driverActive && (
+                            <span className="inline-flex items-center gap-1 mb-1.5 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: '#16a34a' }}>
+                                Disponível
                             </span>
                         )}
                         <h1 className="text-xl font-black leading-tight text-white line-clamp-2">{title}</h1>
@@ -928,6 +929,8 @@ function LiveMap({ live, kind, colors, soft }: {
     }, [has, live.lat, live.lng, kind])
     useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null }, [])
 
+    // 23/11/2026 (decisão do dono): sem a posição, a seção inteira some (nada de "não está compartilhando")
+    if (!has) return null
     return (
         <section className="mt-6">
             <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Onde está agora</h2>
