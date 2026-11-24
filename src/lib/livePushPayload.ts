@@ -3,6 +3,8 @@
 
 /** Tipos de aviso "ao vivo" que também viram push (a MESMA lista do gatilho `trg_ping_live_push`). `urgent` = fica na tela e vibra mais. */
 export const LIVE_PUSH_KINDS: Record<string, { urgent: boolean }> = {
+    store_client_request: { urgent: false },     // loja privada: alguém pediu para ser cliente
+    store_client_approved: { urgent: false },    // a loja privada aceitou você
     delivery_driver_assigned: { urgent: false },
     delivery_picked_up: { urgent: false },
     delivery_at_door: { urgent: true },           // o entregador está na porta
