@@ -26,6 +26,7 @@ import { orderStripItems } from '@/modules/orders'
 import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
 import { useShellCompact } from '@/lib/shellCompact'
 import { useShellBar } from '@/lib/shellBar'
+import { startNavProgress } from '@/components/NavProgress'
 import { toastStyle } from '@/lib/toastStyle'
 import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarExtra, type BarPlayer, type BarTab } from '@/components/BottomNavBar'
 import { MODE_COLOR as BAR_MODE_COLOR } from '@/components/BottomNavBar'
@@ -329,6 +330,7 @@ export default function ModeShell({ children }: {
 
     // Hub: abre pela ilha do topo ou pela foto da barra de baixo. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
+    const [pendingTab, setPendingTab] = useState<BarKey | null>(null)   // a aba tocada acende antes de a página chegar
     // o player completo (cresce da barra) está aberto?
     const [playerFull, setPlayerFull] = useState(false)
     // Conversa aberta (?c=): a barra de baixo sai da frente
@@ -647,6 +649,7 @@ export default function ModeShell({ children }: {
     const barStoreId = barStore ? drawerData.stores.find((st) => st.slug === barStore)?.id : null
     const barStoreNew = barStoreId ? (storeOrders[barStoreId]?.pending || 0) + (storeOrders[barStoreId]?.services || 0) : 0
     const openTab = (key: BarKey) => {
+        if (key !== barActive) { setPendingTab(key); startNavProgress() }   // a aba acende NA HORA e a barrinha do topo corre
         setDrawerOpen(false)   // tocar em outro ícone da barra fecha o menu Eu (19/11/2026)
         if (key === barActive) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }   // tocar na aba da página em que já está volta ao topo
         if (key === 'activity') {
@@ -666,11 +669,17 @@ export default function ModeShell({ children }: {
         { count: orderCounts.pending + orderCounts.preparing + orderCounts.ready, color: orderCounts.ready > 0 ? '#a855f7' : '#16a34a' },
         { count: topCart, color: '#f97316' },
     ]
+    useEffect(() => { setPendingTab(null) }, [pathname])
+    // as páginas da barra já ficam pré-carregadas (o toque abre na hora)
+    useEffect(() => {
+        for (const def of barTabsFor(barKind)) { const p = barPathOf(def.key, barStore); if (p) try { router.prefetch(p) } catch { /* ok */ } }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [barKind, barStore])
     const barTabs: BarTab[] = barTabsFor(barKind).map((def) => {
         const badge = def.key === 'orders' ? { count: barStoreNew, color: '#22c55e' }
             : def.key === 'chat' ? { count: topUnread, color: '#16a34a' }
             : null
-        return { key: def.key, label: def.label, icon: ICON[def.key], active: barActive === def.key, onClick: () => openTab(def.key), badge: badge?.count || 0, badgeColor: badge?.color, badges: def.key === 'activity' && userId ? activityBadges : undefined }
+        return { key: def.key, label: def.label, icon: ICON[def.key], active: (pendingTab ?? barActive) === def.key, onClick: () => openTab(def.key), badge: badge?.count || 0, badgeColor: badge?.color, badges: def.key === 'activity' && userId ? activityBadges : undefined }
     })
 
     return (
