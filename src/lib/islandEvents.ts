@@ -51,6 +51,8 @@ const LIVE: Record<string, { level: IslandLevel; icon: string; label: string; du
     delivery_cancelled: { level: 'error', icon: '⚠️', label: 'Ver', duration: 7000 },
     // favoritos: o convite da loja (motorista) e a resposta do motorista (loja)
     favorite_invite: { level: 'info', icon: '⭐', label: 'Responder', duration: 9000 },
+    store_client_request: { level: 'info', icon: '🔒', label: 'Ver pedido', duration: 9000 },   // loja privada: alguém pediu para ser cliente
+    store_client_approved: { level: 'success', icon: '🔓', label: 'Abrir loja', duration: 8000 },   // cliente aceito pela loja privada
     favorite_accepted: { level: 'success', icon: '⭐', label: 'Ver', duration: 6500 },
     favorite_declined: { level: 'info', icon: '⭐', label: 'Ver', duration: 6000 },
     // caixa do entregador (repasse, maquininha) e contestação de entrega: o texto e o destino vêm prontos do banco

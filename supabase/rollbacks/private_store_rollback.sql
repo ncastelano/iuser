@@ -1,0 +1,27 @@
+-- desfaz 20261130000116_private_store.sql (as funções públicas voltam a ser as originais)
+DROP POLICY IF EXISTS stores_private_gate ON public.stores;
+DROP POLICY IF EXISTS products_private_gate ON public.products;
+DROP TRIGGER IF EXISTS a_orders_private_store ON public.orders;
+DROP TRIGGER IF EXISTS a_appointments_private_store ON public.appointments;
+DROP TRIGGER IF EXISTS stores_private_seed_clients ON public.stores;
+DROP FUNCTION IF EXISTS public.get_digital_showcase(integer, text, uuid);
+DROP FUNCTION IF EXISTS public.get_store_promotions(integer);
+DROP FUNCTION IF EXISTS public.search_all(text, integer, text);
+DROP FUNCTION IF EXISTS public.get_outdoor(text, integer);
+DROP FUNCTION IF EXISTS public.get_store_busy_slots(uuid, date, date);
+ALTER FUNCTION public._get_digital_showcase_all(integer, text, uuid) RENAME TO get_digital_showcase;
+ALTER FUNCTION public._get_store_promotions_all(integer) RENAME TO get_store_promotions;
+ALTER FUNCTION public._search_all_all(text, integer, text) RENAME TO search_all;
+ALTER FUNCTION public._get_outdoor_all(text, integer) RENAME TO get_outdoor;
+ALTER FUNCTION public._get_store_busy_slots_all(uuid, date, date) RENAME TO get_store_busy_slots;
+GRANT EXECUTE ON FUNCTION public.get_digital_showcase(integer, text, uuid), public.get_store_promotions(integer), public.search_all(text, integer, text), public.get_outdoor(text, integer), public.get_store_busy_slots(uuid, date, date) TO anon, authenticated;
+DROP FUNCTION IF EXISTS public.get_private_store_gate(text);
+DROP FUNCTION IF EXISTS public.request_store_access(uuid, text);
+DROP FUNCTION IF EXISTS public.list_store_clients(uuid);
+DROP FUNCTION IF EXISTS public.decide_store_client(uuid, uuid, text);
+DROP FUNCTION IF EXISTS public.private_store_guard();
+DROP FUNCTION IF EXISTS public.private_store_seed_clients();
+DROP FUNCTION IF EXISTS public._private_hidden(uuid);
+DROP FUNCTION IF EXISTS public._store_visible(uuid);
+DROP TABLE IF EXISTS public.store_clients;
+ALTER TABLE public.stores DROP COLUMN IF EXISTS is_private;

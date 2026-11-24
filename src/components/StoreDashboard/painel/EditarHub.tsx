@@ -9,6 +9,7 @@
 // O destino vai no endereço (`?secao=<k>`): o voltar do navegador fecha e o link do painel ("Gerenciar a loja") abre direto nele.
 // Os blocos DENTRO das folhas/páginas são os MESMOS componentes de antes (mesma lógica e mesmo banco); só a moldura é nova.
 // No fim: Pausar a loja (`stores.is_active`) e Excluir a loja.
+import StorePrivacyCard from '@/components/store/StorePrivacyCard'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -192,6 +193,12 @@ export default function EditarHub({ store, storeSlug, hasServices, whatsapp, blo
                     </div>
                 )
             })}
+
+            {/* LOJA PRIVADA: só clientes aprovados veem a loja */}
+            <div className="mt-5">
+                <p className="text-[11px] font-black uppercase tracking-wider mb-1.5" style={{ color: colors.textSecondary }}>Quem pode ver a loja</p>
+                <StorePrivacyCard storeId={store.id} storeSlug={storeSlug} colors={colors} />
+            </div>
 
             <div className="mt-5">
                 <p className="text-[11px] font-black uppercase tracking-wider mb-1.5" style={{ color: colors.textSecondary }}>Mais</p>
