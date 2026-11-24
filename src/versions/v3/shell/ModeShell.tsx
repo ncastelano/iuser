@@ -25,6 +25,7 @@ import { useMyActiveOrders } from '@/hooks/useMyActiveOrders'
 import { orderStripItems } from '@/modules/orders'
 import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
 import { useShellCompact } from '@/lib/shellCompact'
+import { useShellBar } from '@/lib/shellBar'
 import { toastStyle } from '@/lib/toastStyle'
 import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarExtra, type BarPlayer, type BarTab } from '@/components/BottomNavBar'
 import { MODE_COLOR as BAR_MODE_COLOR } from '@/components/BottomNavBar'
@@ -518,7 +519,8 @@ export default function ModeShell({ children }: {
     const barActive = activeBarKey(barKind, shellPath, barStore, abaParam)
     const onCartPage = shellPath.startsWith('/carrinho') || (shellPath === '/atividade' && abaParam === 'carrinho')   // a faixa não repete o carrinho na própria aba do carrinho
     // A barra de baixo só nas páginas "raiz"
-    const barShown = (BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/') || isOwnVehiclePage(shellPath, drawerData.vehicles.map((v) => v.slug))) && !((shellPath === '/conversas' || (shellPath === '/atividade' && abaParam === 'conversas')) && threadOpen)
+    const forcedBar = useShellBar()   // a página do VEÍCULO (endereço dinâmico) pede a barra
+    const barShown = (forcedBar || BAR_PATHS.includes(shellPath) || shellPath.startsWith('/painel-loja/') || shellPath.startsWith('/editar-loja/') || isOwnVehiclePage(shellPath, drawerData.vehicles.map((v) => v.slug))) && !((shellPath === '/conversas' || (shellPath === '/atividade' && abaParam === 'conversas')) && threadOpen)
     // 23/11/2026 (decisão do dono): com itens no carrinho a faixa aparece SEMPRE, em toda página com a barra (menos no próprio carrinho: onCartPage)
     const cartStrip = barShown && topCart > 0
     // Pedidos NOVOS da loja que a pessoa atende: no modo dessa loja, vêm antes das mensagens na ilha

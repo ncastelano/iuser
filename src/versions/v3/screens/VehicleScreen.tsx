@@ -7,6 +7,7 @@
 //    como o cliente vê".
 'use client'
 
+import { setShellBar } from '@/lib/shellBar'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -80,6 +81,8 @@ export default function VehicleScreen() {
     const [recent, setRecent] = useState<{ at: string; km: number | null; from: string; to: string; rating: number | null; comment: string | null; who: string | null }[]>([])
     const [shareOpen, setShareOpen] = useState(false)
     const [zoom, setZoom] = useState(false)
+    // a barra de baixo também aqui (a página do veículo tem endereço dinâmico, fora da lista fixa de páginas com barra)
+    useEffect(() => { setShellBar(true); return () => setShellBar(false) }, [])
     const [showAllReviews, setShowAllReviews] = useState(false)
     const [feeOpen, setFeeOpen] = useState(false)
     const touchedTab = useRef(false)
