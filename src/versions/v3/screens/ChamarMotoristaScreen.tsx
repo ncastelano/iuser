@@ -422,9 +422,9 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                         <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.78) 100%)' }} />
                         <span className="absolute left-2.5 top-2.5 text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-full text-white" style={{ background: ORANGE }}>{KIND_LABEL[kind]}</span>
                         <div className="absolute left-3 right-3 bottom-2.5">
-                            <span className="inline-flex items-center gap-1 mb-1.5 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: quote?.active ? '#16a34a' : '#6b7280' }}>
-                                {quote?.active ? 'Dirigindo agora' : 'Fora do ar'}
-                            </span>
+                            {quote?.active && (   /* só "Dirigindo agora"; fora do ar não mostra nada (igual à página do motorista) */
+                                <span className="inline-flex items-center gap-1 mb-1.5 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: '#16a34a' }}>Dirigindo agora</span>
+                            )}
                             <p className="text-[18px] font-black leading-tight text-white line-clamp-2">{driver.model || KIND_LABEL[kind]}</p>
                             {driver.color && <p className="text-xs font-bold text-white/85 truncate">{driver.color}</p>}
                         </div>
@@ -450,7 +450,6 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                         {kind === 'carro' && <CarAmenities services={driver.services} seats={driver.seats} babySeat={driver.babySeat} />}
                     </div>
                 </div>
-                {!quote?.active && <p className="mt-2 px-1 text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{fname} não está dirigindo agora, mas recebe o aviso no celular. Outros motoristas por perto também veem o pedido.</p>}
             </section>
 
             {/* 3. O VALOR (laranja do iUser) */}
