@@ -133,10 +133,20 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
         // 2. Tenta buscar como Loja
         const { data: store } = await supabase
             .from('stores')
-            .select('name, storeSlug, logo_url, description, category, address, ratings_avg, ratings_count, accepts_delivery, accepts_pickup')
+            .select('name, storeSlug, logo_url, description, category, address, ratings_avg, ratings_count, accepts_delivery, accepts_pickup, is_private')
             .eq('storeSlug', ownerSlug)
             .maybeSingle()
 
+        // LOJA PRIVADA: o link não pode mostrar nem o nome nem o logo (só quem a loja aprovar vê)
+        if (store && (store as { is_private?: boolean }).is_private) {
+            return {
+                title: 'Loja privada | iUser',
+                description: 'Esta loja é privada. Peça para ser cliente para ver o que ela oferece.',
+                robots: { index: false },
+                openGraph: { title: 'Loja privada no iUser', description: 'Peça para ser cliente para ver o que ela oferece.', url: pageUrl, siteName: 'iUser', images: [{ url: defaultLogoUrl, width: 200, height: 200, alt: 'iUser' }], type: 'website' },
+                twitter: { card: 'summary', title: 'Loja privada no iUser', images: [defaultLogoUrl] },
+            }
+        }
         if (store) {
             const displayName = store.name ? store.name : store.storeSlug
             const cat = categoryName(store.category)
@@ -215,10 +225,11 @@ export async function generateCatalogMetadata(ownerSlug: string): Promise<Metada
     try {
         const { data: store } = await supabase
             .from('stores')
-            .select('name, storeSlug, logo_url, description')
+            .select('name, storeSlug, logo_url, description, is_private')
             .eq('storeSlug', ownerSlug)
             .maybeSingle()
 
+        if (store && (store as any).is_private) return { title: 'Loja privada | iUser', description: 'Catálogo de uma loja privada no iUser.', robots: { index: false } }
         if (store) {
             const displayName = store.name ? store.name : store.storeSlug
             const title = `Catálogo de ${displayName} | iUser`
@@ -287,11 +298,12 @@ export async function generateProductOrPublicationMetadata(
         // numa unica query em vez de uma segunda consulta sequencial.
         const { data: product } = await supabase
             .from('products')
-            .select('*, store:store_id(name, logo_url), owner:owner_id(name, avatar_url)')
+            .select('*, store:store_id(name, logo_url, is_private), owner:owner_id(name, avatar_url)')
             .eq('slug', slug)
             .maybeSingle()
 
         if (product) {
+            if ((product as any).store?.is_private) return { title: 'Loja privada | iUser', description: 'Conteúdo de uma loja privada no iUser.', robots: { index: false } }
             let ownerName = ownerSlug
             let ownerImage: string | null = null
 
@@ -380,12 +392,13 @@ export async function generatePublicationMetadata(slug: string): Promise<Metadat
     try {
         const { data: publication } = await supabase
             .from('products')
-            .select('*, store:store_id(name, logo_url), owner:owner_id(name, avatar_url)')
+            .select('*, store:store_id(name, logo_url, is_private), owner:owner_id(name, avatar_url)')
             .eq('slug', slug)
             .eq('listing_type', 'publication')
             .maybeSingle()
 
         if (publication) {
+            if ((publication as any).store?.is_private) return { title: 'Loja privada | iUser', description: 'Conteúdo de uma loja privada no iUser.', robots: { index: false } }
             let ownerName: string | null = null
             let ownerImage: string | null = null
 

@@ -144,6 +144,7 @@ export const GUIDE: GuideGroup[] = [
                     'Imprima o QR do cardápio para as mesas e o balcão em "QR na mesa".',
                 ],
                 rules: [
+                    'Loja privada: em Editar loja → Quem pode ver a loja. Ela some das listas e da busca; quem abre o link só pode pedir para ser cliente, e você aceita ou recusa. Quem já comprou ou agendou é aprovado sozinho.',
                     'O cliente paga direto a você; o iUser não segura nem repassa o dinheiro dos pedidos.',
                     'Quem vende remédio, bebida alcoólica, gás ou tabaco precisa declarar que tem as licenças.',
                     'Missões diárias e o cadastro completo dão pontos que sobem a loja no Outdoor e mudam a moldura do logo.',

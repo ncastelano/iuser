@@ -2,6 +2,7 @@
 
 'use client'
 
+import PrivateStoreGate, { type PrivateGate } from '@/components/store/PrivateStoreGate'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -41,6 +42,7 @@ export default function OwnerClientPage() {
 
     const [loading, setLoading] = useState(true)
     const [ownerType, setOwnerType] = useState<OwnerType | null>(null)
+    const [privateGate, setPrivateGate] = useState<PrivateGate | null>(null)
     // perfil de MOTORISTA: o voltar mora dentro da imagem da página do motorista (o do cabeçalho deixava um espaço vazio em cima)
     const [ownerIsDriver, setOwnerIsDriver] = useState(false)
     const [, setOwnerId] = useState<string | null>(null)
@@ -120,6 +122,9 @@ export default function OwnerClientPage() {
             try {
                 const result = await detectOwnerType(ownerSlug)
                 if (!result) {
+                    // LOJA PRIVADA: o banco esconde a loja de quem não é cliente aprovado; a porta diz só que existe e o pedido
+                    const { data: gate } = await supabase.rpc('get_private_store_gate', { p_slug: ownerSlug })
+                    if (gate && !(gate as PrivateGate).visible) { setPrivateGate(gate as PrivateGate); setLoading(false); return }
                     setError('Perfil ou loja não encontrado')
                     setLoading(false)
                     return
@@ -189,7 +194,7 @@ export default function OwnerClientPage() {
         )
     }
 
-    if (error || !ownerType || !ownerSlug) {
+    if (error || (!ownerType && !privateGate) || !ownerSlug) {
         return (
             <div className="min-h-screen flex items-center justify-center px-4" style={{ background: colors.background }}>
                 <div className="flex flex-col items-center gap-4 max-w-sm text-center">
@@ -233,7 +238,9 @@ export default function OwnerClientPage() {
                 />
 
                 {/* ===== RENDERIZAR CONTEÚDO ===== */}
-                {showPublications ? (
+                {privateGate ? (
+                    <PrivateStoreGate gate={privateGate} colors={colors} />
+                ) : showPublications ? (
                     <PublicationsListView
                         ownerSlug={ownerSlug}
                         storeSlug={ownerType === 'store' ? ownerSlug : undefined}
