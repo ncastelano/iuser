@@ -18,6 +18,8 @@ import { DriverRideAlertListener } from '@/components/DriverRideAlertListener'
 import { IslandToastFallback } from '@/components/IslandToastFallback'
 import { SystemEventsListener } from '@/components/SystemEventsListener'
 import CheckinPrompt from '@/components/checkin/CheckinPrompt'
+import NavProgress, { NavRouterBoost } from '@/components/NavProgress'
+import { Suspense } from 'react'
 import ImageCropHost from '@/components/ImageCropHost'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { MaintenanceBanner } from '@/components/MaintenanceNotice'
@@ -74,8 +76,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <IslandToastFallback />
         <SystemEventsListener />
         <CheckinPrompt />
+        <Suspense fallback={null}><NavProgress /></Suspense>
         <ImageCropHost />
-        {children}
+        <NavRouterBoost>{children}</NavRouterBoost>
       </ProfileProvider>
     </QueryClientProvider>
   )
