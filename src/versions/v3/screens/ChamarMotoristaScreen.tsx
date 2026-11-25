@@ -504,7 +504,10 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                                     <button onClick={() => { setSuggested(null); setSuggestErr(null) }} className="text-[12px] font-black flex-shrink-0" style={{ color: ORANGE_DARK }}>Voltar ao do iUser</button>
                                 </div>
                             ) : !suggestOpen ? (
+                                <>
                                 <button onClick={() => { setSuggestText(price != null ? price.toFixed(2).replace('.', ',') : ''); setSuggestErr(null); setSuggestOpen(true) }} className="h-10 w-full rounded-2xl text-[13px] font-black" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>Sugerir outro valor?</button>
+                                <p className="mt-1.5 text-[11.5px] leading-snug text-center" style={{ color: colors.textSecondary }}>Oferecer outro valor aumenta a chance de aceitarem a sua corrida mais rápido.</p>
+                                </>
                             ) : (
                                 <div className="rounded-2xl p-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                     <p className="text-[12.5px] font-bold" style={{ color: colors.textPrimary }}>Quanto você quer pagar pela corrida?</p>

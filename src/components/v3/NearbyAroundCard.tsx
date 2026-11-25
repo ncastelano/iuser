@@ -5,6 +5,7 @@
 // 2.0 (`fetchNearest`; os 3 mais perto de cada tipo, que se alternam a cada 5 s): sem local definido mostra os mais vistos e avisa que dá para ver o mais perto definindo o local.
 'use client'
 
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Briefcase, ChevronRight, Home, MapPin, Package, Radar, Store as StoreIcon, User, Wrench } from 'lucide-react'
@@ -103,9 +104,11 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
                                 className="nearby-in min-w-0 rounded-2xl p-2 flex items-center gap-2.5 text-left transition active:scale-[0.98]"
                                 style={{ background: soft }}
                             >
+                                <PlanAvatarRing userId={it.kind === 'pessoa' ? it.id : null} linkToProfile={false}>
                                 <span className={`w-12 h-12 overflow-hidden flex-shrink-0 flex items-center justify-center ${it.kind === 'pessoa' ? 'rounded-full' : 'rounded-xl'}`} style={{ background: `${meta.color}22`, color: meta.color }}>
                                     {it.imageUrl ? <img src={it.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" /> : <Icon size={20} />}
                                 </span>
+                                </PlanAvatarRing>
                                 <span className="min-w-0 flex-1">
                                     <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: meta.color }}>{meta.label}</span>
                                     <span className="block text-[13px] font-black leading-tight" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{it.name}</span>

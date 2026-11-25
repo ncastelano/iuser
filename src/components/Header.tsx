@@ -209,7 +209,7 @@ export default function Header({
             <>
                 {!pinned && titleRow}
                 <div
-                    className={`flex flex-col gap-2.5 pb-3 ${pinned ? 'sticky z-30 pt-1' : 'relative z-10'}`}
+                    className={`flex flex-col gap-2.5 pb-3 ${pinned ? 'sticky z-30 pt-1' : 'relative z-10 pt-3'}`}
                     style={{ color: colors.textPrimary, ...(pinned ? stickStyle : {}) }}
                 >
                 {pinned && titleRow}

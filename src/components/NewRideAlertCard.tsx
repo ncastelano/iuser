@@ -99,7 +99,8 @@ export function NewRideAlertCard({ rideId, originAddress, destinationAddress, op
     const frame = { background: colors.surface, border: `1px solid ${grade.grade === 'valued' ? '#f9731666' : colors.border}`, boxShadow: grade.grade === 'valued' ? '0 10px 30px #f9731633' : colors.shadow }
 
     return (
-        <div className="w-[min(94vw,400px)] rounded-3xl overflow-hidden" style={frame}>
+        // tocar em qualquer parte do cartão (menos nos botões de valor e fechar) abre a corrida
+        <div className="w-[min(94vw,400px)] rounded-3xl overflow-hidden cursor-pointer" style={frame} onClick={(e) => { if (!(e.target as HTMLElement).closest('button')) onDetails() }}>
             {/* COMO A CORRIDA PAGA, na cor do nível */}
             <div className="flex items-center gap-2 px-3.5 py-1.5 text-[12px] font-black" style={{ background: gs.solid || gs.strip ? gs.strip : `${colors.border}35`, color: gs.text || colors.textSecondary }}>
                 <Icon size={14} />

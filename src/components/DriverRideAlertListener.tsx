@@ -62,7 +62,7 @@ export function DriverRideAlertListener() {
             channel = supabase
                 .channel(`driver-new-ride-alert-${userId}`)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_offers' }, async (payload) => {
-                    const ride = payload.new as RideTariffSource & { id: string; requester_id?: string; status?: string; origin_address?: string; destination_address?: string; offered_price?: number | null }
+                    const ride = payload.new as RideTariffSource & { id: string; requester_id?: string; preferred_driver_id?: string | null; status?: string; origin_address?: string; destination_address?: string; offered_price?: number | null }
                     if (ride.requester_id === userId) return
                     if (ride.status && ride.status !== 'pending') return
                     if (ride.vehicle_type && !rideAcceptsAnyVehicle(ride.vehicle_type) && !acceptableVehicleTypes.has(ride.vehicle_type)) return
@@ -113,7 +113,7 @@ export function DriverRideAlertListener() {
                             ownMinHourly={ownMinHourly}
                             floorPerHour={minPerMinute * 60}
                             onClose={() => toast.dismiss(toastId)}
-                            onDetails={() => { toast.dismiss(toastId); router.push(`/aceitar-corridas?ride=${ride.id}`) }}
+                            onDetails={() => { toast.dismiss(toastId); router.push(ride.preferred_driver_id === userId ? `/aceitar-corridas?tab=privado&ride=${ride.id}` : `/aceitar-corridas?ride=${ride.id}`) }}
                         />
                     ), { duration: 30000, title: 'Nova corrida disponível!', icon: '🚗' })
                     shownRef.current = [...shownRef.current.slice(-4), shownId]
