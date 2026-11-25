@@ -394,23 +394,9 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </div>
                     ) : p.socialSlot}
                     {owner && p.ownerTypeSlot}
-                    {/* logo abaixo do "Perfil do tipo Motorista": o carro (foto) e o mapa de onde ele está (só o dono vê) */}
+                    {/* logo abaixo do "Perfil do tipo Motorista": a foto do carro; tocando, vai para o mapa de onde ele está (só quando está ligado) */}
                     {owner && vehicle && (
-                        <div className="mt-2 rounded-2xl overflow-hidden flex items-stretch" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                            <span className="w-24 h-20 flex-shrink-0 relative" style={{ background: `${colors.border}40` }}>
-                                {quote?.live && process.env.NEXT_PUBLIC_MAPBOX_TOKEN ? (
-                                    <img alt="" className="w-full h-full object-cover" src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${quote.live.lng},${quote.live.lat},14,0/200x160@2x?attribution=false&logo=false&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`} />
-                                ) : vehicle.photo ? (
-                                    <img src={vehicle.photo} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                    <span className="w-full h-full flex items-center justify-center" style={{ color: colors.textSecondary }}><Icon size={26} /></span>
-                                )}
-                            </span>
-                            <span className="min-w-0 flex-1 px-3 py-2 flex flex-col justify-center">
-                                <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{[vehicle.model, vehicle.color].filter(Boolean).join(' · ') || 'Seu veículo'}</span>
-                                <span className="block text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>{quote?.live ? 'Mapa: onde o carro está (aproximado)' : vehicle.photo ? 'Foto do veículo' : 'Cadastre a foto do carro para aparecer aqui'}</span>
-                            </span>
-                        </div>
+                        <OwnerCarMapToggle vehicle={vehicle} live={quote?.live ?? null} colors={colors} Icon={Icon} mapToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN || null} />
                     )}
                     {!owner && p.reportSlot && <div className="mt-2 flex justify-end">{p.reportSlot}</div>}
                 </div>
@@ -631,5 +617,33 @@ export default function DriverProfile(p: DriverProfileProps) {
                 )}
             </div>
         </div>
+    )
+}
+
+
+/** Abaixo de "Perfil do tipo Motorista" (só o dono): alterna entre a FOTO do carro e o MAPA de onde ele está. Sem estar ligado, fica só a foto. */
+function OwnerCarMapToggle({ vehicle, live, colors, Icon, mapToken }: { vehicle: { photo: string | null; model: string | null; color: string | null }; live: { lat: number; lng: number; at: string } | null; colors: any; Icon: any; mapToken: string | null }) {
+    const [showMap, setShowMap] = useState(false)
+    const canMap = !!live && !!mapToken
+    const onMap = canMap && showMap
+    const tap = () => { if (canMap) setShowMap((v) => !v) }
+    return (
+        <button onClick={tap} disabled={!canMap} aria-label={canMap ? (onMap ? 'Ver a foto do carro' : 'Ver o mapa do motorista') : 'Foto do veículo'} className="mt-2 w-full rounded-2xl overflow-hidden flex items-stretch text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+            <span className="w-28 h-24 flex-shrink-0 relative" style={{ background: `${colors.border}40` }}>
+                {onMap ? (
+                    <img alt="Mapa do motorista" className="w-full h-full object-cover" src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${live!.lng},${live!.lat},14,0/220x180@2x?attribution=false&logo=false&access_token=${mapToken}`} />
+                ) : vehicle.photo ? (
+                    <img src={vehicle.photo} alt="Foto do veículo" className="w-full h-full object-cover" />
+                ) : (
+                    <span className="w-full h-full flex items-center justify-center" style={{ color: colors.textSecondary }}><Icon size={26} /></span>
+                )}
+            </span>
+            <span className="min-w-0 flex-1 px-3 py-2 flex flex-col justify-center">
+                <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{[vehicle.model, vehicle.color].filter(Boolean).join(' · ') || 'Seu veículo'}</span>
+                <span className="block text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>
+                    {canMap ? (onMap ? 'Mapa: onde o carro está (aproximado). Toque para ver o carro' : 'Foto do veículo. Toque para ver o mapa') : live ? 'Foto do veículo (o mapa precisa de chave do Mapbox)' : 'Foto do veículo. O mapa aparece quando você ligar o modo motorista'}
+                </span>
+            </span>
+        </button>
     )
 }
