@@ -129,6 +129,13 @@ export default function DriverProfile(p: DriverProfileProps) {
     const [quote, setQuote] = useState<DriverQuote | null>(null)
     const [vehicle, setVehicle] = useState<Vehicle | null | undefined>(undefined)
     const [stats, setStats] = useState<Stats | null>(null)
+    // as lojas ativas da pessoa (propaganda no perfil; vazio = não aparece)
+    const [stores, setStores] = useState<{ store_id: string; name: string; slug: string; logo_url: string | null; category: string | null; ratings_avg: number | null; ratings_count: number }[]>([])
+    useEffect(() => {
+        let alive = true
+        void supabase.rpc('get_driver_public_stores', { p_driver: p.driverId }).then(({ data }) => { if (alive) setStores((data as any[]) || []) })
+        return () => { alive = false }
+    }, [p.driverId])
     const [reviews, setReviews] = useState<Review[] | null>(null)
     const [tariffsReady, setTariffsReady] = useState(false)
     const [showAll, setShowAll] = useState(false)
@@ -564,20 +571,26 @@ export default function DriverProfile(p: DriverProfileProps) {
                 </section>
             )}
 
-            {/* ===== 4b. a loja da pessoa, se ela tiver uma: não é só motorista, também vende ===== */}
-            {stats?.store && (
+            {/* ===== 4b. as lojas da pessoa (só se ela tiver): propaganda pequena de cada uma ===== */}
+            {stores.length > 0 && (
                 <section>
-                    <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>Também tem uma loja</h2>
-                    <button onClick={() => router.push(`/${stats.store!.slug}`)} className="mt-2.5 w-full rounded-3xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                        <span className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}>
-                            {stats.store.logo ? <img src={stats.store.logo} alt="" className="w-full h-full object-cover" /> : <span className="text-xl font-black" style={{ color: colors.textSecondary }}>{stats.store.name?.charAt(0).toUpperCase()}</span>}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                            <span className="block text-[11px] font-bold" style={{ color: colors.textSecondary }}>Loja de {(p.name || '').split(' ')[0]}</span>
-                            <span className="block text-[15px] font-black truncate" style={{ color: colors.textPrimary }}>{stats.store.name}</span>
-                        </span>
-                        <span className="text-[12px] font-black flex-shrink-0" style={{ color: '#f97316' }}>Ver loja</span>
-                    </button>
+                    <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>{stores.length === 1 ? 'Também tem uma loja' : 'Também tem lojas'}</h2>
+                    <div className="mt-2.5 flex flex-col gap-2">
+                        {stores.map((st) => (
+                            <button key={st.store_id} onClick={() => router.push(`/${st.slug}`)} className="w-full rounded-2xl p-2.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <span className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}>
+                                    {st.logo_url ? <img src={st.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-lg font-black" style={{ color: colors.textSecondary }}>{st.name?.charAt(0).toUpperCase()}</span>}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{st.name}</span>
+                                    <span className="block text-[11.5px] font-bold truncate" style={{ color: colors.textSecondary }}>
+                                        {st.category || 'Loja'}{st.ratings_count > 0 && st.ratings_avg != null ? ` · ★ ${Number(st.ratings_avg).toFixed(1).replace('.', ',')} (${st.ratings_count})` : ''}
+                                    </span>
+                                </span>
+                                <span className="text-[12px] font-black flex-shrink-0" style={{ color: '#f97316' }}>Ver loja</span>
+                            </button>
+                        ))}
+                    </div>
                 </section>
             )}
 
