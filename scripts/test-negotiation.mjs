@@ -245,3 +245,21 @@ test('até 3 valores: o menor é o principal, os outros vão a mais, sem repetir
     assert.match(packOffer([10, 11, 12, 13]).problem, /no máximo 3/)
     assert.equal(packOffer([]), null)
 })
+
+// Piso por quilômetro (R$ 2/km): nenhuma tarifa do motorista derruba a corrida abaixo disso
+test('piso por km: R$ 2 por quilômetro da corrida', () => {
+    setMinRideFare(0)
+    // base R$ 7 com franquia de 70 km: 10 km sairiam por R$ 7, o piso leva a R$ 20
+    assert.equal(platformFloor(null, DEFAULT_MIN_PER_MINUTE, 0, 10), 20)
+    assert.equal(platformFloor(null, DEFAULT_MIN_PER_MINUTE, 0, 70), 140)
+    assert.equal(platformFloor(null, DEFAULT_MIN_PER_MINUTE, 0, 0), 0)
+    assert.equal(platformFloor(null, DEFAULT_MIN_PER_MINUTE, 0, null), 0)
+    // o maior entre tempo, mínimo da corrida e km: 2 km = R$ 4, o mínimo de R$ 8 manda
+    setMinRideFare(8)
+    assert.equal(platformFloor(null, DEFAULT_MIN_PER_MINUTE, undefined, 2), 8)
+    // 30 km a R$ 2 = R$ 60; 38 min a R$ 40/h = R$ 25,34: o km manda
+    assert.equal(platformFloor(38, DEFAULT_MIN_PER_MINUTE, undefined, 30), 60)
+    // entrega de loja (mínimo por minuto 0) continua fora do piso
+    assert.equal(platformFloor(null, 0, undefined, 30), 0)
+    setMinRideFare(DEFAULT_MIN_RIDE_FARE)
+})

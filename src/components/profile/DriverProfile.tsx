@@ -196,8 +196,7 @@ export default function DriverProfile(p: DriverProfileProps) {
 
     const kind: Kind = vehicle?.kind || 'carro'
     const shape = useMemo(() => (quote && tariffsReady ? getEffectivePricing(quote.row as unknown as DriverPricingRow, kind) : null), [quote, tariffsReady, kind])
-    const floor = platformFloor(null, minPerMinute)   // o mínimo de uma corrida (R$ 8): nenhum exemplo abaixo dele
-    const examples = quote && shape ? quoteExamples(quote, shape, hourly).map((e) => ({ ...e, price: Math.max(e.price, floor) })) : []
+    const examples = quote && shape ? quoteExamples(quote, shape, hourly, minPerMinute) : []
     const fromPrice = examples.length ? examples[0].price : null
     // QUANTO CUSTA: todos os jeitos que ESTE motorista cobra — a tarifa por km (se ele tem tarifa própria), a por tempo (se definiu um valor por
     // minuto) — ou só a Tarifa iUser; o do botão vai marcado. Cada um com a regra e três exemplos (nunca abaixo do mínimo de uma corrida).
@@ -211,7 +210,7 @@ export default function DriverProfile(p: DriverProfileProps) {
         return modes.map((m) => {
             const q2: DriverQuote = { ...quote, mode: m, row: { ...quote.row, pricing_mode: m === 'km' ? 'custom' : 'platform' } }
             const sh = getEffectivePricing(q2.row as unknown as DriverPricingRow, kind)
-            return { mode: m, rule: quoteRule(q2, sh, hourly), examples: quoteExamples(q2, sh, hourly).map((e) => ({ ...e, price: Math.max(e.price, floor) })) }
+            return { mode: m, rule: quoteRule(q2, sh, hourly), examples: quoteExamples(q2, sh, hourly, minPerMinute) }
         }).sort((x, y) => Number(y.mode === quote.mode) - Number(x.mode === quote.mode))
     })()
     const soft = `${colors.border}30`

@@ -252,7 +252,7 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
         const extras = computeRideExtras('pessoa', {}, shape)
         const raw = quotePrice(quote, shape, { km: route.distanceKm, minutes: route.durationMin }, hourly, extras)
         if (raw == null) return null
-        const base = Math.max(raw, platformFloor(route.durationMin, minPerMinute))
+        const base = Math.max(raw, platformFloor(route.durationMin, minPerMinute, undefined, route.distanceKm))
         return Math.round(base * 100) / 100   // a parada entra pela ROTA; o tempo PARADO é cobrado na hora, pela espera da corrida
     }, [quote, shape, route, hourly, minPerMinute, stops.length])
     // a REGRA da espera/parada (do iUser: valor ao parar + por minuto depois), para avisar quanto a parada soma
@@ -260,7 +260,7 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
     useEffect(() => { void loadWaitSettings().then((w) => setWaitRule(ruleText(w.graceMinutes * 60, Math.round(w.ratePerMinute * 100), Math.round(w.baseFee * 100)).replace(' Cobrado depois, junto com a corrida.', ''))).catch(() => {}) }, [])
     const fromPrice = useMemo(() => {
         if (!quote || !shape) return null
-        const ex = quoteExamples(quote, shape, hourly)
+        const ex = quoteExamples(quote, shape, hourly, minPerMinute)
         return ex.length ? Math.max(ex[0].price, platformFloor(null, minPerMinute)) : null
     }, [quote, shape, hourly, minPerMinute])
     const eta = etaFromViewer(origin?.coords ? { lat: origin.coords[1], lng: origin.coords[0] } : null, quote?.live ?? null)

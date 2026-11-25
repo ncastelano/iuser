@@ -59,6 +59,7 @@ interface RideRow {
     destination_lat: number | null
     destination_lng: number | null
     duration_min: number | null
+    distance_km: number | null
     driver_en_route: boolean
     driver_arrived_at: string | null
     ride_started_at: string | null
@@ -138,7 +139,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     // propostas de cada motorista (histórico da negociação); as de agora definem o que a tela mostra
     const [offers, setOffers] = useState<PriceOffer[]>([])
     const minPerMinute = useRideMinimum()
-    const tripMinAmount = platformFloor(ride?.duration_min ?? null, minPerMinute)
+    const tripMinAmount = platformFloor(ride?.duration_min ?? null, minPerMinute, undefined, ride?.distance_km ?? null)
     const [tripRouteCoords, setTripRouteCoords] = useState<[number, number][] | null>(null)
     const [driver, setDriver] = useState<DriverInfo | null>(null)
     const [decidingId, setDecidingId] = useState<string | null>(null)
@@ -151,7 +152,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, vehicle_type, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token, passenger_offer, agreed_price, payment_method')
+            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, vehicle_type, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, distance_km, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token, passenger_offer, agreed_price, payment_method')
             .eq('id', rideId)
             .single()
 

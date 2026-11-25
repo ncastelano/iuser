@@ -17,8 +17,8 @@ export async function generateMetadata({ params }: { params: Promise<{ vehicleSl
         if (!d) return fallback
         const { title, description } = vehicleShareText(d)
         const url = `${SHARE_BASE_URL}/${d.slug}`
-        // imagem do veículo; sem foto do veículo, o perfil do motorista; sem nenhuma, a logo
-        const src = d.carPhotoUrl || d.avatarUrl
+        // imagem do VEÍCULO. Nunca a foto do motorista (a prévia é do carro); sem foto do carro, a logo do iUser
+        const src = d.carPhotoUrl
         const image = src ? toThumbUrl(src) : DEFAULT_THUMB
         const shortTitle = title.replace(/ \| iUser$/, '')
         return {

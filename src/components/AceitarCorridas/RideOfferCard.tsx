@@ -154,7 +154,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     // Ganho mínimo do motorista: piso por tempo, sugestão e alertas (só dele; nada disso vai para o passageiro)
     const floor = hourlyFloor(minutesTotal, minHourly)
     // Piso da plataforma: minutos × mínimo por minuto. Vale para a Tarifa iUser, para a tarifa do motorista e para qualquer proposta; frete de loja é fixo
-    const platFloor = ride.order_id || ride.offered_price != null ? 0 : platformFloor(minutesTotal, minPerMinute)
+    const platFloor = ride.order_id || ride.offered_price != null ? 0 : platformFloor(minutesTotal, minPerMinute, undefined, trip.km)
     const raise = (v: number) => (platFloor > 0 ? Math.max(v, platFloor) : v)
     platformPrice = raise(platformPrice)
     // Minha tarifa = a corrida pela tarifa dele + o deslocamento até a partida pelo valor por km dele (igual à Tarifa iUser, que também soma o deslocamento)

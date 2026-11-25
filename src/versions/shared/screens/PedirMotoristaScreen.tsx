@@ -1569,7 +1569,7 @@ export default function PedirMotoristaScreen() {
     const defaultHourly = useDefaultMinHourly()
     const minPerMinute = useRideMinimum()
     // mínimo da plataforma para este trajeto (R$ por minuto × os minutos da rota): nem a referência nem a oferta ficam abaixo
-    const tripFloor = platformFloor(route?.durationMin ?? null, minPerMinute)
+    const tripFloor = platformFloor(route?.durationMin ?? null, minPerMinute, undefined, route?.distanceKm ?? null)
     useEffect(() => {
         if (!showPlateReminder || !requestFor) return
         let alive = true
@@ -1590,7 +1590,7 @@ export default function PedirMotoristaScreen() {
                 wants_air_conditioning: isTwoWheels || requestFor === 'objeto' ? false : wantsAirConditioning,
             }
             const shape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(effectiveVehicleType)]
-            const floor = platformFloor(route.durationMin ?? null, minPerMinute)
+            const floor = platformFloor(route.durationMin ?? null, minPerMinute, undefined, route.distanceKm ?? null)
             setReferencePrice(Math.max(Math.round(computeSuggestedPrice(route.distanceKm, shape, requestFor, flags) * 100) / 100, floor))
             // Chamando um motorista: a conta da corrida pela tarifa DELE (a própria, se usa; senão a Tarifa iUser do veículo dele), nunca abaixo
             // do mínimo da plataforma. Vai como a oferta do passageiro, para ele só aceitar (o deslocamento até a partida fica para ele propor, se quiser).

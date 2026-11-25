@@ -84,7 +84,7 @@ export function DriverRideAlertListener() {
                         ? haversineKm([Number(pricing.live_lng), Number(pricing.live_lat)], [Number(r.origin_lng), Number(r.origin_lat)]) * 1.3
                         : null
                     const minutes = tripMin != null ? tripMin + (pickupKm != null ? (pickupKm / 40) * 60 : 0) : null
-                    const floor = ride.offered_price != null ? 0 : platformFloor(minutes, minPerMinute)
+                    const floor = ride.offered_price != null ? 0 : platformFloor(minutes, minPerMinute, undefined, r.distance_km != null ? Number(r.distance_km) : null)
                     const platShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[rideKindOf(ride)]
                     const platformPrice = round2(Math.max(platTrip + (pickupKm != null ? computePickupFee(platShape, pickupKm) : 0), floor))
                     const customPrice = kmTrip != null ? round2(Math.max(kmTrip + (pickupKm != null && customShape ? computePickupFee(customShape, pickupKm) : 0), floor)) : null

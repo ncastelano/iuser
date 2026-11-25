@@ -55,7 +55,8 @@ export function rideQuote<Shape>(i: RideQuoteInput<Shape>): RideQuote {
     const pickupAmount = i.pickupKm != null ? i.pickupFee(i.platformShape, i.pickupKm) : 0
     const minutes = i.pickupMin != null && i.tripMin != null ? i.pickupMin + i.tripMin : null
     // Piso da plataforma: nenhuma corrida de passageiro (Tarifa iUser ou a do motorista) sai por menos que minutos × o mínimo por minuto. Frete de loja é fixo.
-    const platformMin = i.offeredPrice != null ? 0 : platformFloor(minutes, i.minPerMinute)
+    // Piso por km (R$ 2/km da corrida) além do de tempo e do mínimo da corrida: a tarifa do motorista não derruba o valor
+    const platformMin = i.offeredPrice != null ? 0 : platformFloor(minutes, i.minPerMinute, undefined, tripKm)
     const platform = round2(Math.max(platformTrip + pickupAmount, platformMin))
     const floor = hourlyFloor(minutes, i.minHourly)
     // Minha tarifa soma o deslocamento até a partida pelo valor por km da tarifa PRÓPRIA (a Tarifa iUser faz o mesmo pela dela)

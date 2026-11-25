@@ -247,7 +247,7 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                             { label: 'Online', value: onlineNow, color: '#f59e0b' },
                             { label: 'Hoje', value: todayVisitors, color: '#10b981' },
                             { label: 'Visitas', value: totalVisits, color: '#2563eb' },
-                            { label: 'Únicos', value: totalUnique, color: '#f97316' },
+                            { label: 'Pessoas', value: totalUnique, color: '#f97316' },
                         ]).map((t) => (
                             <div key={t.label} className="rounded-2xl py-2.5 px-1 flex flex-col items-center gap-0.5" style={{ background: `${t.color}14`, border: `1px solid ${t.color}30` }}>
                                 <span className="text-xl font-black leading-none" style={{ color: t.color }}>{t.value}</span>
@@ -419,7 +419,7 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
     return (
             <V3Section
                 title="Visitantes"
-                subtitle={<><span style={{ color: '#f97316', fontWeight: 800 }}>{totalUnique}</span> únicos · <span style={{ color: '#10b981', fontWeight: 800 }}>{todayVisitors}</span> hoje · <span style={{ color: '#f59e0b', fontWeight: 800 }}>{onlineNow}</span> online</>}
+                subtitle={<><span style={{ color: '#f97316', fontWeight: 800 }}>{totalUnique}</span> pessoas já visitaram · <span style={{ color: '#10b981', fontWeight: 800 }}>{todayVisitors}</span> hoje · <span style={{ color: '#f59e0b', fontWeight: 800 }}>{onlineNow}</span> online</>}
                 expanded={isExpanded}
                 onToggle={() => setIsExpanded(!isExpanded)}
                 className="mb-0"
