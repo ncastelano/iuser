@@ -39,7 +39,7 @@ export function useDriverVehicle(driverId: string | null | undefined): DriverVeh
         void (async () => {
             const [{ data: v }, { data: pr }] = await Promise.all([
                 supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_model, car_color, car_photo_url').eq('driver_id', driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-                supabase.from('driver_pricing').select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, driver_mode_active').eq('driver_id', driverId).maybeSingle(),
+                supabase.from('driver_pricing').select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, driver_mode_active, live_location_sync, live_updated_at').eq('driver_id', driverId).maybeSingle(),
                 loadPlatformTariffs(supabase),   // a Tarifa iUser vem do banco: carregar antes de calcular
             ])
             if (!alive) return
@@ -53,7 +53,8 @@ export function useDriverVehicle(driverId: string | null | undefined): DriverVeh
                 model: (v as any).car_model || null,
                 color: (v as any).car_color || null,
                 photo: photoUrl((v as any).car_photo_url || null),
-                active: !!(pr as any)?.driver_mode_active,
+                // "Dirigindo agora": modo ligado E posição recente (10 min), igual ao perfil do motorista
+                active: !!(pr as any)?.driver_mode_active && !!(pr as any)?.live_location_sync && !!(pr as any)?.live_updated_at && Date.now() - new Date((pr as any).live_updated_at).getTime() < 10 * 60_000,
                 fromPrice: pricing ? pricing.baseFee : null,
                 customTariff: row.pricing_mode === 'custom',
             } })
