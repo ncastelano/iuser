@@ -263,7 +263,14 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                                         <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
                                     </button>
                                 )}
-                                {extras.map((x) => x.label !== undefined ? (
+                                {extras.map((x) => x.key === 'called' ? (
+                                    // pedido privado: no lugar do carrinho (quando a sacola está vazia), com o mesmo desenho do carrinho e o carro
+                                    <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} aria-label={`Pedido privado: ${x.text}`} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
+                                        <Car size={15} className="flex-shrink-0" style={{ color: x.color }} />
+                                        <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{x.text}</span>
+                                        <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                    </button>
+                                ) : x.label !== undefined ? (
                                     // pedido do cliente: sem moldura própria, a faixa toda está na cor da etapa — círculo cheio, loja em cima, etapa embaixo e a barrinha de progresso
                                     <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} aria-label={`${x.label ? x.label + ': ' : ''}${x.text}`} className="relative flex items-center gap-2.5 flex-shrink-0 min-h-[48px] py-1.5 pr-2 active:opacity-70 text-left">
                                         <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[13px] font-black" style={{ background: x.color }}>

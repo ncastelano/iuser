@@ -22,7 +22,7 @@ interface ActiveRide { status: string; enRoute: boolean; arrived: boolean; start
 export function useShellLive(userId: string | null | undefined, orders: { pending: number; preparing: number; ready: number }, unread: number, chatPath: string, storeNew?: StoreNewOrders | null, cart?: { count: number; total: number } | null): ShellLive | null {
     const [ride, setRide] = useState<ActiveRide | null>(null)
     // Pedidos PRIVADOS para este motorista: corridas chamadas só para o perfil dele (preferred_driver_id), ainda abertas
-    const [called, setCalled] = useState(0)
+    const [called, setCalled] = useState<{ n: number; id: string | null }>({ n: 0, id: null })
     // Quando cada contagem (pedidos, serviços, mensagens) AUMENTOU pela última vez: o que atualizou por último fica em cima na ilha.
     // Nos primeiros segundos as contagens chegando do banco não contam como "atualização" (a ordem inicial é a de sempre).
     const mountedAt = useRef(Date.now())
@@ -60,16 +60,18 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
     }, [userId])
 
     useEffect(() => {
-        if (!userId) { setCalled(0); return }
+        if (!userId) { setCalled({ n: 0, id: null }); return }
         let cancelled = false
         const loadCalled = async () => {
             if (document.hidden) return
-            const { count } = await supabase
+            const { data } = await supabase
                 .from('ride_offers')
-                .select('id', { count: 'exact', head: true })
+                .select('id')
                 .eq('preferred_driver_id', userId)
                 .eq('status', 'pending')
-            if (!cancelled) setCalled(count || 0)
+                .order('created_at', { ascending: false })
+                .limit(20)
+            if (!cancelled) setCalled({ n: data?.length || 0, id: data?.[0]?.id ?? null })
         }
         loadCalled()
         const t = setInterval(loadCalled, 20_000)
@@ -119,16 +121,16 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
         parts.push({ key: 'ride', text: title, color: '#f97316', path: '/pedir-motorista', hot: ride.candidates > 0 || ride.arrived })
     }
     // Motorista: corrida chamada SÓ para ele (pedido privado) — leva à lista de corridas, onde ele aceita
-    if (called > 0) parts.push({ key: 'called', text: called === 1 ? '1 pedido privado' : `${called} pedidos privados`, color: '#f97316', path: '/aceitar-corridas', hot: true })
+    if (called.n > 0) parts.push({ key: 'called', text: called.n === 1 ? '1 pedido privado' : `${called.n} pedidos privados`, color: '#f97316', path: called.id ? `/aceitar-corridas?ride=${called.id}` : '/aceitar-corridas', hot: true })
     if (unread > 0) parts.push({ key: 'chat', text: unread === 1 ? '1 mensagem' : `${unread} mensagens`, color: CHAT_COLOR, path: chatPath, hot: true })
     if (cart && cart.count > 0) parts.push({ key: 'cart', text: `Sacola ${cart.count} ${cart.count === 1 ? 'item' : 'itens'} · ${brl(cart.total)}`, color: '#f97316', path: '/carrinho' })
     if (parts.length === 0) return null
     const main = parts[0]
     const hasOrders = orders.ready + orders.preparing + orders.pending > 0
     return {
-        kind: hasOrders ? 'order' : (ride || called > 0) ? 'ride' : unread > 0 ? 'chat' : 'order',
+        kind: hasOrders ? 'order' : (ride || called.n > 0) ? 'ride' : unread > 0 ? 'chat' : 'order',
         title: parts.map((x) => x.text).join(' · '),
-        sub: hasOrders ? 'Seus pedidos' : ride ? 'Sua corrida' : called > 0 ? 'Corrida chamada para você' : unread > 0 ? 'Conversas' : 'Seu carrinho',
+        sub: hasOrders ? 'Seus pedidos' : ride ? 'Sua corrida' : called.n > 0 ? 'Corrida chamada para você' : unread > 0 ? 'Conversas' : 'Seu carrinho',
         path: main.path, hot: !!main.hot, color: main.color,
         parts: parts.map(({ key, text, color, path }) => ({ key, text, color, path })),
     }
