@@ -182,6 +182,12 @@ export function RideSummaryCard({ ride, requester, price, approx = false, refere
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-bold" style={{ color: colors.textSecondary }}>
                     {toPickup.min != null && <span className="inline-flex items-center gap-1"><Clock size={13} /> você chega em {Math.round(toPickup.min)} min</span>}
                     {trip.min != null && <span className="inline-flex items-center gap-1"><KindIcon size={13} /> corrida de {Math.round(trip.min)} min{trip.km != null ? ` · ${kmText(trip.km)}` : ''}</span>}
+                    {/* o total: o que ele roda até o fim da corrida (ir buscar + corrida) */}
+                    {(() => {
+                        const totMin = totalMin ?? (toPickup.min != null && trip.min != null ? toPickup.min + trip.min : null)
+                        const totKm = toPickup.km != null && trip.km != null ? toPickup.km + trip.km : null
+                        return totMin != null ? <span className="inline-flex items-center gap-1 font-black" style={{ color: colors.textPrimary }}>total {Math.round(totMin)} min{totKm != null ? ` · ${kmText(totKm)}` : ''}</span> : null
+                    })()}
                     {spec && <span className="truncate max-w-full">{spec.text}</span>}
                 </div>
 

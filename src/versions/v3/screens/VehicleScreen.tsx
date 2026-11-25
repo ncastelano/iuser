@@ -141,10 +141,6 @@ export default function VehicleScreen() {
 
     useEffect(() => { load() }, [load])
 
-    // Chegou cliente pedindo corrida: abre direto em "Clientes" (a menos que o motorista já tenha escolhido outra aba)
-    useEffect(() => {
-        if (activeCount > 0 && !touchedTab.current) setTabState('clientes')
-    }, [activeCount])
 
     // Quantos pedidos acontecendo agora (selo da aba Clientes), mesmo antes de abrir a aba
     useEffect(() => {
@@ -309,12 +305,8 @@ export default function VehicleScreen() {
                 <div className="flex gap-1.5 mb-3 -mx-4 px-4 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                     {(([
                         { id: 'veiculo', label: 'Meu veículo' },
-                        { id: 'clientes', label: 'Clientes', count: activeCount },
-                        { id: 'historico', label: 'Histórico' },
                         { id: 'cliente', label: 'Como o cliente vê' },
                     ] as { id: typeof tab; label: string; count?: number }[])
-                        // com cliente pedindo corrida, "Clientes" vai para o começo da fila
-                        .sort((a, b) => (activeCount > 0 ? Number(b.id === 'clientes') - Number(a.id === 'clientes') : 0))
                     ).map((t) => (
                         <button
                             key={t.id}
@@ -329,8 +321,8 @@ export default function VehicleScreen() {
                 </div>
             )}
 
-            {isOwner && (tab === 'clientes' || tab === 'historico') ? (
-                <RidesPanel mode={tab} me={vehicle.driver_id} onCount={setActiveCount} />
+            {isOwner && tab === 'clientes' ? (
+                <RidesPanel mode="clientes" me={vehicle.driver_id} onCount={setActiveCount} />
             ) : (<>
             {/* Onde ele está agora: em cima de tudo (cliente) */}
             {!ownerView && (
@@ -501,6 +493,13 @@ export default function VehicleScreen() {
                 text={`Preciso de corrida? Me chame na hora pelo iUser: veja onde eu estou, o quanto custa e peça direto comigo.`}
             />
 
+            {/* Histórico de corridas feitas: mora dentro de Meu veículo (só o dono) */}
+            {isOwner && tab === 'veiculo' && (
+                <section className="mt-6">
+                    <h2 className="text-base font-black mb-2" style={{ color: colors.textPrimary }}>Histórico de corridas</h2>
+                    <RidesPanel mode="historico" me={vehicle.driver_id} onCount={setActiveCount} />
+                </section>
+            )}
             </>)}
 
             {ownerView && tariffOpen && vehicle && (
