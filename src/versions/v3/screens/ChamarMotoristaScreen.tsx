@@ -173,6 +173,11 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
     const [notes, setNotes] = useState('')
     const [missing, setMissing] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
+    // "Sugerir outro valor?": o passageiro pode pagar mais que o valor inicial (nunca menos); esse vira a oferta e o valor inicial da corrida
+    const [suggested, setSuggested] = useState<number | null>(null)
+    const [suggestOpen, setSuggestOpen] = useState(false)
+    const [suggestText, setSuggestText] = useState('')
+    const [suggestErr, setSuggestErr] = useState<string | null>(null)
     const [activeRide, setActiveRide] = useState<string | null>(null)
     const [field, setField] = useState<'origin' | 'destination' | 'stop' | null>(null)
     const [stops, setStops] = useState<CallPlace[]>([])          // paradas no caminho (até 2)
@@ -337,6 +342,8 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
     }
 
     // ===== chamar =====
+    // se a rota mudar e o valor aproximado subir acima da sugestão, a sugestão sai (não pode ficar abaixo do mínimo)
+    useEffect(() => { if (suggested != null && price != null && suggested + 1e-9 < price) setSuggested(null) }, [price, suggested])
     const submit = async () => {
         if (cta.disabled || !driver) return
         if (cta.missing) {
@@ -355,8 +362,9 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
             })).select('id').single()
             if (error) throw error
             // o valor dele vai como a OFERTA do passageiro: o motorista só aceita
-            if (price != null) {
-                try { await setPassengerOffer((data as any).id, price) }
+            const offer = suggested ?? price
+            if (offer != null) {
+                try { await setPassengerOffer((data as any).id, offer) }
                 catch { toast.info(`Pedido enviado, mas não deu para registrar o valor. ${fname} vai propor o valor.`) }
             }
             notifyNewRide((data as any).id)
@@ -477,7 +485,7 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                 <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: ORANGE_DARK }}>{route && price != null ? 'Valor aproximado' : 'Valor da corrida'}</p>
                 {route && price != null ? (
                     <>
-                        <p className="mt-1 text-[40px] leading-none font-black tracking-tight" style={{ color: ORANGE }}>{brl(price)}</p>
+                        <p className="mt-1 text-[40px] leading-none font-black tracking-tight" style={{ color: ORANGE }}>{brl(suggested ?? price)}</p>
                         <p className="mt-2 text-[12.5px] font-bold" style={{ color: colors.textPrimary }}>
                             {route.distanceKm.toFixed(1).replace('.', ',')} km · ~{Math.max(1, Math.round(route.durationMin))} min · pela {quote?.mode === 'km' ? 'tarifa por km' : quote?.mode === 'time' ? 'tarifa por tempo' : 'Tarifa iUser'} de {fname}
                         </p>
@@ -488,6 +496,34 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                                 : <>Se você <b>solicitar uma parada</b> durante a corrida, o motorista aprova e o tempo parado é somado ao valor.{waitRule ? ` ${waitRule}` : ''}</>}
                         </p>
                         <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: colors.textSecondary }}>Este é o <b>valor base do iUser</b> para {fname} ver. {fname} pode aceitar esse valor ou mostrar outro para você decidir. É o <b>valor inicial da corrida</b>: se você pedir uma parada, o total pode mudar. Você paga no fim da corrida.</p>
+                        {/* sugerir outro valor: nunca abaixo do valor aproximado; esse vira a oferta e o valor inicial da corrida */}
+                        <div className="mt-3">
+                            {suggested != null ? (
+                                <div className="flex items-center gap-2 rounded-2xl px-3 py-2" style={{ background: `${ORANGE}12` }}>
+                                    <span className="text-[12.5px] font-bold flex-1 min-w-0" style={{ color: colors.textPrimary }}>Você sugeriu <b>{brl(suggested)}</b>: esse é o valor inicial da corrida.</span>
+                                    <button onClick={() => { setSuggested(null); setSuggestErr(null) }} className="text-[12px] font-black flex-shrink-0" style={{ color: ORANGE_DARK }}>Voltar ao do iUser</button>
+                                </div>
+                            ) : !suggestOpen ? (
+                                <button onClick={() => { setSuggestText(price != null ? price.toFixed(2).replace('.', ',') : ''); setSuggestErr(null); setSuggestOpen(true) }} className="h-10 w-full rounded-2xl text-[13px] font-black" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>Sugerir outro valor?</button>
+                            ) : (
+                                <div className="rounded-2xl p-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                    <p className="text-[12.5px] font-bold" style={{ color: colors.textPrimary }}>Quanto você quer pagar pela corrida?</p>
+                                    <p className="text-[11.5px] mt-0.5" style={{ color: colors.textSecondary }}>Não pode ser menor que {price != null ? brl(price) : 'o valor aproximado'}. Esse valor vira o inicial da corrida.</p>
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <input inputMode="decimal" value={suggestText} onChange={(e) => { setSuggestText(e.target.value); setSuggestErr(null) }} aria-label="Valor sugerido em reais" className="h-11 flex-1 min-w-0 rounded-xl px-3 text-[15px] font-black outline-none" style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }} />
+                                        <button onClick={() => {
+                                            const raw = suggestText.trim()
+                                            const v = Number(raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw)
+                                            if (!Number.isFinite(v) || v <= 0) { setSuggestErr('Digite um valor em reais.'); return }
+                                            if (price != null && v + 1e-9 < price) { setSuggestErr(`Não pode ser menor que ${brl(price)}.`); return }
+                                            setSuggested(Math.round(v * 100) / 100); setSuggestOpen(false)
+                                        }} className="h-11 px-4 rounded-xl text-[13px] font-black text-white" style={{ background: ORANGE }}>Usar</button>
+                                        <button onClick={() => setSuggestOpen(false)} className="h-11 px-3 text-[12px] font-bold" style={{ color: colors.textSecondary }}>Cancelar</button>
+                                    </div>
+                                    {suggestErr && <p className="text-[12px] font-bold mt-2" style={{ color: '#dc2626' }}>{suggestErr}</p>}
+                                </div>
+                            )}
+                        </div>
                     </>
                 ) : routing ? (
                     <p className="mt-2 flex items-center gap-2 text-[13px] font-bold" style={{ color: colors.textSecondary }}><Spinner size={15} />Calculando a rota…</p>
