@@ -4,7 +4,7 @@
 //   platform = Tarifa iUser do veículo (o padrão) · km = a tarifa própria por km · time = a tarifa própria por tempo (R$ por minuto; sem valor
 //   próprio vale o ganho mínimo por hora padrão do iUser ÷ 60). Nada fica abaixo do mínimo da plataforma (quem chama aplica platformFloor).
 // Testes: scripts/test-driver-profile.mjs (npm run test:driver-profile).
-import { effectiveTimeRate } from '../negotiation/domain.ts'
+import { effectiveTimeRate, platformFloor } from '../negotiation/domain.ts'
 
 export type QuoteMode = 'platform' | 'km' | 'time'
 
@@ -63,10 +63,14 @@ export function quotePrice(q: DriverQuote, shape: KmShape, trip: { km: number | 
     return r2(shape.baseFee + Math.max(0, trip.km - shape.baseDistanceKm) * shape.pricePerKmAfterBase + Math.max(0, extras))
 }
 
-/** Exemplos para a página: 3, 5 e 10 km (km/Tarifa iUser) ou 10, 20 e 30 minutos (tempo) */
-export function quoteExamples(q: DriverQuote, shape: KmShape, defaultHourly: number): { label: string; price: number }[] {
-    if (q.mode === 'time') return [10, 20, 30].map((m) => ({ label: `${m} min`, price: quotePrice(q, shape, { km: null, minutes: m }, defaultHourly) ?? 0 }))
-    return [3, 5, 10].map((km) => ({ label: `${km} km`, price: quotePrice(q, shape, { km, minutes: null }, defaultHourly) ?? 0 }))
+/**
+ * Exemplos para a página: 3, 5 e 10 km (km/Tarifa iUser) ou 10, 20 e 30 minutos (tempo). Cada exemplo respeita o PISO da plataforma
+ * (R$ 40/h de trabalho, R$ 8 de corrida e R$ 2 por km) — por isso a conta sai do mesmo platformFloor de todo o app.
+ */
+export function quoteExamples(q: DriverQuote, shape: KmShape, defaultHourly: number, minPerMinute: number | null = null, minFare?: number): { label: string; price: number }[] {
+    const floorFor = (km: number | null, minutes: number | null) => platformFloor(minutes, minPerMinute, minFare, km)
+    if (q.mode === 'time') return [10, 20, 30].map((m) => ({ label: `${m} min`, price: Math.max(quotePrice(q, shape, { km: null, minutes: m }, defaultHourly) ?? 0, floorFor(null, m)) }))
+    return [3, 5, 10].map((km) => ({ label: `${km} km`, price: Math.max(quotePrice(q, shape, { km, minutes: null }, defaultHourly) ?? 0, floorFor(km, null)) }))
 }
 
 /** A frase curta de como ele cobra ("R$ 7,00 até 3 km + R$ 2,00 por km", "R$ 0,67 por minuto…") */

@@ -27,7 +27,10 @@ import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { DRIVER_SERVICE_OPTIONS, driverServiceLabel } from '@/lib/driverServices'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
-import { computeSuggestedPrice, getEffectivePricing, type DriverPricingRow } from '@/lib/driverPricing'
+import { getEffectivePricing, type DriverPricingRow } from '@/lib/driverPricing'
+import { parseQuote, quoteExamples, quoteModeClientLabel, quoteRule, type DriverQuote } from '@/modules/driver-profile'
+import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
+import { useRideMinimum } from '@/hooks/useRideMinimum'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -70,6 +73,8 @@ export default function VehicleScreen() {
     const [driver, setDriver] = useState<Driver | null>(null)
     const [driverActive, setDriverActive] = useState<boolean | null>(null)
     const [pricingRow, setPricingRow] = useState<DriverPricingRow | null>(null)
+    // o modo que o motorista escolheu para o botão (Tarifa iUser, por km ou por tempo), lido pela função pública
+    const [quote, setQuote] = useState<DriverQuote | null>(null)
     const [tariffsReady, setTariffsReady] = useState(false)
     const [stats, setStats] = useState<Stats | null>(null)
     // Dono: Veículo, Clientes (pedidos acontecendo), Histórico (corridas feitas) ou a prévia do que o cliente vê
@@ -115,6 +120,7 @@ export default function VehicleScreen() {
             })))
         })
         setPricingRow((pricing as DriverPricingRow) || { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null })
+        supabase.rpc('get_driver_public_quote', { p_driver: v.driver_id }).then(({ data: q }) => setQuote(parseQuote(q) || parseQuote({ mode: 'platform' })))
         const row = Array.isArray(st) ? st[0] : st
         if (row) {
             setStats({
@@ -177,9 +183,12 @@ export default function VehicleScreen() {
     const photo = photoUrl(vehicle?.car_photo_url || null)
     const KindIcon = vehicle?.vehicle_kind === 'carro' ? Car : Bike
 
+    const defaultHourly = useDefaultMinHourly()
+    const minPerMinute = useRideMinimum()
+    // a tarifa que vale para o modo escolhido (por km própria, por tempo ou Tarifa iUser)
     const pricing = useMemo(
-        () => (vehicle && pricingRow && tariffsReady ? getEffectivePricing(pricingRow, vehicle.vehicle_kind) : null),
-        [vehicle, pricingRow, tariffsReady],
+        () => (vehicle && quote && tariffsReady ? getEffectivePricing(quote.row as unknown as DriverPricingRow, vehicle.vehicle_kind) : null),
+        [vehicle, quote, tariffsReady],
     )
     const luggage = vehicle
         ? [
@@ -230,7 +239,9 @@ export default function VehicleScreen() {
     const since = stats?.since
         ? `${new Date(stats.since).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}/${String(new Date(stats.since).getFullYear()).slice(2)}`
         : null
-    const examples = pricing ? [3, 5, 10, 20].map((km) => ({ km, price: computeSuggestedPrice(km, pricing) })) : []
+    // exemplos do modo escolhido, já com o piso da plataforma (R$ 8, R$ 40/h e R$ 2/km)
+    const examples = quote && pricing ? quoteExamples(quote, pricing, defaultHourly, minPerMinute) : []
+    const fromPrice = examples.length ? Math.min(...examples.map((e) => e.price)) : null
 
     // O que o carro tem, COMPACTO (23/11/2026): só ícones + números curtos, colado embaixo do motorista e do Chamar
     const amenitiesNode = (() => {
@@ -383,7 +394,7 @@ export default function VehicleScreen() {
                             style={{ background: GRADIENT, boxShadow: '0 6px 16px #f9731640' }}
                         >
                             <span className="text-sm font-black flex items-center gap-1.5"><PhoneCall size={14} /> Chamar</span>
-                            <span className="text-[10px] opacity-90">{pricing ? `a partir de ${brl(pricing.baseFee)}` : 'ele é avisado na hora'}</span>
+                            <span className="text-[10px] opacity-90">{fromPrice != null ? `a partir de ${brl(fromPrice)}` : 'ele é avisado na hora'}</span>
                         </button>
                     ) : null}
                     {amenitiesNode}
@@ -444,7 +455,7 @@ export default function VehicleScreen() {
                 <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#16a34a1f', color: '#16a34a' }}><Wallet size={17} /></span>
                 <span className="min-w-0 flex-1">
                     <span className="block text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>Quanto custa a corrida</span>
-                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{pricing ? `a partir de ${brl(pricing.baseFee)}` : 'ver a tarifa'}</span>
+                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{fromPrice != null ? `a partir de ${brl(fromPrice)}` : 'ver a tarifa'}</span>
                 </span>
                 <span className="text-xs font-black flex-shrink-0 flex items-center gap-0.5" style={{ color: ORANGE }}>Ver como é cobrado <ChevronRight size={14} /></span>
             </button>
@@ -497,18 +508,17 @@ export default function VehicleScreen() {
                             <h2 className="flex-1 text-lg font-black" style={{ color: colors.textPrimary }}>Como é cobrado</h2>
                             <button onClick={() => setFeeOpen(false)} aria-label="Fechar" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><X size={18} /></button>
                         </div>
-                        {pricing ? (
+                        {quote && pricing ? (
                             <div className="mt-3 flex flex-col gap-3">
                                 <p className="text-sm" style={{ color: colors.textPrimary }}>
-                                    {pricingRow?.pricing_mode === 'custom' ? 'O motorista usa a própria tarifa.' : 'A corrida segue a Tarifa iUser.'}{' '}
-                                    O valor é <b>{brl(pricing.baseFee)}</b> até <b>{pricing.baseDistanceKm} km</b>
-                                    {pricing.pricePerKmAfterBase > 0 && <>, e depois <b>{brl(pricing.pricePerKmAfterBase)}</b> a cada km</>}.
+                                    Este motorista cobra pela <b>{quoteModeClientLabel(quote.mode)}</b>.
                                 </p>
-                                <div className="grid grid-cols-4 gap-2">
+                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{quoteRule(quote, pricing, defaultHourly)}</p>
+                                <div className="grid grid-cols-3 gap-2">
                                     {examples.map((e) => (
-                                        <div key={e.km} className="rounded-2xl py-2 text-center" style={soft}>
-                                            <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{brl(Math.round(e.price * 100) / 100)}</span>
-                                            <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{e.km} km</span>
+                                        <div key={e.label} className="rounded-2xl py-2 text-center" style={soft}>
+                                            <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{brl(e.price)}</span>
+                                            <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{e.label}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -521,7 +531,7 @@ export default function VehicleScreen() {
                                     </p>
                                 )}
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                    São valores de referência. O preço final é combinado no pedido: você vê as propostas e escolhe quem aceitar.
+                                    Nenhuma corrida sai por menos de R$ 8, nem por menos de R$ 40 por hora de trabalho ou R$ 2 por km. São valores de referência: o preço final é combinado no pedido, com as propostas de quem atende.
                                 </p>
                             </div>
                         ) : (

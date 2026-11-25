@@ -107,11 +107,15 @@ let minRideFareNow = DEFAULT_MIN_RIDE_FARE
 export const setMinRideFare = (v: number) => { if (Number.isFinite(v) && v >= 0) minRideFareNow = v }
 export const getMinRideFare = () => minRideFareNow
 
-/** Piso de uma corrida: o MAIOR entre os minutos de trabalho (ir buscar + corrida) × o mínimo por minuto, arredondado PARA CIMA em centavos, e o valor mínimo da corrida (R$ 8,00). 0 se o mínimo por minuto está desligado (entrega de loja passa 0: frete fixo). */
-export function platformFloor(minutes: number | null | undefined, minPerMinute: number | null | undefined, minFare: number = minRideFareNow): number {
+/** Piso por QUILÔMETRO da corrida de passageiro: R$ 2,00/km (o mesmo valor que o banco aplica em _ride_trip_floor). */
+export const PLATFORM_MIN_PER_KM = 2
+
+/** Piso de uma corrida: o MAIOR entre (1) os minutos de trabalho (ir buscar + corrida) × o mínimo por minuto (R$ 40/h), arredondado PARA CIMA em centavos, (2) o valor mínimo da corrida (R$ 8,00) e (3) os km da corrida × R$ 2,00. Assim, nenhuma tarifa do motorista (ex.: R$ 7 de base com 70 km de franquia) derruba o valor. 0 se o mínimo por minuto está desligado (entrega de loja passa 0: frete fixo). */
+export function platformFloor(minutes: number | null | undefined, minPerMinute: number | null | undefined, minFare: number = minRideFareNow, km?: number | null, minPerKm: number = PLATFORM_MIN_PER_KM): number {
     if (!minPerMinute || minPerMinute <= 0) return 0
     const byTime = minutes && minutes > 0 ? Math.ceil(minutes * minPerMinute * 100 - 1e-9) / 100 : 0
-    return Math.max(byTime, minFare > 0 ? minFare : 0)
+    const byKm = km && km > 0 ? Math.ceil(km * minPerKm * 100 - 1e-9) / 100 : 0
+    return Math.max(byTime, minFare > 0 ? minFare : 0, byKm)
 }
 
 /** O que decidiu o valor da "Minha tarifa": a conta por km dela mesma, o ganho mínimo por hora do motorista ou o mínimo da plataforma (o MAIOR dos três vale; empate fica com o km). */
