@@ -6,6 +6,7 @@
 // Nenhuma imagem é gerada por motorista. Nada de posição, disponibilidade ao vivo nem dado pessoal: a prévia
 // fica guardada em cache pelo app que recebeu o link, então só entra o que não muda de hora em hora.
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { vehicleFullName } from '@/lib/vehicleName'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { getEffectivePricing, type DriverPricingRow } from '@/lib/driverPricing'
 
@@ -44,7 +45,7 @@ export const brlShort = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimum
 export async function loadVehicleShareData(slug: string): Promise<VehicleShareData | null> {
     const { data: v } = await supabaseAdmin
         .from('driver_vehicles')
-        .select('vehicle_slug, vehicle_kind, car_model, car_color, car_plate, car_photo_url, passenger_capacity, services, driver_id')
+        .select('vehicle_slug, vehicle_kind, car_brand, car_model, car_color, car_plate, car_photo_url, passenger_capacity, services, driver_id')
         .ilike('vehicle_slug', slug)
         .maybeSingle()
     if (!v) return null
@@ -69,7 +70,7 @@ export async function loadVehicleShareData(slug: string): Promise<VehicleShareDa
         slug: v.vehicle_slug,
         kind,
         kindLabel: KIND_LABEL[kind] || 'Veículo',
-        model: v.car_model || KIND_LABEL[kind] || 'Veículo',
+        model: vehicleFullName(v, KIND_LABEL[kind] || 'Veículo'),
         color: v.car_color || null,
         plate: v.car_plate ? String(v.car_plate).toUpperCase() : null,
         capacity: v.passenger_capacity ?? null,

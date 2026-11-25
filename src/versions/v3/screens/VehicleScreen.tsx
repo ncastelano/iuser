@@ -15,6 +15,7 @@ import {
     Users, X, Check, Gauge, Calendar, Clock, CheckCircle2, ArrowRight, Wallet, Share2, Radio, PhoneCall, Maximize2,
 } from 'lucide-react'
 import { toast } from '@/lib/toast'
+import { vehicleFullName, vehicleName } from '@/lib/vehicleName'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -40,7 +41,7 @@ const KIND_LABEL: Record<string, string> = { carro: 'Carro', moto: 'Moto', bicic
 
 interface Vehicle {
     id: string; driver_id: string; vehicle_kind: 'carro' | 'moto' | 'bicicleta'; vehicle_slug: string
-    car_model: string | null; car_color: string | null; car_plate: string | null; car_photo_url: string | null
+    car_brand: string | null; car_model: string | null; car_color: string | null; car_plate: string | null; car_photo_url: string | null
     services: string[] | null; passenger_capacity: number | null; has_baby_seat: boolean | null
     trunk_bags_pequena: number | null; trunk_bags_media: number | null; trunk_bags_grande: number | null
     trunk_suitcases_pequena: number | null; trunk_suitcases_media: number | null; trunk_suitcases_grande: number | null
@@ -51,7 +52,7 @@ interface Stats {
     store: { name: string; slug: string; logo: string | null } | null
 }
 
-const SELECT = 'id, driver_id, vehicle_kind, vehicle_slug, car_model, car_color, car_plate, car_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande'
+const SELECT = 'id, driver_id, vehicle_kind, vehicle_slug, car_brand, car_model, car_color, car_plate, car_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande'
 
 const brl = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 // Trajeto sem expor o endereço exato: só o bairro (tira rua, número e CEP)
@@ -234,7 +235,7 @@ export default function VehicleScreen() {
         )
     }
 
-    const title = vehicle.car_model || KIND_LABEL[vehicle.vehicle_kind] || 'Veículo'
+    const title = vehicleName(vehicle, KIND_LABEL[vehicle.vehicle_kind] || 'Veículo')
     const since = stats?.since
         ? `${new Date(stats.since).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}/${String(new Date(stats.since).getFullYear()).slice(2)}`
         : null
@@ -258,7 +259,7 @@ export default function VehicleScreen() {
         const cases = sizes(vehicle.trunk_suitcases_pequena, vehicle.trunk_suitcases_media, vehicle.trunk_suitcases_grande)
         if (bags) chips.push({ icon: <ShoppingBag size={12} />, text: `Bolsas ${bags}`, title: 'Bolsas no porta-malas (P, M, G)' })
         if (cases) chips.push({ icon: <Luggage size={12} />, text: `Malas ${cases}`, title: 'Malas no porta-malas (P, M, G)' })
-        if (ownerView && vehicle.car_plate) chips.push({ icon: <Hash size={12} />, text: vehicle.car_plate, title: 'Placa' })
+        if (vehicle.car_plate) chips.push({ icon: <Hash size={12} />, text: vehicle.car_plate, title: 'Placa' })
         if (chips.length === 0) return null
         return (
             <div className="flex flex-wrap gap-1" aria-label="O que o carro tem">
@@ -599,6 +600,7 @@ export default function VehicleScreen() {
 // ===== Edição do veículo (só o dono) =====
 function EditSheet({ vehicle, onClose, onSaved }: { vehicle: Vehicle; onClose: () => void; onSaved: () => void }) {
     const { colors } = useTheme()
+    const [brand, setBrand] = useState(vehicle.car_brand || '')
     const [model, setModel] = useState(vehicle.car_model || '')
     const [color, setColor] = useState(vehicle.car_color || '')
     const [plate, setPlate] = useState(vehicle.car_plate || '')
@@ -628,6 +630,7 @@ function EditSheet({ vehicle, onClose, onSaved }: { vehicle: Vehicle; onClose: (
                 photoPath = data?.path || photoPath
             }
             const { error } = await supabase.from('driver_vehicles').update({
+                car_brand: brand.trim() || null,
                 car_model: model.trim() || null,
                 car_color: color.trim() || null,
                 car_plate: plate.trim().toUpperCase() || null,
@@ -693,7 +696,11 @@ function EditSheet({ vehicle, onClose, onSaved }: { vehicle: Vehicle; onClose: (
                     </label>
 
                     <div className="grid grid-cols-2 gap-2.5">
-                        <label className="block col-span-2">
+                        <label className="block">
+                            <span className="block text-xs font-black mb-1" style={{ color: colors.textSecondary }}>Marca</span>
+                            <input value={brand} onChange={(e) => setBrand(e.target.value)} className={input} style={inputStyle} placeholder="Ex.: Toyota" />
+                        </label>
+                        <label className="block">
                             <span className="block text-xs font-black mb-1" style={{ color: colors.textSecondary }}>Modelo</span>
                             <input value={model} onChange={(e) => setModel(e.target.value)} className={input} style={inputStyle} placeholder="Ex.: Tracker" />
                         </label>

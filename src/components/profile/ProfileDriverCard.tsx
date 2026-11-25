@@ -7,6 +7,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { vehicleFullName } from '@/lib/vehicleName'
 import { Bike, Car, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
@@ -38,7 +39,7 @@ export function useDriverVehicle(driverId: string | null | undefined): DriverVeh
         let alive = true
         void (async () => {
             const [{ data: v }, { data: pr }] = await Promise.all([
-                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_model, car_color, car_photo_url').eq('driver_id', driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_brand, car_model, car_plate, car_color, car_photo_url').eq('driver_id', driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
                 supabase.from('driver_pricing').select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, driver_mode_active, live_location_sync, live_updated_at').eq('driver_id', driverId).maybeSingle(),
                 loadPlatformTariffs(supabase),   // a Tarifa iUser vem do banco: carregar antes de calcular
             ])
@@ -50,7 +51,7 @@ export function useDriverVehicle(driverId: string | null | undefined): DriverVeh
             setState({ id: driverId, info: {
                 slug: (v as any).vehicle_slug,
                 kind,
-                model: (v as any).car_model || null,
+                model: vehicleFullName(v as any, '') || null,
                 color: (v as any).car_color || null,
                 photo: photoUrl((v as any).car_photo_url || null),
                 // "Dirigindo agora": modo ligado E posição recente (10 min), igual ao perfil do motorista
@@ -71,7 +72,7 @@ export default function ProfileDriverCard({ info, colors, onOpen }: { info: Driv
     return (
         <button onClick={onOpen} className="w-full rounded-3xl p-2.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
             <span className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: '#16a34a1a', color: '#16a34a' }}>
-                {info.photo ? <img src={info.photo} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Icon size={26} />}
+                {info.photo ? <img src={info.photo} alt="" className="w-full h-full object-contain" loading="lazy" /> : <Icon size={26} />}
             </span>
             <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
