@@ -279,6 +279,20 @@ export function Store({
             sessionStorage.setItem('iuser_visit_session', id)
             return id
         })()
+        // Visitante sem login precisa de um id próprio e estável neste aparelho;
+        // sem ele, todos os visitantes anônimos viram "uma pessoa só".
+        let anonymousId: string | null = null
+        if (!currentUserId) {
+            try {
+                anonymousId = localStorage.getItem('iuser_anon_id')
+                if (!anonymousId) {
+                    anonymousId = crypto.randomUUID()
+                    localStorage.setItem('iuser_anon_id', anonymousId)
+                }
+            } catch {
+                anonymousId = null
+            }
+        }
         fetch('/api/store/visit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -286,12 +300,20 @@ export function Store({
                 storeId: owner.id,
                 sessionId,
                 viewerId: currentUserId ?? null,
-                anonymousId: null,
+                anonymousId,
                 deviceType: /Mobi/.test(navigator.userAgent) ? 'mobile' : 'desktop',
                 referrer: document.referrer || null,
                 userAgent: navigator.userAgent,
             }),
-        }).catch(() => {})
+        })
+            .catch(() => {})
+            .finally(() => {
+                // Depois de registrar a visita, lê o total de PESSOAS que já passaram pela loja
+                supabase.rpc('get_store_visitor_count', { p_store_id: owner.id })
+                    .then(({ data, error }) => {
+                        if (!error && typeof data === 'number') setTotalVisitors(data)
+                    })
+            })
     }, [owner?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ========== PRODUTOS x SERVIÇOS ==========
@@ -675,7 +697,6 @@ export function Store({
             }
 
             setOwner(ownerData)
-            setTotalVisitors(store.view_count || 0)
             setShareCount(store.share_count || 0)
             setImageUrl(logoUrl)
 

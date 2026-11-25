@@ -76,7 +76,7 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                 .select('viewer_id, anonymous_id')
                 .eq('store_id', storeId)
                 .gte('created_at', oneMinAgo)
-            const onlineSet = new Set(onlineData?.map(v => v.viewer_id || v.anonymous_id))
+            const onlineSet = new Set(onlineData?.map(v => v.viewer_id || v.anonymous_id).filter(Boolean))
             setOnlineNow(onlineSet.size)
 
             // Hoje – visitantes únicos
@@ -85,7 +85,7 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                 .select('viewer_id, anonymous_id')
                 .eq('store_id', storeId)
                 .gte('created_at', todayStart)
-            const todaySet = new Set(todayData?.map(v => v.viewer_id || v.anonymous_id))
+            const todaySet = new Set(todayData?.map(v => v.viewer_id || v.anonymous_id).filter(Boolean))
             setTodayVisitors(todaySet.size)
 
             // Totais gerais
@@ -94,7 +94,7 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                 .select('viewer_id, anonymous_id')
                 .eq('store_id', storeId)
             setTotalVisits(allData?.length || 0)
-            const uniqueSet = new Set(allData?.map(v => v.viewer_id || v.anonymous_id))
+            const uniqueSet = new Set(allData?.map(v => v.viewer_id || v.anonymous_id).filter(Boolean))
             setTotalUnique(uniqueSet.size)
 
             // --- Dados para o gráfico ---
