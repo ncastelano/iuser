@@ -697,6 +697,8 @@ export function Store({
             }
 
             setOwner(ownerData)
+            // reserva enquanto a contagem de pessoas não existe no banco (migração 20261130000119): o contador de visitas
+            setTotalVisitors(store.view_count || 0)
             setShareCount(store.share_count || 0)
             setImageUrl(logoUrl)
 
