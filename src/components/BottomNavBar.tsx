@@ -16,6 +16,7 @@ import { clock } from '@/modules/player/domain'
 // (--staging-banner-h: a faixa "ambiente de teste" fica embaixo no staging/local; vale 0 em produção)
 export const BAR_BOTTOM = 'calc(10px + var(--staging-banner-h, 0px) + env(safe-area-inset-bottom))'
 export const BAR_H = 64
+export const STRIP_ROW2_H = 36   // a linha de baixo da faixa (pedido privado e as coisas ao vivo)
 export const STRIP_H = 48   // a faixa com o pedido em andamento tem duas linhas (loja e etapa); a página reserva essa altura embaixo
 /** A altura do mini-player (a linha de cima da barra quando há algo para continuar) */
 export const PLAYER_H = 57
@@ -53,6 +54,14 @@ export interface BarMessage { id: string | number; text: string; description?: s
 /** Chip da faixa além do carrinho e dos status: a corrida, os pedidos novos da loja... (cada um na sua cor, levando ao seu lugar) */
 /** `label` = o nome da loja (pedido do cliente); `icon` = o ícone da etapa; `step`/`steps` = barrinha de progresso do pedido */
 export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; icon?: string; step?: number; steps?: number }
+
+/** Altura da faixa de cima: 1 linha (carrinho ou pedidos) ou 2 (com o pedido privado/ao vivo embaixo). A página reserva essa altura. */
+export function stripHeightFor(extras: BarExtra[], showCart: boolean): number {
+    const row1 = showCart || extras.some((x) => x.label !== undefined)
+    const row2 = extras.some((x) => x.label === undefined)
+    if (row1 && row2) return STRIP_H + STRIP_ROW2_H
+    return row1 || row2 ? STRIP_H : 0
+}
 
 /** A faixa de cima (fixa, sem contar o aviso passageiro) aparece quando há carrinho (páginas de compra) ou chips extras (corrida, pedidos da loja) — e o carrinho some dela na página do carrinho */
 export function stripVisible({ onCartPage, cartExpanded, cartCount, extras = 0 }: { onCartPage: boolean; cartExpanded: boolean; cartCount: number; extras?: number }): boolean {
@@ -163,6 +172,10 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
     const miniOn = !!player && !hubOpen && !playerFull
     // com o menu aberto a faixa de cima fica recolhida (o menu ocupa o lugar dela); a barra sobe acima do escurecimento enquanto abre e fecha
     const strip = !hubOpen && !playerFull && (!!message || stripVisible({ onCartPage, cartExpanded, cartCount, extras: extras.length }))
+    // pedidos (com status) numa linha; pedido privado e as outras coisas ao vivo, na linha de baixo
+    const orderItems = extras.filter((x) => x.label !== undefined)
+    const others = extras.filter((x) => x.label === undefined)
+    const hasOrders = orderItems.length > 0
     const [raised, setRaised] = useState(false)
     useEffect(() => {
         if (hubOpen || playerFull) { setRaised(true); return }
@@ -255,40 +268,55 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                                 {message.action && <button onClick={() => { message.action!.onClick(); onDismiss() }} className="flex-shrink-0 text-[12px] font-black px-3 py-1.5 rounded-full text-white active:scale-95" style={{ background: message.color }}>{message.action.label}</button>}
                             </div>
                         ) : (
-                            <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar whitespace-nowrap" style={{ scrollbarWidth: 'none' }}>
-                                {showCart && (
-                                    <button onClick={onCart} tabIndex={strip ? 0 : -1} aria-label={`Ver carrinho, ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}, ${money}`} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
-                                        <ShoppingCart size={15} className="flex-shrink-0" style={{ color: '#f97316' }} />
-                                        <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{cartCount} {cartCount === 1 ? 'item' : 'itens'} · {money}</span>
-                                        <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
-                                    </button>
-                                )}
-                                {extras.map((x) => x.key === 'called' ? (
-                                    // pedido privado: no lugar do carrinho (quando a sacola está vazia), com o mesmo desenho do carrinho e o carro
-                                    <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} aria-label={`Pedido privado: ${x.text}`} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
-                                        <Car size={15} className="flex-shrink-0" style={{ color: x.color }} />
-                                        <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{x.text}</span>
-                                        <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
-                                    </button>
-                                ) : x.label !== undefined ? (
-                                    // pedido do cliente: sem moldura própria, a faixa toda está na cor da etapa — círculo cheio, loja em cima, etapa embaixo e a barrinha de progresso
-                                    <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} aria-label={`${x.label ? x.label + ': ' : ''}${x.text}`} className="relative flex items-center gap-2.5 flex-shrink-0 min-h-[48px] py-1.5 pr-2 active:opacity-70 text-left">
+                            <div className="flex flex-col justify-center gap-1 w-full min-w-0">
+                                {/* linha 1: o carrinho (some quando há pedidos) e UM pedido; se houver mais, um "+N" que abre a lista (sem arrastar para o lado) */}
+                                {(hasOrders || showCart) && (
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        {showCart && !hasOrders && (
+                                            <button onClick={onCart} tabIndex={strip ? 0 : -1} aria-label={`Ver carrinho, ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}, ${money}`} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
+                                                <ShoppingCart size={15} className="flex-shrink-0" style={{ color: '#f97316' }} />
+                                                <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{cartCount} {cartCount === 1 ? 'item' : 'itens'} · {money}</span>
+                                                <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                            </button>
+                                        )}
+                                        {orderItems.slice(0, 1).map((x) => (
+                                    <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} aria-label={`${x.label ? x.label + ': ' : ''}${x.text}`} className="relative flex items-center gap-2.5 flex-1 min-w-0 min-h-[48px] py-1.5 pr-2 active:opacity-70 text-left">
                                         <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[13px] font-black" style={{ background: x.color }}>
                                             {(() => { const I = x.icon ? ORDER_ICONS[x.icon] : null; return I ? <I size={15} strokeWidth={2.4} /> : '+' })()}
                                         </span>
-                                        <span className="min-w-0">
-                                            {x.label && <span className="block text-[10.5px] leading-snug max-w-[200px] truncate" style={{ color: colors.textSecondary }}>{x.label}</span>}
+                                        <span className="min-w-0 flex-1">
+                                            {x.label && <span className="block text-[10.5px] leading-snug truncate" style={{ color: colors.textSecondary }}>{x.label}</span>}
                                             <span className="block text-[13px] font-black leading-snug" style={{ color: colors.textPrimary }}>{x.text}</span>
                                         </span>
                                         <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
                                         {x.step ? <span aria-hidden className="absolute left-0 bottom-0 h-[3px] rounded-full" style={{ width: `${Math.min(100, (x.step / (x.steps || 4)) * 100)}%`, background: x.color, transition: 'width 400ms ease' }} /> : null}
                                     </button>
-                                ) : (
-                                    <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
-                                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: x.color }} />
-                                        <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{x.text}</span>
-                                    </button>
-                                ))}
+                                        ))}
+                                        {orderItems.length > 1 && (
+                                            <button onClick={() => onGo('/atividade?aba=pedidos')} tabIndex={strip ? 0 : -1} aria-label={`Mais ${orderItems.length - 1} ${orderItems.length - 1 === 1 ? 'pedido' : 'pedidos'}`} className="flex-shrink-0 h-7 px-2.5 rounded-full text-[11px] font-black text-white active:opacity-70" style={{ background: orderItems[0].color }}>
+                                                +{orderItems.length - 1} {orderItems.length - 1 === 1 ? 'pedido' : 'pedidos'}
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                                {/* linha 2: o pedido privado (e as corridas/pedidos de loja ao vivo), sem arrastar */}
+                                {others.length > 0 && (
+                                    <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                                        {others.map((x) => x.key === 'called' ? (
+                                            // pedido privado: o carro, o texto e a seta; leva à corrida
+                                            <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} aria-label={`Pedido privado: ${x.text}`} className="flex items-center gap-1.5 min-w-0 h-9 active:opacity-70">
+                                                <Car size={15} className="flex-shrink-0" style={{ color: x.color }} />
+                                                <span className="text-[12px] font-black truncate" style={{ color: colors.textPrimary }}>{x.text}</span>
+                                                <ChevronRight size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                            </button>
+                                        ) : (
+                                            <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
+                                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: x.color }} />
+                                                <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{x.text}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
