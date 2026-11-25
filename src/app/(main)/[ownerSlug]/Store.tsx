@@ -272,6 +272,28 @@ export function Store({
         setMounted(true)
     }, [])
 
+    useEffect(() => {
+        if (!owner?.id) return
+        const sessionId = sessionStorage.getItem('iuser_visit_session') || (() => {
+            const id = crypto.randomUUID()
+            sessionStorage.setItem('iuser_visit_session', id)
+            return id
+        })()
+        fetch('/api/store/visit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                storeId: owner.id,
+                sessionId,
+                viewerId: currentUserId ?? null,
+                anonymousId: null,
+                deviceType: /Mobi/.test(navigator.userAgent) ? 'mobile' : 'desktop',
+                referrer: document.referrer || null,
+                userAgent: navigator.userAgent,
+            }),
+        }).catch(() => {})
+    }, [owner?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
     // ========== PRODUTOS x SERVIÇOS ==========
     // A loja publica as duas coisas na mesma tabela (products.type = 'service' é serviço);
     // cada uma tem a própria aba, pra não ficarem misturadas.
