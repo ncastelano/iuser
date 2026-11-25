@@ -14,6 +14,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { borderGradient, requestAvatarBorder, subscribePlanRing } from '@/lib/planRing'
+import { useOutdoorCrown } from '@/lib/outdoorCrowns'
+import AvatarCrown from '@/components/AvatarCrown'
 
 interface PlanAvatarRingProps {
     userId?: string | null
@@ -120,6 +122,8 @@ const slugCache = new Map<string, string | null>()
 
 export default function PlanAvatarRing({ userId, children, width = 2, radius = 'full', className = '', linkToProfile = true }: PlanAvatarRingProps) {
     const colors = useAvatarBorder(userId)
+    // coroa dos 3 primeiros do Outdoor iUser: vale onde o avatar estiver, com ou sem borda
+    const crown = useOutdoorCrown(userId)
     const router = useRouter()
     const pathname = usePathname()
     const { userId: viewerId } = useProfile()
@@ -137,7 +141,11 @@ export default function PlanAvatarRing({ userId, children, width = 2, radius = '
         if (slug && pathname !== `/${slug}`) router.push(`/${slug}`)
     }, [userId, router, pathname])
 
-    if (!colors) return <>{children}</>
     const linkable = linkToProfile && !!userId && userId !== viewerId
-    return <PlanRingFrame colors={colors} width={width} radius={radius} className={className} onClick={linkable ? go : undefined}>{children}</PlanRingFrame>
+    const framed = colors
+        ? <PlanRingFrame colors={colors} width={width} radius={radius} className={className} onClick={linkable ? go : undefined}>{children}</PlanRingFrame>
+        : <>{children}</>
+    if (!crown) return framed
+    // com coroa, o avatar ganha um invólucro relativo para a coroa ficar em cima dele (sem coroa, nada muda)
+    return <span className="relative inline-flex flex-shrink-0">{framed}<AvatarCrown medal={crown} /></span>
 }

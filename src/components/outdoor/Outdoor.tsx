@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { Crown, Info, X } from 'lucide-react'
+import { CROWN_COLOR } from '@/lib/outdoorCrowns'
 import { useTheme } from '@/app/contexts/theme'
 import { signedPoints } from '@/modules/points'
 import { loadOutdoor, loadOutdoorRules, outdoorImageUrl, OUTDOOR_INFO, outdoorHref, medalOf, pointsLabel, type OutdoorItem, type OutdoorKind, type Medal } from '@/modules/outdoor'
@@ -38,13 +39,15 @@ function Logo({ kind, item, size, medal, index }: { kind: OutdoorKind; item: Out
             </StoreFrame>
         )
     }
+    // Pessoas: sem anel de medalha (a borda é a que a pessoa escolheu); a colocação aparece na COROA
+    const ring = kind === 'pessoas' ? null : medal
     const photo = (
         <span
             className="relative block flex-shrink-0 overflow-hidden"
             style={{
                 width: size, height: size, borderRadius: radius, background: '#fff',
-                border: `${medal ? 3 : 2.5}px solid ${medal ? MEDAL[medal].ring : '#fff'}`,
-                boxShadow: medal ? `0 0 0 3px ${MEDAL[medal].glow}, 0 8px 18px rgba(0,0,0,0.25)` : '0 6px 14px rgba(0,0,0,0.2)',
+                border: `${ring ? 3 : 2.5}px solid ${ring ? MEDAL[ring].ring : '#fff'}`,
+                boxShadow: ring ? `0 0 0 3px ${MEDAL[ring].glow}, 0 8px 18px rgba(0,0,0,0.25)` : '0 6px 14px rgba(0,0,0,0.2)',
             }}
         >
             <span className="absolute inset-0 flex items-center justify-center font-black text-orange-500" style={{ fontSize: size * 0.4, background: 'linear-gradient(135deg,#ffedd5,#fee2e2)' }}>
@@ -147,7 +150,8 @@ export default function Outdoor({ kind, limit = 12, className = '', title }: { k
                                 style={{ width: medal ? 92 : 78 }}
                             >
                                 <span className="relative" style={{ paddingTop: medal ? 0 : 7 }}>
-                                    {medal === 'gold' && <Crown size={24} className="absolute left-1/2 -translate-x-1/2 -top-[20px] z-10 drop-shadow" style={{ color: MEDAL.gold.ring }} fill={MEDAL.gold.ring} />}
+                                    {/* pessoas: coroa nas 3 primeiras (ouro, prata, bronze); os outros tipos seguem só com a coroa de ouro */}
+                                    {medal && (kind === 'pessoas' || medal === 'gold') && <Crown size={24} className="absolute left-1/2 -translate-x-1/2 -top-[20px] z-10 drop-shadow" style={{ color: CROWN_COLOR[medal] }} fill={CROWN_COLOR[medal]} />}
                                     <Logo kind={kind} item={item} size={size} medal={medal} index={idx} />
                                     <span
                                         className="absolute -bottom-1 -right-1 min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center text-[10px] font-black"
