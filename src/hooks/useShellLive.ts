@@ -121,7 +121,7 @@ export function useShellLive(userId: string | null | undefined, orders: { pendin
         parts.push({ key: 'ride', text: title, color: '#f97316', path: '/pedir-motorista', hot: ride.candidates > 0 || ride.arrived })
     }
     // Motorista: corrida chamada SÓ para ele (pedido privado) — leva à lista de corridas, onde ele aceita
-    if (called.n > 0) parts.push({ key: 'called', text: called.n === 1 ? '1 pedido privado' : `${called.n} pedidos privados`, color: '#f97316', path: called.id ? `/aceitar-corridas?ride=${called.id}` : '/aceitar-corridas', hot: true })
+    if (called.n > 0) parts.push({ key: 'called', text: called.n === 1 ? '1 pedido privado' : `${called.n} pedidos privados`, color: '#f97316', path: called.id ? `/aceitar-corridas?tab=privado&ride=${called.id}` : '/aceitar-corridas?tab=privado', hot: true })
     if (unread > 0) parts.push({ key: 'chat', text: unread === 1 ? '1 mensagem' : `${unread} mensagens`, color: CHAT_COLOR, path: chatPath, hot: true })
     if (cart && cart.count > 0) parts.push({ key: 'cart', text: `Sacola ${cart.count} ${cart.count === 1 ? 'item' : 'itens'} · ${brl(cart.total)}`, color: '#f97316', path: '/carrinho' })
     if (parts.length === 0) return null
