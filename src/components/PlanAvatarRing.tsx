@@ -147,5 +147,5 @@ export default function PlanAvatarRing({ userId, children, width = 2, radius = '
         : <>{children}</>
     if (!crown) return framed
     // com coroa, o avatar ganha um invólucro relativo para a coroa ficar em cima dele (sem coroa, nada muda)
-    return <span className="relative inline-flex flex-shrink-0">{framed}<AvatarCrown medal={crown} /></span>
+    return <span className="relative inline-flex flex-shrink-0 self-start" style={{ width: 'fit-content', height: 'fit-content' }}>{framed}<AvatarCrown medal={crown} /></span>
 }

@@ -9,12 +9,13 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, Newspaper, Sparkles, Trophy, UserPlus, Users, Wrench, Zap } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { avatarOf, loadCommunities, loadFlashes, loadNewPeople, loadPublications, loadServiceProviders, loadTopPeople, joinedLabel } from '@/modules/people'
 import { authorAvatarUrl, mediaSrc, shortCount, timeAgo, type FlashItem } from '@/modules/flash'
 
 const COLOR = '#f97316'
 
-interface Tile { key: string; kind: string; label: string; color: string; icon: typeof Zap; name: string; sub?: string; image: string | null; round: boolean; href: string }
+interface Tile { key: string; kind: string; label: string; color: string; icon: typeof Zap; name: string; sub?: string; image: string | null; round: boolean; href: string; /** a pessoa (borda e coroa) quando o tile é de uma pessoa */ userId?: string | null }
 const META = {
     flash: { label: 'Flash', color: '#ea580c', icon: Zap },
     publication: { label: 'Publicação', color: '#2563eb', icon: Newspaper },
@@ -50,9 +51,9 @@ export default function SocialAroundCard() {
             setLists({
                 flash: flash.map((f) => fromItem('flash', f)),
                 publication: pubs.map((f) => fromItem('publication', f)),
-                top: top.map((p) => ({ key: `top-${p.id}`, kind: 'top', ...META.top, name: p.name, sub: `${p.points} pontos`, image: avatarOf(p.avatarPath), round: true, href: `/${p.slug}` })),
-                fresh: fresh.map((p) => ({ key: `fresh-${p.id}`, kind: 'fresh', ...META.fresh, name: p.name, sub: (joinedLabel(p.joinedAt) || '').replace('entrou ', 'entrou '), image: avatarOf(p.avatarPath), round: true, href: `/${p.slug}` })),
-                service: service.map((p) => ({ key: `service-${p.id}`, kind: 'service', ...META.service, name: p.name, sub: p.offers || 'Oferece serviços', image: avatarOf(p.avatarPath), round: true, href: `/${p.slug}` })),
+                top: top.map((p) => ({ key: `top-${p.id}`, kind: 'top', ...META.top, name: p.name, sub: `${p.points} pontos`, image: avatarOf(p.avatarPath), round: true, href: `/${p.slug}`, userId: p.id })),
+                fresh: fresh.map((p) => ({ key: `fresh-${p.id}`, kind: 'fresh', ...META.fresh, name: p.name, sub: (joinedLabel(p.joinedAt) || '').replace('entrou ', 'entrou '), image: avatarOf(p.avatarPath), round: true, href: `/${p.slug}`, userId: p.id })),
+                service: service.map((p) => ({ key: `service-${p.id}`, kind: 'service', ...META.service, name: p.name, sub: p.offers || 'Oferece serviços', image: avatarOf(p.avatarPath), round: true, href: `/${p.slug}`, userId: p.id })),
                 community: comm.map((c) => ({ key: `community-${c.id}`, kind: 'community', ...META.community, name: c.name, sub: c.city || 'Sala de conversa', image: c.image, round: false, href: `/comunidade/${c.slug}` })),
             })
         })
@@ -89,9 +90,11 @@ export default function SocialAroundCard() {
                         const Icon = t.icon
                         return (
                             <button key={t.key} onClick={() => router.push(t.href)} className="social-in min-w-0 rounded-2xl p-2 flex items-center gap-2.5 text-left transition active:scale-[0.98]" style={{ background: soft }}>
+                                <PlanAvatarRing userId={t.userId || null} linkToProfile={false}>
                                 <span className={`w-12 h-12 overflow-hidden flex-shrink-0 flex items-center justify-center ${t.round ? 'rounded-full' : 'rounded-xl'}`} style={{ background: `${t.color}22`, color: t.color }}>
                                     {t.image ? <img src={t.image} alt="" loading="lazy" className="w-full h-full object-cover" /> : <Icon size={20} />}
                                 </span>
+                                </PlanAvatarRing>
                                 <span className="min-w-0 flex-1">
                                     <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: t.color }}>{t.label}</span>
                                     <span className="block text-[13px] font-black leading-tight" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.name}</span>
