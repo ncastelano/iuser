@@ -307,13 +307,6 @@ export function Store({
             }),
         })
             .catch(() => {})
-            .finally(() => {
-                // Depois de registrar a visita, lê o total de PESSOAS que já passaram pela loja
-                supabase.rpc('get_store_visitor_count', { p_store_id: owner.id })
-                    .then(({ data, error }) => {
-                        if (!error && typeof data === 'number') setTotalVisitors(data)
-                    })
-            })
     }, [owner?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ========== PRODUTOS x SERVIÇOS ==========
@@ -697,7 +690,7 @@ export function Store({
             }
 
             setOwner(ownerData)
-            // reserva enquanto a contagem de pessoas não existe no banco (migração 20261130000119): o contador de visitas
+            // total de VISITAS da página (stores.view_count: cada visita que passa do cooldown de 30 min)
             setTotalVisitors(store.view_count || 0)
             setShareCount(store.share_count || 0)
             setImageUrl(logoUrl)
