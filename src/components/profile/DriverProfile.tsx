@@ -45,7 +45,10 @@ const KIND_LABEL = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' } as c
 type Kind = keyof typeof KIND_LABEL
 
 interface Vehicle { slug: string; kind: Kind; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null; posX: number; posY: number }
-interface Stats { rides: number; rating: number | null; ratingCount: number; since: string | null }
+interface Stats { rides: number; rating: number | null; ratingCount: number; since: string | null
+    /** a loja da pessoa, se ela tiver uma ativa (também é motorista) */
+    store?: { name: string; slug: string; logo: string | null } | null
+}
 interface Review { rating: number | null; comment: string | null; at: string; from: string; to: string; name: string | null; slug: string | null; avatar: string | null }
 
 const brl = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`
@@ -157,7 +160,7 @@ export default function DriverProfile(p: DriverProfileProps) {
             const vv = v as any
             setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
             const s = Array.isArray(st) ? st[0] : st
-            setStats(s ? { rides: Number(s.rides_completed) || 0, rating: s.rating_avg != null ? Number(s.rating_avg) : null, ratingCount: Number(s.rating_count) || 0, since: s.member_since || null } : { rides: 0, rating: null, ratingCount: 0, since: null })
+            setStats(s ? { rides: Number(s.rides_completed) || 0, rating: s.rating_avg != null ? Number(s.rating_avg) : null, ratingCount: Number(s.rating_count) || 0, since: s.member_since || null, store: s.store_slug ? { name: s.store_name, slug: s.store_slug, logo: s.store_logo ? (String(s.store_logo).startsWith('http') ? s.store_logo : supabase.storage.from('store-logos').getPublicUrl(s.store_logo).data.publicUrl) : null } : null } : { rides: 0, rating: null, ratingCount: 0, since: null })
             setReviews(((rv as any[]) || []).map((r) => ({ rating: r.rating, comment: r.comment, at: r.rode_at, from: r.origin, to: r.destination, name: r.reviewer_name, slug: r.reviewer_slug, avatar: r.reviewer_avatar ? getAvatarUrl(supabase, r.reviewer_avatar) || null : null })))
         })()
         return () => { alive = false }
@@ -391,6 +394,24 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </div>
                     ) : p.socialSlot}
                     {owner && p.ownerTypeSlot}
+                    {/* logo abaixo do "Perfil do tipo Motorista": o carro (foto) e o mapa de onde ele está (só o dono vê) */}
+                    {owner && vehicle && (
+                        <div className="mt-2 rounded-2xl overflow-hidden flex items-stretch" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                            <span className="w-24 h-20 flex-shrink-0 relative" style={{ background: `${colors.border}40` }}>
+                                {quote?.live && process.env.NEXT_PUBLIC_MAPBOX_TOKEN ? (
+                                    <img alt="" className="w-full h-full object-cover" src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${quote.live.lng},${quote.live.lat},14,0/200x160@2x?attribution=false&logo=false&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`} />
+                                ) : vehicle.photo ? (
+                                    <img src={vehicle.photo} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                    <span className="w-full h-full flex items-center justify-center" style={{ color: colors.textSecondary }}><Icon size={26} /></span>
+                                )}
+                            </span>
+                            <span className="min-w-0 flex-1 px-3 py-2 flex flex-col justify-center">
+                                <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{[vehicle.model, vehicle.color].filter(Boolean).join(' · ') || 'Seu veículo'}</span>
+                                <span className="block text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>{quote?.live ? 'Mapa: onde o carro está (aproximado)' : vehicle.photo ? 'Foto do veículo' : 'Cadastre a foto do carro para aparecer aqui'}</span>
+                            </span>
+                        </div>
+                    )}
                     {!owner && p.reportSlot && <div className="mt-2 flex justify-end">{p.reportSlot}</div>}
                 </div>
             </section>
@@ -554,6 +575,23 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </div>
                         {kind === 'carro' && <CarAmenities services={vehicle.services} seats={vehicle.seats} babySeat={vehicle.babySeat} />}
                     </div>
+                </section>
+            )}
+
+            {/* ===== 4b. a loja da pessoa, se ela tiver uma: não é só motorista, também vende ===== */}
+            {stats?.store && (
+                <section>
+                    <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>Também tem uma loja</h2>
+                    <button onClick={() => router.push(`/${stats.store!.slug}`)} className="mt-2.5 w-full rounded-3xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                        <span className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}>
+                            {stats.store.logo ? <img src={stats.store.logo} alt="" className="w-full h-full object-cover" /> : <span className="text-xl font-black" style={{ color: colors.textSecondary }}>{stats.store.name?.charAt(0).toUpperCase()}</span>}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-[11px] font-bold" style={{ color: colors.textSecondary }}>Loja de {(p.name || '').split(' ')[0]}</span>
+                            <span className="block text-[15px] font-black truncate" style={{ color: colors.textPrimary }}>{stats.store.name}</span>
+                        </span>
+                        <span className="text-[12px] font-black flex-shrink-0" style={{ color: '#f97316' }}>Ver loja</span>
+                    </button>
                 </section>
             )}
 
