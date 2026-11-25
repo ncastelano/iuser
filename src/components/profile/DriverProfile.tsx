@@ -29,6 +29,7 @@ import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { platformFloor } from '@/modules/negotiation'
+import { vehicleFullName, vehicleName } from '@/lib/vehicleName'
 import { etaFromViewer, etaText, parseQuote, quoteModeClientLabel, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote, type QuoteMode } from '@/modules/driver-profile'
 import { loadMyLocation } from '@/lib/myLocation'
 import { getCurrentPosition } from '@/lib/nativeGeolocation'
@@ -44,7 +45,7 @@ const ORANGE_DARK = '#ea580c'
 const KIND_LABEL = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' } as const
 type Kind = keyof typeof KIND_LABEL
 
-interface Vehicle { slug: string; kind: Kind; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null; posX: number; posY: number }
+interface Vehicle { slug: string; kind: Kind; brand: string | null; plate: string | null; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null; posX: number; posY: number }
 interface Stats { rides: number; rating: number | null; ratingCount: number; since: string | null
     /** a loja da pessoa, se ela tiver uma ativa (também é motorista) */
     store?: { name: string; slug: string; logo: string | null } | null
@@ -157,7 +158,7 @@ export default function DriverProfile(p: DriverProfileProps) {
         void (async () => {
             const [{ data: q }, { data: v }, { data: st }, { data: rv }] = await Promise.all([
                 supabase.rpc('get_driver_public_quote', { p_driver: p.driverId }),
-                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_model, car_color, car_photo_url, services, passenger_capacity, has_baby_seat, car_photo_pos_x, car_photo_pos_y').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_brand, car_model, car_plate, car_color, car_photo_url, services, passenger_capacity, has_baby_seat, car_photo_pos_x, car_photo_pos_y').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
                 supabase.rpc('get_driver_public_stats', { p_driver: p.driverId }),
                 supabase.rpc('get_driver_reviews', { p_driver: p.driverId, p_limit: 20 }),
                 loadPlatformTariffs(supabase).then(() => { if (alive) setTariffsReady(true) }),
@@ -165,7 +166,7 @@ export default function DriverProfile(p: DriverProfileProps) {
             if (!alive) return
             setQuote(parseQuote(q) || parseQuote({ mode: 'platform' }))
             const vv = v as any
-            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
+            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, brand: vv.car_brand || null, plate: vv.car_plate || null, model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
             const s = Array.isArray(st) ? st[0] : st
             setStats(s ? { rides: Number(s.rides_completed) || 0, rating: s.rating_avg != null ? Number(s.rating_avg) : null, ratingCount: Number(s.rating_count) || 0, since: s.member_since || null, store: s.store_slug ? { name: s.store_name, slug: s.store_slug, logo: s.store_logo ? (String(s.store_logo).startsWith('http') ? s.store_logo : supabase.storage.from('store-logos').getPublicUrl(s.store_logo).data.publicUrl) : null } : null } : { rides: 0, rating: null, ratingCount: 0, since: null })
             setReviews(((rv as any[]) || []).map((r) => ({ rating: r.rating, comment: r.comment, at: r.rode_at, from: r.origin, to: r.destination, name: r.reviewer_name, slug: r.reviewer_slug, avatar: r.reviewer_avatar ? getAvatarUrl(supabase, r.reviewer_avatar) || null : null })))
@@ -309,7 +310,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </>
                     ) : (
                         <>
-                            {vehicle?.photo && <img src={vehicle.photo} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }} />}
+                            {vehicle?.photo && <img src={vehicle.photo} alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }} />}
                             {!vehicle?.photo && <span className="absolute inset-x-0 top-6 bottom-28 flex items-center justify-center text-white/30"><Icon size={84} /></span>}
                         </>
                     )}
@@ -345,7 +346,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                                 </div>
                                 {vehicle && (
                                     <span className="mt-1.5 inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-black max-w-full" style={{ background: `${GREEN}1f`, color: GREEN }}>
-                                        <Icon size={13} className="flex-shrink-0" /><span className="truncate">{KIND_LABEL[kind]}{vehicle.model ? ` · ${vehicle.model}` : ''}{vehicle.color ? ` ${vehicle.color}` : ''}</span>
+                                        <Icon size={13} className="flex-shrink-0" /><span className="truncate">{KIND_LABEL[kind]}{vehicleName(vehicle) ? ` · ${vehicleName(vehicle)}` : ''}{vehicle.plate ? ` · ${vehicle.plate.toUpperCase()}` : ''}{vehicle.color ? ` ${vehicle.color}` : ''}</span>
                                     </span>
                                 )}
                             </div>
@@ -558,10 +559,10 @@ export default function DriverProfile(p: DriverProfileProps) {
                     <div className="mt-2.5 w-full rounded-3xl p-3 flex flex-col gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                         <div className="flex items-center gap-3">
                             <span className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1a`, color: GREEN }}>
-                                {vehicle.photo ? <img src={vehicle.photo} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Icon size={30} />}
+                                {vehicle.photo ? <img src={vehicle.photo} alt="" className="w-full h-full object-contain" loading="lazy" /> : <Icon size={30} />}
                             </span>
                             <span className="min-w-0 flex-1 flex flex-col gap-0.5">
-                                <span className="text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{vehicle.model || KIND_LABEL[kind]}</span>
+                                <span className="text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{vehicleName(vehicle, KIND_LABEL[kind])}</span>
                                 {vehicle.color && <span className="text-[12px] font-bold" style={{ color: colors.textSecondary }}>{vehicle.color}</span>}
                                 <span className="text-[11.5px] flex items-center gap-1" style={{ color: colors.textSecondary }}>{kind === 'carro' ? KIND_LABEL[kind] : <><Users size={12} /> leva 1 pessoa ou 1 objeto</>}</span>
                             </span>
@@ -646,13 +647,13 @@ function OwnerCarMapToggle({ vehicle, live, colors, Icon, mapToken }: { vehicle:
                 {onMap ? (
                     <img alt="Mapa do motorista" className="w-full h-full object-cover" src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${live!.lng},${live!.lat},14,0/220x180@2x?attribution=false&logo=false&access_token=${mapToken}`} />
                 ) : vehicle.photo ? (
-                    <img src={vehicle.photo} alt="Foto do veículo" className="w-full h-full object-cover" />
+                    <img src={vehicle.photo} alt="Foto do veículo" className="w-full h-full object-contain" />
                 ) : (
                     <span className="w-full h-full flex items-center justify-center" style={{ color: colors.textSecondary }}><Icon size={26} /></span>
                 )}
             </span>
             <span className="min-w-0 flex-1 px-3 py-2 flex flex-col justify-center">
-                <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{[vehicle.model, vehicle.color].filter(Boolean).join(' · ') || 'Seu veículo'}</span>
+                <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{[vehicleFullName(vehicle, ''), vehicle.color].filter(Boolean).join(' · ') || 'Seu veículo'}</span>
                 <span className="block text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>
                     {canMap ? (onMap ? 'Mapa: onde o carro está (aproximado). Toque para ver o carro' : 'Foto do veículo. Toque para ver o mapa') : live ? 'Foto do veículo (o mapa precisa de chave do Mapbox)' : 'Foto do veículo. O mapa aparece quando você ligar o modo motorista'}
                 </span>

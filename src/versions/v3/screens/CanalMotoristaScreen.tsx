@@ -51,6 +51,7 @@ function formatDate(iso: string): string {
 
 interface VehicleRow {
     vehicle_kind: VehicleKind
+    car_brand?: string | null
     car_model: string | null
     car_color: string | null
     car_plate: string | null
@@ -67,7 +68,7 @@ interface VehicleRow {
     trunk_suitcases_grande: number | null
 }
 
-const VEHICLE_SELECT = 'vehicle_kind, car_model, car_color, car_plate, car_photo_url, driver_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande'
+const VEHICLE_SELECT = 'vehicle_kind, car_brand, car_model, car_color, car_plate, car_photo_url, driver_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande'
 
 // Um veículo só conta como completo com modelo, foto do veículo e selfie do
 // motorista (placa não vale pra bicicleta). Só o admin pode ficar sem foto.
@@ -138,6 +139,7 @@ function PainelMotoristaContent() {
     const [vehicleKind, setVehicleKind] = useState<VehicleKind>('carro')
     const [vehiclesByKind, setVehiclesByKind] = useState<Partial<Record<VehicleKind, VehicleRow>>>({})
     const [isAdmin, setIsAdmin] = useState(false)
+    const [carBrand, setCarBrand] = useState('')
     const [carModel, setCarModel] = useState('')
     const [carColor, setCarColor] = useState('')
     const [carPlate, setCarPlate] = useState('')
@@ -253,6 +255,7 @@ function PainelMotoristaContent() {
     // de outro veículo já cadastrado.
     const applyVehicleToForm = (v: VehicleRow | null, all: Partial<Record<VehicleKind, VehicleRow>>) => {
         const anySelfie = Object.values(all).find((x) => x?.driver_photo_url)?.driver_photo_url || null
+        setCarBrand(v?.car_brand || '')
         setCarModel(v?.car_model || '')
         setCarColor(v?.car_color || '')
         setCarPlate(v?.car_plate || '')
@@ -483,6 +486,7 @@ function PainelMotoristaContent() {
                 {
                     driver_id: user.id,
                     vehicle_kind: vehicleKind,
+                    car_brand: carBrand.trim() || null,
                     car_model: carModel.trim() || null,
                     car_color: carColor.trim() || null,
                     car_plate: carPlate.trim() || null,
@@ -506,6 +510,7 @@ function PainelMotoristaContent() {
                 ...prev,
                 [vehicleKind]: {
                     vehicle_kind: vehicleKind,
+                    car_brand: carBrand.trim() || null,
                     car_model: carModel.trim() || null,
                     car_color: carColor.trim() || null,
                     car_plate: carPlate.trim() || null,
@@ -933,12 +938,12 @@ function PainelMotoristaContent() {
                                     goTab={setActiveTab}
                                     onDeliveries={() => router.push('/entregas')}
                                     onEarnings={() => router.push('/ganhos')}
-                                    vehicleLabel={carModel.trim() ? `${VEHICLE_KIND_LABELS[vehicleKind]} · ${carModel.trim()}${carPlate.trim() ? ` · ${carPlate.trim().toUpperCase()}` : ''}` : null}
+                                    vehicleLabel={carModel.trim() ? `${VEHICLE_KIND_LABELS[vehicleKind]} · ${[carBrand.trim(), carModel.trim()].filter(Boolean).join(' ')}${carPlate.trim() ? ` · ${carPlate.trim().toUpperCase()}` : ''}` : null}
                                     vehicles={(Object.entries(vehiclesByKind) as [VehicleKind, VehicleRow][])
                                         .filter(([, v]) => v?.car_model?.trim())
                                         .map(([kind, v]) => ({
                                             id: kind,
-                                            label: `${VEHICLE_KIND_LABELS[kind]} · ${v.car_model!.trim()}${v.car_plate?.trim() ? ` · ${v.car_plate.trim().toUpperCase()}` : ''}`,
+                                            label: `${VEHICLE_KIND_LABELS[kind]} · ${[v.car_brand?.trim(), v.car_model!.trim()].filter(Boolean).join(' ')}${v.car_plate?.trim() ? ` · ${v.car_plate.trim().toUpperCase()}` : ''}`,
                                             photoUrl: v.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(v.car_photo_url).data.publicUrl : null,
                                         }))}
                                     pricingLabel={pricingMode === 'platform' ? 'Tarifa iUser' : 'Minha tarifa própria'}
@@ -1450,6 +1455,14 @@ function PainelMotoristaContent() {
                                         }}
                                     />
                                     <div className="flex-1 grid grid-cols-2 gap-2">
+                                        <input
+                                            type="text"
+                                            value={carBrand}
+                                            onChange={(e) => setCarBrand(e.target.value)}
+                                            placeholder="Marca (ex: Toyota)"
+                                            className={inputClsXs}
+                                            style={fieldStyle}
+                                        />
                                         <input
                                             type="text"
                                             value={carModel}

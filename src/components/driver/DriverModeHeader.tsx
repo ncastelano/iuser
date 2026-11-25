@@ -4,6 +4,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { vehicleFullName } from '@/lib/vehicleName'
 import { useRouter } from 'next/navigation'
 import { Car, Share2, User, ExternalLink } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -11,7 +12,7 @@ import { handleShareLink } from '@/lib/share'
 import { onDriverMode } from '@/lib/driverMode'
 import { VEHICLE_KIND_LABELS, type VehicleKind } from '@/lib/rideVehicle'
 
-type V = { vehicle_slug: string | null; vehicle_kind: VehicleKind; car_model: string | null; car_color: string | null; car_photo_url: string | null }
+type V = { vehicle_slug: string | null; vehicle_kind: VehicleKind; car_brand: string | null; car_model: string | null; car_plate: string | null; car_color: string | null; car_photo_url: string | null }
 
 export default function DriverModeHeader({ userId, profileSlug, avatarUrl, colors }: { userId: string; profileSlug: string | null; avatarUrl: string | null; colors: { textPrimary: string; textSecondary: string; border: string; surface: string } }) {
     const router = useRouter()
@@ -22,7 +23,7 @@ export default function DriverModeHeader({ userId, profileSlug, avatarUrl, color
         let alive = true
         Promise.all([
             supabase.from('driver_pricing').select('driver_mode_active').eq('driver_id', userId).maybeSingle(),
-            supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_model, car_color, car_photo_url, updated_at').eq('driver_id', userId).order('updated_at', { ascending: false }).limit(1),
+            supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_brand, car_model, car_plate, car_color, car_photo_url, updated_at').eq('driver_id', userId).order('updated_at', { ascending: false }).limit(1),
             supabase.from('profiles').select('profile_type').eq('id', userId).maybeSingle(),
         ]).then(([p, v, pr]) => {
             if (!alive) return
@@ -34,7 +35,7 @@ export default function DriverModeHeader({ userId, profileSlug, avatarUrl, color
     if (on === null || !vehicle) return null
 
     const link = vehicle.vehicle_slug ? `https://www.iuser.com.br/${vehicle.vehicle_slug}` : null
-    const label = [VEHICLE_KIND_LABELS[vehicle.vehicle_kind] || 'Veículo', vehicle.car_model, vehicle.car_color].filter(Boolean).join(' · ')
+    const label = [VEHICLE_KIND_LABELS[vehicle.vehicle_kind] || 'Veículo', vehicleFullName(vehicle), vehicle.car_color].filter(Boolean).join(' · ')
     const share = () => link && handleShareLink({ title: 'Chame o meu ' + (VEHICLE_KIND_LABELS[vehicle.vehicle_kind] || 'veículo').toLowerCase() + ' pelo iUser', text: `Peça a sua corrida comigo pelo iUser: ${label}`, url: link, imageUrl: vehicle.car_photo_url })
     const btn = { background: `${colors.border}40`, color: colors.textPrimary }
 
