@@ -15,7 +15,7 @@ export interface Person {
     offers?: string | null
     ratingAvg?: number | null
 }
-export interface Place { place: string; count: number; avatars: string[]; /** centro aproximado do bairro (~1 km), só com 2+ pessoas */ lat: number | null; lng: number | null }
+export interface Place { place: string; count: number; avatars: string[]; /** até 5 pessoas do bairro (id e foto): a borda e a coroa de cada uma */ people: { id: string; avatar: string | null }[]; /** centro aproximado do bairro (~1 km), só com 2+ pessoas */ lat: number | null; lng: number | null }
 
 const toRad = (d: number) => (d * Math.PI) / 180
 /** Distância em km entre dois pontos (haversine) */
@@ -71,7 +71,8 @@ export function joinedLabel(iso: string | null | undefined, now = Date.now()): s
 export function placeFromRow(r: Record<string, any>): Place | null {
     if (!r?.place) return null
     const lat = r.lat == null ? null : Number(r.lat), lng = r.lng == null ? null : Number(r.lng)
-    return { place: String(r.place), count: Number(r.people_count) || 0, avatars: Array.isArray(r.avatars) ? r.avatars.filter(Boolean).map(String) : [], lat: Number.isFinite(lat) ? lat : null, lng: Number.isFinite(lng) ? lng : null }
+    const people = Array.isArray(r.people) ? r.people.filter((x: any) => x && x.id).map((x: any) => ({ id: String(x.id), avatar: x.avatar_url ? String(x.avatar_url) : null })) : []
+    return { place: String(r.place), count: Number(r.people_count) || 0, avatars: Array.isArray(r.avatars) ? r.avatars.filter(Boolean).map(String) : [], people, lat: Number.isFinite(lat) ? lat : null, lng: Number.isFinite(lng) ? lng : null }
 }
 
 /** Busca simples de pessoas: tira acento/maiúscula; precisa de 2 letras ou mais */

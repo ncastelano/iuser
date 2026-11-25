@@ -9,6 +9,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronRight, Clock, Globe, Heart, MapPin, Radar as RadarIcon, Search, Star, Trophy, UserPlus, Users, Wrench, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -31,13 +32,16 @@ const DEVICE_LOCATION_KEY = 'iuser_device_location'
 type SocialTab = 'inicio' | SocialListTab
 const LIST_TABS: SocialListTab[] = ['sigo', 'seguem']
 
-function Avatar({ path, name, size = 56 }: { path: string | null; name: string; size?: number }) {
+function Avatar({ path, name, size = 56, userId }: { path: string | null; name: string; size?: number; userId?: string | null }) {
     const { colors } = useTheme()
     const url = avatarOf(path)
+    // a borda e a coroa da pessoa (PlanAvatarRing) — sem o link do avatar (o cartão inteiro já leva ao perfil)
     return (
+        <PlanAvatarRing userId={userId} linkToProfile={false}>
         <span className="rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 font-black" style={{ width: size, height: size, background: url ? `${colors.border}60` : 'linear-gradient(135deg,#f97316,#dc2626)', color: '#fff', fontSize: size * 0.4 }}>
             {url ? <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" /> : (name || '?').charAt(0).toUpperCase()}
         </span>
+        </PlanAvatarRing>
     )
 }
 
@@ -45,7 +49,7 @@ function Avatar({ path, name, size = 56 }: { path: string | null; name: string; 
 function PersonTile({ p, detail, colors, onOpen }: { p: Person; detail?: React.ReactNode; colors: any; onOpen: (p: Person) => void }) {
     return (
         <button onClick={() => onOpen(p)} className="snap-start flex-shrink-0 w-[112px] rounded-3xl p-3 flex flex-col items-center text-center transition active:scale-95" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-            <Avatar path={p.avatarPath} name={p.name} size={60} />
+            <Avatar path={p.avatarPath} name={p.name} size={60} userId={p.id} />
             <span className="mt-2 text-[12px] font-black leading-tight w-full truncate" style={{ color: colors.textPrimary }}>{p.name}</span>
             <span className="text-[10px] w-full truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span>
             {detail && <span className="mt-1.5 text-[10px] font-black px-2 py-0.5 rounded-full max-w-full truncate" style={{ background: `${ORANGE}1f`, color: ORANGE }}>{detail}</span>}
@@ -140,7 +144,7 @@ export default function SocialScreen() {
                         {recent.map((r) => (
                             <div key={r.id} className="relative">
                                 <button onMouseDown={(e) => e.preventDefault()} onClick={() => router.push(`/${r.profileSlug}`)} className="flex flex-col items-center gap-1 transition active:scale-95">
-                                    <Avatar path={r.avatar_url} name={r.name} size={56} />
+                                    <Avatar path={r.avatar_url} name={r.name} size={56} userId={r.id} />
                                     <span className="text-[10px] font-bold truncate max-w-[64px]" style={{ color: colors.textSecondary }}>@{r.profileSlug}</span>
                                 </button>
                                 <button onMouseDown={(e) => e.preventDefault()} onClick={() => removeRecent(r.id)} aria-label="Remover" className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ background: ORANGE, border: '2px solid #fff' }}><X size={10} /></button>
@@ -166,7 +170,7 @@ export default function SocialScreen() {
                     <div className="flex flex-col gap-2">
                         {found === null ? [0, 1, 2].map((i) => <Skel key={i} w="100%" h={64} colors={colors} />) : found.map((p) => (
                             <button key={p.id} onClick={() => openPerson(p)} className="w-full rounded-2xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                                <Avatar path={p.avatarPath} name={p.name} size={44} />
+                                <Avatar path={p.avatarPath} name={p.name} size={44} userId={p.id} />
                                 <span className="min-w-0 flex-1"><span className="block text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{p.name}</span><span className="block text-[12px] truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span></span>
                                 <ChevronRight size={16} style={{ color: colors.textSecondary }} />
                             </button>
@@ -185,7 +189,7 @@ export default function SocialScreen() {
                                     {top.map((p, i) => (
                                         <button key={p.id} onClick={() => openPerson(p)} className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition active:opacity-70" style={i ? { borderTop: `1px solid ${colors.border}` } : undefined}>
                                             <span className="w-6 text-center text-[13px] font-black" style={{ color: i === 0 ? '#eab308' : i === 1 ? '#94a3b8' : i === 2 ? '#c2763a' : colors.textSecondary }}>{i + 1}</span>
-                                            <Avatar path={p.avatarPath} name={p.name} size={40} />
+                                            <Avatar path={p.avatarPath} name={p.name} size={40} userId={p.id} />
                                             <span className="min-w-0 flex-1"><span className="block text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{p.name}</span><span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span></span>
                                             <span className="text-[12px] font-black flex items-center gap-1 flex-shrink-0" style={{ color: ORANGE }}><Star size={12} fill={ORANGE} /> {p.points}</span>
                                         </button>
@@ -236,9 +240,13 @@ export default function SocialScreen() {
                                                     </span>
                                                 )}
                                                 <span className="flex">
-                                                    {pl.avatars.slice(0, 5).map((a, k) => (
-                                                        <span key={k} className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0" style={{ marginLeft: k ? -8 : 0, boxShadow: `0 0 0 2px ${on ? ORANGE : colors.surface}`, background: `${colors.border}80` }}>
-                                                            {avatarOf(a) ? <img src={avatarOf(a)!} alt="" className="w-full h-full object-cover" loading="lazy" /> : null}
+                                                    {(pl.people.length ? pl.people : pl.avatars.map((a) => ({ id: '', avatar: a }))).slice(0, 5).map((a, k) => (
+                                                        <span key={k} className="flex-shrink-0 rounded-full" style={{ marginLeft: k ? -8 : 0, boxShadow: `0 0 0 2px ${on ? ORANGE : colors.surface}`, background: `${colors.border}80` }}>
+                                                            <PlanAvatarRing userId={a.id || null} linkToProfile={false} width={1}>
+                                                                <span className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center">
+                                                                    {avatarOf(a.avatar) ? <img src={avatarOf(a.avatar)!} alt="" className="w-full h-full object-cover" loading="lazy" /> : null}
+                                                                </span>
+                                                            </PlanAvatarRing>
                                                         </span>
                                                     ))}
                                                 </span>
@@ -274,7 +282,7 @@ export default function SocialScreen() {
                                     {providers.map((p) => (
                                         <button key={p.id} onClick={() => openPerson(p)} className="snap-start flex-shrink-0 w-[176px] rounded-3xl p-3.5 text-left flex flex-col gap-2 transition active:scale-95" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                             <span className="flex items-center gap-2.5">
-                                                <Avatar path={p.avatarPath} name={p.name} size={40} />
+                                                <Avatar path={p.avatarPath} name={p.name} size={40} userId={p.id} />
                                                 <span className="min-w-0 flex-1"><span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{p.name}</span>{p.ratingAvg ? <span className="flex items-center gap-0.5 text-[11px] font-bold" style={{ color: '#f59e0b' }}><Star size={10} fill="#f59e0b" /> {p.ratingAvg.toFixed(1).replace('.', ',')}</span> : <span className="block text-[11px]" style={{ color: colors.textSecondary }}>@{p.slug}</span>}</span>
                                             </span>
                                             <span className="text-[12px] font-bold leading-snug line-clamp-2" style={{ color: colors.textSecondary }}>{p.offers || 'Presta serviços'}</span>
