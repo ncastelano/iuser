@@ -59,7 +59,7 @@ async function fetchMatrix(from: [number, number], dests: [number, number][], dr
     } catch { matrixCache.set(key, null); return null }
 }
 
-export default function PlaceSearchExtras({ query, refPoint, priceFrom, vehicleKind = 'carro', onVehicleKind, pickupFrom = null, recents, locating, onUseMyLocation, onPickOnMap, onPick }: {
+export default function PlaceSearchExtras({ query, refPoint, priceFrom, vehicleKind = 'carro', onVehicleKind, pickupFrom = null, recents, recentsTitle = 'Seus lugares recentes', locating, onUseMyLocation, onPickOnMap, onPick }: {
     query: string
     /** onde a pessoa está (o centro do mapa): de onde se mede "perto" */
     refPoint: [number, number] | null
@@ -72,6 +72,8 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, vehicleK
     /** onde está o motorista ativo mais perto da partida (do tipo escolhido); null = ninguém por perto (vale 3 km) */
     pickupFrom?: [number, number] | null
     recents: PlacePick[]
+    /** título da fileira de recentes (na partida: "Suas últimas corridas") */
+    recentsTitle?: string
     locating: boolean
     onUseMyLocation: () => void
     /** sem ele, o atalho "Marcar no mapa" não aparece (ex.: a página de chamar um motorista) */
@@ -180,7 +182,7 @@ export default function PlaceSearchExtras({ query, refPoint, priceFrom, vehicleK
 
             {recentList.length > 0 && (
                 <section className="mt-4">
-                    <p className="px-4 mb-1.5 text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Seus lugares recentes</p>
+                    <p className="px-4 mb-1.5 text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{recentsTitle}</p>
                     {/* fileira HORIZONTAL de cartõezinhos (ocupa uma altura só); na chegada cada um leva o valor estimado */}
                     <div className="flex gap-2 overflow-x-auto px-4 pb-1 snap-x scroll-pl-4" style={{ scrollbarWidth: 'none' }}>
                         {recentList.map((r) => {

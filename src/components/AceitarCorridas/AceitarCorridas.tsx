@@ -279,7 +279,7 @@ interface AcceptedRideDetail extends RideSpecFields {
     extra_task_description: string | null
 }
 
-export type AceitarCorridasTab = 'servicos' | 'candidatos' | 'aceita'
+export type AceitarCorridasTab = 'servicos' | 'privado' | 'candidatos' | 'aceita'
 
 export interface AceitarCorridasProps {
     // Embutido no /canal-do-motorista: sem Header/fundo, aba controlada de fora.
@@ -318,7 +318,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
-    const [innerTab, setInnerTab] = useState<AceitarCorridasTab>(focusTab === 'candidatos' ? 'candidatos' : 'servicos')
+    const [innerTab, setInnerTab] = useState<AceitarCorridasTab>(focusTab === 'candidatos' ? 'candidatos' : focusTab === 'privado' ? 'privado' : 'servicos')
     const activeTab = tab ?? innerTab
     const setActiveTab = useCallback((next: AceitarCorridasTab) => {
         setInnerTab(next)
@@ -912,6 +912,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         () => radiusRides.filter((r) => !skippedIds.has(r.id) && (!onlyRides || !r.order_id)),
         [radiusRides, skippedIds, onlyRides]
     )
+    // Privado: corridas chamadas SÓ para este motorista (preferred_driver_id), sem o filtro de raio: o passageiro escolheu ele
+    const privateRides = useMemo(
+        () => rides.filter((r) => !r.order_id && !!contextUserId && r.preferred_driver_id === contextUserId && !skippedIds.has(r.id)),
+        [rides, skippedIds, contextUserId]
+    )
+    // a aba aberta mostra a sua lista (Privado ou Solicitações)
+    const listRides = activeTab === 'privado' ? privateRides : visibleRides
 
     const headerTabs: Tab[] = useMemo((): any[] => {
         const tabs: any[] = []
@@ -931,6 +938,14 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         tabs.push(
             {
+                id: 'privado',
+                label: 'Privado',
+                icon: Car,
+                onClick: () => setActiveTab('privado'),
+                isActive: activeTab === 'privado',
+                badge: privateRides.length > 0 ? { count: privateRides.length } : null,
+            },
+            {
                 id: 'servicos',
                 label: 'Solicitações de motorista',
                 icon: Car,
@@ -949,7 +964,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         )
 
         return tabs
-    }, [activeTab, radiusRides.length, candidacies.length, acceptedRide, setActiveTab])
+    }, [activeTab, radiusRides.length, privateRides.length, candidacies.length, acceptedRide, setActiveTab])
 
     // Avisa o painel (quando embutido) pra ele montar as mesmas abas com os badges.
     useEffect(() => {
@@ -1516,6 +1531,18 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     <>
                     {hasDriver && <DriverDebtBanner userId={contextUserId} />}
 
+                    {activeTab === 'privado' && privateRides.length === 0 && !loading && (
+                        <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: surf }}>
+                            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textSecondary }}>
+                                <Car size={20} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Nenhum pedido privado</span>
+                                <span className="block text-xs mt-0.5" style={{ color: colors.textSecondary }}>Quando alguém chamar você direto pelo seu perfil, o pedido aparece aqui.</span>
+                            </span>
+                        </div>
+                    )}
+
                     {activeTab === 'servicos' && visibleRides.length === 0 && ((
                         <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: surf }}>
                             <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textSecondary }}>
@@ -1528,10 +1555,10 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         </div>
                     ))}
 
-                    {!loading && !showLogin && activeTab === 'servicos' && visibleRides.length > 0 && (
+                    {!loading && !showLogin && (activeTab === 'servicos' || activeTab === 'privado') && listRides.length > 0 && (
                         // overflow-anchor: o ajuste da rolagem do card aberto é nosso (layout effect acima); a correção automática do navegador somaria em dobro
                         <div className="flex flex-col gap-3" style={{ overflowAnchor: 'none' }}>
-                            {orderCards(visibleRides.map((ride) => {
+                            {orderCards(listRides.map((ride) => {
                                 const info = routeInfoById[ride.id]
                                 // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km do veículo)
                                 const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]

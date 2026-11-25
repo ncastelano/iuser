@@ -136,6 +136,26 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
     const router = useRouter()
     const { colors } = useTheme()
     const { userId, loading: profileLoading } = useProfile()
+    // as suas últimas corridas (do banco): as partidas delas aparecem na busca de "De onde você sai?"
+    const [lastRideOrigins, setLastRideOrigins] = useState<{ address: string; coords: [number, number] }[]>([])
+    useEffect(() => {
+        if (!userId) { setLastRideOrigins([]); return }
+        let alive = true
+        void supabase.from('ride_requests').select('origin_address, origin_lat, origin_lng').eq('requester_id', userId).is('order_id', null).order('created_at', { ascending: false }).limit(12).then(({ data }) => {
+            if (!alive) return
+            const rows = (data as any[] | null) || []
+            const seen = new Set<string>()
+            const list: { address: string; coords: [number, number] }[] = []
+            for (const r of rows) {
+                if (!r.origin_address || r.origin_lat == null || r.origin_lng == null || seen.has(r.origin_address)) continue
+                seen.add(r.origin_address)
+                list.push({ address: r.origin_address, coords: [Number(r.origin_lng), Number(r.origin_lat)] })
+                if (list.length === 6) break
+            }
+            setLastRideOrigins(list)
+        })
+        return () => { alive = false }
+    }, [userId])
     const hourly = useDefaultMinHourly()
     const minPerMinute = useRideMinimum()
 
@@ -467,7 +487,7 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                                 ? <>A rota já passa {stops.length === 1 ? 'pela parada' : `pelas ${stops.length} paradas`}. Ao chegar nela, toque em <b>Solicitar parada</b>: <b>o tempo que você ficar parado é somado ao valor</b>, então o total pode ficar maior.{waitRule ? ` ${waitRule}` : ''}</>
                                 : <>Se você <b>solicitar uma parada</b> durante a corrida, o motorista aprova e o tempo parado é somado ao valor.{waitRule ? ` ${waitRule}` : ''}</>}
                         </p>
-                        <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: colors.textSecondary }}>Esse valor já vai como a sua oferta: {fname} só precisa aceitar. Você paga no fim da corrida.</p>
+                        <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: colors.textSecondary }}>Este é o <b>valor base do iUser</b> para {fname} ver. {fname} pode aceitar esse valor ou mostrar outro para você decidir. É o <b>valor inicial da corrida</b>: se você pedir uma parada, o total pode mudar. Você paga no fim da corrida.</p>
                     </>
                 ) : routing ? (
                     <p className="mt-2 flex items-center gap-2 text-[13px] font-bold" style={{ color: colors.textSecondary }}><Spinner size={15} />Calculando a rota…</p>
@@ -576,10 +596,11 @@ export default function ChamarMotoristaScreen({ driverSlug }: { driverSlug: stri
                         <PlaceSearchExtras
                             query={query}
                             refPoint={origin?.coords || PORTO_VELHO}
-                            recents={(field === 'origin' ? [...getRecentRideOrigins(), ...getRecentRideDestinations()] : [...getRecentRideDestinations(), ...getRecentRideOrigins()])
+                            recents={(field === 'origin' ? lastRideOrigins : [...getRecentRideDestinations(), ...getRecentRideOrigins()])
                                 .map((r) => ({ address: r.address, coords: r.coords }))
                                 .filter((p, i, all) => all.findIndex((x) => x.address === p.address) === i)
                                 .filter((p) => p.address !== (field === 'origin' ? destination?.address : origin?.address))}
+                            recentsTitle={field === 'origin' ? 'Suas últimas corridas' : 'Seus lugares recentes'}
                             locating={locating}
                             onUseMyLocation={useMyLocation}
                             onPick={(p) => pick({ address: p.address, coords: p.coords })}
