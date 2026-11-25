@@ -53,7 +53,7 @@ export interface BarTab { key: string; label: string; icon: ReactNode; active: b
 export interface BarMessage { id: string | number; text: string; description?: string; icon?: string; glyph: string; color: string; action?: { label: string; onClick: () => void } }
 /** Chip da faixa além do carrinho e dos status: a corrida, os pedidos novos da loja... (cada um na sua cor, levando ao seu lugar) */
 /** `label` = o nome da loja (pedido do cliente); `icon` = o ícone da etapa; `step`/`steps` = barrinha de progresso do pedido */
-export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; icon?: string; step?: number; steps?: number }
+export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; icon?: string; step?: number; steps?: number; /** pulsa (ex.: procurando motorista) */ hot?: boolean }
 
 /** Altura da faixa de cima: 1 linha (carrinho ou pedidos) ou 2 (com o pedido privado/ao vivo embaixo). A página reserva essa altura. */
 export function stripHeightFor(extras: BarExtra[], showCart: boolean): number {
@@ -311,7 +311,7 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                                             </button>
                                         ) : (
                                             <button key={x.key} onClick={() => onGo(x.path)} tabIndex={strip ? 0 : -1} className="flex items-center gap-1.5 flex-shrink-0 h-9 active:opacity-70">
-                                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: x.color }} />
+                                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${x.hot ? 'animate-pulse' : ''}`} style={{ background: x.color }} />
                                                 <span className="text-[12px] font-black" style={{ color: colors.textPrimary }}>{x.text}</span>
                                             </button>
                                         ))}
