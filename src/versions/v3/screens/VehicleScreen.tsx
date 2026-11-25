@@ -29,6 +29,7 @@ import { DRIVER_SERVICE_OPTIONS, driverServiceLabel } from '@/lib/driverServices
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { getEffectivePricing, type DriverPricingRow } from '@/lib/driverPricing'
 import { parseQuote, quoteExamples, quoteModeClientLabel, quoteRule, type DriverQuote } from '@/modules/driver-profile'
+import ProfileQuoteCard from '@/components/driver/ProfileQuoteCard'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
 
@@ -90,6 +91,8 @@ export default function VehicleScreen() {
     useEffect(() => { setShellBar(true); return () => setShellBar(false) }, [])
     const [showAllReviews, setShowAllReviews] = useState(false)
     const [feeOpen, setFeeOpen] = useState(false)
+    // dono: "Quanto você cobra" — escolhe o modo do botão aqui mesmo, sem ir ao painel
+    const [tariffOpen, setTariffOpen] = useState(false)
     const touchedTab = useRef(false)
     const [editing, setEditing] = useState(false)
 
@@ -450,14 +453,14 @@ export default function VehicleScreen() {
                 </section>
             )}
 
-            {/* Quanto custa: uma linha; o detalhe vem numa mensagem */}
-            <button onClick={() => setFeeOpen(true)} className="mt-2.5 w-full rounded-2xl px-3.5 py-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={soft}>
+            {/* Quanto custa: uma linha; o detalhe vem numa mensagem. O DONO toca aqui para mudar o jeito de cobrar (sem ir ao painel) */}
+            <button onClick={() => (ownerView ? setTariffOpen(true) : setFeeOpen(true))} className="mt-2.5 w-full rounded-2xl px-3.5 py-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={soft}>
                 <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#16a34a1f', color: '#16a34a' }}><Wallet size={17} /></span>
                 <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>Quanto custa a corrida</span>
+                    <span className="block text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>{ownerView ? 'Quanto você cobra' : 'Quanto custa a corrida'}</span>
                     <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{fromPrice != null ? `a partir de ${brl(fromPrice)}` : 'ver a tarifa'}</span>
                 </span>
-                <span className="text-xs font-black flex-shrink-0 flex items-center gap-0.5" style={{ color: ORANGE }}>Ver como é cobrado <ChevronRight size={14} /></span>
+                <span className="text-xs font-black flex-shrink-0 flex items-center gap-0.5" style={{ color: ORANGE }}>{ownerView ? 'Mudar' : 'Ver como é cobrado'} <ChevronRight size={14} /></span>
             </button>
 
             {/* Loja do motorista */}
@@ -499,6 +502,37 @@ export default function VehicleScreen() {
             />
 
             </>)}
+
+            {ownerView && tariffOpen && vehicle && (
+                <div className="fixed inset-0 z-[90] flex items-end md:items-center justify-center" role="dialog" aria-modal="true" aria-label="Quanto você cobra">
+                    <button aria-label="Fechar" onClick={() => { setTariffOpen(false); load() }} className="absolute inset-0 bg-black/45" />
+                    <div className="relative w-full md:max-w-md rounded-t-[28px] md:rounded-[28px] px-5 pt-5 pb-6 max-h-[88dvh] overflow-y-auto" style={{ background: colors.background, boxShadow: '0 -12px 40px rgba(0,0,0,0.25)' }}>
+                        <div className="flex items-center gap-2">
+                            <h2 className="flex-1 text-lg font-black" style={{ color: colors.textPrimary }}>Quanto você cobra</h2>
+                            <button onClick={() => { setTariffOpen(false); load() }} aria-label="Fechar" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><X size={18} /></button>
+                        </div>
+                        {quote && pricing ? (
+                            <div className="mt-3 flex flex-col gap-3">
+                                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Cobrando hoje: {quoteModeClientLabel(quote.mode)}</p>
+                                <p className="text-sm" style={{ color: colors.textSecondary }}>{quoteRule(quote, pricing, defaultHourly)}</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {examples.map((e) => (
+                                        <div key={e.label} className="rounded-2xl py-2 text-center" style={soft}>
+                                            <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{brl(e.price)}</span>
+                                            <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{e.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs" style={{ color: colors.textSecondary }}>Você escolhe como cobrar: pela Tarifa iUser, pela sua tarifa por km ou pela sua tarifa por tempo — e qual valor aparece no botão do seu perfil.</p>
+                                {driver && <ProfileQuoteCard driverId={driver.id} profileSlug={driver.slug} />}
+                                <button onClick={() => router.push(`/canal-do-motorista?aba=plano&veiculo=${vehicle.vehicle_kind}`)} className="h-11 rounded-full text-sm font-black flex items-center justify-center gap-2" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>Mudar valores</button>
+                            </div>
+                        ) : (
+                            <div className="flex justify-center py-6"><Spinner size={20} color={colors.accent} /></div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {feeOpen && (
                 <div className="fixed inset-0 z-[90] flex items-end md:items-center justify-center" role="dialog" aria-modal="true" aria-label="Como é cobrado">
