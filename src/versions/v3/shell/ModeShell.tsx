@@ -28,7 +28,7 @@ import { useShellCompact } from '@/lib/shellCompact'
 import { useShellBar } from '@/lib/shellBar'
 import { startNavProgress } from '@/components/NavProgress'
 import { toastStyle } from '@/lib/toastStyle'
-import BottomNavBar, { BAR_SPACE, PLAYER_H, STRIP_H, stripVisible, type BarExtra, type BarPlayer, type BarTab } from '@/components/BottomNavBar'
+import BottomNavBar, { BAR_SPACE, PLAYER_H, stripHeightFor, stripVisible, type BarExtra, type BarPlayer, type BarTab } from '@/components/BottomNavBar'
 import { MODE_COLOR as BAR_MODE_COLOR } from '@/components/BottomNavBar'
 import GlobalPlayerHost from '@/components/player/GlobalPlayerHost'
 import { usePlayerStore } from '@/store/usePlayerStore'
@@ -571,6 +571,8 @@ export default function ModeShell({ children }: {
     const barExtras: BarExtra[] = [...orderExtras, ...(live?.parts || []).filter((x) => x.key === 'ride' || x.key === 'called' || x.key === 'store-p' || x.key === 'store-s').map((x) => ({ key: x.key as string, text: x.text, color: x.color, path: x.path || live!.path }))]
     // A faixa de cima da barra (carrinho nas páginas de compra + status dos pedidos) ocupa espaço extra embaixo da página
     const stripShown = barShown && stripVisible({ onCartPage, cartExpanded: cartStrip, cartCount: topCart, extras: barExtras.length })
+    // altura reservada embaixo da página: 1 ou 2 linhas da faixa, conforme o que aparece
+    const stripH = stripHeightFor(barExtras, cartStrip && !onCartPage)
 
     // MINI-PLAYER: a última coisa vista/ouvida (música toca aqui de verdade; aula e flash levam de volta à página, que retoma de onde parou)
     const pItem = usePlayerStore((st) => st.item)
@@ -701,8 +703,8 @@ export default function ModeShell({ children }: {
                 paddingTop: navH,
                 minHeight: '100dvh',
                 ['--shell-top' as string]: `calc(${navH} + var(--maintenance-h, 0px))`,   // + a faixa de manutenção, quando aparece (MaintenanceNotice)
-                paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : 40,
-                ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? STRIP_H : 0}px + ${playerShown ? PLAYER_H : 0}px)` : '0px',
+                paddingBottom: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? stripH : 0}px + ${playerShown ? PLAYER_H : 0}px)` : 40,
+                ['--shell-bottom' as string]: barShown ? `calc(${SHELL_BOTTOM} + ${stripShown ? stripH : 0}px + ${playerShown ? PLAYER_H : 0}px)` : '0px',
                 animation: rising ? 'shellRise 700ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
             }}
         >
