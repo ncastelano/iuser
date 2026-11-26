@@ -287,7 +287,8 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             <StoreIuserCredits storeId={store.id} />
 
             {/* ===== DIGITAL E CLUBE ===== */}
-            <div className="mt-2"><StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 /></div>
+            {sec('Digital', undefined, 'Cursos, músicas e programas da loja')}
+            <StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 />
 
             {/* ===== VISITANTES (em cima das avaliações) ===== */}
             {sec('Visitantes', undefined, 'Quem passou pela loja')}
