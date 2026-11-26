@@ -28,6 +28,7 @@ import StoreDeliveryDues from '../StoreDeliveryDues'
 import StoreIuserCredits from '../StoreIuserCredits'
 import StoreMissions from '../StoreMissions'
 import StoreDigital from '../StoreDigital'
+import StoreNotifications from '../StoreNotifications'
 import StoreFeedback from '../StoreFeedback'
 import StoreVisitors from '../StoreVisitors'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
@@ -325,6 +326,10 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                     </div>
                 </>
             )}
+
+            {/* ===== NOTIFICAÇÕES DO CELULAR: o dono escolhe quais avisos da loja chegam no aparelho ===== */}
+            {sec('Notificações do celular', undefined, 'Avisos da loja que chegam no seu celular')}
+            <StoreNotifications storeId={store.id} />
 
             {/* ===== GERENCIAR A LOJA: a própria edição (grupos com o estado de cada coisa), no mesmo painel ===== */}
             <div id="gerenciar" className="scroll-mt-24">{sec('Gerenciar a loja', undefined, 'Tudo que se configura, com o estado de cada coisa')}</div>
