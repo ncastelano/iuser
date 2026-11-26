@@ -158,7 +158,10 @@ export function Store({
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [owner, setOwner] = useState<OwnerData | null>(null)
-    const [isOwner, setIsOwner] = useState(false)
+    const [isOwnerRaw, setIsOwner] = useState(false)
+    // "Ver como cliente": a dona vê a loja como o cliente vê (sem as ferramentas de dona). Não muda nada no banco.
+    const [verComoCliente, setVerComoCliente] = useState(false)
+    const isOwner = isOwnerRaw && !verComoCliente
     // "Agora na sua loja": avisa (sem identidade) que alguém está vendo a loja; a dona olhando não conta
     useReportStorePresence(owner?.id, 'loja', null, isOwner)
     // null enquanto carrega (evita mostrar "fechada" num flash antes da
@@ -1093,6 +1096,20 @@ export function Store({
                     }}
                 />
             )}
+
+            {/* ===== DONA: ver a loja como o cliente vê (e voltar) ===== */}
+            {isOwnerRaw && owner && (verComoCliente ? (
+                <div className="mb-3 flex items-center justify-between gap-2 rounded-2xl px-3.5 py-2.5" style={{ background: '#1f2937', color: '#fff' }}>
+                    <span className="text-[12px] font-bold leading-tight">Você está vendo como o cliente vê</span>
+                    <button onClick={() => setVerComoCliente(false)} className="h-8 px-3.5 rounded-full text-[12px] font-black flex-shrink-0 active:scale-95" style={{ background: '#fff', color: '#111827' }}>Voltar</button>
+                </div>
+            ) : (
+                <div className="mb-3 flex justify-end">
+                    <button onClick={() => setVerComoCliente(true)} className="h-9 px-4 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95 transition" style={{ border: `1.5px solid ${colors.border}`, color: colors.textPrimary, background: colors.surface }}>
+                        Ver como cliente
+                    </button>
+                </div>
+            ))}
 
             {/* ===== CARD DA LOJA (CABEÇALHO) ===== */}
             {((
