@@ -310,12 +310,16 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </>
                     ) : (
                         <>
-                            {vehicle?.photo && <img src={vehicle.photo} alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }} />}
+                            {/* o CARRO INTEIRO (sem cortar), do lado direito; a borda esquerda esfumaça para dentro do cartão, como a barra da v2 */}
+                            {vehicle?.photo && <img src={vehicle.photo} alt="" draggable={false} className="absolute right-0 top-0 bottom-0 w-[74%] h-full object-contain select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%`, WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 34%)', maskImage: 'linear-gradient(to right, transparent 0%, #000 34%)' }} />}
                             {!vehicle?.photo && <span className="absolute inset-x-0 top-6 bottom-28 flex items-center justify-center text-white/30"><Icon size={84} /></span>}
                         </>
                     )}
                     {/* o degradê que leva a imagem para dentro do cartão (some enquanto o dono enquadra a foto) */}
-                    {!framing && <span aria-hidden className="absolute inset-x-0 bottom-0 h-[58%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface}cc 55%, ${colors.surface} 100%)` }} />}
+                    {/* com foto: o carro fica livre e só a parte esquerda esfumaça (onde estão o avatar e o nome); sem foto, o degradê de sempre */}
+                    {!framing && vehicle?.photo && <span aria-hidden className="absolute inset-y-0 left-0 w-[62%] pointer-events-none" style={{ background: `linear-gradient(to right, ${colors.surface} 0%, ${colors.surface} 38%, transparent 100%)` }} />}
+                    {!framing && vehicle?.photo && <span aria-hidden className="absolute inset-x-0 bottom-0 h-[30%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface} 100%)` }} />}
+                    {!framing && !vehicle?.photo && <span aria-hidden className="absolute inset-x-0 bottom-0 h-[58%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface}cc 55%, ${colors.surface} 100%)` }} />}
                     {!framing && <span aria-hidden className="absolute inset-x-0 top-0 h-16 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.35), transparent)' }} />}
 
                     {/* em cima: o voltar e a situação */}
@@ -337,7 +341,8 @@ export default function DriverProfile(p: DriverProfileProps) {
                     {/* embaixo, sobre o degradê: a foto à esquerda; nome, @, nível e o veículo à direita */}
                     {!framing && (
                         <div className="absolute left-4 right-4 bottom-3 z-10 flex items-end gap-3">
-                            <div className="rounded-full p-1 flex-shrink-0" style={{ background: colors.surface, boxShadow: '0 6px 18px rgba(0,0,0,0.18)' }}>{p.avatarSlot}</div>
+                            {/* sem fundo branco por baixo da borda: o anel fica direto sobre o cartão */}
+                            <div className="rounded-full flex-shrink-0 p-1">{p.avatarSlot}</div>
                             <div className="min-w-0 flex-1 pb-1">
                                 <h1 className="text-[22px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</h1>
                                 <div className="flex items-center gap-2 mt-0.5 min-w-0">
