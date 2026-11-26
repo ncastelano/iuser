@@ -278,7 +278,9 @@ export default function StoreOrders({
         info: dispatchInfo,
         onCall: (order: any) => setCallDriverOrder(order),
     }
-    const [isOrdersExpanded, setIsOrdersExpanded] = usePersistedExpanded('storeOrders', true)
+    // o card de pedidos fica SEMPRE expandido (decisão do dono): nada de recolher
+    const isOrdersExpanded = true
+    const setIsOrdersExpanded = (_v: boolean) => {}
     // Pedidos de PRODUTOS e pedidos de SERVIÇOS (agendamentos que a loja precisa aceitar; só os aceitos vão para a agenda)
     const [ordersTab, setOrdersTab] = useState<'products' | 'services'>('products')
     const svc = useStoreServiceAppointments(storeId)
@@ -1332,15 +1334,8 @@ export default function StoreOrders({
                         borderRadius: '9999px',
                     }}
                 >
-                    <button
-                        onClick={() => setIsOrdersExpanded(!isOrdersExpanded)}
+                    <div
                         className="flex-1 flex items-center justify-between text-left"
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                        }}
                     >
                         <div className="flex items-center gap-3 min-w-0">
                                 <div className="min-w-0">
@@ -1354,14 +1349,7 @@ export default function StoreOrders({
                                     </p>
                                 </div>
                             </div>
-                        <div className="flex items-center gap-2">
-                            {isOrdersExpanded ? (
-                                <ChevronUp size={22} style={{ color: colors.textSecondary }} />
-                            ) : (
-                                <ChevronDown size={22} style={{ color: colors.textSecondary }} />
-                            )}
-                        </div>
-                    </button>
+                    </div>
                 </div>
 
                 {/* Pedidos de produtos × pedidos de serviços */}

@@ -21,10 +21,12 @@ export interface MyOrder {
     dispatch?: OrderDeliveryInfo | null
     /** retido: ainda procurando entregador, a loja não recebeu o pedido */
     holding?: boolean
+    /** última mudança (do pedido ou da entrega): o que mudou por último fica em destaque na faixa */
+    updatedAt?: string | null
 }
 /** Nome do ícone da etapa (quem desenha escolhe o desenho): espera, cozinha, pacote pronto, procurando motorista, motorista a caminho da loja, na loja, a caminho do cliente */
 export type OrderIcon = 'hourglass' | 'chef' | 'package' | 'search' | 'bike' | 'store' | 'truck'
-export interface StripOrder { key: string; label: string; text: string; color: string; icon: OrderIcon; path: string; step: number }
+export interface StripOrder { key: string; label: string; text: string; color: string; icon: OrderIcon; path: string; step: number; /** o "+N pedidos": a cor de cada pedido que sobrou */ dots?: string[] }
 
 export const isActiveOrderStatus = (s: OrderStatus): boolean => s === 'pending' || s === 'preparing' || s === 'ready'
 
@@ -54,10 +56,12 @@ export function orderStripItems(orders: MyOrder[], max = 2): StripOrder[] {
         if (!st) continue
         items.push({ key: `order-${o.key}`, label: o.storeName || 'Seu pedido', text: st.text, color: st.color, icon: st.icon, path: ORDERS_PATH, step: st.step })
     }
-    items.sort((a, b) => b.step - a.step)
+    // o pedido que MUDOU por último vem primeiro (é ele que predomina na faixa, com a cor dele); empate: a etapa mais adiantada
+    const time = (k: string) => Date.parse(orders.find((o) => `order-${o.key}` === k)?.updatedAt || '') || 0
+    items.sort((a, b) => (time(b.key) - time(a.key)) || (b.step - a.step))
     if (items.length <= max) return items
     const shown = items.slice(0, max - 1)
     const rest = items.slice(max - 1)
-    shown.push({ key: 'order-more', label: '', text: `+${rest.length} ${rest.length === 1 ? 'pedido' : 'pedidos'}`, color: rest[0].color, icon: rest[0].icon, path: ORDERS_PATH, step: 0 })
+    shown.push({ key: 'order-more', label: '', text: `+${rest.length} ${rest.length === 1 ? 'pedido' : 'pedidos'}`, color: rest[0].color, icon: rest[0].icon, path: ORDERS_PATH, step: 0, dots: rest.map((r) => r.color) })
     return shown
 }

@@ -15,17 +15,17 @@ export function useMyActiveOrders(userId: string | null | undefined): MyOrder[] 
         if (!userId) { setOrders([]); return }
         const { data } = await supabase
             .from('orders')
-            .select('id, checkout_id, status, delivery_option, created_at, store_visible, stores(name)')
+            .select('id, checkout_id, status, delivery_option, created_at, updated_at, store_visible, stores(name)')
             .eq('buyer_id', userId)
             .in('status', ['pending', 'preparing', 'ready'])
             .order('created_at', { ascending: false })
             .limit(20)
         const rows = (data as any[]) || []
-        let dispatchBy = new Map<string, { status: string | null; stage: string | null }>()
+        let dispatchBy = new Map<string, { status: string | null; stage: string | null; updated_at: string | null }>()
         const deliveryIds = rows.filter((r) => r.status === 'ready' && r.delivery_option !== 'retirada').map((r) => r.id as string)
         if (deliveryIds.length > 0) {
-            const { data: d } = await supabase.from('order_delivery_dispatches').select('order_id, status, stage').in('order_id', deliveryIds)
-            dispatchBy = new Map(((d as any[]) || []).map((x) => [x.order_id as string, { status: x.status ?? null, stage: x.stage ?? null }]))
+            const { data: d } = await supabase.from('order_delivery_dispatches').select('order_id, status, stage, updated_at').in('order_id', deliveryIds)
+            dispatchBy = new Map(((d as any[]) || []).map((x) => [x.order_id as string, { status: x.status ?? null, stage: x.stage ?? null, updated_at: x.updated_at ?? null }]))
         }
         const seen = new Set<string>()
         const next: MyOrder[] = []
@@ -34,7 +34,10 @@ export function useMyActiveOrders(userId: string | null | undefined): MyOrder[] 
             if (seen.has(key)) continue
             seen.add(key)
             const store = Array.isArray(r.stores) ? r.stores[0] : r.stores
-            next.push({ key, status: r.status, storeName: store?.name || '', delivery: r.delivery_option !== 'retirada', holding: r.store_visible === false, dispatch: dispatchBy.get(r.id) ?? null })
+            // a última mudança: a do pedido ou a da entrega, a que for mais recente
+            const disp = dispatchBy.get(r.id)
+            const updatedAt = [r.updated_at, disp?.updated_at].filter(Boolean).sort().pop() ?? null
+            next.push({ key, status: r.status, storeName: store?.name || '', delivery: r.delivery_option !== 'retirada', holding: r.store_visible === false, dispatch: disp ?? null, updatedAt })
         }
         setOrders((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
     }, [userId])
