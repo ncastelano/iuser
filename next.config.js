@@ -64,7 +64,7 @@ const cspReportOnly = [
 
 const nextConfig = {
   // `*.tela.localhost`: a observação em 3 telas (/tres-telas, só local) abre cada tela num endereço (owner/client/driver.tela.localhost) para guardar uma sessão por tela
-  allowedDevOrigins: ['192.168.1.33', '*.localhost', '*.tela.localhost'], // se necessário, mantenha
+  allowedDevOrigins: ['192.168.1.33', '127.0.0.1', '*.localhost', '*.tela.localhost'], // se necessário, mantenha (127.0.0.1: o recarregamento do dev precisa dele para os botões funcionarem)
 
   env: { NEXT_PUBLIC_IMAGE_BASE: imageBase },
 
