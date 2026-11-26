@@ -313,7 +313,8 @@ export default function DriverProfile(p: DriverProfileProps) {
                             {/* o CARRO INTEIRO (sem cortar), do lado direito; a borda esquerda esfumaça para dentro do cartão, como a barra da v2 */}
                             {vehicle?.photo && (
                                 // a foto cortada num quadro de cantos arredondados que combina com o cartão, encostada no canto direito (sem degradê)
-                                <div className="absolute right-0 top-0 bottom-0 w-[78%] overflow-hidden rounded-bl-[48px]">
+                                <div className="absolute right-0 top-0 bottom-0 w-[78%] rounded-bl-[48px]" style={{ boxShadow: '-6px 8px 18px rgba(0,0,0,0.14)' }}>
+                                    <div className="w-full h-full overflow-hidden rounded-bl-[48px]">
                                     <img
                                         src={vehicle.photo}
                                         alt={vehicle.model || 'Foto do veículo'}
@@ -321,6 +322,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                                         className="w-full h-full object-contain select-none"
                                         style={{ objectPosition: `100% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }}
                                     />
+                                </div>
                                 </div>
                             )}
                             {!vehicle?.photo && <span className="absolute inset-x-0 top-12 bottom-6 flex items-center justify-center" style={{ color: colors.textSecondary, opacity: 0.35 }}><Icon size={84} /></span>}
