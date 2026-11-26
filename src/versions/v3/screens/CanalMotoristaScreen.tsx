@@ -459,7 +459,7 @@ function PainelMotoristaContent() {
             return false
         }
 
-        if (!isAdmin && ((!carPhotoFile && !carPhotoPath) || (!driverPhotoFile && !driverPhotoPath))) {
+        if (!isAdmin && ((!carPhotoFile && !carPhotoPath) || (!driverPhotoFile && !driverPhotoPath && !avatarUrl))) {
             toast.error('A foto do veículo e a sua foto são obrigatórias')
             return false
         }
@@ -476,6 +476,13 @@ function PainelMotoristaContent() {
             }
 
             let driverPhotoPathToSave = driverPhotoPath
+            if (!driverPhotoFile && !driverPhotoPath && avatarUrl) {
+                // padrão: a foto do perfil vira a SUA FOTO do veículo (cópia no bucket da selfie, na pasta da própria pessoa)
+                const blob = await (await fetch(avatarUrl)).blob()
+                const { data, error: uploadError } = await supabase.storage.from('driver-selfie-photos').upload(`${user.id}/${Date.now()}.jpg`, blob, { contentType: blob.type || 'image/jpeg' })
+                if (uploadError) throw uploadError
+                driverPhotoPathToSave = data?.path || null
+            }
             if (driverPhotoFile) {
                 const fileExt = driverPhotoFile.name.split('.').pop()
                 const fileName = `${user.id}/${Date.now()}.${fileExt}`
@@ -549,7 +556,8 @@ function PainelMotoristaContent() {
     }
 
     const carPhotoUrl = carPhotoPreview || (carPhotoPath ? supabase.storage.from('driver-car-photos').getPublicUrl(carPhotoPath).data.publicUrl : null)
-    const driverPhotoUrl = driverPhotoPreview || (driverPhotoPath ? supabase.storage.from('driver-selfie-photos').getPublicUrl(driverPhotoPath).data.publicUrl : null)
+    // sem escolher outra foto, a da SUA FOTO é a do perfil (padrão)
+    const driverPhotoUrl = driverPhotoPreview || (driverPhotoPath ? supabase.storage.from('driver-selfie-photos').getPublicUrl(driverPhotoPath).data.publicUrl : (avatarUrl || null))
     const reviewsAvg = reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null
 
     // ===== COMPLETUDE DO CADASTRO (define se o botão fica amarelo ou verde) =====
@@ -557,7 +565,7 @@ function PainelMotoristaContent() {
     if (!carModel.trim()) missingFields.push('modelo do veículo')
     if (vehicleKind !== 'bicicleta' && !carPlate.trim()) missingFields.push('placa')
     if (!isAdmin && !carPhotoFile && !carPhotoPath) missingFields.push('foto do veículo')
-    if (!isAdmin && !driverPhotoFile && !driverPhotoPath) missingFields.push('sua foto')
+    if (!isAdmin && !driverPhotoFile && !driverPhotoPath && !avatarUrl) missingFields.push('sua foto')
     const isVehicleComplete = missingFields.length === 0
     const hasCompleteVehicle = isVehicleComplete || (Object.values(vehiclesByKind) as VehicleRow[]).some((v) => isVehicleRowComplete(v, isAdmin))
     const driverStatus: 'inactive' | 'incomplete' | 'active' = !driverModeActive
@@ -694,6 +702,13 @@ function PainelMotoristaContent() {
         if (next && !hasDriver) {
             toast.error('Assine o plano Motorista pra ativar esse modo.')
             router.push('/planos?plan=motorista')
+            return
+        }
+        // sem veículo cadastrado o modo não liga: manda para o cadastro do veículo
+        if (next && !((Object.values(vehiclesByKind) as (VehicleRow | undefined)[]).some(Boolean) || isVehicleComplete)) {
+            toast.error('Cadastre seu veículo antes de ligar o modo motorista.')
+            setShowActivationWizard(true)
+            setActiveTab('veiculo')
             return
         }
 
@@ -1524,7 +1539,7 @@ function PainelMotoristaContent() {
                                     <div>
                                         <p className="text-xs font-black" style={{ color: colors.textPrimary }}>Sua foto</p>
                                         <p className={`${'text-xs'}`} style={{ color: colors.textSecondary }}>
-                                            Uma foto sua de rosto, pro passageiro reconhecer quem vai dirigir
+                                            Uma foto sua de rosto, pro passageiro reconhecer quem vai dirigir. Sem escolher outra, usamos a foto do seu perfil.
                                         </p>
                                     </div>
                                 </div>

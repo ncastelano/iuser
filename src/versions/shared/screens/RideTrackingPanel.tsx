@@ -931,7 +931,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         <>
                         {/* Como na 99: cada candidato é um CARRO com nota, tempo e o(s) valor(es) — sem nome, foto, @ nem placa até o passageiro escolher
                             (depois de escolhido aparece a ficha completa do motorista). Se ele mandou mais de um valor, o passageiro toca no que quer. */}
-                        <div className="flex flex-col gap-2">
+                        <div className="flex gap-2.5 overflow-x-auto snap-x -mx-4 px-4 pb-1 scroll-pl-4" style={{ scrollbarWidth: 'none' }}>
                             {candidates.map((c, i) => {
                                 const pickupEtaMin = c.etaMin != null ? Math.max(1, Math.round(c.etaMin)) : null
                                 const destArrival = pickupEtaMin != null ? formatClockTime(new Date(Date.now() + (pickupEtaMin + (ride.duration_min ?? 0)) * 60000)) : null
@@ -942,11 +942,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
                                 const deciding = decidingId === c.applicationId
                                 return (
-                                    <div key={c.applicationId} className="rounded-2xl p-3 flex flex-col gap-2.5 min-w-0" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${color}` }}>
+                                    <div key={c.applicationId} className="snap-start flex-shrink-0 w-[252px] rounded-2xl p-2.5 flex flex-col gap-2 min-w-0" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${color}` }}>
                                         <div className="flex items-center gap-3 min-w-0">
                                             {c.carPhotoUrl
-                                                ? <img src={c.carPhotoUrl} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" alt="" />
-                                                : <span className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}><Car size={24} /></span>}
+                                                ? <img src={c.carPhotoUrl} className="w-11 h-11 rounded-xl object-cover flex-shrink-0" alt="" />
+                                                : <span className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}><Car size={24} /></span>}
                                             <div className="min-w-0 flex-1">
                                                 <p className="text-[14px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{car}</p>
                                                 <p className="text-[12px] font-bold mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5" style={{ color: colors.textSecondary }}>
