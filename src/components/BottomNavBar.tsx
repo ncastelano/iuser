@@ -53,7 +53,7 @@ export interface BarTab { key: string; label: string; icon: ReactNode; active: b
 export interface BarMessage { id: string | number; text: string; description?: string; icon?: string; glyph: string; color: string; action?: { label: string; onClick: () => void } }
 /** Chip da faixa além do carrinho e dos status: a corrida, os pedidos novos da loja... (cada um na sua cor, levando ao seu lugar) */
 /** `label` = o nome da loja (pedido do cliente); `icon` = o ícone da etapa; `step`/`steps` = barrinha de progresso do pedido */
-export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; icon?: string; step?: number; steps?: number; /** pulsa (ex.: procurando motorista) */ hot?: boolean }
+export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; icon?: string; step?: number; steps?: number; /** pulsa (ex.: procurando motorista) */ hot?: boolean; /** o "+N pedidos": uma bolinha na cor de cada pedido que sobrou */ dots?: string[] }
 
 /** Altura da faixa de cima: 1 linha (carrinho ou pedidos) ou 2 (com o pedido privado/ao vivo embaixo). A página reserva essa altura. */
 export function stripHeightFor(extras: BarExtra[], showCart: boolean): number {
@@ -292,11 +292,24 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                                         {x.step ? <span aria-hidden className="absolute left-0 bottom-0 h-[3px] rounded-full" style={{ width: `${Math.min(100, (x.step / (x.steps || 4)) * 100)}%`, background: x.color, transition: 'width 400ms ease' }} /> : null}
                                     </button>
                                         ))}
-                                        {orderItems.length > 1 && (
-                                            <button onClick={() => onGo('/atividade?aba=pedidos')} tabIndex={strip ? 0 : -1} aria-label={`Mais ${orderItems.length - 1} ${orderItems.length - 1 === 1 ? 'pedido' : 'pedidos'}`} className="flex-shrink-0 h-7 px-2.5 rounded-full text-[11px] font-black text-white active:opacity-70" style={{ background: orderItems[0].color }}>
-                                                +{orderItems.length - 1} {orderItems.length - 1 === 1 ? 'pedido' : 'pedidos'}
-                                            </button>
-                                        )}
+                                        {(() => {
+                                            // "+N pedidos": uma bolinha de CADA pedido que sobrou, na cor do status dele (não a cor de um só)
+                                            const more = orderItems.find((x) => x.key === 'order-more')
+                                            const real = orderItems.filter((x) => x.key !== 'order-more')
+                                            const dots = more ? (more.dots || []) : real.slice(1).map((x) => x.color)
+                                            const n = more ? (more.dots?.length || 0) : real.length - 1
+                                            if (n <= 0) return null
+                                            return (
+                                                <button onClick={() => onGo('/atividade?aba=pedidos')} tabIndex={strip ? 0 : -1} aria-label={`Mais ${n} ${n === 1 ? 'pedido' : 'pedidos'}`} className="flex-shrink-0 h-7 px-2.5 rounded-full flex items-center gap-1.5 text-[11px] font-black active:opacity-70" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                                    <span className="flex items-center gap-1">
+                                                        {dots.map((c, i) => (
+                                                            <span key={i} className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c }} />
+                                                        ))}
+                                                    </span>
+                                                    +{n} {n === 1 ? 'pedido' : 'pedidos'}
+                                                </button>
+                                            )
+                                        })()}
                                     </div>
                                 )}
                                 {/* linha 2: o pedido privado (e as corridas/pedidos de loja ao vivo), sem arrastar */}
