@@ -30,6 +30,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             .from('profiles')
             .select('profileSlug, created_at')
             .not('profileSlug', 'is', null)
+            // conta bloqueada não entra no Google
+            .or('is_blocked.is.null,is_blocked.eq.false')
 
         if (profiles) {
             profiles.forEach((p) => {
@@ -49,6 +51,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             .from('stores')
             .select('storeSlug, created_at')
             .eq('is_active', true)
+            // loja privada não entra no Google (só quem é cliente vê)
+            .or('is_private.is.null,is_private.eq.false')
 
         if (stores) {
             stores.forEach((s) => {
