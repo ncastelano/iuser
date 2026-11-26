@@ -57,8 +57,10 @@ function lerSecao(): { k: SecaoKey | null; aba: CatAba | null } {
     return { k: k && k in TIPO_SECAO ? k : null, aba: aba && ['produtos', 'digitais', 'servicos'].includes(aba) ? aba : null }
 }
 
-export default function EditarHub({ store, storeSlug, hasServices, whatsapp, blocos, onShare, onDelete, onStoreChange }: {
+export default function EditarHub({ store, storeSlug, hasServices, whatsapp, blocos, onShare, onDelete, onStoreChange, semIdentidade = false }: {
     store: any
+    /** No painel da loja a identidade (logo, nome, nível, ver como cliente) já está no topo: não repete aqui */
+    semIdentidade?: boolean
     storeSlug: string
     hasServices: boolean
     whatsapp: boolean
@@ -136,7 +138,7 @@ export default function EditarHub({ store, storeSlug, hasServices, whatsapp, blo
     return (
         <div className="pb-6">
             {/* ===== identidade da loja ===== */}
-            <div className="rounded-[28px] p-3.5" style={card}>
+            {!semIdentidade && <div className="rounded-[28px] p-3.5" style={card}>
                 <div className="flex items-center gap-3">
                     <button onClick={() => abrir('dados')} aria-label="Trocar o logo" className="flex-shrink-0">
                         <StoreFrame level={level} size={56} innerRadius={16}>
@@ -157,7 +159,7 @@ export default function EditarHub({ store, storeSlug, hasServices, whatsapp, blo
                     <button onClick={() => router.push(`/${slug}`)} className="h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition" style={{ border: `1px solid ${colors.border}`, color: colors.textPrimary }}><Eye size={14} />Ver como cliente</button>
                     <button onClick={onShare} className="h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 text-white active:scale-95 transition" style={{ background: ORANGE }}><Share2 size={14} />Compartilhar</button>
                 </div>
-            </div>
+            </div>}
 
             {pausada && (
                 <div className="rounded-2xl p-3 mt-3 text-[12px] font-semibold leading-snug flex items-start gap-2" style={{ background: `${colors.border}40`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>

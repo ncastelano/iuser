@@ -540,7 +540,7 @@ export default function StoreDashboard({
     const mdl = parseStoreModel(store.store_model)
     const hasServices = mdl === 'services' || mdl === 'mixed' || !!store.allow_scheduling
     const editarNode = (
-        <EditarHub store={store} storeSlug={storeSlug} hasServices={hasServices} whatsapp={showWhatsAppBot}
+        <EditarHub store={store} storeSlug={storeSlug} hasServices={hasServices} whatsapp={showWhatsAppBot} semIdentidade
             onShare={shareStoreLink} onDelete={() => setShowDeleteStore(true)} onStoreChange={(p) => setStore((prev: any) => ({ ...prev, ...p }))}
             blocos={{
                 dados: descriptionNode,

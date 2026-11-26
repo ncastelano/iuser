@@ -222,7 +222,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 <div className="rounded-3xl overflow-hidden" style={card}>
                     {atencao.map((a, i) => (
                         <button key={a.titulo} onClick={() => (a.ir.startsWith('?secao=') ? pagina.abrir(a.ir.slice(7) as PaginaK) : a.ir === '#gerenciar' ? document.getElementById('gerenciar')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : router.push(a.ir))} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
-                            <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${a.cor}22`, color: a.cor }}>{a.icone}</span>
+                            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${a.cor}26`, color: a.cor }}>{a.icone}</span>
                             <span className="min-w-0 flex-1">
                                 <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.titulo}</span>
                                 <span className="block text-[11.5px] leading-snug" style={{ color: colors.textSecondary }}>{a.sub}</span>
@@ -276,7 +276,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                     { k: 'apoios' as PaginaK, ic: <Heart size={17} />, cor: '#8b5cf6', t: 'Apoios recebidos', sub: att?.tips ? `${att.tips} para conferir` : 'gorjetas dos fãs, por Pix', alerta: !!att?.tips },
                 ]).map((r, i) => (
                     <button key={r.k} onClick={() => { if (r.k === 'extrato') setExtratoIni('mes'); pagina.abrir(r.k) }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
-                        <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${r.cor}22`, color: r.cor }}>{r.ic}</span>
+                        <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${r.cor}26`, color: r.cor }}>{r.ic}</span>
                         <span className="min-w-0 flex-1"><span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{r.t}</span><span className="block text-[11.5px] leading-snug" style={{ color: r.alerta ? '#b45309' : colors.textSecondary }}>{r.sub}</span></span>
                         {r.alerta && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#eab308' }} />}
                         <ChevronRight size={16} style={{ color: colors.textSecondary }} />
@@ -298,34 +298,31 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             {sec('O que dizem da loja', undefined, 'Avaliações e comentários dos clientes')}
             <div><StoreFeedback storeId={store.id} /></div>
 
-            {/* ===== SEU PLANO ===== */}
+            {/* ===== SEU PLANO: as mesmas linhas da edição (ícone, título, estado e seta) ===== */}
             {plan && (
                 <>
                     {sec('Seu plano', undefined, 'Quanto a loja paga ao iUser')}
-                    <button onClick={() => router.push(plan.postpaid ? '/planos/pos-pago' : '/planos')} className="w-full text-left rounded-3xl p-3.5 active:scale-[.99] transition" style={card}>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 h-6 rounded-full text-[11px] font-black text-white flex items-center" style={{ background: plan.postpaid ? ORANGE : '#16a34a' }}>{plan.postpaid ? 'Pós-pago' : 'Pré-pago'}</span>
-                            <span className="text-[11.5px] font-semibold" style={{ color: colors.textSecondary }}>{plan.postpaid ? 'você paga só pelo que usa' : 'mensalidade, sem taxa por venda'}</span>
-                            <ChevronRight size={15} className="ml-auto" style={{ color: colors.textSecondary }} />
-                        </div>
-                        {plan.postpaid && (<>
-                            <div className="flex items-baseline justify-between mt-3"><p className="text-[22px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(plan.debt)}</p><p className="text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>de {limitText(limit)} · limite</p></div>
-                            <span className="block h-2.5 rounded-full overflow-hidden mt-2" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (plan.debt / limit) * 100)}%`, background: plan.debt >= limit ? '#ef4444' : 'linear-gradient(90deg,#f97316,#dc2626)' }} /></span>
-                            {plan.byType.length > 0 && (
-                                <div className="mt-3 flex flex-col gap-1">
-                                    <p className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>O que foi cobrado</p>
-                                    {plan.byType.slice(0, 4).map(([t, v]) => (
-                                        <div key={t} className="flex items-center justify-between text-[12px]">
-                                            <span style={{ color: colors.textPrimary }}>{v.n} × {(TYPE_INFO as any)[t]?.label?.toLowerCase() || t}</span>
-                                            <span className="font-black" style={{ color: colors.textPrimary }}>{brl(v.total)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            <p className="text-[11.5px] font-black mt-2.5" style={{ color: ORANGE }}>Ver tudo e quitar agora →</p>
-                        </>)}
-                        {!plan.postpaid && <p className="text-[12px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>Mensalidade de R$ 100 · nenhuma taxa por venda, pedido ou agendamento.</p>}
-                    </button>
+                    <div className="rounded-3xl overflow-hidden" style={card}>
+                        <button onClick={() => router.push(plan.postpaid ? '/planos/pos-pago' : '/planos')} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70">
+                            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${plan.postpaid ? ORANGE : '#16a34a'}26`, color: plan.postpaid ? ORANGE : '#16a34a' }}><CreditCard size={18} /></span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[13.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>{plan.postpaid ? 'Pós-pago' : 'Pré-pago'}</span>
+                                <span className="block text-[11.5px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>{plan.postpaid ? `${brl(plan.debt)} de ${limitText(limit)} de limite · você paga só pelo que usa` : 'Mensalidade de R$ 100 · sem taxa por venda, pedido ou agendamento'}</span>
+                            </span>
+                            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                        </button>
+                        {plan.postpaid && (
+                            <div className="px-3.5 pb-3">
+                                <span className="block h-2 rounded-full overflow-hidden" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (plan.debt / limit) * 100)}%`, background: plan.debt >= limit ? '#ef4444' : 'linear-gradient(90deg,#f97316,#dc2626)' }} /></span>
+                                {plan.byType.slice(0, 4).map(([t, v]) => (
+                                    <div key={t} className="flex items-center justify-between text-[12px] mt-2" style={{ color: colors.textPrimary }}>
+                                        <span>{v.n} × {(TYPE_INFO as any)[t]?.label?.toLowerCase() || t}</span>
+                                        <span className="font-black">{brl(v.total)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </>
             )}
 
