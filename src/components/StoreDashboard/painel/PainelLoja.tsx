@@ -150,9 +150,13 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
         return a
     }, [att, store.pix_key, plan, limit, slug])
 
-    const sec = (titulo: string, direita?: ReactNode) => (
-        <div className="mb-2 mt-6 flex items-center gap-2">
-            <p className="text-[13px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{titulo}</p>
+    // Cabeçalho de seção: o mesmo da Editar loja (título pequeno em maiúsculas + uma frase do que é), para o painel inteiro
+    const sec = (titulo: string, direita?: ReactNode, dica?: string) => (
+        <div className="mt-6 mb-1.5 flex items-center gap-2">
+            <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>{titulo}</p>
+                {dica && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{dica}</p>}
+            </div>
             <div className="ml-auto">{direita}</div>
         </div>
     )
@@ -169,7 +173,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
     return (
         <div>
             {/* ===== SUA LOJA ===== */}
-            {sec('Sua loja')}
+            {sec('Sua loja', undefined, 'Como a loja aparece para o cliente')}
             <div className="rounded-[28px] p-3.5" style={card}>
                 <div className="flex items-center gap-3">
                     <button onClick={() => setLogoOpen(true)} aria-label="Logo e moldura" className="flex-shrink-0 active:scale-95 transition">
@@ -206,7 +210,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             </div>
 
             {/* ===== PRECISA DE VOCÊ AGORA ===== */}
-            {sec('Precisa de você agora', atencao.length > 0 ? <span className="text-[11px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#22c55e' }}>{atencao.length}</span> : undefined)}
+            {sec('Precisa de você agora', atencao.length > 0 ? <span className="text-[11px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#22c55e' }}>{atencao.length}</span> : undefined, 'O que depende de você hoje')}
             {att === null ? (
                 <div className="rounded-3xl h-16 animate-pulse" style={{ background: `${colors.border}40` }} />
             ) : atencao.length === 0 ? (
@@ -235,7 +239,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             </div>
 
             {/* ===== COMO ESTÁ O DIA (vendas pagas de verdade; o extrato completo abre no mesmo diálogo de sempre) ===== */}
-            {sec('Como está o dia')}
+            {sec('Como está o dia', undefined, 'Vendas pagas de hoje, da semana e do mês')}
             <div className="rounded-3xl p-3" style={card}>
                 <div className="flex gap-1.5 mb-2.5">
                     {periodos.map((p) => (
@@ -264,7 +268,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             {hasServices && <div className="mt-2"><AtalhoCompromissosDaLoja profileSlug={profileSlug} storeId={store.id} storeSlug={slug} /></div>}
 
             {/* ===== DINHEIRO: repasses das entregas, extrato e apoios — cada linha abre a página dela ===== */}
-            {sec('Dinheiro')}
+            {sec('Dinheiro', undefined, 'Repasses das entregas, extrato e apoios')}
             <div className="rounded-3xl overflow-hidden" style={card}>
                 {([
                     { k: 'repasses' as PaginaK, ic: <Banknote size={17} />, cor: '#eab308', t: 'Repasses das entregas', sub: att?.dues ? `${att.dues} para conferir${att.duesAmount ? ` · ${brl(att.duesAmount)}` : ''}` : 'dinheiro da porta, maquininha e contestações', alerta: !!att?.dues },
@@ -286,15 +290,17 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             <div className="mt-2"><StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 /></div>
 
             {/* ===== VISITANTES (em cima das avaliações) ===== */}
-            <div className="mt-6"><StoreVisitors storeId={store.id} /></div>
+            {sec('Visitantes', undefined, 'Quem passou pela loja')}
+            <div><StoreVisitors storeId={store.id} /></div>
 
             {/* ===== O QUE DIZEM DA LOJA ===== */}
-            <div className="mt-2"><StoreFeedback storeId={store.id} /></div>
+            {sec('O que dizem da loja', undefined, 'Avaliações e comentários dos clientes')}
+            <div><StoreFeedback storeId={store.id} /></div>
 
             {/* ===== SEU PLANO ===== */}
             {plan && (
                 <>
-                    {sec('Seu plano')}
+                    {sec('Seu plano', undefined, 'Quanto a loja paga ao iUser')}
                     <button onClick={() => router.push(plan.postpaid ? '/planos/pos-pago' : '/planos')} className="w-full text-left rounded-3xl p-3.5 active:scale-[.99] transition" style={card}>
                         <div className="flex items-center gap-2">
                             <span className="px-2.5 h-6 rounded-full text-[11px] font-black text-white flex items-center" style={{ background: plan.postpaid ? ORANGE : '#16a34a' }}>{plan.postpaid ? 'Pós-pago' : 'Pré-pago'}</span>
@@ -323,7 +329,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             )}
 
             {/* ===== GERENCIAR A LOJA: a própria edição (grupos com o estado de cada coisa), no mesmo painel ===== */}
-            <div id="gerenciar" className="scroll-mt-24">{sec('Gerenciar a loja')}</div>
+            <div id="gerenciar" className="scroll-mt-24">{sec('Gerenciar a loja', undefined, 'Tudo que se configura, com o estado de cada coisa')}</div>
             {gerenciar}
 
             {logoOpen && <LogoFolha storeId={store.id} storeName={store.name} logoUrl={logo} level={pub?.level || 0} onClose={() => setLogoOpen(false)} onSaved={(u) => { setLogo(u); setLogoOpen(false) }} />}
