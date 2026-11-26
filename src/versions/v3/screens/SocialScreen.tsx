@@ -269,7 +269,7 @@ export default function SocialScreen() {
 
                     {/* Novos por aqui */}
                     {!(fresh && fresh.length === 0) && (
-                        <Section colors={colors} icon={UserPlus} title="Novos por aqui" subtitle="Quem acabou de chegar no iUser">
+                        <Section colors={colors} icon={UserPlus} title="Novos por aqui" subtitle="Quem acabou de chegar no iUser" onAll={() => router.push('/todas-as-pessoas')} allLabel="Ver todas">
                             {fresh === null ? <SkelRow colors={colors} w={112} h={150} n={4} /> : <Row>{fresh.map((p) => <PersonTile key={p.id} p={p} colors={colors} onOpen={openPerson} detail={joinedLabel(p.joinedAt).replace('entrou ', '')} />)}</Row>}
                         </Section>
                     )}
