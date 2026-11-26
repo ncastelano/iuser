@@ -811,7 +811,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 destaque, e o resto (tipo de veículo, duração, serviços)
                 só como ícone, tudo numa linha só. */}
             {ride.status === 'accepted' && driver && (
-                <div className="flex flex-col gap-2 px-3 py-2.5 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                <div className="grid grid-cols-2 gap-2 items-start">
+                <div className="flex flex-col gap-2 px-3 py-2.5 rounded-xl min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                     <div className="flex items-center gap-2">
                         <PlanAvatarRing userId={ride.driver_id}>
                         {driver.avatarUrl ? (
@@ -887,6 +888,9 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         </a>
                     )}
                 </div>
+                {/* Tempo de espera ao lado do motorista (sem rolar a tela): o passageiro pede, o motorista aprova */}
+                <RideWaitBox rideId={ride.id} role="passenger" rideStarted={!!ride.ride_started_at} rideActive basePrice={ride.agreed_price ?? driver?.proposedPrice ?? null} />
+                </div>
             )}
 
             {ride.extra_task_fee != null && (
@@ -902,10 +906,6 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 <RideDriverPix rideId={ride.id} driverName={driver.name} amount={ride.agreed_price ?? driver.proposedPrice ?? null} />
             )}
 
-            {/* Tempo de espera (embarque, parada, desembarque): o passageiro pede, o motorista aprova e o relógio anda para os dois */}
-            {ride.status === 'accepted' && driver && (
-                <RideWaitBox rideId={ride.id} role="passenger" rideStarted={!!ride.ride_started_at} rideActive basePrice={ride.agreed_price ?? driver?.proposedPrice ?? null} />
-            )}
 
             {/* Chat com o motorista, enquanto a corrida está aceita */}
             {ride.status === 'accepted' && driver && (
