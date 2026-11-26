@@ -65,6 +65,7 @@ import { callAdminApi } from '@/lib/callAdminApi'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { format, subDays, startOfDay, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
+import InvitedSummary from './InvitedSummary'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -1396,6 +1397,8 @@ export default function ProfileDashboard({
     // as MESMAS cores do cartão de Comissões (a graduação da pessoa → laranja/vermelho do iUser)
     const convidadosTheme = commissionCardTheme(graduation.data?.level)
     const indicacoesNode = (
+        <>
+        <InvitedSummary userId={profile.id} />
         <button onClick={() => router.push('/convidados')} className="mb-6 w-full rounded-2xl p-4 flex items-center gap-3 text-left transition active:scale-[0.99]"
             style={{ background: convidadosTheme.background, boxShadow: `0 14px 34px ${convidadosTheme.shadow}` }}>
             <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: 'rgba(255,255,255,0.18)' }}><UserPlus size={20} /></span>
@@ -1405,6 +1408,7 @@ export default function ProfileDashboard({
             </span>
             <ChevronRight size={20} className="text-white flex-shrink-0" />
         </button>
+        </>
     )
     const visitantesNode = <ProfileVisitors key={profile.id} profileId={profile.id} onLatestUpdate={onVisitantesUpdate} />
 
