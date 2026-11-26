@@ -168,7 +168,7 @@ export default function DriverProfile(p: DriverProfileProps) {
             if (!alive) return
             setQuote(parseQuote(q) || parseQuote({ mode: 'platform' }))
             const vv = v as any
-            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, brand: vv.car_brand || null, plate: vv.car_plate || null, zoom: Math.min(3, Math.max(1, Number(vv.car_photo_zoom) || 1)), model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
+            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, brand: vv.car_brand || null, plate: vv.car_plate || null, zoom: Math.min(3, Math.max(0.6, Number(vv.car_photo_zoom) || 1)), model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
             const s = Array.isArray(st) ? st[0] : st
             setStats(s ? { rides: Number(s.rides_completed) || 0, rating: s.rating_avg != null ? Number(s.rating_avg) : null, ratingCount: Number(s.rating_count) || 0, since: s.member_since || null, store: s.store_slug ? { name: s.store_name, slug: s.store_slug, logo: s.store_logo ? (String(s.store_logo).startsWith('http') ? s.store_logo : supabase.storage.from('store-logos').getPublicUrl(s.store_logo).data.publicUrl) : null } : null } : { rides: 0, rating: null, ratingCount: 0, since: null })
             setReviews(((rv as any[]) || []).map((r) => ({ rating: r.rating, comment: r.comment, at: r.rode_at, from: r.origin, to: r.destination, name: r.reviewer_name, slug: r.reviewer_slug, avatar: r.reviewer_avatar ? getAvatarUrl(supabase, r.reviewer_avatar) || null : null })))
@@ -237,7 +237,7 @@ export default function DriverProfile(p: DriverProfileProps) {
     const saveFraming = async () => {
         if (!vehicle || !pos) return
         setSavingPos(true)
-        const zoom = Math.min(3, Math.max(1, Math.round((zoomDraft ?? vehicle.zoom) * 10) / 10))
+        const zoom = Math.min(3, Math.max(0.6, Math.round((zoomDraft ?? vehicle.zoom) * 10) / 10))
         const { error } = await supabase.from('driver_vehicles').update({ car_photo_pos_x: pos.x, car_photo_pos_y: pos.y, car_photo_zoom: zoom }).eq('driver_id', p.driverId).eq('vehicle_slug', vehicle.slug)
         setSavingPos(false)
         if (error) { toast.error('Não deu para salvar o enquadramento: ' + error.message); return }
@@ -364,9 +364,9 @@ export default function DriverProfile(p: DriverProfileProps) {
                         >
                             <span className="absolute left-1/2 -translate-x-1/2 top-3 h-8 px-3 rounded-full text-[11.5px] font-black text-white flex items-center gap-1.5 shadow pointer-events-none whitespace-nowrap" style={{ background: 'rgba(0,0,0,0.6)' }}><Move size={13} /> Arraste a foto para enquadrar</span>
                             <div className="absolute left-3 bottom-3 flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
-                                <button onClick={() => setZoomDraft((z) => Math.max(1, Math.round(((z ?? vehicle.zoom) - 0.2) * 10) / 10))} aria-label="Diminuir zoom" className="w-10 h-10 rounded-full text-[18px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>−</button>
+                                <button onClick={() => setZoomDraft((z) => Math.max(0.6, Math.round(((z ?? vehicle.zoom) - 0.1) * 10) / 10))} aria-label="Diminuir zoom" className="w-10 h-10 rounded-full text-[18px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>−</button>
                                 <span className="text-[12px] font-black text-white px-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)', padding: '4px 8px' }}>{Math.round((zoomDraft ?? vehicle.zoom) * 100)}%</span>
-                                <button onClick={() => setZoomDraft((z) => Math.min(3, Math.round(((z ?? vehicle.zoom) + 0.2) * 10) / 10))} aria-label="Aumentar zoom" className="w-10 h-10 rounded-full text-[18px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>+</button>
+                                <button onClick={() => setZoomDraft((z) => Math.min(3, Math.round(((z ?? vehicle.zoom) + 0.1) * 10) / 10))} aria-label="Aumentar zoom" className="w-10 h-10 rounded-full text-[18px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>+</button>
                             </div>
                             <div className="absolute right-3 bottom-3 flex gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
                                 <button onClick={() => { setFraming(false); setPos(null); setZoomDraft(null) }} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>Cancelar</button>
