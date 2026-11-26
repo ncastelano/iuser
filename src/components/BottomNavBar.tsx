@@ -53,7 +53,7 @@ export interface BarTab { key: string; label: string; icon: ReactNode; active: b
 export interface BarMessage { id: string | number; text: string; description?: string; icon?: string; glyph: string; color: string; action?: { label: string; onClick: () => void } }
 /** Chip da faixa além do carrinho e dos status: a corrida, os pedidos novos da loja... (cada um na sua cor, levando ao seu lugar) */
 /** `label` = o nome da loja (pedido do cliente); `icon` = o ícone da etapa; `step`/`steps` = barrinha de progresso do pedido */
-export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; icon?: string; step?: number; steps?: number; /** pulsa (ex.: procurando motorista) */ hot?: boolean; /** o "+N pedidos": uma bolinha na cor de cada pedido que sobrou */ dots?: string[] }
+export interface BarExtra { key: string; text: string; color: string; path: string; label?: string; icon?: string; step?: number; steps?: number; /** pulsa (ex.: procurando motorista) */ hot?: boolean; /** o "+N pedidos": quantos pedidos em cada status (um badge por status) */ counts?: { color: string; n: number }[] }
 
 /** Altura da faixa de cima: 1 linha (carrinho ou pedidos) ou 2 (com o pedido privado/ao vivo embaixo). A página reserva essa altura. */
 export function stripHeightFor(extras: BarExtra[], showCart: boolean): number {
@@ -296,17 +296,16 @@ export default function BottomNavBar({ colors, tabs, cartCount, cartTotal, cartE
                                             // "+N pedidos": uma bolinha de CADA pedido que sobrou, na cor do status dele (não a cor de um só)
                                             const more = orderItems.find((x) => x.key === 'order-more')
                                             const real = orderItems.filter((x) => x.key !== 'order-more')
-                                            const dots = more ? (more.dots || []) : real.slice(1).map((x) => x.color)
-                                            const n = more ? (more.dots?.length || 0) : real.length - 1
+                                            const counts = more ? (more.counts || []) : (() => { const m = new Map<string, number>(); real.slice(1).forEach((x) => m.set(x.color, (m.get(x.color) || 0) + 1)); return Array.from(m, ([color, n]) => ({ color, n })) })()
+                                            const n = counts.reduce((a, c) => a + c.n, 0)
                                             if (n <= 0) return null
                                             return (
-                                                <button onClick={() => onGo('/atividade?aba=pedidos')} tabIndex={strip ? 0 : -1} aria-label={`Mais ${n} ${n === 1 ? 'pedido' : 'pedidos'}`} className="flex-shrink-0 h-7 px-2.5 rounded-full flex items-center gap-1.5 text-[11px] font-black active:opacity-70" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                                    <span className="flex items-center gap-1">
-                                                        {dots.map((c, i) => (
-                                                            <span key={i} className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c }} />
-                                                        ))}
-                                                    </span>
-                                                    +{n} {n === 1 ? 'pedido' : 'pedidos'}
+                                                // botão NEUTRO (não é a cor de nenhum status); os badges mostram cada status e quantos pedidos há nele
+                                                <button onClick={() => onGo('/atividade?aba=pedidos')} tabIndex={strip ? 0 : -1} aria-label={`Mais ${n} ${n === 1 ? 'pedido' : 'pedidos'}: ${counts.map((c) => c.n).join(', ')}`} className="flex-shrink-0 h-7 px-2 rounded-full flex items-center gap-1.5 text-[11px] font-black active:opacity-70" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                                    <span className="text-[11px] font-black">+{n} {n === 1 ? 'pedido' : 'pedidos'}</span>
+                                                    {counts.map((c, i) => (
+                                                        <span key={i} className="h-[18px] min-w-[20px] px-1.5 rounded-full flex items-center justify-center text-[10.5px] font-black text-white" style={{ background: c.color }}>{c.n}</span>
+                                                    ))}
                                                 </button>
                                             )
                                         })()}

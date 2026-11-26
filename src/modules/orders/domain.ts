@@ -26,7 +26,7 @@ export interface MyOrder {
 }
 /** Nome do ícone da etapa (quem desenha escolhe o desenho): espera, cozinha, pacote pronto, procurando motorista, motorista a caminho da loja, na loja, a caminho do cliente */
 export type OrderIcon = 'hourglass' | 'chef' | 'package' | 'search' | 'bike' | 'store' | 'truck'
-export interface StripOrder { key: string; label: string; text: string; color: string; icon: OrderIcon; path: string; step: number; /** o "+N pedidos": a cor de cada pedido que sobrou */ dots?: string[] }
+export interface StripOrder { key: string; label: string; text: string; color: string; icon: OrderIcon; path: string; step: number; /** o "+N pedidos": quantos pedidos sobraram em CADA status (um badge por status, na cor do status) */ counts?: { color: string; n: number }[] }
 
 export const isActiveOrderStatus = (s: OrderStatus): boolean => s === 'pending' || s === 'preparing' || s === 'ready'
 
@@ -62,6 +62,10 @@ export function orderStripItems(orders: MyOrder[], max = 2): StripOrder[] {
     if (items.length <= max) return items
     const shown = items.slice(0, max - 1)
     const rest = items.slice(max - 1)
-    shown.push({ key: 'order-more', label: '', text: `+${rest.length} ${rest.length === 1 ? 'pedido' : 'pedidos'}`, color: rest[0].color, icon: rest[0].icon, path: ORDERS_PATH, step: 0, dots: rest.map((r) => r.color) })
+    // um badge por status: a cor do status e quantos pedidos estão nele (o botão em si é neutro)
+    const byColor = new Map<string, number>()
+    for (const r of rest) byColor.set(r.color, (byColor.get(r.color) || 0) + 1)
+    const counts = Array.from(byColor, ([color, n]) => ({ color, n }))
+    shown.push({ key: 'order-more', label: '', text: `+${rest.length} ${rest.length === 1 ? 'pedido' : 'pedidos'}`, color: rest[0].color, icon: rest[0].icon, path: ORDERS_PATH, step: 0, counts })
     return shown
 }
