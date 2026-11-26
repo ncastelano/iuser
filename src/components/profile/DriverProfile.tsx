@@ -29,7 +29,7 @@ import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { platformFloor } from '@/modules/negotiation'
-import { vehicleFullName, vehicleName } from '@/lib/vehicleName'
+import { vehicleName } from '@/lib/vehicleName'
 import { etaFromViewer, etaText, parseQuote, quoteModeClientLabel, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote, type QuoteMode } from '@/modules/driver-profile'
 import { loadMyLocation } from '@/lib/myLocation'
 import { getCurrentPosition } from '@/lib/nativeGeolocation'
@@ -301,7 +301,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                 fundo do cartão por um degradê; em cima o voltar e a situação; embaixo, sobre o degradê, a foto à esquerda e o nome, o @, o nível e o veículo à
                 direita. O 1/3 de baixo é compacto: o que o carro tem, os números numa linha e os botões ===== */}
             <section className="rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
-                <div className="relative h-[240px]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})` }}>
+                <div className="relative h-[270px] overflow-hidden" style={{ background: `${colors.border}38` }}>
                     {quote?.live ? (
                         <>
                             {/* o logo e os créditos do Mapbox ficam VISÍVEIS (termos): em cima, à direita, abaixo da situação (embaixo entram a foto e o nome) */}
@@ -311,17 +311,10 @@ export default function DriverProfile(p: DriverProfileProps) {
                     ) : (
                         <>
                             {/* o CARRO INTEIRO (sem cortar), do lado direito; a borda esquerda esfumaça para dentro do cartão, como a barra da v2 */}
-                            {vehicle?.photo && <img src={vehicle.photo} alt="" draggable={false} className="absolute right-0 top-0 bottom-0 w-[74%] h-full object-contain select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%`, WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 34%)', maskImage: 'linear-gradient(to right, transparent 0%, #000 34%)' }} />}
-                            {!vehicle?.photo && <span className="absolute inset-x-0 top-6 bottom-28 flex items-center justify-center text-white/30"><Icon size={84} /></span>}
+                            {vehicle?.photo && <img src={vehicle.photo} alt={vehicle.model || 'Foto do veículo'} draggable={false} className="absolute inset-x-3 top-9 bottom-1 w-[calc(100%-1.5rem)] h-[calc(100%-2.5rem)] object-contain select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%`, mixBlendMode: 'multiply' }} />}
+                            {!vehicle?.photo && <span className="absolute inset-x-0 top-12 bottom-6 flex items-center justify-center" style={{ color: colors.textSecondary, opacity: 0.35 }}><Icon size={84} /></span>}
                         </>
                     )}
-                    {/* o degradê que leva a imagem para dentro do cartão (some enquanto o dono enquadra a foto) */}
-                    {/* com foto: o carro fica livre e só a parte esquerda esfumaça (onde estão o avatar e o nome); sem foto, o degradê de sempre */}
-                    {!framing && vehicle?.photo && <span aria-hidden className="absolute inset-y-0 left-0 w-[62%] pointer-events-none" style={{ background: `linear-gradient(to right, ${colors.surface} 0%, ${colors.surface} 38%, transparent 100%)` }} />}
-                    {!framing && vehicle?.photo && <span aria-hidden className="absolute inset-x-0 bottom-0 h-[30%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface} 100%)` }} />}
-                    {!framing && !vehicle?.photo && <span aria-hidden className="absolute inset-x-0 bottom-0 h-[58%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface}cc 55%, ${colors.surface} 100%)` }} />}
-                    {!framing && <span aria-hidden className="absolute inset-x-0 top-0 h-16 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.35), transparent)' }} />}
-
                     {/* em cima: o voltar e a situação */}
                     {p.onBack && (
                         <button onClick={p.onBack} aria-label="Voltar" className="absolute left-3 top-3 z-10 w-10 h-10 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}>
@@ -336,26 +329,6 @@ export default function DriverProfile(p: DriverProfileProps) {
                         <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setFraming(true) }} aria-label="Enquadrar a foto do veículo" className="absolute right-3 top-14 z-10 w-9 h-9 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
                             <Move size={17} />
                         </button>
-                    )}
-
-                    {/* embaixo, sobre o degradê: a foto à esquerda; nome, @, nível e o veículo à direita */}
-                    {!framing && (
-                        <div className="absolute left-4 right-4 bottom-3 z-10 flex items-end gap-3">
-                            {/* sem fundo branco por baixo da borda: o anel fica direto sobre o cartão */}
-                            <div className="rounded-full flex-shrink-0 p-1">{p.avatarSlot}</div>
-                            <div className="min-w-0 flex-1 pb-1">
-                                <h1 className="text-[22px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</h1>
-                                <div className="flex items-center gap-2 mt-0.5 min-w-0">
-                                    <span className="text-[12.5px] truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span>
-                                    {p.levelSlot}
-                                </div>
-                                {vehicle && (
-                                    <span className="mt-1.5 inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-black max-w-full" style={{ background: `${GREEN}1f`, color: GREEN }}>
-                                        <Icon size={13} className="flex-shrink-0" /><span className="truncate">{KIND_LABEL[kind]}{vehicleName(vehicle) ? ` · ${vehicleName(vehicle)}` : ''}{vehicle.plate ? ` · ${vehicle.plate.toUpperCase()}` : ''}{vehicle.color ? ` ${vehicle.color}` : ''}</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
                     )}
 
                     {framing && vehicle && (
@@ -382,6 +355,25 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </div>
                     )}
                 </div>
+
+                {/* a foto do motorista sobre a borda da foto do carro; nome, @, nível e o veículo ao lado (sem placa) */}
+                {!framing && (
+                    <div className="relative z-10 -mt-11 px-4 flex items-end gap-3">
+                        <div className="rounded-full flex-shrink-0" style={{ boxShadow: `0 0 0 4px ${colors.surface}` }}>{p.avatarSlot}</div>
+                        <div className="min-w-0 flex-1 pb-0.5">
+                            <h1 className="text-[22px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</h1>
+                            <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                                <span className="text-[12.5px] truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span>
+                                {p.levelSlot}
+                            </div>
+                            {vehicle && (
+                                <span className="mt-1.5 inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-black max-w-full" style={{ background: `${GREEN}1f`, color: GREEN }}>
+                                    <Icon size={13} className="flex-shrink-0" /><span className="truncate">{KIND_LABEL[kind]}{vehicleName(vehicle) ? ` · ${vehicleName(vehicle)}` : ''}{vehicle.color ? ` ${vehicle.color}` : ''}</span>
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* o 1/3 de baixo, compacto */}
                 <div className="px-4 pb-4 pt-1 flex flex-col gap-2.5">
@@ -654,7 +646,7 @@ function OwnerCarMapToggle({ vehicle, live, colors, Icon, mapToken }: { vehicle:
                 )}
             </span>
             <span className="min-w-0 flex-1 px-3 py-2 flex flex-col justify-center">
-                <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{[vehicleFullName(vehicle, ''), vehicle.color].filter(Boolean).join(' · ') || 'Seu veículo'}</span>
+                <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{[vehicleName(vehicle, ''), vehicle.color].filter(Boolean).join(' · ') || 'Seu veículo'}</span>
                 <span className="block text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>
                     {canMap ? (onMap ? 'Mapa: onde o carro está (aproximado). Toque para ver o carro' : 'Foto do veículo. Toque para ver o mapa') : live ? 'Foto do veículo (o mapa precisa de chave do Mapbox)' : 'Foto do veículo. O mapa aparece quando você ligar o modo motorista'}
                 </span>

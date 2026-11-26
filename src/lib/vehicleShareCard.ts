@@ -6,7 +6,7 @@
 // Nenhuma imagem é gerada por motorista. Nada de posição, disponibilidade ao vivo nem dado pessoal: a prévia
 // fica guardada em cache pelo app que recebeu o link, então só entra o que não muda de hora em hora.
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { vehicleFullName } from '@/lib/vehicleName'
+import { vehicleName } from '@/lib/vehicleName'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { getEffectivePricing, type DriverPricingRow } from '@/lib/driverPricing'
 
@@ -70,9 +70,9 @@ export async function loadVehicleShareData(slug: string): Promise<VehicleShareDa
         slug: v.vehicle_slug,
         kind,
         kindLabel: KIND_LABEL[kind] || 'Veículo',
-        model: vehicleFullName(v, KIND_LABEL[kind] || 'Veículo'),
+        model: vehicleName(v, KIND_LABEL[kind] || 'Veículo'),
         color: v.car_color || null,
-        plate: v.car_plate ? String(v.car_plate).toUpperCase() : null,
+        plate: null,   // a placa NUNCA aparece na prévia pública: só na hora em que a corrida é aceita
         capacity: v.passenger_capacity ?? null,
         services: Array.isArray(v.services) ? v.services : [],
         carPhotoUrl: storageUrl('driver-car-photos', v.car_photo_url),
