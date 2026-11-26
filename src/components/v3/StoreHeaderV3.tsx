@@ -177,10 +177,10 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     const follow = p.canFollow ? (
                         <button
                             onClick={p.onFollowToggle}
-                            className="flex-shrink-0 px-4 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
+                            className={`flex-1 px-4 ${big}`}
                             style={p.isFollowing ? { background: soft, color: colors.textPrimary } : { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` }}
                         >
-                            {p.isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
+                            {p.isFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}
                             {p.isFollowing ? 'Seguindo' : 'Seguir'}
                         </button>
                     ) : null

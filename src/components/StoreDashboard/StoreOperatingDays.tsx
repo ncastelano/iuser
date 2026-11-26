@@ -71,6 +71,8 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [isExpanded, setIsExpanded] = usePersistedExpanded('storeOperatingDays', true)
+    // dia que acabou de ser ajustado (tocou em Pronto): os outros dias podem copiar o mesmo horário
+    const [copyFrom, setCopyFrom] = useState<string | null>(null)
 
     // ===== ESTADO PARA STATUS ATUAL =====
     const [isOpen, setIsOpen] = useState(false)
@@ -174,6 +176,20 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
             // Atualiza o status em tempo real
             updateCurrentStatus(newWeekly, blockedDates)
             return newWeekly
+        })
+    }
+
+    // copia o horário de um dia para outros e já os deixa abertos (uma atualização só)
+    const copyDayTo = (fromId: string, toIds: string[]) => {
+        setWeekly((prev: any) => {
+            const src = prev[fromId]
+            if (!src) return prev
+            const next = { ...prev }
+            toIds.forEach((id) => {
+                next[id] = { ...(prev[id] || {}), isOpen: true, start: src.start, end: src.end, lunchStart: src.lunchStart || '', lunchEnd: src.lunchEnd || '' }
+            })
+            updateCurrentStatus(next, blockedDates)
+            return next
         })
     }
 
@@ -408,6 +424,35 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                         </div>
                     )}
 
+                    {/* Copiar o horário que acabou de ser ajustado para os outros dias (sem digitar de novo) */}
+                    {copyFrom && weekly[copyFrom] && (() => {
+                        const src = weekly[copyFrom]
+                        const nome = WEEKDAYS.find((d) => d.id === copyFrom)?.name || ''
+                        const outros = WEEKDAYS.filter((d) => d.id !== copyFrom)
+                        const lunch = src.lunchStart && src.lunchEnd ? ` · almoço ${src.lunchStart.slice(0, 5)}–${src.lunchEnd.slice(0, 5)}` : ''
+                        return (
+                            <div className="rounded-2xl p-3 relative z-10" style={{ background: '#f9731614', border: '1px solid #f9731655' }}>
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="text-[12.5px] font-black" style={{ color: textPrimary }}>Usar o mesmo horário nos outros dias?</p>
+                                        <p className="text-[11px] mt-0.5" style={{ color: textSecondary }}>{nome}: {src.start.slice(0, 5)} – {src.end.slice(0, 5)}{lunch}</p>
+                                    </div>
+                                    <button onClick={() => setCopyFrom(null)} className="text-[11px] font-black px-2.5 h-7 rounded-full flex-shrink-0" style={{ background: `${colors.border}50`, color: textPrimary }}>Fechar</button>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 mt-2.5">
+                                    {outros.map((d) => (
+                                        <button key={d.id} onClick={() => copyDayTo(copyFrom, [d.id])} className="text-[11.5px] font-black px-3 h-8 rounded-full active:scale-95" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: textPrimary }}>
+                                            + {d.name}
+                                        </button>
+                                    ))}
+                                    <button onClick={() => copyDayTo(copyFrom, outros.map((d) => d.id))} className="text-[11.5px] font-black px-3 h-8 rounded-full text-white active:scale-95" style={{ background: GRADIENT }}>
+                                        Todos os dias
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })()}
+
                     {/* Dias da semana */}
                     <div className={`${'space-y-2'} relative z-10`}>
                         {WEEKDAYS.map((day) => {
@@ -459,7 +504,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                                             </button>
                                             {dayConfig.isOpen && (
                                                 <button
-                                                    onClick={() => setEditingDay(editing ? null : day.id)}
+                                                    onClick={() => { if (editing) setCopyFrom(day.id); setEditingDay(editing ? null : day.id) }}
                                                     className="text-[11px] font-black px-3 h-8 rounded-full flex-shrink-0"
                                                     style={{ background: editing ? GRADIENT : `${colors.border}50`, color: editing ? '#fff' : textPrimary }}
                                                 >
