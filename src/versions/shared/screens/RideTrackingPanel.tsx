@@ -24,7 +24,7 @@ import CandidateNegotiation from '@/components/negotiation/CandidateNegotiation'
 import CarAmenities from '@/components/ride/CarAmenities'
 import RideDriverPix from '@/components/ride/RideDriverPix'
 import { loadOffers, type PriceOffer } from '@/modules/negotiation'
-import { platformFloor } from '@/modules/negotiation/domain'
+import { DEFAULT_MIN_PER_MINUTE, platformFloor } from '@/modules/negotiation/domain'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -139,7 +139,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     // propostas de cada motorista (histórico da negociação); as de agora definem o que a tela mostra
     const [offers, setOffers] = useState<PriceOffer[]>([])
     const minPerMinute = useRideMinimum()
-    const tripMinAmount = platformFloor(ride?.duration_min ?? null, minPerMinute, undefined, ride?.distance_km ?? null)
+    // o mínimo da corrida NUNCA pode ficar em zero: enquanto o mínimo por minuto carrega, vale o padrão da plataforma
+    const tripMinAmount = platformFloor(ride?.duration_min ?? null, minPerMinute ?? DEFAULT_MIN_PER_MINUTE, undefined, ride?.distance_km ?? null)
     const [tripRouteCoords, setTripRouteCoords] = useState<[number, number][] | null>(null)
     const [driver, setDriver] = useState<DriverInfo | null>(null)
     const [decidingId, setDecidingId] = useState<string | null>(null)
