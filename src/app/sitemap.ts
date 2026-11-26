@@ -26,17 +26,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     try {
         // 1. Buscar perfis
-        const { data: profiles } = await supabase
-            .from('profiles')
-            .select('profileSlug, created_at')
-            .not('profileSlug', 'is', null)
-            // conta bloqueada não entra no Google
-            .or('is_blocked.is.null,is_blocked.eq.false')
+        // (função do banco, só o serviço: conta bloqueada e perfil sem endereço já saem de lá — não entra no Google)
+        const { data: profiles } = await supabase.rpc('seo_public_profiles')
 
         if (profiles) {
-            profiles.forEach((p) => {
+            profiles.forEach((p: { profile_slug: string; created_at: string | null }) => {
                 sitemaps.push({
-                    url: `${baseUrl}/${p.profileSlug}`,
+                    url: `${baseUrl}/${p.profile_slug}`,
                     lastModified: p.created_at ? new Date(p.created_at) : new Date(),
                     changeFrequency: 'weekly',
                     priority: 0.8,

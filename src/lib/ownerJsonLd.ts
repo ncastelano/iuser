@@ -50,17 +50,15 @@ export async function buildOwnerJsonLd(ownerSlug: string): Promise<Record<string
     }
 
     // 2) perfil público (pessoa)
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('name, profileSlug, avatar_url, is_active, is_blocked')
-        .eq('profileSlug', ownerSlug)
-        .maybeSingle()
+    // a leitura passa pela função do banco (só o serviço): as colunas de bloqueio não saem da tabela
+    const { data: profileRows } = await supabase.rpc('seo_profile_card', { p_slug: ownerSlug })
+    const profile = Array.isArray(profileRows) ? profileRows[0] : null
     if (profile && profile.is_active !== false && !profile.is_blocked) {
         return {
             '@context': 'https://schema.org',
             '@type': 'Person',
-            name: profile.name || `@${profile.profileSlug}`,
-            alternateName: `@${profile.profileSlug}`,
+            name: profile.name || `@${profile.profile_slug}`,
+            alternateName: `@${profile.profile_slug}`,
             url,
             image: publicImage('avatars', profile.avatar_url),
         }
