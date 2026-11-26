@@ -11,7 +11,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
 import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Store, MessageSquare, Share2, Bike, Motorbike } from 'lucide-react'
-import { fetchRoute } from '@/lib/mapboxRoute'
+import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import RideChat from '@/components/RideChat'
 import { kindForRideType, VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
@@ -582,6 +582,45 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         }
     }, [rideStatus, rideDriverId])
 
+    // ROTA AO VIVO do motorista até o próximo ponto (embarque antes de começar; destino depois), refeita a cada ~15 s ou quando o carro andou
+    // 120 m. Dela saem o tempo e os horários de chegada (que mudam quando o carro para) e a linha que o passageiro vê no mapa.
+    const [liveRoute, setLiveRoute] = useState<{ coords: [number, number][]; toNextMin: number } | null>(null)
+    const liveRouteAtRef = useRef(0)
+    const liveRouteFromRef = useRef<[number, number] | null>(null)
+    useEffect(() => {
+        if (!driverLiveCoords || !ride || ride.status !== 'accepted' || ride.origin_lat == null || ride.origin_lng == null || ride.destination_lat == null || ride.destination_lng == null) {
+            setLiveRoute(null)
+            return
+        }
+        const started = !!ride.ride_started_at
+        const target: [number, number] = started ? [ride.destination_lng, ride.destination_lat] : [ride.origin_lng, ride.origin_lat]
+        const from = liveRouteFromRef.current
+        const movedM = from ? haversineKm(from, driverLiveCoords) * 1000 : Infinity
+        const due = Date.now() - liveRouteAtRef.current > 15000 || movedM > 120
+        if (!due) return
+        liveRouteAtRef.current = Date.now()
+        liveRouteFromRef.current = driverLiveCoords
+        fetchRoute(driverLiveCoords, target)
+            .then((r) => setLiveRoute({ coords: r.coords, toNextMin: r.durationMin }))
+            .catch(() => {})
+    }, [driverLiveCoords, ride])
+
+    // a linha da rota ao vivo no mapa do passageiro (tracejada, azul): atualiza sem recriar o mapa
+    useEffect(() => {
+        if (!map || !mapReady) return
+        const id = 'live-driver-route'
+        if (!liveRoute) {
+            if (map.getLayer(id)) map.removeLayer(id)
+            if (map.getSource(id)) map.removeSource(id)
+            return
+        }
+        const data = { type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: liveRoute.coords } }
+        const src = map.getSource(id)
+        if (src) { (src as unknown as { setData: (d: unknown) => void }).setData(data); return }
+        map.addSource(id, { type: 'geojson', data })
+        map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#3b82f6', 'line-width': 5, 'line-dasharray': [1.2, 1.4] } })
+    }, [map, mapReady, liveRoute])
+
     // Marcador do motorista no mapa — separado do efeito principal acima pra
     // não reconstruir rotas/candidatos a cada atualização de posição.
     useEffect(() => {
@@ -794,6 +833,17 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         {bigStatus.label}
                     </span>
                 )}
+                {ride.status === 'accepted' && liveRoute && (() => {
+                    const agora = Date.now()
+                    const chega = formatClockTime(new Date(agora + liveRoute.toNextMin * 60000))
+                    const termina = ride.ride_started_at ? null : formatClockTime(new Date(agora + (liveRoute.toNextMin + (ride.duration_min ?? 0)) * 60000))
+                    return (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#3b82f61a', color: '#2563eb' }}>
+                            <Clock size={11} />
+                            {ride.ride_started_at ? `Chega ao destino às ${chega}` : `Motorista chega às ${chega}${termina ? ` · termina às ${termina}` : ''}`}
+                        </span>
+                    )
+                })()}
                 {ride.status === 'accepted' && driver && driver.ratingCount > 0 && (
                     <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#f9731615', color: '#f97316' }} title={`${driver.ratingCount} avaliação${driver.ratingCount > 1 ? 'ões' : ''}`}>
                         {'★'.repeat(roundedDriverRating)}{'☆'.repeat(5 - roundedDriverRating)} {(driver.ratingAvg || 0).toFixed(1)}

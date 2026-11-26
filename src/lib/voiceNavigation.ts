@@ -8,14 +8,15 @@
 import { useEffect, useRef } from 'react'
 import { fetchRouteWithSteps, haversineKm, type RouteStep } from '@/lib/mapboxRoute'
 
-// Fala uma frase, cortando o que estivesse sendo dito antes — sem isso, uma
-// manobra atrás da outra empilharia e o motorista ouviria tudo atrasado.
-export function speak(text: string) {
+// Fala uma frase. Se já há uma frase sendo dita, só corta quando é a MESMA (ou quando a nova é urgente):
+// cancelar a cada atualização de GPS é o que fazia a voz "travar" e voltar.
+export function speak(text: string, urgent = false) {
     if (typeof window === 'undefined') return
     const synth = window.speechSynthesis
     if (!synth) return
     try {
-        synth.cancel()
+        if (synth.speaking && !urgent) return
+        if (synth.speaking) synth.cancel()
         const utter = new SpeechSynthesisUtterance(text)
         utter.lang = 'pt-BR'
         utter.rate = 1
@@ -61,10 +62,19 @@ interface UseVoiceNavigationParams {
 export function useVoiceNavigation({ enabled, active, driverCoords, targetCoords, legKey, introMessage }: UseVoiceNavigationParams) {
     const stepsRef = useRef<RouteStep[]>([])
     const nextIndexRef = useRef(0)
-    const announcedFarRef = useRef<Set<number>>(new Set())
+    // o que já foi falado/passado nesta etapa, por manobra: refazer a rota (a cada 60 s) NÃO faz repetir as instruções
+    const doneRef = useRef<Set<string>>(new Set())
+    const lastSaidRef = useRef<{ text: string; at: number }>({ text: '', at: 0 })
     const lastLegKeyRef = useRef<string | null>(null)
     const lastFetchAtRef = useRef(0)
     const fetchingRef = useRef(false)
+
+    const say = (text: string) => {
+        const now = Date.now()
+        if (text === lastSaidRef.current.text && now - lastSaidRef.current.at < 20000) return
+        lastSaidRef.current = { text, at: now }
+        speak(text)
+    }
 
     useEffect(() => {
         if (!enabled || !active || !driverCoords || !targetCoords || !legKey) {
@@ -84,9 +94,9 @@ export function useVoiceNavigation({ enabled, active, driverCoords, targetCoords
                 .then((result) => {
                     stepsRef.current = result?.steps || []
                     nextIndexRef.current = 0
-                    announcedFarRef.current = new Set()
-                    if (legChanged && stepsRef.current.length > 0) {
-                        speak(introMessage || 'Iniciando orientação por voz.')
+                    if (legChanged) {
+                        doneRef.current = new Set()
+                        if (stepsRef.current.length > 0) say(introMessage || 'Iniciando orientação por voz.')
                     }
                 })
                 .finally(() => {
@@ -96,22 +106,30 @@ export function useVoiceNavigation({ enabled, active, driverCoords, targetCoords
         }
 
         const steps = stepsRef.current
-        const idx = nextIndexRef.current
+        const keyFor = (k: number, tag: string) => {
+            const loc = steps[k].location
+            return `${legKey}|${loc[0].toFixed(5)},${loc[1].toFixed(5)}|${tag}`
+        }
+        let idx = nextIndexRef.current
+        while (idx < steps.length && doneRef.current.has(keyFor(idx, 'passed'))) idx++
+        nextIndexRef.current = idx
         if (idx >= steps.length) return
 
         const step = steps[idx]
         const meters = haversineKm(driverCoords, step.location) * 1000
+        const farKey = keyFor(idx, 'far')
+        const nearKey = keyFor(idx, 'near')
 
-        if (meters <= ANNOUNCE_FAR_M && !announcedFarRef.current.has(idx)) {
-            announcedFarRef.current.add(idx)
-            speak(`${distancePhrase(meters)}, ${step.instruction}.`)
-        } else if (meters <= ANNOUNCE_NEAR_M && announcedFarRef.current.has(idx) && !announcedFarRef.current.has(-idx - 1)) {
-            // Segundo aviso, mais perto — marcado num "slot" separado (índice negativo) pra não confundir com o primeiro.
-            announcedFarRef.current.add(-idx - 1)
-            speak(step.instruction + '.')
+        if (meters <= ANNOUNCE_FAR_M && !doneRef.current.has(farKey)) {
+            doneRef.current.add(farKey)
+            say(`${distancePhrase(meters)}, ${step.instruction}.`)
+        } else if (meters <= ANNOUNCE_NEAR_M && doneRef.current.has(farKey) && !doneRef.current.has(nearKey)) {
+            doneRef.current.add(nearKey)
+            say(step.instruction + '.')
         }
 
         if (meters <= PASS_M) {
+            doneRef.current.add(keyFor(idx, 'passed'))
             nextIndexRef.current = idx + 1
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
