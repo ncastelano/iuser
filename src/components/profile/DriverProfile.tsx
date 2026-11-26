@@ -45,7 +45,7 @@ const ORANGE_DARK = '#ea580c'
 const KIND_LABEL = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' } as const
 type Kind = keyof typeof KIND_LABEL
 
-interface Vehicle { slug: string; kind: Kind; brand: string | null; plate: string | null; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null; posX: number; posY: number }
+interface Vehicle { slug: string; kind: Kind; brand: string | null; plate: string | null; zoom: number; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null; posX: number; posY: number }
 interface Stats { rides: number; rating: number | null; ratingCount: number; since: string | null
     /** a loja da pessoa, se ela tiver uma ativa (também é motorista) */
     store?: { name: string; slug: string; logo: string | null } | null
@@ -145,6 +145,8 @@ export default function DriverProfile(p: DriverProfileProps) {
     // ENQUADRAR A FOTO (só o dono): arrastar a foto do veículo até o ângulo certo; guarda o ponto que fica no centro (0 a 100, o object-position)
     const [framing, setFraming] = useState(false)
     const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+    // zoom que o dono está escolhendo enquanto enquadra (null = ainda não mexeu)
+    const [zoomDraft, setZoomDraft] = useState<number | null>(null)
     const [savingPos, setSavingPos] = useState(false)
     const drag = useRef<{ px: number; py: number; x: number; y: number; w: number; h: number } | null>(null)
     // onde está quem vê a página: o GPS (só se o navegador já deixou, sem perguntar) ou o local salvo; sem nenhum, não mostra o tempo
@@ -158,7 +160,7 @@ export default function DriverProfile(p: DriverProfileProps) {
         void (async () => {
             const [{ data: q }, { data: v }, { data: st }, { data: rv }] = await Promise.all([
                 supabase.rpc('get_driver_public_quote', { p_driver: p.driverId }),
-                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_brand, car_model, car_plate, car_color, car_photo_url, services, passenger_capacity, has_baby_seat, car_photo_pos_x, car_photo_pos_y').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_brand, car_model, car_plate, car_color, car_photo_url, services, passenger_capacity, has_baby_seat, car_photo_pos_x, car_photo_pos_y, car_photo_zoom').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
                 supabase.rpc('get_driver_public_stats', { p_driver: p.driverId }),
                 supabase.rpc('get_driver_reviews', { p_driver: p.driverId, p_limit: 20 }),
                 loadPlatformTariffs(supabase).then(() => { if (alive) setTariffsReady(true) }),
@@ -166,7 +168,7 @@ export default function DriverProfile(p: DriverProfileProps) {
             if (!alive) return
             setQuote(parseQuote(q) || parseQuote({ mode: 'platform' }))
             const vv = v as any
-            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, brand: vv.car_brand || null, plate: vv.car_plate || null, model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
+            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, brand: vv.car_brand || null, plate: vv.car_plate || null, zoom: Math.min(3, Math.max(1, Number(vv.car_photo_zoom) || 1)), model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
             const s = Array.isArray(st) ? st[0] : st
             setStats(s ? { rides: Number(s.rides_completed) || 0, rating: s.rating_avg != null ? Number(s.rating_avg) : null, ratingCount: Number(s.rating_count) || 0, since: s.member_since || null, store: s.store_slug ? { name: s.store_name, slug: s.store_slug, logo: s.store_logo ? (String(s.store_logo).startsWith('http') ? s.store_logo : supabase.storage.from('store-logos').getPublicUrl(s.store_logo).data.publicUrl) : null } : null } : { rides: 0, rating: null, ratingCount: 0, since: null })
             setReviews(((rv as any[]) || []).map((r) => ({ rating: r.rating, comment: r.comment, at: r.rode_at, from: r.origin, to: r.destination, name: r.reviewer_name, slug: r.reviewer_slug, avatar: r.reviewer_avatar ? getAvatarUrl(supabase, r.reviewer_avatar) || null : null })))
@@ -235,11 +237,12 @@ export default function DriverProfile(p: DriverProfileProps) {
     const saveFraming = async () => {
         if (!vehicle || !pos) return
         setSavingPos(true)
-        const { error } = await supabase.from('driver_vehicles').update({ car_photo_pos_x: pos.x, car_photo_pos_y: pos.y }).eq('driver_id', p.driverId).eq('vehicle_slug', vehicle.slug)
+        const zoom = Math.min(3, Math.max(1, Math.round((zoomDraft ?? vehicle.zoom) * 10) / 10))
+        const { error } = await supabase.from('driver_vehicles').update({ car_photo_pos_x: pos.x, car_photo_pos_y: pos.y, car_photo_zoom: zoom }).eq('driver_id', p.driverId).eq('vehicle_slug', vehicle.slug)
         setSavingPos(false)
         if (error) { toast.error('Não deu para salvar o enquadramento: ' + error.message); return }
-        setVehicle({ ...vehicle, posX: pos.x, posY: pos.y })
-        setFraming(false); setPos(null)
+        setVehicle({ ...vehicle, posX: pos.x, posY: pos.y, zoom })
+        setFraming(false); setPos(null); setZoomDraft(null)
         toast.success('Foto enquadrada')
     }
 
@@ -319,7 +322,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                                         alt={vehicle.model || 'Foto do veículo'}
                                         draggable={false}
                                         className="absolute inset-0 w-full h-full object-cover select-none"
-                                        style={{ objectPosition: `50% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }}
+                                        style={(() => { const f = framing && pos ? pos : { x: vehicle.posX, y: vehicle.posY }; const z = framing ? (zoomDraft ?? vehicle.zoom) : vehicle.zoom; return { objectPosition: `${f.x}% ${f.y}%`, transform: `scale(${z})`, transformOrigin: `${f.x}% ${f.y}%` } })()}
                                     />
                                     <span aria-hidden className="absolute inset-x-0 bottom-0 h-[38%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface}cc 60%, ${colors.surface} 100%)` }} />
                                 </>
@@ -336,10 +339,10 @@ export default function DriverProfile(p: DriverProfileProps) {
                     <span className="absolute right-3 top-3 z-10 h-8 px-3 rounded-full text-[11.5px] font-black text-white flex items-center gap-1.5 shadow" style={{ background: active ? GREEN : 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
                         <span className={`w-1.5 h-1.5 rounded-full bg-white ${active ? 'animate-pulse' : 'opacity-60'}`} />{active ? 'Dirigindo agora' : 'Fora do ar agora'}
                     </span>
-                    {/* o dono enquadra a foto: o ícone de mover, logo abaixo da situação */}
+                    {/* o dono enquadra a foto: botão no meio do topo, entre o voltar e a situação (posição e zoom) */}
                     {owner && !quote?.live && vehicle?.photo && !framing && (
-                        <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setFraming(true) }} aria-label="Enquadrar a foto do veículo" className="absolute right-3 top-14 z-10 w-9 h-9 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
-                            <Move size={17} />
+                        <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setZoomDraft(vehicle.zoom); setFraming(true) }} className="absolute left-1/2 -translate-x-1/2 top-3 z-10 h-10 px-4 rounded-full text-[12px] font-black text-white flex items-center gap-1.5 shadow transition active:scale-95" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+                            <Move size={15} /> Enquadrar
                         </button>
                     )}
 
@@ -360,8 +363,13 @@ export default function DriverProfile(p: DriverProfileProps) {
                             onPointerCancel={() => { drag.current = null }}
                         >
                             <span className="absolute left-1/2 -translate-x-1/2 top-3 h-8 px-3 rounded-full text-[11.5px] font-black text-white flex items-center gap-1.5 shadow pointer-events-none whitespace-nowrap" style={{ background: 'rgba(0,0,0,0.6)' }}><Move size={13} /> Arraste a foto para enquadrar</span>
+                            <div className="absolute left-3 bottom-3 flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+                                <button onClick={() => setZoomDraft((z) => Math.max(1, Math.round(((z ?? vehicle.zoom) - 0.2) * 10) / 10))} aria-label="Diminuir zoom" className="w-10 h-10 rounded-full text-[18px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>−</button>
+                                <span className="text-[12px] font-black text-white px-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)', padding: '4px 8px' }}>{Math.round((zoomDraft ?? vehicle.zoom) * 100)}%</span>
+                                <button onClick={() => setZoomDraft((z) => Math.min(3, Math.round(((z ?? vehicle.zoom) + 0.2) * 10) / 10))} aria-label="Aumentar zoom" className="w-10 h-10 rounded-full text-[18px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>+</button>
+                            </div>
                             <div className="absolute right-3 bottom-3 flex gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
-                                <button onClick={() => { setFraming(false); setPos(null) }} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>Cancelar</button>
+                                <button onClick={() => { setFraming(false); setPos(null); setZoomDraft(null) }} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>Cancelar</button>
                                 <button onClick={saveFraming} disabled={savingPos} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white shadow disabled:opacity-60" style={{ background: GREEN }}>{savingPos ? 'Salvando…' : 'Salvar'}</button>
                             </div>
                         </div>
