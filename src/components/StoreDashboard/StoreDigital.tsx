@@ -19,7 +19,16 @@ export default function StoreDigital({ storeId, storeSlug, hasPix, v3 = false }:
 
     const gap = 'mb-6'
     // onde se mexe nos produtos e no Clube: na 3.0, em Editar loja; na 2.0 está tudo na mesma página
-    const manage = () => router.push(`/editar-loja/${encodeURIComponent(storeSlug)}`)
+    // Abre o Catálogo na aba Digitais DENTRO do painel (a edição da loja mora ali, embaixo de "Gerenciar a loja"):
+    // muda o endereço (?secao=catalogo&aba=digitais), avisa a edição e rola até ela. Não sai da página.
+    const manage = () => {
+        const q = new URLSearchParams(window.location.search)
+        q.set('secao', 'catalogo')
+        q.set('aba', 'digitais')
+        window.history.pushState(window.history.state, '', `${window.location.pathname}?${q}`)
+        window.dispatchEvent(new PopStateEvent('popstate'))
+        document.getElementById('gerenciar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
     const card = { background: colors.surface, border: `1px solid ${colors.border}` } as const
     const soft = `${colors.border}40`
 
