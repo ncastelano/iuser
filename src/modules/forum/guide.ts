@@ -139,11 +139,12 @@ export const GUIDE: GuideGroup[] = [
                 steps: [
                     'Toque em "Criar minha loja", dê o nome, escolha o modelo (produtos, atendimento, os dois, ou loja de criador) e a categoria.',
                     'Em Editar loja, preencha: logo, descrição, horários, chave Pix, como entrega, e "Quem vende" (nome e CPF/CNPJ, pedido pela lei).',
-                    'Cadastre produtos e serviços. Dá para montar combos com desconto em Promoções.',
+                    'Cadastre produtos e serviços. Ao tocar em "Vender produto", o iUser pergunta em qual loja ele vai (ou se é uma loja nova). Dá para montar combos com desconto em Promoções.',
                     'No Painel, acompanhe os pedidos: aceitar, preparar, pronto. Confirme os Pix que chegarem.',
                     'Imprima o QR do cardápio para as mesas e o balcão em "QR na mesa".',
                 ],
                 rules: [
+                    'Cada pessoa pode ter até 3 lojas sem pagar. A partir da 4ª, cada loja custa R$ 50.',
                     'Loja privada: em Editar loja → Quem pode ver a loja. Ela some das listas e da busca; quem abre o link só pode pedir para ser cliente, e você aceita ou recusa. Quem já comprou ou agendou é aprovado sozinho.',
                     'O cliente paga direto a você; o iUser não segura nem repassa o dinheiro dos pedidos.',
                     'Quem vende remédio, bebida alcoólica, gás ou tabaco precisa declarar que tem as licenças.',

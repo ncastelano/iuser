@@ -66,7 +66,7 @@ export default function PainelLojaPage() {
             ) : (
                 <>
                     <div className="-mx-4">
-                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} view="painel" showDebtBanner={false} previewLogo={store.logo} previewName={store.name} />
+                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} showDebtBanner={false} previewLogo={store.logo} previewName={store.name} />
                     </div>
                 </>
             )}

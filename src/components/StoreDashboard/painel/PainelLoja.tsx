@@ -31,7 +31,6 @@ import StoreDigital from '../StoreDigital'
 import StoreFeedback from '../StoreFeedback'
 import StoreVisitors from '../StoreVisitors'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
-import { gerenciarItens, rotaPropria, SELO } from './gerenciar'
 import { TYPE_INFO } from '@/components/planos/PostpaidFees'
 import LogoFolha from './LogoFolha'
 import BalcaoV3 from './BalcaoV3'
@@ -50,7 +49,7 @@ const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', curren
 
 type Metrics = { daily: { revenue: number; orders: number }; weekly: { revenue: number; orders: number }; monthly: { revenue: number; orders: number } }
 
-export default function PainelLoja({ store, storeSlug, profileSlug, userId, metrics, paidOrders, onOpenExtract, onShare, onOrderCountsChange, onSaleCompleted }: {
+export default function PainelLoja({ store, storeSlug, profileSlug, userId, metrics, paidOrders, onOpenExtract, onShare, onOrderCountsChange, onSaleCompleted, gerenciar }: {
     store: any
     storeSlug: string
     profileSlug: string
@@ -61,12 +60,13 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
     onShare: () => void
     onOrderCountsChange?: (c: any) => void
     onSaleCompleted: () => void
+    /** A edição da loja (grupos Sobre a loja · O que você vende · ...), que mora dentro do painel */
+    gerenciar: ReactNode
 }) {
     const { colors } = useTheme()
     const router = useRouter()
     const card = { background: colors.surface, border: `1px solid ${colors.border}` }
     const slug = store.storeSlug || storeSlug
-    const editar = `/editar-loja/${encodeURIComponent(slug)}`
     const limit = usePostpaidLimit()
     // páginas que abrem a partir do painel (?secao=): extrato completo, repasses das entregas e apoios recebidos
     const pagina = useSecaoUrl(PAGINAS)
@@ -145,10 +145,10 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
         if (att?.dues) a.push({ cor: '#eab308', icone: <Banknote size={17} />, titulo: `${att.dues} ${att.dues === 1 ? 'repasse' : 'repasses'} para conferir`, sub: att.duesAmount > 0 ? `${brl(att.duesAmount)} que os entregadores dizem ter repassado` : 'Confira se recebeu e confirme', ir: '?secao=repasses', rotulo: 'Conferir' })
         if (att?.tips) a.push({ cor: '#8b5cf6', icone: <Heart size={17} />, titulo: `${att.tips} ${att.tips === 1 ? 'apoio' : 'apoios'} para conferir`, sub: 'Fãs dizem que mandaram um Pix: confira na sua conta', ir: '?secao=apoios', rotulo: 'Conferir' })
         if (att?.chats) a.push({ cor: '#16a34a', icone: <MessageCircle size={17} />, titulo: `${att.chats} ${att.chats === 1 ? 'conversa' : 'conversas'} sem resposta`, sub: 'Clientes falando com a loja', ir: `/conversas?sala=${encodeURIComponent(slug)}`, rotulo: 'Responder' })
-        if (!store.pix_key) a.push({ cor: '#ef4444', icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse', ir: `${editar}?secao=pagamento`, rotulo: 'Cadastrar' })
+        if (!store.pix_key) a.push({ cor: '#ef4444', icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse', ir: '#gerenciar', rotulo: 'Cadastrar' })
         if (plan?.postpaid && plan.debt >= limit) a.push({ cor: '#ef4444', icone: <AlertCircle size={17} />, titulo: 'O Pós-pago chegou ao limite', sub: `Quite ${brl(plan.debt)} para continuar vendendo`, ir: '/planos/pos-pago', rotulo: 'Quitar' })
         return a
-    }, [att, store.pix_key, plan, limit, slug, editar])
+    }, [att, store.pix_key, plan, limit, slug])
 
     const sec = (titulo: string, direita?: ReactNode) => (
         <div className="mb-2 mt-6 flex items-center gap-2">
@@ -158,7 +158,6 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
     )
 
     // ---------- Gerenciar a loja: a MESMA lista do Editar loja, cada atalho abre direto a folha/página dele ----------
-    const tiles = gerenciarItens(store, hasServices, { agendaNoPainel: true })
 
     const periodos: { k: SalesPeriod; l: string; m: { revenue: number; orders: number }; ex: ExtractPeriod }[] = [
         { k: 'hoje', l: 'Hoje', m: metrics.daily, ex: 'daily' },
@@ -199,7 +198,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                     </div>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                    {[['Ver loja', <Eye key="a" size={14} />, () => router.push(`/${slug}`)], ['Compartilhar', <Share2 key="b" size={14} />, onShare], ['Editar', <Settings key="c" size={14} />, () => router.push(editar)]].map(([t, ic, fn], i) => (
+                    {[['Ver loja', <Eye key="a" size={14} />, () => router.push(`/${slug}`)], ['Compartilhar', <Share2 key="b" size={14} />, onShare], ['Editar', <Settings key="c" size={14} />, () => document.getElementById('gerenciar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })]].map(([t, ic, fn], i) => (
                         <button key={String(t)} onClick={fn as () => void} className="h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition"
                             style={i === 2 ? { background: ORANGE, color: '#fff' } : { background: `${colors.border}50`, color: colors.textPrimary }}>{ic as ReactNode}{t as string}</button>
                     ))}
@@ -218,7 +217,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             ) : (
                 <div className="rounded-3xl overflow-hidden" style={card}>
                     {atencao.map((a, i) => (
-                        <button key={a.titulo} onClick={() => (a.ir.startsWith('?secao=') ? pagina.abrir(a.ir.slice(7) as PaginaK) : router.push(a.ir))} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                        <button key={a.titulo} onClick={() => (a.ir.startsWith('?secao=') ? pagina.abrir(a.ir.slice(7) as PaginaK) : a.ir === '#gerenciar' ? document.getElementById('gerenciar')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : router.push(a.ir))} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
                             <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${a.cor}22`, color: a.cor }}>{a.icone}</span>
                             <span className="min-w-0 flex-1">
                                 <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.titulo}</span>
@@ -286,6 +285,12 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             {/* ===== DIGITAL E CLUBE ===== */}
             <div className="mt-2"><StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 /></div>
 
+            {/* ===== VISITANTES (em cima das avaliações) ===== */}
+            <div className="mt-6"><StoreVisitors storeId={store.id} /></div>
+
+            {/* ===== O QUE DIZEM DA LOJA ===== */}
+            <div className="mt-2"><StoreFeedback storeId={store.id} /></div>
+
             {/* ===== SEU PLANO ===== */}
             {plan && (
                 <>
@@ -317,32 +322,9 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 </>
             )}
 
-            {/* ===== O QUE DIZEM DA LOJA ===== */}
-            <div className="mt-6"><StoreFeedback storeId={store.id} /></div>
-
-            {/* ===== VISITANTES ===== */}
-            <div className="mt-2"><StoreVisitors storeId={store.id} /></div>
-
-            {/* ===== GERENCIAR A LOJA (tudo que é configuração mora em Editar loja) ===== */}
-            {sec('Gerenciar a loja')}
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mb-2 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SELO.on }} />Ligado</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SELO.off }} />Desligado</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SELO.warn }} />Precisa de atenção</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-                {tiles.map((g) => {
-                    const apagado = g.est === 'off'
-                    return (
-                        <button key={g.k} onClick={() => router.push(rotaPropria(g.k, slug) || `${editar}?secao=${g.k}`)} className="relative rounded-3xl p-3 text-left active:scale-95 transition" style={{ background: apagado ? colors.surface : `${g.cor}14`, border: `1.5px solid ${apagado ? colors.border : `${g.cor}55`}`, opacity: apagado ? 0.75 : 1 }}>
-                            <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full" style={{ background: SELO[g.est] }} />
-                            <span className="w-9 h-9 rounded-2xl flex items-center justify-center" style={{ background: apagado ? `${colors.border}60` : `${g.cor}26`, color: apagado ? colors.textSecondary : g.cor }}>{g.ic}</span>
-                            <span className="block text-[12.5px] font-black leading-tight mt-2" style={{ color: colors.textPrimary }}>{g.t}</span>
-                            <span className="block text-[10.5px] leading-tight mt-0.5" style={{ color: g.est === 'warn' ? '#dc2626' : colors.textSecondary }}>{g.texto}</span>
-                        </button>
-                    )
-                })}
-            </div>
+            {/* ===== GERENCIAR A LOJA: a própria edição (grupos com o estado de cada coisa), no mesmo painel ===== */}
+            <div id="gerenciar" className="scroll-mt-24">{sec('Gerenciar a loja')}</div>
+            {gerenciar}
 
             {logoOpen && <LogoFolha storeId={store.id} storeName={store.name} logoUrl={logo} level={pub?.level || 0} onClose={() => setLogoOpen(false)} onSaved={(u) => { setLogo(u); setLogoOpen(false) }} />}
             {pagina.secao === 'extrato' && <ExtratoCompleto storeId={store.id} storeName={store.name} inicial={extratoIni} onClose={pagina.fechar} />}

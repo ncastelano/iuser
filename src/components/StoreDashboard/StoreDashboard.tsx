@@ -66,7 +66,6 @@ export default function StoreDashboard({
     showDebtBanner = true,
     previewLogo,
     previewName,
-    view,
 }: {
     profileSlug: string
     storeSlug: string
@@ -81,8 +80,6 @@ export default function StoreDashboard({
     /** Logo e nome que a página já conhece: o esqueleto de carregamento (3.0) já mostra em "Informações da loja" */
     previewLogo?: string | null
     previewName?: string | null
-    /** `painel`: o "comando do dia" da loja (/painel-loja/<slug>) · `editar`: informações e preferências (/editar-loja/<slug>) */
-    view: 'painel' | 'editar'
 }) {
     const { colors } = useTheme()
 
@@ -539,36 +536,33 @@ export default function StoreDashboard({
         </>
     )
 
-    // ===== PAINEL DA 3.0 (/painel-loja/<slug>): o "comando do dia" aprovado no laboratório /painel-teste, com os dados de verdade =====
-    if (view === 'painel') return (
+    // ===== PAINEL DA LOJA (/painel-loja/<slug>): o comando do dia + a EDIÇÃO da loja embaixo de "Gerenciar a loja" (mesclado: não há mais página separada) =====
+    const mdl = parseStoreModel(store.store_model)
+    const hasServices = mdl === 'services' || mdl === 'mixed' || !!store.allow_scheduling
+    const editarNode = (
+        <EditarHub store={store} storeSlug={storeSlug} hasServices={hasServices} whatsapp={showWhatsAppBot}
+            onShare={shareStoreLink} onDelete={() => setShowDeleteStore(true)} onStoreChange={(p) => setStore((prev: any) => ({ ...prev, ...p }))}
+            blocos={{
+                dados: descriptionNode,
+                vendedor: <StoreSellerInfo storeId={store.id} onSaved={loadDashboard} />,
+                horarios: <StoreOperatingDays storeId={store.id} />,
+                regras: <StoreDepositEditor storeId={store.id} />,
+                entrega: <><StoreDeliverySettings storeId={store.id} onRefresh={loadDashboard} /><div className="mt-4"><StoreFavoriteDrivers storeId={store.id} v3 /></div></>,
+                pagamento: <StorePaymentMethods storeId={store.id} onRefresh={loadDashboard} />,
+                clube: <StoreClubVip storeId={store.id} />,
+                whatsapp: showWhatsAppBot ? <StoreWhatsAppBot storeId={store.id} /> : null,
+                equipe: <Employee employees={employees} employeeRoutes={employeeRoutes} assignmentMap={new Map()} expandedEmployee={expandedEmployee} onToggleExpand={setExpandedEmployee} storeId={store.id} storeName={store.name} onRefresh={loadEmployees} />,
+                publicacoes: <Publication storeId={store.id} />,
+                promocoes: <StorePromotions storeId={store.id} />,
+            }} />
+    )
+    return (
         <div className="w-full px-4 md:px-6 pb-28">
             {showDebtBanner && <DriverDebtBanner userId={userId} />}
             <PainelLoja store={store} storeSlug={storeSlug} profileSlug={profileSlug} userId={userId} metrics={metrics} paidOrders={paidOrders}
-                onOpenExtract={setExtractPeriod} onShare={shareStoreLink} onOrderCountsChange={onOrderCountsChange} onSaleCompleted={() => { loadDashboardInner().catch(() => {}) }} />
+                onOpenExtract={setExtractPeriod} onShare={shareStoreLink} onOrderCountsChange={onOrderCountsChange} onSaleCompleted={() => { loadDashboardInner().catch(() => {}) }}
+                gerenciar={editarNode} />
             {extractPeriod && <StoreSalesExtractDialog storeId={store.id} storeName={store.name} period={extractPeriod} onClose={() => setExtractPeriod(null)} />}
-        </div>
-    )
-
-    // ===== EDITAR LOJA DA 3.0 (/editar-loja/<slug>): a central agrupada do laboratório, com folhas e páginas que reaproveitam os blocos de sempre =====
-    const mdl = parseStoreModel(store.store_model)
-    const hasServices = mdl === 'services' || mdl === 'mixed' || !!store.allow_scheduling
-    return (
-        <div className="w-full px-4 md:px-6 pb-28">
-            <EditarHub store={store} storeSlug={storeSlug} hasServices={hasServices} whatsapp={showWhatsAppBot}
-                onShare={shareStoreLink} onDelete={() => setShowDeleteStore(true)} onStoreChange={(p) => setStore((prev: any) => ({ ...prev, ...p }))}
-                blocos={{
-                    dados: descriptionNode,
-                    vendedor: <StoreSellerInfo storeId={store.id} onSaved={loadDashboard} />,
-                    horarios: <StoreOperatingDays storeId={store.id} />,
-                    regras: <StoreDepositEditor storeId={store.id} />,
-                    entrega: <><StoreDeliverySettings storeId={store.id} onRefresh={loadDashboard} /><div className="mt-4"><StoreFavoriteDrivers storeId={store.id} v3 /></div></>,
-                    pagamento: <StorePaymentMethods storeId={store.id} onRefresh={loadDashboard} />,
-                    clube: <StoreClubVip storeId={store.id} />,
-                    whatsapp: showWhatsAppBot ? <StoreWhatsAppBot storeId={store.id} /> : null,
-                    equipe: <Employee employees={employees} employeeRoutes={employeeRoutes} assignmentMap={new Map()} expandedEmployee={expandedEmployee} onToggleExpand={setExpandedEmployee} storeId={store.id} storeName={store.name} onRefresh={loadEmployees} />,
-                    publicacoes: <Publication storeId={store.id} />,
-                    promocoes: <StorePromotions storeId={store.id} />,
-                }} />
             {showDeleteStore && (
                 <DeleteConfirmDialog
                     title={`Excluir ${store.name}`}
