@@ -15,7 +15,7 @@ import {
     Users, X, Check, Gauge, Calendar, Clock, CheckCircle2, ArrowRight, Wallet, Share2, Radio, PhoneCall, Maximize2,
 } from 'lucide-react'
 import { toast } from '@/lib/toast'
-import { vehicleFullName, vehicleName } from '@/lib/vehicleName'
+import { vehicleName } from '@/lib/vehicleName'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -259,7 +259,6 @@ export default function VehicleScreen() {
         const cases = sizes(vehicle.trunk_suitcases_pequena, vehicle.trunk_suitcases_media, vehicle.trunk_suitcases_grande)
         if (bags) chips.push({ icon: <ShoppingBag size={12} />, text: `Bolsas ${bags}`, title: 'Bolsas no porta-malas (P, M, G)' })
         if (cases) chips.push({ icon: <Luggage size={12} />, text: `Malas ${cases}`, title: 'Malas no porta-malas (P, M, G)' })
-        if (vehicle.car_plate) chips.push({ icon: <Hash size={12} />, text: vehicle.car_plate, title: 'Placa' })
         if (chips.length === 0) return null
         return (
             <div className="flex flex-wrap gap-1" aria-label="O que o carro tem">
@@ -356,7 +355,7 @@ export default function VehicleScreen() {
                         )}
                         <h1 className="text-xl font-black leading-tight text-white line-clamp-2">{title}</h1>
                         <p className="text-xs font-bold text-white/85 truncate">
-                            {[vehicle.car_color, ownerView ? vehicle.car_plate : null].filter(Boolean).join(' · ')}
+                            {[vehicle.car_color].filter(Boolean).join(' · ')}
                         </p>
                     </div>
                 </div>

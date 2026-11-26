@@ -7,7 +7,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { vehicleFullName } from '@/lib/vehicleName'
+import { vehicleName } from '@/lib/vehicleName'
 import { Bike, Car, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
@@ -51,7 +51,7 @@ export function useDriverVehicle(driverId: string | null | undefined): DriverVeh
             setState({ id: driverId, info: {
                 slug: (v as any).vehicle_slug,
                 kind,
-                model: vehicleFullName(v as any, '') || null,
+                model: vehicleName(v as any, '') || null,
                 color: (v as any).car_color || null,
                 photo: photoUrl((v as any).car_photo_url || null),
                 // "Dirigindo agora": modo ligado E posição recente (10 min), igual ao perfil do motorista

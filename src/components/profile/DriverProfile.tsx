@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { ArrowLeft, Bike, Eye, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
+import { ArrowLeft, Bike, Eye, Maximize2, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -29,7 +29,7 @@ import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
 import { platformFloor } from '@/modules/negotiation'
-import { vehicleFullName, vehicleName } from '@/lib/vehicleName'
+import { vehicleName } from '@/lib/vehicleName'
 import { etaFromViewer, etaText, parseQuote, quoteModeClientLabel, quoteExamples, quoteModeLabel, quoteRule, type DriverQuote, type QuoteMode } from '@/modules/driver-profile'
 import { loadMyLocation } from '@/lib/myLocation'
 import { getCurrentPosition } from '@/lib/nativeGeolocation'
@@ -37,6 +37,7 @@ import { isGeoPermissionGranted } from '@/components/AceitarCorridas/LocationAsk
 import ChatContactButton from '@/components/ChatContactButton'
 import CarAmenities from '@/components/ride/CarAmenities'
 import DriverSkeleton from '@/components/v3/DriverSkeleton'
+import ImageZoomDialog from '@/components/ImageZoomDialog'
 
 const GREEN = '#16a34a'
 const GREEN_DARK = '#15803d'
@@ -45,7 +46,7 @@ const ORANGE_DARK = '#ea580c'
 const KIND_LABEL = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' } as const
 type Kind = keyof typeof KIND_LABEL
 
-interface Vehicle { slug: string; kind: Kind; brand: string | null; plate: string | null; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null; posX: number; posY: number }
+interface Vehicle { slug: string; kind: Kind; brand: string | null; plate: string | null; zoom: number; model: string | null; color: string | null; photo: string | null; services: string[]; seats: number | null; babySeat: boolean | null; posX: number; posY: number }
 interface Stats { rides: number; rating: number | null; ratingCount: number; since: string | null
     /** a loja da pessoa, se ela tiver uma ativa (também é motorista) */
     store?: { name: string; slug: string; logo: string | null } | null
@@ -145,6 +146,10 @@ export default function DriverProfile(p: DriverProfileProps) {
     // ENQUADRAR A FOTO (só o dono): arrastar a foto do veículo até o ângulo certo; guarda o ponto que fica no centro (0 a 100, o object-position)
     const [framing, setFraming] = useState(false)
     const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+    // zoom que o dono está escolhendo enquanto enquadra (null = ainda não mexeu)
+    const [zoomDraft, setZoomDraft] = useState<number | null>(null)
+    // cliente: foto do carro em tela cheia com zoom (ImageZoomDialog)
+    const [zoomPhoto, setZoomPhoto] = useState(false)
     const [savingPos, setSavingPos] = useState(false)
     const drag = useRef<{ px: number; py: number; x: number; y: number; w: number; h: number } | null>(null)
     // onde está quem vê a página: o GPS (só se o navegador já deixou, sem perguntar) ou o local salvo; sem nenhum, não mostra o tempo
@@ -158,7 +163,7 @@ export default function DriverProfile(p: DriverProfileProps) {
         void (async () => {
             const [{ data: q }, { data: v }, { data: st }, { data: rv }] = await Promise.all([
                 supabase.rpc('get_driver_public_quote', { p_driver: p.driverId }),
-                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_brand, car_model, car_plate, car_color, car_photo_url, services, passenger_capacity, has_baby_seat, car_photo_pos_x, car_photo_pos_y').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+                supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_brand, car_model, car_plate, car_color, car_photo_url, services, passenger_capacity, has_baby_seat, car_photo_pos_x, car_photo_pos_y, car_photo_zoom').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
                 supabase.rpc('get_driver_public_stats', { p_driver: p.driverId }),
                 supabase.rpc('get_driver_reviews', { p_driver: p.driverId, p_limit: 20 }),
                 loadPlatformTariffs(supabase).then(() => { if (alive) setTariffsReady(true) }),
@@ -166,7 +171,7 @@ export default function DriverProfile(p: DriverProfileProps) {
             if (!alive) return
             setQuote(parseQuote(q) || parseQuote({ mode: 'platform' }))
             const vv = v as any
-            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, brand: vv.car_brand || null, plate: vv.car_plate || null, model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
+            setVehicle(vv ? { slug: vv.vehicle_slug, kind: (vv.vehicle_kind || 'carro') as Kind, brand: vv.car_brand || null, plate: vv.car_plate || null, zoom: Math.min(3, Math.max(0.6, Number(vv.car_photo_zoom) || 1)), model: vv.car_model, color: vv.car_color, photo: carPhoto(vv.car_photo_url), services: vv.services || [], seats: vv.passenger_capacity, babySeat: vv.has_baby_seat, posX: vv.car_photo_pos_x ?? 50, posY: vv.car_photo_pos_y ?? 50 } : null)
             const s = Array.isArray(st) ? st[0] : st
             setStats(s ? { rides: Number(s.rides_completed) || 0, rating: s.rating_avg != null ? Number(s.rating_avg) : null, ratingCount: Number(s.rating_count) || 0, since: s.member_since || null, store: s.store_slug ? { name: s.store_name, slug: s.store_slug, logo: s.store_logo ? (String(s.store_logo).startsWith('http') ? s.store_logo : supabase.storage.from('store-logos').getPublicUrl(s.store_logo).data.publicUrl) : null } : null } : { rides: 0, rating: null, ratingCount: 0, since: null })
             setReviews(((rv as any[]) || []).map((r) => ({ rating: r.rating, comment: r.comment, at: r.rode_at, from: r.origin, to: r.destination, name: r.reviewer_name, slug: r.reviewer_slug, avatar: r.reviewer_avatar ? getAvatarUrl(supabase, r.reviewer_avatar) || null : null })))
@@ -235,11 +240,12 @@ export default function DriverProfile(p: DriverProfileProps) {
     const saveFraming = async () => {
         if (!vehicle || !pos) return
         setSavingPos(true)
-        const { error } = await supabase.from('driver_vehicles').update({ car_photo_pos_x: pos.x, car_photo_pos_y: pos.y }).eq('driver_id', p.driverId).eq('vehicle_slug', vehicle.slug)
+        const zoom = Math.min(3, Math.max(0.6, Math.round((zoomDraft ?? vehicle.zoom) * 10) / 10))
+        const { error } = await supabase.from('driver_vehicles').update({ car_photo_pos_x: pos.x, car_photo_pos_y: pos.y, car_photo_zoom: zoom }).eq('driver_id', p.driverId).eq('vehicle_slug', vehicle.slug)
         setSavingPos(false)
         if (error) { toast.error('Não deu para salvar o enquadramento: ' + error.message); return }
-        setVehicle({ ...vehicle, posX: pos.x, posY: pos.y })
-        setFraming(false); setPos(null)
+        setVehicle({ ...vehicle, posX: pos.x, posY: pos.y, zoom })
+        setFraming(false); setPos(null); setZoomDraft(null)
         toast.success('Foto enquadrada')
     }
 
@@ -301,7 +307,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                 fundo do cartão por um degradê; em cima o voltar e a situação; embaixo, sobre o degradê, a foto à esquerda e o nome, o @, o nível e o veículo à
                 direita. O 1/3 de baixo é compacto: o que o carro tem, os números numa linha e os botões ===== */}
             <section className="rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
-                <div className="relative h-[300px]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})` }}>
+                <div className="relative h-[270px] overflow-hidden" style={{ background: colors.surface }}>
                     {quote?.live ? (
                         <>
                             {/* o logo e os créditos do Mapbox ficam VISÍVEIS (termos): em cima, à direita, abaixo da situação (embaixo entram a foto e o nome) */}
@@ -310,14 +316,23 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </>
                     ) : (
                         <>
-                            {vehicle?.photo && <img src={vehicle.photo} alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }} />}
-                            {!vehicle?.photo && <span className="absolute inset-x-0 top-6 bottom-28 flex items-center justify-center text-white/30"><Icon size={84} /></span>}
+                            {/* o CARRO INTEIRO (sem cortar), do lado direito; a borda esquerda esfumaça para dentro do cartão, como a barra da v2 */}
+                            {vehicle?.photo && (
+                                // a foto ocupa o TOPO inteiro do cartão (sem espaço vazio); só a parte de baixo esmaece, para o nome e o avatar ficarem legíveis
+                                <>
+                                    <img
+                                        src={vehicle.photo}
+                                        alt={vehicle.model || 'Foto do veículo'}
+                                        draggable={false}
+                                        className="absolute inset-0 w-full h-full object-cover select-none"
+                                        style={(() => { const f = framing && pos ? pos : { x: vehicle.posX, y: vehicle.posY }; const z = framing ? (zoomDraft ?? vehicle.zoom) : vehicle.zoom; return { objectPosition: `${f.x}% ${f.y}%`, transform: `scale(${z})`, transformOrigin: `${f.x}% ${f.y}%` } })()}
+                                    />
+                                    <span aria-hidden className="absolute inset-x-0 bottom-0 h-[38%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface}cc 60%, ${colors.surface} 100%)` }} />
+                                </>
+                            )}
+                            {!vehicle?.photo && <span className="absolute inset-x-0 top-12 bottom-6 flex items-center justify-center" style={{ color: colors.textSecondary, opacity: 0.35 }}><Icon size={84} /></span>}
                         </>
                     )}
-                    {/* o degradê que leva a imagem para dentro do cartão (some enquanto o dono enquadra a foto) */}
-                    {!framing && <span aria-hidden className="absolute inset-x-0 bottom-0 h-[58%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface}cc 55%, ${colors.surface} 100%)` }} />}
-                    {!framing && <span aria-hidden className="absolute inset-x-0 top-0 h-16 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.35), transparent)' }} />}
-
                     {/* em cima: o voltar e a situação */}
                     {p.onBack && (
                         <button onClick={p.onBack} aria-label="Voltar" className="absolute left-3 top-3 z-10 w-10 h-10 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}>
@@ -327,30 +342,17 @@ export default function DriverProfile(p: DriverProfileProps) {
                     <span className="absolute right-3 top-3 z-10 h-8 px-3 rounded-full text-[11.5px] font-black text-white flex items-center gap-1.5 shadow" style={{ background: active ? GREEN : 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
                         <span className={`w-1.5 h-1.5 rounded-full bg-white ${active ? 'animate-pulse' : 'opacity-60'}`} />{active ? 'Dirigindo agora' : 'Fora do ar agora'}
                     </span>
-                    {/* o dono enquadra a foto: o ícone de mover, logo abaixo da situação */}
-                    {owner && !quote?.live && vehicle?.photo && !framing && (
-                        <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setFraming(true) }} aria-label="Enquadrar a foto do veículo" className="absolute right-3 top-14 z-10 w-9 h-9 rounded-full flex items-center justify-center text-white shadow transition active:scale-90" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
-                            <Move size={17} />
+                    {/* o cliente amplia a foto do carro (tela cheia, com zoom) */}
+                    {!owner && vehicle?.photo && !framing && !quote?.live && (
+                        <button onClick={() => setZoomPhoto(true)} className="absolute left-1/2 -translate-x-1/2 top-3 z-10 h-10 px-4 rounded-full text-[12px] font-black text-white flex items-center gap-1.5 shadow transition active:scale-95" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+                            <Maximize2 size={15} /> Ampliar foto
                         </button>
                     )}
-
-                    {/* embaixo, sobre o degradê: a foto à esquerda; nome, @, nível e o veículo à direita */}
-                    {!framing && (
-                        <div className="absolute left-4 right-4 bottom-3 z-10 flex items-end gap-3">
-                            <div className="rounded-full p-1 flex-shrink-0" style={{ background: colors.surface, boxShadow: '0 6px 18px rgba(0,0,0,0.18)' }}>{p.avatarSlot}</div>
-                            <div className="min-w-0 flex-1 pb-1">
-                                <h1 className="text-[22px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</h1>
-                                <div className="flex items-center gap-2 mt-0.5 min-w-0">
-                                    <span className="text-[12.5px] truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span>
-                                    {p.levelSlot}
-                                </div>
-                                {vehicle && (
-                                    <span className="mt-1.5 inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-black max-w-full" style={{ background: `${GREEN}1f`, color: GREEN }}>
-                                        <Icon size={13} className="flex-shrink-0" /><span className="truncate">{KIND_LABEL[kind]}{vehicleName(vehicle) ? ` · ${vehicleName(vehicle)}` : ''}{vehicle.plate ? ` · ${vehicle.plate.toUpperCase()}` : ''}{vehicle.color ? ` ${vehicle.color}` : ''}</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+                    {/* o dono enquadra a foto: botão no meio do topo, entre o voltar e a situação (posição e zoom) */}
+                    {owner && !quote?.live && vehicle?.photo && !framing && (
+                        <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setZoomDraft(vehicle.zoom); setFraming(true) }} className="absolute left-1/2 -translate-x-1/2 top-3 z-10 h-10 px-4 rounded-full text-[12px] font-black text-white flex items-center gap-1.5 shadow transition active:scale-95" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+                            <Move size={15} /> Enquadrar
+                        </button>
                     )}
 
                     {framing && vehicle && (
@@ -370,13 +372,37 @@ export default function DriverProfile(p: DriverProfileProps) {
                             onPointerCancel={() => { drag.current = null }}
                         >
                             <span className="absolute left-1/2 -translate-x-1/2 top-3 h-8 px-3 rounded-full text-[11.5px] font-black text-white flex items-center gap-1.5 shadow pointer-events-none whitespace-nowrap" style={{ background: 'rgba(0,0,0,0.6)' }}><Move size={13} /> Arraste a foto para enquadrar</span>
+                            <div className="absolute left-3 bottom-3 flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+                                <button onClick={() => setZoomDraft((z) => Math.max(0.6, Math.round(((z ?? vehicle.zoom) - 0.1) * 10) / 10))} aria-label="Diminuir zoom" className="w-10 h-10 rounded-full text-[18px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>−</button>
+                                <span className="text-[12px] font-black text-white px-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)', padding: '4px 8px' }}>{Math.round((zoomDraft ?? vehicle.zoom) * 100)}%</span>
+                                <button onClick={() => setZoomDraft((z) => Math.min(3, Math.round(((z ?? vehicle.zoom) + 0.1) * 10) / 10))} aria-label="Aumentar zoom" className="w-10 h-10 rounded-full text-[18px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>+</button>
+                            </div>
                             <div className="absolute right-3 bottom-3 flex gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
-                                <button onClick={() => { setFraming(false); setPos(null) }} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>Cancelar</button>
+                                <button onClick={() => { setFraming(false); setPos(null); setZoomDraft(null) }} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white shadow" style={{ background: 'rgba(0,0,0,0.6)' }}>Cancelar</button>
                                 <button onClick={saveFraming} disabled={savingPos} className="h-10 px-4 rounded-full text-[12.5px] font-black text-white shadow disabled:opacity-60" style={{ background: GREEN }}>{savingPos ? 'Salvando…' : 'Salvar'}</button>
                             </div>
                         </div>
                     )}
                 </div>
+
+                {/* a foto do motorista sobre a borda da foto do carro; nome, @, nível e o veículo ao lado (sem placa) */}
+                {!framing && (
+                    <div className="relative z-10 -mt-4 px-4 flex items-end gap-3">
+                        <div className="rounded-full flex-shrink-0" style={{ boxShadow: `0 0 0 4px ${colors.surface}` }}>{p.avatarSlot}</div>
+                        <div className="min-w-0 flex-1 pb-0.5">
+                            <h1 className="text-[22px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</h1>
+                            <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                                <span className="text-[12.5px] truncate" style={{ color: colors.textSecondary }}>@{p.slug}</span>
+                                {p.levelSlot}
+                            </div>
+                            {vehicle && (
+                                <span className="mt-1.5 inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-black max-w-full" style={{ background: `${GREEN}1f`, color: GREEN }}>
+                                    <Icon size={13} className="flex-shrink-0" /><span className="truncate">{KIND_LABEL[kind]}{vehicleName(vehicle) ? ` · ${vehicleName(vehicle)}` : ''}{vehicle.color ? ` ${vehicle.color}` : ''}</span>
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* o 1/3 de baixo, compacto */}
                 <div className="px-4 pb-4 pt-1 flex flex-col gap-2.5">
@@ -463,9 +489,9 @@ export default function DriverProfile(p: DriverProfileProps) {
                                 </span>
                             </div>
                         )}
-                        <div className="mt-2.5 flex flex-col gap-2.5">
+                        <div className="mt-2.5 flex gap-2.5 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
                             {list.map((r, i) => (
-                                <article key={i} className="rounded-3xl p-3.5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <article key={i} className="snap-start flex-shrink-0 w-[82%] max-w-[320px] rounded-3xl p-3.5 flex flex-col" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                     <div className="flex items-center gap-2.5">
                                         <button onClick={() => r.slug && router.push(`/${r.slug}`)} disabled={!r.slug} className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 text-white text-[13px] font-black" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)' }}>
                                             {r.avatar ? <img src={r.avatar} alt="" className="w-full h-full object-cover" /> : (r.name || '?').charAt(0).toUpperCase()}
@@ -572,29 +598,6 @@ export default function DriverProfile(p: DriverProfileProps) {
                 </section>
             )}
 
-            {/* ===== 4b. as lojas da pessoa (só se ela tiver): propaganda pequena de cada uma ===== */}
-            {stores.length > 0 && (
-                <section>
-                    <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>{stores.length === 1 ? 'Também tem uma loja' : 'Também tem lojas'}</h2>
-                    <div className="mt-2.5 flex flex-col gap-2">
-                        {stores.map((st) => (
-                            <button key={st.store_id} onClick={() => router.push(`/${st.slug}`)} className="w-full rounded-2xl p-2.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                                <span className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}>
-                                    {st.logo_url ? <img src={st.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-lg font-black" style={{ color: colors.textSecondary }}>{st.name?.charAt(0).toUpperCase()}</span>}
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="block text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{st.name}</span>
-                                    <span className="block text-[11.5px] font-bold truncate" style={{ color: colors.textSecondary }}>
-                                        {st.category || 'Loja'}{st.ratings_count > 0 && st.ratings_avg != null ? ` · ★ ${Number(st.ratings_avg).toFixed(1).replace('.', ',')} (${st.ratings_count})` : ''}
-                                    </span>
-                                </span>
-                                <span className="text-[12px] font-black flex-shrink-0" style={{ color: '#f97316' }}>Ver loja</span>
-                            </button>
-                        ))}
-                    </div>
-                </section>
-            )}
-
             {/* ===== 5. quanto custa: todos os jeitos que ele cobra, o do botão primeiro e marcado ===== */}
             {priceModes.length > 0 && (
                 <section>
@@ -629,6 +632,27 @@ export default function DriverProfile(p: DriverProfileProps) {
 
                     </div>
                 )}
+
+            {/* as LOJAS da pessoa, depois das avaliações/serviços/informações: uma faixa horizontal para conhecer (só se ela tiver loja) */}
+                {stores.length > 0 && (
+                    <div className="mt-3">
+                        <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: colors.textSecondary }}>{stores.length === 1 ? 'Também tem uma loja' : 'Também tem lojas'}</p>
+                        <div className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
+                            {stores.map((st) => (
+                                <button key={st.store_id} onClick={() => router.push(`/${st.slug}`)} className="snap-start flex-shrink-0 w-[70%] max-w-[260px] rounded-2xl p-2.5 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                    <span className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}>
+                                        {st.logo_url ? <img src={st.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-base font-black" style={{ color: colors.textSecondary }}>{st.name?.charAt(0).toUpperCase()}</span>}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{st.name}</span>
+                                        <span className="block text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>{st.category || 'Loja'}{st.ratings_count > 0 && st.ratings_avg != null ? ` · ★ ${Number(st.ratings_avg).toFixed(1).replace('.', ',')}` : ''}</span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            {zoomPhoto && vehicle?.photo && <ImageZoomDialog src={vehicle.photo} alt={vehicle.model || 'Foto do veículo'} onClose={() => setZoomPhoto(false)} />}
             </div>
         </div>
     )
@@ -653,7 +677,7 @@ function OwnerCarMapToggle({ vehicle, live, colors, Icon, mapToken }: { vehicle:
                 )}
             </span>
             <span className="min-w-0 flex-1 px-3 py-2 flex flex-col justify-center">
-                <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{[vehicleFullName(vehicle, ''), vehicle.color].filter(Boolean).join(' · ') || 'Seu veículo'}</span>
+                <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{[vehicleName(vehicle, ''), vehicle.color].filter(Boolean).join(' · ') || 'Seu veículo'}</span>
                 <span className="block text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>
                     {canMap ? (onMap ? 'Mapa: onde o carro está (aproximado). Toque para ver o carro' : 'Foto do veículo. Toque para ver o mapa') : live ? 'Foto do veículo (o mapa precisa de chave do Mapbox)' : 'Foto do veículo. O mapa aparece quando você ligar o modo motorista'}
                 </span>

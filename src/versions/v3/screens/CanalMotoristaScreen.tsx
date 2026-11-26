@@ -938,12 +938,12 @@ function PainelMotoristaContent() {
                                     goTab={setActiveTab}
                                     onDeliveries={() => router.push('/entregas')}
                                     onEarnings={() => router.push('/ganhos')}
-                                    vehicleLabel={carModel.trim() ? `${VEHICLE_KIND_LABELS[vehicleKind]} · ${[carBrand.trim(), carModel.trim()].filter(Boolean).join(' ')}${carPlate.trim() ? ` · ${carPlate.trim().toUpperCase()}` : ''}` : null}
+                                    vehicleLabel={carModel.trim() ? `${VEHICLE_KIND_LABELS[vehicleKind]} · ${[carBrand.trim(), carModel.trim()].filter(Boolean).join(' ')}` : null}
                                     vehicles={(Object.entries(vehiclesByKind) as [VehicleKind, VehicleRow][])
                                         .filter(([, v]) => v?.car_model?.trim())
                                         .map(([kind, v]) => ({
                                             id: kind,
-                                            label: `${VEHICLE_KIND_LABELS[kind]} · ${[v.car_brand?.trim(), v.car_model!.trim()].filter(Boolean).join(' ')}${v.car_plate?.trim() ? ` · ${v.car_plate.trim().toUpperCase()}` : ''}`,
+                                            label: `${VEHICLE_KIND_LABELS[kind]} · ${[v.car_brand?.trim(), v.car_model!.trim()].filter(Boolean).join(' ')}`,
                                             photoUrl: v.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(v.car_photo_url).data.publicUrl : null,
                                         }))}
                                     pricingLabel={pricingMode === 'platform' ? 'Tarifa iUser' : 'Minha tarifa própria'}

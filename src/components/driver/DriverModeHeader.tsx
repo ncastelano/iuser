@@ -4,7 +4,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { vehicleFullName } from '@/lib/vehicleName'
+import { vehicleName } from '@/lib/vehicleName'
 import { useRouter } from 'next/navigation'
 import { Car, Share2, User, ExternalLink } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -35,7 +35,7 @@ export default function DriverModeHeader({ userId, profileSlug, avatarUrl, color
     if (on === null || !vehicle) return null
 
     const link = vehicle.vehicle_slug ? `https://www.iuser.com.br/${vehicle.vehicle_slug}` : null
-    const label = [VEHICLE_KIND_LABELS[vehicle.vehicle_kind] || 'Veículo', vehicleFullName(vehicle), vehicle.car_color].filter(Boolean).join(' · ')
+    const label = [VEHICLE_KIND_LABELS[vehicle.vehicle_kind] || 'Veículo', vehicleName(vehicle), vehicle.car_color].filter(Boolean).join(' · ')
     const share = () => link && handleShareLink({ title: 'Chame o meu ' + (VEHICLE_KIND_LABELS[vehicle.vehicle_kind] || 'veículo').toLowerCase() + ' pelo iUser', text: `Peça a sua corrida comigo pelo iUser: ${label}`, url: link, imageUrl: vehicle.car_photo_url })
     const btn = { background: `${colors.border}40`, color: colors.textPrimary }
 

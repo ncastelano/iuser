@@ -464,7 +464,7 @@ export default function ModeShell({ children }: {
         if (activeVehicle) return {
             ...base,
             line1: profileSlug ? `@${profileSlug}` : 'Motorista',
-            line2: [activeVehicle.model, activeVehicle.plate].filter(Boolean).join(' · ') || (VEHICLE_LABEL[activeVehicle.kind] || 'Veículo'),
+            line2: [activeVehicle.model].filter(Boolean).join(' · ') || (VEHICLE_LABEL[activeVehicle.kind] || 'Veículo'),
             image: activeVehicle.photo, noRing: true, label: 'Menu do motorista', icon: 'car' as const,
         }
         if (userId && activeMode === 'prestador' && drawerData.providerOn) {
