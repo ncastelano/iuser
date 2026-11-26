@@ -66,6 +66,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
                 })
             })
         }
+        // 3. Produtos e serviços de loja (rota /{loja}/{produto}). Fora: publicações, digitais
+        // (conteúdo pago), itens de perfil sem loja, lojas privadas/inativas e itens inativos.
+        const { data: products } = await supabase
+            .from('products')
+            .select('slug, created_at, store:stores!inner(storeSlug, is_active, is_private)')
+            .eq('is_active', true)
+            .not('store_id', 'is', null)
+            .neq('listing_type', 'publication')
+            .neq('type', 'digital')
+            .limit(5000)
+
+        if (products) {
+            products.forEach((p) => {
+                const store = Array.isArray(p.store) ? p.store[0] : p.store
+                // loja inativa ou privada: não entra (conferido aqui, não no filtro do banco)
+                if (!store?.is_active || store.is_private) return
+                if (!p.slug || !store.storeSlug) return
+                sitemaps.push({
+                    url: `${baseUrl}/${store.storeSlug}/${p.slug}`,
+                    lastModified: p.created_at ? new Date(p.created_at) : new Date(),
+                    changeFrequency: 'weekly',
+                    priority: 0.7,
+                })
+            })
+        }
     } catch (error) {
         console.error('Erro ao gerar sitemap:', error)
     }

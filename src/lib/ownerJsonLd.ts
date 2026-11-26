@@ -67,3 +67,56 @@ export async function buildOwnerJsonLd(ownerSlug: string): Promise<Record<string
     }
     return null
 }
+
+/**
+ * Dados estruturados de um PRODUTO ou SERVIÇO de loja (rota /<loja>/<produto>), para o Google mostrar nome, foto e preço.
+ * Só produto de loja pública e ativa; publicação, digital e item de perfil (sem loja) NÃO geram o bloco.
+ * Serviço sem valor ("a combinar") não declara preço, nunca "R$ 0".
+ */
+export async function buildProductJsonLd(storeSlug: string, productSlug: string): Promise<Record<string, unknown> | null> {
+    if (!SUPABASE_URL || !SUPABASE_KEY || !storeSlug || !productSlug) return null
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+    const { data: store } = await supabase
+        .from('stores')
+        .select('id, name, storeSlug, is_active, is_private')
+        .eq('storeSlug', storeSlug)
+        .maybeSingle()
+    if (!store || !store.is_active || store.is_private) return null
+
+    const { data: product } = await supabase
+        .from('products')
+        .select('name, description, price, image_url, slug, type, listing_type, is_active, stock_quantity')
+        .eq('store_id', store.id)
+        .eq('slug', productSlug)
+        .maybeSingle()
+    if (!product || !product.is_active) return null
+    // publicação não é vitrine de produto; digital fica fora desta etapa (conteúdo pago)
+    if (product.listing_type === 'publication' || product.type === 'digital') return null
+
+    const isService = product.type === 'service'
+    const url = `${BASE_URL}/${store.storeSlug}/${product.slug}`
+    const json: Record<string, unknown> = {
+        '@context': 'https://schema.org',
+        '@type': isService ? 'Service' : 'Product',
+        name: product.name,
+        url,
+        description: clip(product.description),
+        image: publicImage('product-images', product.image_url),
+        brand: isService ? undefined : { '@type': 'Brand', name: store.name },
+        provider: isService ? { '@type': 'Organization', name: store.name, url: `${BASE_URL}/${store.storeSlug}` } : undefined,
+    }
+    const price = Number(product.price)
+    if (price > 0) {
+        const offer: Record<string, unknown> = {
+            '@type': 'Offer',
+            url,
+            priceCurrency: 'BRL',
+            price: price.toFixed(2),
+            seller: { '@type': 'Organization', name: store.name },
+        }
+        if (!isService) offer.availability = product.stock_quantity == null || Number(product.stock_quantity) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'
+        json.offers = offer
+    }
+    return json
+}
