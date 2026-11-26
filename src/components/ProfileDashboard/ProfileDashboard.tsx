@@ -66,6 +66,7 @@ import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { format, subDays, startOfDay, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 import InvitedSummary from './InvitedSummary'
+import { usePageLoadBar } from '@/hooks/usePageLoadBar'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -111,6 +112,7 @@ export default function ProfileDashboard({
     const graduation = useMyGraduation()   // a cor do cartão Convidados iUser = a do cartão de Comissões
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
+    usePageLoadBar(loading)
     const [initialLoadDone, setInitialLoadDone] = useState(false)
 
     // ?secao=notificacoes (o sininho da barra da 3.0): rola até as notificações assim que o perfil carrega e de novo quando o conteúdo de cima termina de abrir (a altura muda)

@@ -42,6 +42,7 @@ import { useDefaultMinHourly } from '@/hooks/useDefaultMinHourly'
 import { timeRateFloor, hourlyToRate, rateToHourly, hourlyOptions } from '@/modules/negotiation/domain'
 import { safeInternalPath } from '@/lib/safeRedirect'
 import { ensureLegal } from '@/components/legal/LegalHost'
+import { usePageLoadBar } from '@/hooks/usePageLoadBar'
 
 const ORANGE_V3 = '#f97316'
 
@@ -104,6 +105,7 @@ function PainelMotoristaContent() {
     const iconBadgeStyle = { background: soft, color: ORANGE_V3 }
 
     const [loading, setLoading] = useState(true)
+    usePageLoadBar(loading)
     const [showLogin, setShowLogin] = useState(false)
     const [saving, setSaving] = useState(false)
 

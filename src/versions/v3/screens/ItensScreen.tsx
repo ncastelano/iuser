@@ -13,6 +13,7 @@ import { Spinner } from '@/components/Spinner'
 import DigitalLibrary from '@/components/digital/DigitalLibrary'
 import CarrinhoScreen from '@/versions/shared/screens/CarrinhoScreen'
 import { ITEMS_VIEWS, loadFavoriteOrders, repeatOrder, type FavoriteOrder, loadMyServices, loadOwnedProducts, viewFromLegacy, type ItemsView, type MyService, type OwnedProductCard } from '@/modules/items'
+import { usePageLoadBar } from '@/hooks/usePageLoadBar'
 
 const ORANGE = '#f97316'
 const fmtDate = (iso: string) => (iso ? new Date(iso.length <= 10 ? `${iso}T12:00:00` : iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '')
@@ -26,6 +27,7 @@ export default function ItensScreen({ abaParam }: { abaParam: string | null }) {
     const [view, setView] = useState<ItemsView>('tudo')
     const [products, setProducts] = useState<OwnedProductCard[] | null>(null)
     const [services, setServices] = useState<MyService[] | null>(null)
+    usePageLoadBar(products === null || services === null)
     const [favorites, setFavorites] = useState<FavoriteOrder[]>([])
     useEffect(() => {
         if (!userId) return
