@@ -313,7 +313,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                             {/* o CARRO INTEIRO (sem cortar), do lado direito; a borda esquerda esfumaça para dentro do cartão, como a barra da v2 */}
                             {vehicle?.photo && (
                                 // a foto cortada num quadro de cantos arredondados que combina com o cartão, encostada no canto direito (sem degradê)
-                                <div className="absolute right-0 top-0 bottom-0 w-[78%] overflow-hidden rounded-bl-[28px]">
+                                <div className="absolute right-0 top-0 bottom-0 w-[78%] overflow-hidden rounded-bl-[48px]">
                                     <img
                                         src={vehicle.photo}
                                         alt={vehicle.model || 'Foto do veículo'}
