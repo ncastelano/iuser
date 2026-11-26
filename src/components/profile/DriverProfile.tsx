@@ -301,7 +301,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                 fundo do cartão por um degradê; em cima o voltar e a situação; embaixo, sobre o degradê, a foto à esquerda e o nome, o @, o nível e o veículo à
                 direita. O 1/3 de baixo é compacto: o que o carro tem, os números numa linha e os botões ===== */}
             <section className="rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
-                <div className="relative h-[270px] overflow-hidden" style={{ background: `${colors.border}38` }}>
+                <div className="relative h-[270px] overflow-hidden" style={{ background: colors.surface }}>
                     {quote?.live ? (
                         <>
                             {/* o logo e os créditos do Mapbox ficam VISÍVEIS (termos): em cima, à direita, abaixo da situação (embaixo entram a foto e o nome) */}
@@ -311,7 +311,10 @@ export default function DriverProfile(p: DriverProfileProps) {
                     ) : (
                         <>
                             {/* o CARRO INTEIRO (sem cortar), do lado direito; a borda esquerda esfumaça para dentro do cartão, como a barra da v2 */}
-                            {vehicle?.photo && <img src={vehicle.photo} alt={vehicle.model || 'Foto do veículo'} draggable={false} className="absolute inset-x-3 top-9 bottom-1 w-[calc(100%-1.5rem)] h-[calc(100%-2.5rem)] object-contain select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%`, mixBlendMode: 'multiply' }} />}
+                            {vehicle?.photo && <img src={vehicle.photo} alt={vehicle.model || 'Foto do veículo'} draggable={false} className="absolute right-0 top-0 w-[74%] h-[88%] object-contain object-right-top select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%`, mixBlendMode: 'multiply' }} />}
+                            {/* a borda da foto esfumaça para dentro do cartão (esquerda e embaixo): nunca parece uma imagem colada */}
+                            {vehicle?.photo && <span aria-hidden className="absolute inset-y-0 left-0 w-[72%] pointer-events-none" style={{ background: `linear-gradient(to right, ${colors.surface} 0%, ${colors.surface} 40%, transparent 100%)` }} />}
+                            {vehicle?.photo && <span aria-hidden className="absolute inset-x-0 bottom-0 h-[42%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface} 100%)` }} />}
                             {!vehicle?.photo && <span className="absolute inset-x-0 top-12 bottom-6 flex items-center justify-center" style={{ color: colors.textSecondary, opacity: 0.35 }}><Icon size={84} /></span>}
                         </>
                     )}
@@ -443,25 +446,6 @@ export default function DriverProfile(p: DriverProfileProps) {
             </div>
 
             <div className="mt-4">
-                {/* as LOJAS da pessoa, logo abaixo das abas: uma faixa horizontal para conhecer (só se ela tiver loja) */}
-                {stores.length > 0 && (
-                    <div className="mt-3">
-                        <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: colors.textSecondary }}>{stores.length === 1 ? 'Também tem uma loja' : 'Também tem lojas'}</p>
-                        <div className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
-                            {stores.map((st) => (
-                                <button key={st.store_id} onClick={() => router.push(`/${st.slug}`)} className="snap-start flex-shrink-0 w-[70%] max-w-[260px] rounded-2xl p-2.5 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                                    <span className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}>
-                                        {st.logo_url ? <img src={st.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-base font-black" style={{ color: colors.textSecondary }}>{st.name?.charAt(0).toUpperCase()}</span>}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{st.name}</span>
-                                        <span className="block text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>{st.category || 'Loja'}{st.ratings_count > 0 && st.ratings_avg != null ? ` · ★ ${Number(st.ratings_avg).toFixed(1).replace('.', ',')}` : ''}</span>
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
                 {tab === 'avaliacoes' && (
             <section>
                 {reviews === null ? (
@@ -620,6 +604,26 @@ export default function DriverProfile(p: DriverProfileProps) {
                 </section>
             )}
 
+                    </div>
+                )}
+
+            {/* as LOJAS da pessoa, depois das avaliações/serviços/informações: uma faixa horizontal para conhecer (só se ela tiver loja) */}
+                {stores.length > 0 && (
+                    <div className="mt-3">
+                        <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: colors.textSecondary }}>{stores.length === 1 ? 'Também tem uma loja' : 'Também tem lojas'}</p>
+                        <div className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
+                            {stores.map((st) => (
+                                <button key={st.store_id} onClick={() => router.push(`/${st.slug}`)} className="snap-start flex-shrink-0 w-[70%] max-w-[260px] rounded-2xl p-2.5 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                    <span className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}>
+                                        {st.logo_url ? <img src={st.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-base font-black" style={{ color: colors.textSecondary }}>{st.name?.charAt(0).toUpperCase()}</span>}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{st.name}</span>
+                                        <span className="block text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>{st.category || 'Loja'}{st.ratings_count > 0 && st.ratings_avg != null ? ` · ★ ${Number(st.ratings_avg).toFixed(1).replace('.', ',')}` : ''}</span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
