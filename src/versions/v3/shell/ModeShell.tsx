@@ -20,7 +20,7 @@ import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import { useChatUnread } from '@/hooks/useChatUnread'
 import { useOrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
-import { useShellLive } from '@/hooks/useShellLive'
+import { ORDER_COLORS, useShellLive } from '@/hooks/useShellLive'
 import { useMyActiveOrders } from '@/hooks/useMyActiveOrders'
 import { orderStripItems } from '@/modules/orders'
 import { registerIslandConsumer, toast, useIslandMessage } from '@/lib/toast'
@@ -667,8 +667,11 @@ export default function ModeShell({ children }: {
     }
     // O botão ATIVIDADE é o SININHO (mesmo tamanho e estilo dos outros ícones) com os selos EM CIMA, cada um na sua cor: pedidos em andamento (verde; roxo se há um pronto)
     // e itens no carrinho (laranja). As mensagens não lidas são o selo da aba Conversas. Tocar leva ao que pede atenção (smartAba).
+    // um selo por STATUS (na cor do status, com a quantidade): pronto, em preparo, novo; e o carrinho
     const activityBadges = [
-        { count: orderCounts.pending + orderCounts.preparing + orderCounts.ready, color: orderCounts.ready > 0 ? '#a855f7' : '#16a34a' },
+        { count: orderCounts.ready, color: ORDER_COLORS.pronto },
+        { count: orderCounts.preparing, color: ORDER_COLORS.preparo },
+        { count: orderCounts.pending, color: ORDER_COLORS.novo },
         { count: topCart, color: '#f97316' },
     ]
     useEffect(() => { setPendingTab(null) }, [pathname])
