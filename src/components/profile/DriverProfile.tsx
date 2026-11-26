@@ -312,22 +312,16 @@ export default function DriverProfile(p: DriverProfileProps) {
                         <>
                             {/* o CARRO INTEIRO (sem cortar), do lado direito; a borda esquerda esfumaça para dentro do cartão, como a barra da v2 */}
                             {vehicle?.photo && (
-                                <img
-                                    src={vehicle.photo}
-                                    alt={vehicle.model || 'Foto do veículo'}
-                                    draggable={false}
-                                    className="absolute right-0 top-0 bottom-0 w-[78%] h-full object-contain object-right select-none"
-                                    style={{
-                                        // o carro encosta na borda DIREITA do cartão; a altura segue o enquadramento salvo pelo dono
-                                        objectPosition: `100% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%`,
-                                        mixBlendMode: 'multiply',
-                                        // degradê SÓ na borda esquerda e embaixo da própria foto (sem arestas de quadrado)
-                                        WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 26%), linear-gradient(to top, transparent 0%, #000 34%)',
-                                        maskImage: 'linear-gradient(to right, transparent 0%, #000 26%), linear-gradient(to top, transparent 0%, #000 34%)',
-                                        WebkitMaskComposite: 'source-in',
-                                        maskComposite: 'intersect',
-                                    }}
-                                />
+                                // a foto cortada num quadro de cantos arredondados que combina com o cartão, encostada no canto direito (sem degradê)
+                                <div className="absolute right-0 top-0 bottom-0 w-[78%] overflow-hidden rounded-bl-[28px]">
+                                    <img
+                                        src={vehicle.photo}
+                                        alt={vehicle.model || 'Foto do veículo'}
+                                        draggable={false}
+                                        className="w-full h-full object-contain select-none"
+                                        style={{ objectPosition: `100% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }}
+                                    />
+                                </div>
                             )}
                             {!vehicle?.photo && <span className="absolute inset-x-0 top-12 bottom-6 flex items-center justify-center" style={{ color: colors.textSecondary, opacity: 0.35 }}><Icon size={84} /></span>}
                         </>
