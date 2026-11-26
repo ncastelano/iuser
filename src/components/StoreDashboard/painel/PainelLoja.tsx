@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-    AlertCircle, Banknote, Heart, MessageCircle, Wallet, CalendarDays, ChevronRight, ClipboardList, CreditCard, Eye, GraduationCap, Settings, Share2, Star,
+    AlertCircle, Banknote, Heart, MessageCircle, Wallet, CalendarDays, ChevronRight, ClipboardList, CreditCard, Eye, GraduationCap, Settings, Share2, Star, Trophy,
     Store, Check, Truck,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -44,7 +44,7 @@ import SalesChart, { type PaidOrder, type SalesPeriod } from './SalesChart'
 import type { ExtractPeriod } from '../StoreSalesExtractDialog'
 
 const ORANGE = '#f97316'
-const PAGINAS = ['extrato', 'repasses', 'apoios', 'balcao', 'agora'] as const
+const PAGINAS = ['extrato', 'repasses', 'apoios', 'balcao', 'agora', 'pedidos', 'dia', 'missoes', 'visitantes', 'avaliacoes', 'plano'] as const
 type PaginaK = typeof PAGINAS[number]
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -152,6 +152,19 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
     }, [att, store.pix_key, plan, limit, slug])
 
     // Cabeçalho de seção: o mesmo da Editar loja (título pequeno em maiúsculas + uma frase do que é), para o painel inteiro
+    // Uma linha no estilo da Editar loja: ícone colorido, título, estado e seta; tocar abre a caixa com o conteúdo
+    const Linha = ({ icon, cor, t, sub, alerta, onClick, primeira }: { icon: ReactNode; cor: string; t: string; sub: string; alerta?: boolean; onClick: () => void; primeira: boolean }) => (
+        <button onClick={onClick} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70" style={{ borderTop: primeira ? undefined : `1px solid ${colors.border}` }}>
+            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${cor}26`, color: cor }}>{icon}</span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>{t}</span>
+                <span className="block text-[11.5px] font-semibold leading-tight mt-0.5 truncate" style={{ color: alerta ? '#b45309' : colors.textSecondary }}>{sub}</span>
+            </span>
+            {alerta && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#eab308' }} />}
+            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+        </button>
+    )
+
     const sec = (titulo: string, direita?: ReactNode, dica?: string) => (
         <div className="mt-6 mb-1.5 flex items-center gap-2">
             <div className="min-w-0">
@@ -234,36 +247,25 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 </div>
             )}
 
-            {/* ===== PEDIDOS (o funil de sempre: Novos → Em preparo → Prontos → A caminho, com as ações) ===== */}
-            <div className="mt-6">
-                <StoreOrders storeId={store.id} storeName={store.name} onOrderCountsChange={(c: any) => { onOrderCountsChange?.(c); loadAttention() }} storeSlug={slug} />
+            {/* ===== PEDIDOS, DIA E MISSÕES: linhas que abrem a caixa de cada um (mesmo desenho da Editar loja) ===== */}
+            {sec('Pedidos', undefined, 'Novos, em preparo, prontos e a caminho')}
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<ClipboardList size={18} />} cor="#22c55e" t="Pedidos na loja"
+                    sub={att ? (att.orders + att.services > 0 ? `${att.orders} ${att.orders === 1 ? 'pedido novo' : 'pedidos novos'}${att.services ? ` · ${att.services} de serviço` : ''}` : 'Nada novo agora') : 'Carregando pedidos…'}
+                    alerta={!!att && att.orders + att.services > 0} onClick={() => pagina.abrir('pedidos')} />
             </div>
 
-            {/* ===== COMO ESTÁ O DIA (vendas pagas de verdade; o extrato completo abre no mesmo diálogo de sempre) ===== */}
             {sec('Como está o dia', undefined, 'Vendas pagas de hoje, da semana e do mês')}
-            <div className="rounded-3xl p-3" style={card}>
-                <div className="flex gap-1.5 mb-2.5">
-                    {periodos.map((p) => (
-                        <button key={p.k} onClick={() => setPeriod(p.k)} className="h-8 px-3.5 rounded-full text-[12px] font-black active:scale-95" style={period === p.k ? { background: ORANGE, color: '#fff' } : { border: `1px solid ${colors.border}`, color: colors.textPrimary }}>{p.l}</button>
-                    ))}
-                </div>
-                <div className="flex items-end justify-between gap-3">
-                    <div className="min-w-0">
-                        <p className="text-[24px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(atual.m.revenue)}</p>
-                        <p className="text-[11.5px] mt-1" style={{ color: colors.textSecondary }}>{atual.m.orders} {atual.m.orders === 1 ? 'venda' : 'vendas'}</p>
-                        <button onClick={() => pagina.abrir('agora')} className="mt-2.5 h-8 pl-2 pr-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: '#16a34a1c', color: '#15803d' }}>
-                            <span className="w-2 h-2 rounded-full" style={{ background: '#22c55e', boxShadow: '0 0 0 3px #22c55e33' }} />{online === null ? '…' : online} online agora<ChevronRight size={13} />
-                        </button>
-                    </div>
-                    <SalesChart orders={paidOrders} period={period} />
-                </div>
-                <button onClick={() => { setExtratoIni(period === 'mes' ? 'mes' : period); pagina.abrir('extrato') }} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                    Abrir o extrato<ChevronRight size={14} />
-                </button>
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<Wallet size={18} />} cor="#16a34a" t={`${brl(atual.m.revenue)} · ${periodos.find((x) => x.k === period)?.l || ''}`}
+                    sub={`${atual.m.orders} ${atual.m.orders === 1 ? 'venda' : 'vendas'} · ${online === null ? '…' : online} online agora`}
+                    onClick={() => pagina.abrir('dia')} />
             </div>
 
-            {/* ===== MISSÕES ===== */}
-            <div className="mt-6"><StoreMissions storeId={store.id} storeSlug={slug} /></div>
+            {sec('Missões', undefined, 'Pontos de hoje e o cadastro da loja')}
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<Trophy size={18} />} cor={ORANGE} t="Missões da loja" sub="Pontos de hoje, missões do dia e cadastro" onClick={() => pagina.abrir('missoes')} />
+            </div>
 
             {/* ===== PRÓXIMOS COMPROMISSOS (só loja que atende com hora marcada) ===== */}
             {hasServices && <div className="mt-2"><AtalhoCompromissosDaLoja profileSlug={profileSlug} storeId={store.id} storeSlug={slug} /></div>}
@@ -291,38 +293,26 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             {sec('Digital', undefined, 'Cursos, músicas e programas da loja')}
             <StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 />
 
-            {/* ===== VISITANTES (em cima das avaliações) ===== */}
+            {/* ===== VISITANTES, AVALIAÇÕES E PLANO: linhas que abrem a caixa de cada um ===== */}
             {sec('Visitantes', undefined, 'Quem passou pela loja')}
-            <div><StoreVisitors storeId={store.id} /></div>
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<Eye size={18} />} cor="#2563eb" t="Visitantes" sub={`${store.view_count ?? 0} visitas na página`} onClick={() => pagina.abrir('visitantes')} />
+            </div>
 
-            {/* ===== O QUE DIZEM DA LOJA ===== */}
             {sec('O que dizem da loja', undefined, 'Avaliações e comentários dos clientes')}
-            <div><StoreFeedback storeId={store.id} /></div>
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<Star size={18} />} cor="#eab308" t="Avaliações e comentários"
+                    sub={Number(store.ratings_count) > 0 ? `${Number(store.ratings_avg || 0).toFixed(1).replace('.', ',')} de nota · ${store.ratings_count} avaliações` : 'Ainda sem avaliações'}
+                    onClick={() => pagina.abrir('avaliacoes')} />
+            </div>
 
-            {/* ===== SEU PLANO: as mesmas linhas da edição (ícone, título, estado e seta) ===== */}
             {plan && (
                 <>
                     {sec('Seu plano', undefined, 'Quanto a loja paga ao iUser')}
                     <div className="rounded-3xl overflow-hidden" style={card}>
-                        <button onClick={() => router.push(plan.postpaid ? '/planos/pos-pago' : '/planos')} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70">
-                            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${plan.postpaid ? ORANGE : '#16a34a'}26`, color: plan.postpaid ? ORANGE : '#16a34a' }}><CreditCard size={18} /></span>
-                            <span className="min-w-0 flex-1">
-                                <span className="block text-[13.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>{plan.postpaid ? 'Pós-pago' : 'Pré-pago'}</span>
-                                <span className="block text-[11.5px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>{plan.postpaid ? `${brl(plan.debt)} de ${limitText(limit)} de limite · você paga só pelo que usa` : 'Mensalidade de R$ 100 · sem taxa por venda, pedido ou agendamento'}</span>
-                            </span>
-                            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
-                        </button>
-                        {plan.postpaid && (
-                            <div className="px-3.5 pb-3">
-                                <span className="block h-2 rounded-full overflow-hidden" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (plan.debt / limit) * 100)}%`, background: plan.debt >= limit ? '#ef4444' : 'linear-gradient(90deg,#f97316,#dc2626)' }} /></span>
-                                {plan.byType.slice(0, 4).map(([t, v]) => (
-                                    <div key={t} className="flex items-center justify-between text-[12px] mt-2" style={{ color: colors.textPrimary }}>
-                                        <span>{v.n} × {(TYPE_INFO as any)[t]?.label?.toLowerCase() || t}</span>
-                                        <span className="font-black">{brl(v.total)}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <Linha primeira icon={<CreditCard size={18} />} cor={plan.postpaid ? ORANGE : '#16a34a'} t={plan.postpaid ? 'Pós-pago' : 'Pré-pago'}
+                            sub={plan.postpaid ? `${brl(plan.debt)} de ${limitText(limit)} de limite · você paga só pelo que usa` : 'Mensalidade de R$ 100 · sem taxa por venda, pedido ou agendamento'}
+                            onClick={() => pagina.abrir('plano')} />
                     </div>
                 </>
             )}
@@ -335,6 +325,75 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             <div id="gerenciar" className="scroll-mt-24">{sec('Gerenciar a loja', undefined, 'Tudo que se configura, com o estado de cada coisa')}</div>
             {gerenciar}
 
+            {pagina.secao === 'pedidos' && (
+                <PaginaPainel titulo="Pedidos na loja" sub={store.name} cor={ORANGE} icone={<ClipboardList size={18} />} onClose={pagina.fechar}>
+                    <StoreOrders storeId={store.id} storeName={store.name} storeSlug={slug} onOrderCountsChange={(c: any) => { onOrderCountsChange?.(c); loadAttention() }} />
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'dia' && (
+                <PaginaPainel titulo="Como está o dia" sub={store.name} cor="#16a34a" icone={<Wallet size={18} />} onClose={pagina.fechar}>
+                    <div className="rounded-3xl p-3" style={card}>
+                        <div className="flex gap-1.5 mb-2.5">
+                            {periodos.map((p) => (
+                                <button key={p.k} onClick={() => setPeriod(p.k)} className="h-8 px-3.5 rounded-full text-[12px] font-black active:scale-95" style={period === p.k ? { background: ORANGE, color: '#fff' } : { border: `1px solid ${colors.border}`, color: colors.textPrimary }}>{p.l}</button>
+                            ))}
+                        </div>
+                        <div className="flex items-end justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-[24px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(atual.m.revenue)}</p>
+                                <p className="text-[11.5px] mt-1" style={{ color: colors.textSecondary }}>{atual.m.orders} {atual.m.orders === 1 ? 'venda' : 'vendas'}</p>
+                                <button onClick={() => pagina.abrir('agora')} className="mt-2.5 h-8 pl-2 pr-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: '#16a34a1c', color: '#15803d' }}>
+                                    <span className="w-2 h-2 rounded-full" style={{ background: '#22c55e', boxShadow: '0 0 0 3px #22c55e33' }} />{online === null ? '…' : online} online agora<ChevronRight size={13} />
+                                </button>
+                            </div>
+                            <SalesChart orders={paidOrders} period={period} />
+                        </div>
+                        <button onClick={() => { setExtratoIni(period === 'mes' ? 'mes' : period); pagina.abrir('extrato') }} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                            Abrir o extrato<ChevronRight size={14} />
+                        </button>
+                    </div>
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'missoes' && (
+                <PaginaPainel titulo="Missões da loja" sub={store.name} cor={ORANGE} icone={<Trophy size={18} />} onClose={pagina.fechar}>
+                    <StoreMissions storeId={store.id} storeSlug={slug} />
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'visitantes' && (
+                <PaginaPainel titulo="Visitantes" sub={store.name} cor="#2563eb" icone={<Eye size={18} />} onClose={pagina.fechar}>
+                    <StoreVisitors storeId={store.id} />
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'avaliacoes' && (
+                <PaginaPainel titulo="Avaliações e comentários" sub={store.name} cor="#eab308" icone={<Star size={18} />} onClose={pagina.fechar}>
+                    <StoreFeedback storeId={store.id} />
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'plano' && plan && (
+                <PaginaPainel titulo="Seu plano" sub={store.name} cor={plan.postpaid ? ORANGE : '#16a34a'} icone={<CreditCard size={18} />} onClose={pagina.fechar}>
+                    <div className="rounded-3xl p-3.5" style={card}>
+                        <p className="text-[12.5px] font-black" style={{ color: colors.textPrimary }}>{plan.postpaid ? 'Pós-pago · você paga só pelo que usa' : 'Pré-pago · mensalidade'}</p>
+                        {plan.postpaid ? (<>
+                            <div className="flex items-baseline justify-between mt-3"><p className="text-[22px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(plan.debt)}</p><p className="text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>de {limitText(limit)} · limite</p></div>
+                            <span className="block h-2.5 rounded-full overflow-hidden mt-2" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (plan.debt / limit) * 100)}%`, background: plan.debt >= limit ? '#ef4444' : 'linear-gradient(90deg,#f97316,#dc2626)' }} /></span>
+                            {plan.byType.length > 0 && (
+                                <div className="mt-3 flex flex-col gap-1.5">
+                                    <p className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>O que foi cobrado</p>
+                                    {plan.byType.map(([t, v]) => (
+                                        <div key={t} className="flex items-center justify-between text-[12px]">
+                                            <span style={{ color: colors.textPrimary }}>{v.n} × {(TYPE_INFO as any)[t]?.label?.toLowerCase() || t}</span>
+                                            <span className="font-black" style={{ color: colors.textPrimary }}>{brl(v.total)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>) : <p className="text-[12px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>Mensalidade de R$ 100 · nenhuma taxa por venda, pedido ou agendamento.</p>}
+                        <button onClick={() => router.push(plan.postpaid ? '/planos/pos-pago' : '/planos')} className="w-full mt-4 h-10 rounded-full text-[12.5px] font-black text-white active:scale-95" style={{ background: ORANGE }}>
+                            {plan.postpaid ? 'Ver tudo e quitar agora' : 'Ver o plano'}
+                        </button>
+                    </div>
+                </PaginaPainel>
+            )}
             {logoOpen && <LogoFolha storeId={store.id} storeName={store.name} logoUrl={logo} level={pub?.level || 0} onClose={() => setLogoOpen(false)} onSaved={(u) => { setLogo(u); setLogoOpen(false) }} />}
             {pagina.secao === 'extrato' && <ExtratoCompleto storeId={store.id} storeName={store.name} inicial={extratoIni} onClose={pagina.fechar} />}
             {pagina.secao === 'repasses' && (
