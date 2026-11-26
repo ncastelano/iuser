@@ -311,10 +311,24 @@ export default function DriverProfile(p: DriverProfileProps) {
                     ) : (
                         <>
                             {/* o CARRO INTEIRO (sem cortar), do lado direito; a borda esquerda esfumaça para dentro do cartão, como a barra da v2 */}
-                            {vehicle?.photo && <img src={vehicle.photo} alt={vehicle.model || 'Foto do veículo'} draggable={false} className="absolute right-0 top-0 w-[74%] h-[88%] object-contain object-right-top select-none" style={{ objectPosition: `${(pos ?? { x: vehicle.posX, y: vehicle.posY }).x}% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%`, mixBlendMode: 'multiply' }} />}
-                            {/* a borda da foto esfumaça para dentro do cartão (esquerda e embaixo): nunca parece uma imagem colada */}
-                            {vehicle?.photo && <span aria-hidden className="absolute inset-y-0 left-0 w-[72%] pointer-events-none" style={{ background: `linear-gradient(to right, ${colors.surface} 0%, ${colors.surface} 40%, transparent 100%)` }} />}
-                            {vehicle?.photo && <span aria-hidden className="absolute inset-x-0 bottom-0 h-[42%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface} 100%)` }} />}
+                            {vehicle?.photo && (
+                                <img
+                                    src={vehicle.photo}
+                                    alt={vehicle.model || 'Foto do veículo'}
+                                    draggable={false}
+                                    className="absolute right-0 top-0 bottom-0 w-[78%] h-full object-contain object-right select-none"
+                                    style={{
+                                        // o carro encosta na borda DIREITA do cartão; a altura segue o enquadramento salvo pelo dono
+                                        objectPosition: `100% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%`,
+                                        mixBlendMode: 'multiply',
+                                        // degradê SÓ na borda esquerda e embaixo da própria foto (sem arestas de quadrado)
+                                        WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 26%), linear-gradient(to top, transparent 0%, #000 34%)',
+                                        maskImage: 'linear-gradient(to right, transparent 0%, #000 26%), linear-gradient(to top, transparent 0%, #000 34%)',
+                                        WebkitMaskComposite: 'source-in',
+                                        maskComposite: 'intersect',
+                                    }}
+                                />
+                            )}
                             {!vehicle?.photo && <span className="absolute inset-x-0 top-12 bottom-6 flex items-center justify-center" style={{ color: colors.textSecondary, opacity: 0.35 }}><Icon size={84} /></span>}
                         </>
                     )}
