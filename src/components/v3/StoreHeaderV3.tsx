@@ -90,9 +90,9 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
     const capsule = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-bold transition active:scale-95 max-w-full'
     
     return (
-        <section>
+        <section className="-mb-3">
             {zoom && p.imageUrl && <ImageZoomDialog src={p.imageUrl} alt={p.name} onClose={() => setZoom(false)} />}
-            <div className="px-1 pt-0 pb-2">
+            <div className="px-1 pt-0 pb-0">
                 {/* voltar + logo + nome + situação, numa linha só */}
                 <div className="flex items-center gap-2.5">
                     {p.onBack && (
@@ -238,7 +238,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                 {p.hereSlot}
                 {p.agendaSlot}
 
-                {p.extraSlot && <div className="mt-2">{p.extraSlot}</div>}
+                {p.extraSlot && <div className="mt-2 empty:hidden">{p.extraSlot}</div>}
 
                 {p.ownerToolsSlot && <div className="mt-2">{p.ownerToolsSlot}</div>}
 
