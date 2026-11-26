@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { ArrowLeft, Bike, Eye, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
+import { ArrowLeft, Bike, Eye, Maximize2, Calendar, CalendarCheck, Car, ChevronRight, Lock, MapPin, Info, MessageCircle, MessageSquareQuote, Move, Navigation, Pencil, Route, Star, Users, Wrench } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -37,6 +37,7 @@ import { isGeoPermissionGranted } from '@/components/AceitarCorridas/LocationAsk
 import ChatContactButton from '@/components/ChatContactButton'
 import CarAmenities from '@/components/ride/CarAmenities'
 import DriverSkeleton from '@/components/v3/DriverSkeleton'
+import ImageZoomDialog from '@/components/ImageZoomDialog'
 
 const GREEN = '#16a34a'
 const GREEN_DARK = '#15803d'
@@ -147,6 +148,8 @@ export default function DriverProfile(p: DriverProfileProps) {
     const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
     // zoom que o dono está escolhendo enquanto enquadra (null = ainda não mexeu)
     const [zoomDraft, setZoomDraft] = useState<number | null>(null)
+    // cliente: foto do carro em tela cheia com zoom (ImageZoomDialog)
+    const [zoomPhoto, setZoomPhoto] = useState(false)
     const [savingPos, setSavingPos] = useState(false)
     const drag = useRef<{ px: number; py: number; x: number; y: number; w: number; h: number } | null>(null)
     // onde está quem vê a página: o GPS (só se o navegador já deixou, sem perguntar) ou o local salvo; sem nenhum, não mostra o tempo
@@ -339,6 +342,12 @@ export default function DriverProfile(p: DriverProfileProps) {
                     <span className="absolute right-3 top-3 z-10 h-8 px-3 rounded-full text-[11.5px] font-black text-white flex items-center gap-1.5 shadow" style={{ background: active ? GREEN : 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
                         <span className={`w-1.5 h-1.5 rounded-full bg-white ${active ? 'animate-pulse' : 'opacity-60'}`} />{active ? 'Dirigindo agora' : 'Fora do ar agora'}
                     </span>
+                    {/* o cliente amplia a foto do carro (tela cheia, com zoom) */}
+                    {!owner && vehicle?.photo && !framing && !quote?.live && (
+                        <button onClick={() => setZoomPhoto(true)} className="absolute left-1/2 -translate-x-1/2 top-3 z-10 h-10 px-4 rounded-full text-[12px] font-black text-white flex items-center gap-1.5 shadow transition active:scale-95" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+                            <Maximize2 size={15} /> Ampliar foto
+                        </button>
+                    )}
                     {/* o dono enquadra a foto: botão no meio do topo, entre o voltar e a situação (posição e zoom) */}
                     {owner && !quote?.live && vehicle?.photo && !framing && (
                         <button onClick={() => { setPos({ x: vehicle.posX, y: vehicle.posY }); setZoomDraft(vehicle.zoom); setFraming(true) }} className="absolute left-1/2 -translate-x-1/2 top-3 z-10 h-10 px-4 rounded-full text-[12px] font-black text-white flex items-center gap-1.5 shadow transition active:scale-95" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
@@ -643,6 +652,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                         </div>
                     </div>
                 )}
+            {zoomPhoto && vehicle?.photo && <ImageZoomDialog src={vehicle.photo} alt={vehicle.model || 'Foto do veículo'} onClose={() => setZoomPhoto(false)} />}
             </div>
         </div>
     )
