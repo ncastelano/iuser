@@ -301,7 +301,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                 fundo do cartão por um degradê; em cima o voltar e a situação; embaixo, sobre o degradê, a foto à esquerda e o nome, o @, o nível e o veículo à
                 direita. O 1/3 de baixo é compacto: o que o carro tem, os números numa linha e os botões ===== */}
             <section className="rounded-[28px] overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
-                <div className="relative h-[300px]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})` }}>
+                <div className="relative h-[240px]" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DARK})` }}>
                     {quote?.live ? (
                         <>
                             {/* o logo e os créditos do Mapbox ficam VISÍVEIS (termos): em cima, à direita, abaixo da situação (embaixo entram a foto e o nome) */}
@@ -451,6 +451,25 @@ export default function DriverProfile(p: DriverProfileProps) {
             </div>
 
             <div className="mt-4">
+                {/* as LOJAS da pessoa, logo abaixo das abas: uma faixa horizontal para conhecer (só se ela tiver loja) */}
+                {stores.length > 0 && (
+                    <div className="mt-3">
+                        <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: colors.textSecondary }}>{stores.length === 1 ? 'Também tem uma loja' : 'Também tem lojas'}</p>
+                        <div className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
+                            {stores.map((st) => (
+                                <button key={st.store_id} onClick={() => router.push(`/${st.slug}`)} className="snap-start flex-shrink-0 w-[70%] max-w-[260px] rounded-2xl p-2.5 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                    <span className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}>
+                                        {st.logo_url ? <img src={st.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-base font-black" style={{ color: colors.textSecondary }}>{st.name?.charAt(0).toUpperCase()}</span>}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{st.name}</span>
+                                        <span className="block text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>{st.category || 'Loja'}{st.ratings_count > 0 && st.ratings_avg != null ? ` · ★ ${Number(st.ratings_avg).toFixed(1).replace('.', ',')}` : ''}</span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 {tab === 'avaliacoes' && (
             <section>
                 {reviews === null ? (
@@ -468,9 +487,9 @@ export default function DriverProfile(p: DriverProfileProps) {
                                 </span>
                             </div>
                         )}
-                        <div className="mt-2.5 flex flex-col gap-2.5">
+                        <div className="mt-2.5 flex gap-2.5 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
                             {list.map((r, i) => (
-                                <article key={i} className="rounded-3xl p-3.5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <article key={i} className="snap-start flex-shrink-0 w-[82%] max-w-[320px] rounded-3xl p-3.5 flex flex-col" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                     <div className="flex items-center gap-2.5">
                                         <button onClick={() => r.slug && router.push(`/${r.slug}`)} disabled={!r.slug} className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 text-white text-[13px] font-black" style={{ background: 'linear-gradient(135deg,#f97316,#dc2626)' }}>
                                             {r.avatar ? <img src={r.avatar} alt="" className="w-full h-full object-cover" /> : (r.name || '?').charAt(0).toUpperCase()}
@@ -573,29 +592,6 @@ export default function DriverProfile(p: DriverProfileProps) {
                             </span>
                         </div>
                         {kind === 'carro' && <CarAmenities services={vehicle.services} seats={vehicle.seats} babySeat={vehicle.babySeat} />}
-                    </div>
-                </section>
-            )}
-
-            {/* ===== 4b. as lojas da pessoa (só se ela tiver): propaganda pequena de cada uma ===== */}
-            {stores.length > 0 && (
-                <section>
-                    <h2 className="text-[16px] font-black" style={{ color: colors.textPrimary }}>{stores.length === 1 ? 'Também tem uma loja' : 'Também tem lojas'}</h2>
-                    <div className="mt-2.5 flex flex-col gap-2">
-                        {stores.map((st) => (
-                            <button key={st.store_id} onClick={() => router.push(`/${st.slug}`)} className="w-full rounded-2xl p-2.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                                <span className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}40` }}>
-                                    {st.logo_url ? <img src={st.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-lg font-black" style={{ color: colors.textSecondary }}>{st.name?.charAt(0).toUpperCase()}</span>}
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="block text-[14px] font-black truncate" style={{ color: colors.textPrimary }}>{st.name}</span>
-                                    <span className="block text-[11.5px] font-bold truncate" style={{ color: colors.textSecondary }}>
-                                        {st.category || 'Loja'}{st.ratings_count > 0 && st.ratings_avg != null ? ` · ★ ${Number(st.ratings_avg).toFixed(1).replace('.', ',')} (${st.ratings_count})` : ''}
-                                    </span>
-                                </span>
-                                <span className="text-[12px] font-black flex-shrink-0" style={{ color: '#f97316' }}>Ver loja</span>
-                            </button>
-                        ))}
                     </div>
                 </section>
             )}
