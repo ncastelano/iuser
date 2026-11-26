@@ -21,6 +21,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { handleShareLink } from '@/lib/share'
 import { usePlayerStore } from '@/store/usePlayerStore'
+import { usePageLoadBar } from '@/hooks/usePageLoadBar'
 import {
     addComment, authorAvatarUrl, countShare, deleteComment, deleteFlash, fetchComments, fetchFeed, fitFontSize, flashGradient, mediaSrc, PAGE_SIZE, postFlash,
     setFollowing, setLiked, shortCount, timeAgo, FLASH_COMMENT_MAX_CHARS, FLASH_MAX_CHARS, validateFlash, placeLabelOf, type FlashPlace,
@@ -413,6 +414,7 @@ export default function FlashScreen() {
     const kind = tab === 'publications' ? 'publication' : null
     const [items, setItems] = useState<FlashItem[]>([])
     const [loading, setLoading] = useState(true)
+    usePageLoadBar(loading)
     const [done, setDone] = useState(false)
     const [fresh, setFresh] = useState(0)
     const [commentsOf, setCommentsOf] = useState<FlashItem | null>(null)

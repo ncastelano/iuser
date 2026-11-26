@@ -28,6 +28,7 @@ import RequestCard, { type RequestRef } from '@/components/RequestCard'
 import ShareCardView from '@/components/chat/ShareCardView'
 import ShareSheet from '@/components/chat/ShareSheet'
 import { SHARE_DEFAULT_TEXT, cardKeyOf, fetchShareCards, isDefaultShareText, refColumns, type ShareCard } from '@/lib/shareCards'
+import { usePageLoadBar } from '@/hooks/usePageLoadBar'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -103,6 +104,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     const [shareOpen, setShareOpen] = useState(false)
     const [pending, setPending] = useState<ShareCard | null>(null)
     const [loading, setLoading] = useState(true)
+    usePageLoadBar(loading)
     // Grupo: nome de quem escreveu cada mensagem
     const [senderNames, setSenderNames] = useState<Record<string, string>>({})
     const [text, setText] = useState('')

@@ -12,7 +12,8 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 // clique (sobe rápido até ~85%) e, quando a rota nova termina de montar,
 // completa até 100% e some.
 export function NavigationProgressBar() {
-    const isNavigating = useNavProgressStore((s) => s.isNavigating)
+    // a barra segue enquanto há navegação OU alguma tela ainda carregando os dados dela (usePageLoadBar)
+    const isNavigating = useNavProgressStore((s) => s.isNavigating || s.loadingCount > 0)
     const done = useNavProgressStore((s) => s.done)
     const pathname = usePathname()
     const isFirstRender = useRef(true)
