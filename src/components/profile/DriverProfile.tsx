@@ -321,7 +321,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                                         className="absolute inset-0 w-full h-full object-cover select-none"
                                         style={{ objectPosition: `50% ${(pos ?? { x: vehicle.posX, y: vehicle.posY }).y}%` }}
                                     />
-                                    <span aria-hidden className="absolute inset-x-0 bottom-0 h-[52%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface}cc 60%, ${colors.surface} 100%)` }} />
+                                    <span aria-hidden className="absolute inset-x-0 bottom-0 h-[38%] pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0%, ${colors.surface}cc 60%, ${colors.surface} 100%)` }} />
                                 </>
                             )}
                             {!vehicle?.photo && <span className="absolute inset-x-0 top-12 bottom-6 flex items-center justify-center" style={{ color: colors.textSecondary, opacity: 0.35 }}><Icon size={84} /></span>}
@@ -370,7 +370,7 @@ export default function DriverProfile(p: DriverProfileProps) {
 
                 {/* a foto do motorista sobre a borda da foto do carro; nome, @, nível e o veículo ao lado (sem placa) */}
                 {!framing && (
-                    <div className="relative z-10 -mt-11 px-4 flex items-end gap-3">
+                    <div className="relative z-10 -mt-4 px-4 flex items-end gap-3">
                         <div className="rounded-full flex-shrink-0" style={{ boxShadow: `0 0 0 4px ${colors.surface}` }}>{p.avatarSlot}</div>
                         <div className="min-w-0 flex-1 pb-0.5">
                             <h1 className="text-[22px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</h1>
