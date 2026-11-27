@@ -655,6 +655,21 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#16a34a', 'line-width': 6 } })
     }, [map, mapReady, liveRoute, ride?.ride_started_at])
 
+    // VOCÊ: o passageiro espera na partida — marcador próprio, para ver a rota do motorista até você
+    const youMarkerRef = useRef<mapboxgl.Marker | null>(null)
+    useEffect(() => {
+        if (!map || !mapReady || !ride || ride.origin_lat == null || ride.origin_lng == null || ride.status !== 'accepted') {
+            youMarkerRef.current?.remove(); youMarkerRef.current = null
+            return
+        }
+        const at: [number, number] = [ride.origin_lng, ride.origin_lat]
+        if (youMarkerRef.current) { youMarkerRef.current.setLngLat(at); return }
+        const el = document.createElement('div')
+        el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;"><div style="background:#16a34a;color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);">Você</div><div style="width:16px;height:16px;border-radius:50%;background:#16a34a;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div></div>`
+        youMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(at).addTo(map)
+    }, [map, mapReady, ride?.status, ride?.origin_lat, ride?.origin_lng])
+    useEffect(() => () => { youMarkerRef.current?.remove(); youMarkerRef.current = null }, [])
+
     // CÂMERA QUE SEGUE O CARRO (como no mapa do motorista): fica no carro, inclinada e virada para a rota à frente.
     // Arrastar o mapa solta a câmera; o botão "Centralizado / Recentralizar" liga de novo.
     const [followCar, setFollowCar] = useState(true)
@@ -669,6 +684,14 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     }, [map, mapReady])
     useEffect(() => {
         if (!map || !mapReady || !followCar || !driverLiveCoords || !ride || ride.status !== 'accepted') return
+        const origin: [number, number] | null = ride.origin_lat != null && ride.origin_lng != null ? [ride.origin_lng, ride.origin_lat] : null
+        if (!ride.ride_started_at && origin && haversineKm(driverLiveCoords, origin) > 0.4) {
+            // o carro ainda está longe: enquadra VOCÊ e o carro juntos (a rota verde entre os dois)
+            const b = new mapboxgl.LngLatBounds(driverLiveCoords, driverLiveCoords)
+            b.extend(origin)
+            map.fitBounds(b, { padding: { top: 90, bottom: 60, left: 50, right: 50 }, maxZoom: 16, duration: 700 })
+            return
+        }
         const ahead = liveRoute ? aheadBearing(driverLiveCoords, liveRoute.coords) : null
         if (ahead != null) bearingRef.current = smoothBearing(bearingRef.current, ahead, 0.5)
         const h = map.getContainer().clientHeight
