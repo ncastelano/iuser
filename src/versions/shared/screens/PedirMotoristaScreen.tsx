@@ -1981,12 +1981,6 @@ export default function PedirMotoristaScreen() {
                             ))}
                         </div>
 
-                        {calledDriver && calledPrice != null && (
-                            <div className="w-full rounded-xl px-3 py-2 text-left text-[12px] font-bold leading-snug" style={{ background: '#16a34a14', border: '1px solid #16a34a55', color: colors.textPrimary }}>
-                                {calledMode === 'platform' ? `Pela Tarifa iUser, que ${calledDriver.name?.split(' ')[0] || 'o motorista'} usa,` : `Pela tarifa ${calledMode === 'time' ? 'por tempo' : 'por km'} de ${calledDriver.name?.split(' ')[0] || 'o motorista'},`} esta corrida sai <b style={{ color: '#16a34a' }}>R$ {calledPrice.toFixed(2).replace('.', ',')}</b> — o valor já vai como a sua oferta, é só aceitar.
-                            </div>
-                        )}
-
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.
                         </p>
