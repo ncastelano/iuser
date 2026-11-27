@@ -463,7 +463,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 id: 'my-trip-route',
                 type: 'line',
                 source: 'my-trip-route',
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                // a rota inteira some quando a corrida começa (o trajeto que fica é o verde, encolhendo): nasce já escondida nesse caso
+                layout: { 'line-join': 'round', 'line-cap': 'round', visibility: ride.ride_started_at ? 'none' : 'visible' },
                 paint: { 'line-color': TRIP_ROUTE_COLOR, 'line-width': 5, 'line-opacity': 0.9 },
             })
             candidateLayerIdsRef.current.push('my-trip-route')
