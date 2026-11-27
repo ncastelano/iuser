@@ -4,6 +4,8 @@
 import { cropOnPick } from '@/lib/imageCrop'
 import { addLeafletCredits } from '@/lib/mapCredits';
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
+import LocationPicker from "@/components/LocationPicker";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { getCurrentPosition as getNativeCurrentPosition } from "@/lib/nativeGeolocation";
@@ -179,7 +181,7 @@ export default function CriarLoja() {
   const [locationError, setLocationError] = useState("");
   const [mapReady, setMapReady] = useState(false);
   const [hasPicked, setHasPicked] = useState(false);
-  const [showAddressSearch, setShowAddressSearch] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const gpsAskedRef = useRef(false);
   const [showLocationConfirm, setShowLocationConfirm] = useState(false);
   const [pendingAddress, setPendingAddress] = useState("");
@@ -749,27 +751,33 @@ export default function CriarLoja() {
           {/* localização */}
           <div>
             {label('Localização da loja', 'Arraste o marcador ou mova o mapa até o lugar da loja.')}
-            <div className="relative w-full h-60 rounded-3xl overflow-hidden" style={{ background: soft }}>
-              <div ref={setMapEl} className="w-full h-full" />
-              {!mapReady && <div className="absolute inset-0 flex items-center justify-center" style={{ background: `${colors.background}cc` }}><Spinner size={24} color="#f97316" /></div>}
-            </div>
             <div className="mt-3 flex items-start gap-2.5 px-4 py-3 rounded-2xl" style={{ background: soft }}>
               <MapPinned size={18} className="mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />
               <p className="text-[13px] font-bold leading-snug break-words" style={{ color: colors.textPrimary }}>
-                {resolvingAddress ? 'Obtendo endereço...' : address || 'Arraste o marcador ou mova o mapa'}
+                {address ? address : 'Nenhum endereço escolhido ainda'}
               </p>
             </div>
-            <button type="button" onClick={() => { setShowAddressSearch((v) => !v); setTimeout(() => searchInputRef.current?.focus(), 150); }}
-              className="mt-2 w-full h-11 rounded-full flex items-center justify-center gap-2 text-[13px] font-black transition active:scale-95" style={{ background: soft, color: colors.textPrimary }}>
-              <Search size={15} style={{ color: '#f97316' }} /> Escrever endereço
+            <button type="button" onClick={() => setShowLocationPicker(true)}
+              className="mt-2 w-full h-11 rounded-full flex items-center justify-center gap-2 text-[13px] font-black text-white transition active:scale-95" style={{ background: '#f97316' }}>
+              <Search size={15} /> {address ? 'Trocar o endereço' : 'Escrever o endereço'}
             </button>
-            {showAddressSearch && (
-              <div className="mt-2 flex items-center h-12 rounded-full pl-4 pr-1.5" style={{ background: soft }}>
-                <input ref={searchInputRef} type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rua, número, bairro, cidade..."
-                  className="flex-1 min-w-0 bg-transparent outline-none text-sm" style={{ color: colors.textPrimary }} disabled={loadingLocation}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSearchAddress(); }} />
-                {searchQuery && <button type="button" onClick={handleSearchAddress} disabled={loadingLocation} className="h-9 px-4 rounded-full text-[13px] font-black text-white" style={{ background: '#f97316' }}>{loadingLocation ? '...' : 'Ir'}</button>}
-              </div>
+            {showLocationPicker && typeof document !== 'undefined' && createPortal(
+              <LocationPicker
+                subject="store"
+                allowDriverSync={false}
+                initialLocation={address && hasPicked ? { lat: selectedPosition.lat, lng: selectedPosition.lng, address, addressNumber, addressComplement } : null}
+                onSave={(loc) => {
+                  setSelectedPosition({ lat: loc.lat, lng: loc.lng })
+                  setAddress(loc.address)
+                  setAddressNumber(loc.addressNumber || '')
+                  setAddressComplement(loc.addressComplement || '')
+                  setHasPicked(true)
+                  setLocationError('')
+                  setShowLocationPicker(false)
+                }}
+                onClose={() => setShowLocationPicker(false)}
+              />,
+              document.body,
             )}
             {!resolvingAddress && address && (
               <div className="mt-3 space-y-3">

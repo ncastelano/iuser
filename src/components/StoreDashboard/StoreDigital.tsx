@@ -19,7 +19,16 @@ export default function StoreDigital({ storeId, storeSlug, hasPix, v3 = false }:
 
     const gap = 'mb-6'
     // onde se mexe nos produtos e no Clube: na 3.0, em Editar loja; na 2.0 está tudo na mesma página
-    const manage = () => router.push(`/editar-loja/${encodeURIComponent(storeSlug)}`)
+    // Abre o Catálogo na aba Digitais DENTRO do painel (a edição da loja mora ali, embaixo de "Gerenciar a loja"):
+    // muda o endereço (?secao=catalogo&aba=digitais), avisa a edição e rola até ela. Não sai da página.
+    const manage = () => {
+        const q = new URLSearchParams(window.location.search)
+        q.set('secao', 'catalogo')
+        q.set('aba', 'digitais')
+        window.history.pushState(window.history.state, '', `${window.location.pathname}?${q}`)
+        window.dispatchEvent(new PopStateEvent('popstate'))
+        document.getElementById('gerenciar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
     const card = { background: colors.surface, border: `1px solid ${colors.border}` } as const
     const soft = `${colors.border}40`
 
@@ -30,6 +39,58 @@ export default function StoreDigital({ storeId, storeSlug, hasPix, v3 = false }:
             {hint && <span className="text-[11px]" style={{ color: colors.textSecondary }}>{hint}</span>}
         </div>
     )
+
+    // 3.0: o mesmo desenho da Editar loja — um cartão só, com uma linha por coisa (ícone colorido, título, estado e seta).
+    // O cabeçalho da seção ("Digital") é do painel (PainelLoja), então aqui não há título.
+    const Linha = ({ icon, cor, t, sub, alerta, onClick, primeira }: { icon: React.ReactNode; cor: string; t: string; sub: string; alerta?: boolean; onClick: () => void; primeira: boolean }) => (
+        <button onClick={onClick} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70" style={{ borderTop: primeira ? undefined : `1px solid ${colors.border}` }}>
+            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${cor}26`, color: cor }}>{icon}</span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>{t}</span>
+                <span className="block text-[11.5px] font-semibold leading-tight mt-0.5" style={{ color: alerta ? '#b45309' : colors.textSecondary }}>{sub}</span>
+            </span>
+            {alerta && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#eab308' }} />}
+            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+        </button>
+    )
+    const pedidosPath = `/painel-loja/${encodeURIComponent(storeSlug)}/pedidos`
+    if (v3) {
+        const ativo = !!sum && hasDigitalActivity(sum)
+        const itensTxt = sum ? `${sum.items} ${sum.items === 1 ? 'arquivo' : 'arquivos'}` : ''
+        const linhasV3 = sum && ativo ? [
+            ...(sum.toRelease > 0 ? [{ key: 'liberar', icon: <Package size={18} />, cor: '#f97316', t: 'Liberar acesso', sub: sum.toRelease === 1 ? '1 pedido esperando você liberar' : `${sum.toRelease} pedidos esperando você liberar`, alerta: true, onClick: () => router.push(pedidosPath) }] : []),
+            { key: 'produtos', icon: <GraduationCap size={18} />, cor: '#7c3aed', t: 'Produtos', sub: `${sum.products} ${sum.products === 1 ? 'produto' : 'produtos'} · ${sum.freeProducts > 0 ? `${sum.freeProducts} grátis · ` : ''}${itensTxt}`, alerta: false, onClick: manage },
+            { key: 'vendas', icon: <Banknote size={18} />, cor: '#16a34a', t: 'Vendas', sub: `${formatCents(sum.revenueCents)} · ${sum.paidOrders} ${sum.paidOrders === 1 ? 'pedido pago' : 'pedidos pagos'}`, alerta: false, onClick: manage },
+            { key: 'gratis', icon: <Gift size={18} />, cor: '#0ea5e9', t: 'Pegaram de graça', sub: `${sum.freeClaims} ${sum.freeClaims === 1 ? 'pessoa' : 'pessoas'}`, alerta: false, onClick: manage },
+            { key: 'downloads', icon: <Download size={18} />, cor: '#64748b', t: 'Downloads', sub: `${sum.downloads} de programas`, alerta: false, onClick: manage },
+            { key: 'clube', icon: <Users size={18} />, cor: '#16a34a', t: clubLine(sum), sub: sum.clubToCheck > 0 ? (sum.clubToCheck === 1 ? '1 pagamento do Clube para conferir' : `${sum.clubToCheck} pagamentos do Clube para conferir`) : 'Clube VIP da loja', alerta: sum.clubToCheck > 0, onClick: manage },
+        ] : []
+        return (
+            <>
+                {ativo ? (
+                    <div className="rounded-3xl overflow-hidden" style={card} aria-label="Digital">
+                        {linhasV3.map((l, i) => <Linha key={l.key} icon={l.icon} cor={l.cor} t={l.t} sub={l.sub} alerta={l.alerta} onClick={l.onClick} primeira={i === 0} />)}
+                        <button onClick={manage} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70" style={{ borderTop: `1px solid ${colors.border}` }}>
+                            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#f9731626', color: '#f97316' }}><GraduationCap size={18} /></span>
+                            <span className="min-w-0 flex-1"><span className="block text-[13.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>Gerenciar produtos digitais e Clube</span><span className="block text-[11.5px] leading-tight mt-0.5" style={{ color: colors.textSecondary }}>Em Editar loja, aqui embaixo</span></span>
+                            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="rounded-3xl overflow-hidden" style={{ ...card, border: `1.5px dashed ${colors.border}` }} aria-label="Digital">
+                        <button onClick={manage} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70">
+                            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#7c3aed26', color: '#7c3aed' }}><GraduationCap size={18} /></span>
+                            <span className="min-w-0 flex-1"><span className="block text-[13.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>Venda cursos, músicas e programas</span><span className="block text-[11.5px] leading-tight mt-0.5" style={{ color: colors.textSecondary }}>Crie um produto do tipo Digital em Editar loja; o acesso abre depois que você confirma o pagamento.</span></span>
+                            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                        </button>
+                    </div>
+                )}
+                <div className="mt-2">
+                    <StoreTips storeId={storeId} hasPix={hasPix} v3={v3} />
+                </div>
+            </>
+        )
+    }
 
     return (
         <>

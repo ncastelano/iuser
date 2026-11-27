@@ -92,7 +92,8 @@ def candidates(ride, already, limit):
 def ensure_plans():
     psql(['-c', """insert into subscriptions (user_id, plan_id, status, source, starts_at, current_period_end, granted_reason)
         select dp.driver_id, (select id from plans where code = 'pre_pago'), 'active', 'free_trial', now(), now() + interval '90 days', 'simulador local'
-        from driver_pricing dp where dp.driver_mode_active and not coalesce((select has_driver from get_active_plan_grants(dp.driver_id)), false)"""])
+        from driver_pricing dp where dp.driver_mode_active and not coalesce((select has_driver from get_active_plan_grants(dp.driver_id)), false)
+        on conflict do nothing"""])
 
 
 def main():

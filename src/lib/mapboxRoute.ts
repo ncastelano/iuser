@@ -153,3 +153,15 @@ export async function fetchRoadPath(from: [number, number], to: [number, number]
         return coords && coords.length > 1 ? (coords as [number, number][]) : null
     } catch { return null }
 }
+
+/** A rota que ainda falta, a partir da posição atual do carro: corta o que já ficou para trás e começa a linha no próprio carro. */
+export function trimRouteFrom(coords: [number, number][], pos: [number, number]): [number, number][] {
+    if (coords.length < 2) return coords
+    let nearest = 0
+    let best = Infinity
+    for (let i = 0; i < coords.length; i++) {
+        const d = haversineKm(pos, coords[i])
+        if (d < best) { best = d; nearest = i }
+    }
+    return [pos, ...coords.slice(nearest)]
+}

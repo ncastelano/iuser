@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-    AlertCircle, Banknote, Heart, MessageCircle, Wallet, CalendarDays, ChevronRight, ClipboardList, CreditCard, Eye, GraduationCap, Settings, Share2, Star,
+    AlertCircle, Banknote, Heart, MessageCircle, Wallet, CalendarDays, ChevronRight, ClipboardList, CreditCard, Eye, GraduationCap, Settings, Share2, Star, Trophy,
     Store, Check, Truck,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -28,10 +28,10 @@ import StoreDeliveryDues from '../StoreDeliveryDues'
 import StoreIuserCredits from '../StoreIuserCredits'
 import StoreMissions from '../StoreMissions'
 import StoreDigital from '../StoreDigital'
+import StoreNotifications from '../StoreNotifications'
 import StoreFeedback from '../StoreFeedback'
 import StoreVisitors from '../StoreVisitors'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
-import { gerenciarItens, rotaPropria, SELO } from './gerenciar'
 import { TYPE_INFO } from '@/components/planos/PostpaidFees'
 import LogoFolha from './LogoFolha'
 import BalcaoV3 from './BalcaoV3'
@@ -44,13 +44,13 @@ import SalesChart, { type PaidOrder, type SalesPeriod } from './SalesChart'
 import type { ExtractPeriod } from '../StoreSalesExtractDialog'
 
 const ORANGE = '#f97316'
-const PAGINAS = ['extrato', 'repasses', 'apoios', 'balcao', 'agora'] as const
+const PAGINAS = ['extrato', 'repasses', 'apoios', 'balcao', 'agora', 'pedidos', 'dia', 'missoes', 'visitantes', 'avaliacoes', 'plano'] as const
 type PaginaK = typeof PAGINAS[number]
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 type Metrics = { daily: { revenue: number; orders: number }; weekly: { revenue: number; orders: number }; monthly: { revenue: number; orders: number } }
 
-export default function PainelLoja({ store, storeSlug, profileSlug, userId, metrics, paidOrders, onOpenExtract, onShare, onOrderCountsChange, onSaleCompleted }: {
+export default function PainelLoja({ store, storeSlug, profileSlug, userId, metrics, paidOrders, onOpenExtract, onShare, onOrderCountsChange, onSaleCompleted, gerenciar }: {
     store: any
     storeSlug: string
     profileSlug: string
@@ -61,12 +61,13 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
     onShare: () => void
     onOrderCountsChange?: (c: any) => void
     onSaleCompleted: () => void
+    /** A edição da loja (grupos Sobre a loja · O que você vende · ...), que mora dentro do painel */
+    gerenciar: ReactNode
 }) {
     const { colors } = useTheme()
     const router = useRouter()
     const card = { background: colors.surface, border: `1px solid ${colors.border}` }
     const slug = store.storeSlug || storeSlug
-    const editar = `/editar-loja/${encodeURIComponent(slug)}`
     const limit = usePostpaidLimit()
     // páginas que abrem a partir do painel (?secao=): extrato completo, repasses das entregas e apoios recebidos
     const pagina = useSecaoUrl(PAGINAS)
@@ -145,20 +146,36 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
         if (att?.dues) a.push({ cor: '#eab308', icone: <Banknote size={17} />, titulo: `${att.dues} ${att.dues === 1 ? 'repasse' : 'repasses'} para conferir`, sub: att.duesAmount > 0 ? `${brl(att.duesAmount)} que os entregadores dizem ter repassado` : 'Confira se recebeu e confirme', ir: '?secao=repasses', rotulo: 'Conferir' })
         if (att?.tips) a.push({ cor: '#8b5cf6', icone: <Heart size={17} />, titulo: `${att.tips} ${att.tips === 1 ? 'apoio' : 'apoios'} para conferir`, sub: 'Fãs dizem que mandaram um Pix: confira na sua conta', ir: '?secao=apoios', rotulo: 'Conferir' })
         if (att?.chats) a.push({ cor: '#16a34a', icone: <MessageCircle size={17} />, titulo: `${att.chats} ${att.chats === 1 ? 'conversa' : 'conversas'} sem resposta`, sub: 'Clientes falando com a loja', ir: `/conversas?sala=${encodeURIComponent(slug)}`, rotulo: 'Responder' })
-        if (!store.pix_key) a.push({ cor: '#ef4444', icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse', ir: `${editar}?secao=pagamento`, rotulo: 'Cadastrar' })
+        if (!store.pix_key) a.push({ cor: '#ef4444', icone: <CreditCard size={17} />, titulo: 'Cadastre sua chave Pix', sub: 'Sem ela a loja não recebe entrada, apoio nem repasse', ir: '#gerenciar', rotulo: 'Cadastrar' })
         if (plan?.postpaid && plan.debt >= limit) a.push({ cor: '#ef4444', icone: <AlertCircle size={17} />, titulo: 'O Pós-pago chegou ao limite', sub: `Quite ${brl(plan.debt)} para continuar vendendo`, ir: '/planos/pos-pago', rotulo: 'Quitar' })
         return a
-    }, [att, store.pix_key, plan, limit, slug, editar])
+    }, [att, store.pix_key, plan, limit, slug])
 
-    const sec = (titulo: string, direita?: ReactNode) => (
-        <div className="mb-2 mt-6 flex items-center gap-2">
-            <p className="text-[13px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{titulo}</p>
+    // Cabeçalho de seção: o mesmo da Editar loja (título pequeno em maiúsculas + uma frase do que é), para o painel inteiro
+    // Uma linha no estilo da Editar loja: ícone colorido, título, estado e seta; tocar abre a caixa com o conteúdo
+    const Linha = ({ icon, cor, t, sub, alerta, onClick, primeira }: { icon: ReactNode; cor: string; t: string; sub: string; alerta?: boolean; onClick: () => void; primeira: boolean }) => (
+        <button onClick={onClick} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70" style={{ borderTop: primeira ? undefined : `1px solid ${colors.border}` }}>
+            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${cor}26`, color: cor }}>{icon}</span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>{t}</span>
+                <span className="block text-[11.5px] font-semibold leading-tight mt-0.5 truncate" style={{ color: alerta ? '#b45309' : colors.textSecondary }}>{sub}</span>
+            </span>
+            {alerta && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#eab308' }} />}
+            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+        </button>
+    )
+
+    const sec = (titulo: string, direita?: ReactNode, dica?: string) => (
+        <div className="mt-6 mb-1.5 flex items-center gap-2">
+            <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>{titulo}</p>
+                {dica && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{dica}</p>}
+            </div>
             <div className="ml-auto">{direita}</div>
         </div>
     )
 
     // ---------- Gerenciar a loja: a MESMA lista do Editar loja, cada atalho abre direto a folha/página dele ----------
-    const tiles = gerenciarItens(store, hasServices, { agendaNoPainel: true })
 
     const periodos: { k: SalesPeriod; l: string; m: { revenue: number; orders: number }; ex: ExtractPeriod }[] = [
         { k: 'hoje', l: 'Hoje', m: metrics.daily, ex: 'daily' },
@@ -170,7 +187,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
     return (
         <div>
             {/* ===== SUA LOJA ===== */}
-            {sec('Sua loja')}
+            {sec('Sua loja', undefined, 'Como a loja aparece para o cliente')}
             <div className="rounded-[28px] p-3.5" style={card}>
                 <div className="flex items-center gap-3">
                     <button onClick={() => setLogoOpen(true)} aria-label="Logo e moldura" className="flex-shrink-0 active:scale-95 transition">
@@ -199,7 +216,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                     </div>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                    {[['Ver loja', <Eye key="a" size={14} />, () => router.push(`/${slug}`)], ['Compartilhar', <Share2 key="b" size={14} />, onShare], ['Editar', <Settings key="c" size={14} />, () => router.push(editar)]].map(([t, ic, fn], i) => (
+                    {[['Ver loja', <Eye key="a" size={14} />, () => router.push(`/${slug}`)], ['Compartilhar', <Share2 key="b" size={14} />, onShare], ['Editar', <Settings key="c" size={14} />, () => document.getElementById('gerenciar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })]].map(([t, ic, fn], i) => (
                         <button key={String(t)} onClick={fn as () => void} className="h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition"
                             style={i === 2 ? { background: ORANGE, color: '#fff' } : { background: `${colors.border}50`, color: colors.textPrimary }}>{ic as ReactNode}{t as string}</button>
                     ))}
@@ -207,7 +224,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             </div>
 
             {/* ===== PRECISA DE VOCÊ AGORA ===== */}
-            {sec('Precisa de você agora', atencao.length > 0 ? <span className="text-[11px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#22c55e' }}>{atencao.length}</span> : undefined)}
+            {sec('Precisa de você agora', atencao.length > 0 ? <span className="text-[11px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#22c55e' }}>{atencao.length}</span> : undefined, 'O que depende de você hoje')}
             {att === null ? (
                 <div className="rounded-3xl h-16 animate-pulse" style={{ background: `${colors.border}40` }} />
             ) : atencao.length === 0 ? (
@@ -218,8 +235,8 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             ) : (
                 <div className="rounded-3xl overflow-hidden" style={card}>
                     {atencao.map((a, i) => (
-                        <button key={a.titulo} onClick={() => (a.ir.startsWith('?secao=') ? pagina.abrir(a.ir.slice(7) as PaginaK) : router.push(a.ir))} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
-                            <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${a.cor}22`, color: a.cor }}>{a.icone}</span>
+                        <button key={a.titulo} onClick={() => (a.ir.startsWith('?secao=') ? pagina.abrir(a.ir.slice(7) as PaginaK) : a.ir === '#gerenciar' ? document.getElementById('gerenciar')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : router.push(a.ir))} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70 transition" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
+                            <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${a.cor}26`, color: a.cor }}>{a.icone}</span>
                             <span className="min-w-0 flex-1">
                                 <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.titulo}</span>
                                 <span className="block text-[11.5px] leading-snug" style={{ color: colors.textSecondary }}>{a.sub}</span>
@@ -230,42 +247,31 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                 </div>
             )}
 
-            {/* ===== PEDIDOS (o funil de sempre: Novos → Em preparo → Prontos → A caminho, com as ações) ===== */}
-            <div className="mt-6">
-                <StoreOrders storeId={store.id} storeName={store.name} onOrderCountsChange={(c: any) => { onOrderCountsChange?.(c); loadAttention() }} storeSlug={slug} />
+            {/* ===== PEDIDOS, DIA E MISSÕES: linhas que abrem a caixa de cada um (mesmo desenho da Editar loja) ===== */}
+            {sec('Pedidos', undefined, 'Novos, em preparo, prontos e a caminho')}
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<ClipboardList size={18} />} cor="#22c55e" t="Pedidos na loja"
+                    sub={att ? (att.orders + att.services > 0 ? `${att.orders} ${att.orders === 1 ? 'pedido novo' : 'pedidos novos'}${att.services ? ` · ${att.services} de serviço` : ''}` : 'Nada novo agora') : 'Carregando pedidos…'}
+                    alerta={!!att && att.orders + att.services > 0} onClick={() => pagina.abrir('pedidos')} />
             </div>
 
-            {/* ===== COMO ESTÁ O DIA (vendas pagas de verdade; o extrato completo abre no mesmo diálogo de sempre) ===== */}
-            {sec('Como está o dia')}
-            <div className="rounded-3xl p-3" style={card}>
-                <div className="flex gap-1.5 mb-2.5">
-                    {periodos.map((p) => (
-                        <button key={p.k} onClick={() => setPeriod(p.k)} className="h-8 px-3.5 rounded-full text-[12px] font-black active:scale-95" style={period === p.k ? { background: ORANGE, color: '#fff' } : { border: `1px solid ${colors.border}`, color: colors.textPrimary }}>{p.l}</button>
-                    ))}
-                </div>
-                <div className="flex items-end justify-between gap-3">
-                    <div className="min-w-0">
-                        <p className="text-[24px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(atual.m.revenue)}</p>
-                        <p className="text-[11.5px] mt-1" style={{ color: colors.textSecondary }}>{atual.m.orders} {atual.m.orders === 1 ? 'venda' : 'vendas'}</p>
-                        <button onClick={() => pagina.abrir('agora')} className="mt-2.5 h-8 pl-2 pr-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: '#16a34a1c', color: '#15803d' }}>
-                            <span className="w-2 h-2 rounded-full" style={{ background: '#22c55e', boxShadow: '0 0 0 3px #22c55e33' }} />{online === null ? '…' : online} online agora<ChevronRight size={13} />
-                        </button>
-                    </div>
-                    <SalesChart orders={paidOrders} period={period} />
-                </div>
-                <button onClick={() => { setExtratoIni(period === 'mes' ? 'mes' : period); pagina.abrir('extrato') }} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                    Abrir o extrato<ChevronRight size={14} />
-                </button>
+            {sec('Como está o dia', undefined, 'Vendas pagas de hoje, da semana e do mês')}
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<Wallet size={18} />} cor="#16a34a" t={`${brl(atual.m.revenue)} · ${periodos.find((x) => x.k === period)?.l || ''}`}
+                    sub={`${atual.m.orders} ${atual.m.orders === 1 ? 'venda' : 'vendas'} · ${online === null ? '…' : online} online agora`}
+                    onClick={() => pagina.abrir('dia')} />
             </div>
 
-            {/* ===== MISSÕES ===== */}
-            <div className="mt-6"><StoreMissions storeId={store.id} storeSlug={slug} /></div>
+            {sec('Missões', undefined, 'Pontos de hoje e o cadastro da loja')}
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<Trophy size={18} />} cor={ORANGE} t="Missões da loja" sub="Pontos de hoje, missões do dia e cadastro" onClick={() => pagina.abrir('missoes')} />
+            </div>
 
             {/* ===== PRÓXIMOS COMPROMISSOS (só loja que atende com hora marcada) ===== */}
             {hasServices && <div className="mt-2"><AtalhoCompromissosDaLoja profileSlug={profileSlug} storeId={store.id} storeSlug={slug} /></div>}
 
             {/* ===== DINHEIRO: repasses das entregas, extrato e apoios — cada linha abre a página dela ===== */}
-            {sec('Dinheiro')}
+            {sec('Dinheiro', undefined, 'Repasses das entregas, extrato e apoios')}
             <div className="rounded-3xl overflow-hidden" style={card}>
                 {([
                     { k: 'repasses' as PaginaK, ic: <Banknote size={17} />, cor: '#eab308', t: 'Repasses das entregas', sub: att?.dues ? `${att.dues} para conferir${att.duesAmount ? ` · ${brl(att.duesAmount)}` : ''}` : 'dinheiro da porta, maquininha e contestações', alerta: !!att?.dues },
@@ -273,7 +279,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                     { k: 'apoios' as PaginaK, ic: <Heart size={17} />, cor: '#8b5cf6', t: 'Apoios recebidos', sub: att?.tips ? `${att.tips} para conferir` : 'gorjetas dos fãs, por Pix', alerta: !!att?.tips },
                 ]).map((r, i) => (
                     <button key={r.k} onClick={() => { if (r.k === 'extrato') setExtratoIni('mes'); pagina.abrir(r.k) }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-70" style={{ borderTop: i ? `1px solid ${colors.border}` : undefined }}>
-                        <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${r.cor}22`, color: r.cor }}>{r.ic}</span>
+                        <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${r.cor}26`, color: r.cor }}>{r.ic}</span>
                         <span className="min-w-0 flex-1"><span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{r.t}</span><span className="block text-[11.5px] leading-snug" style={{ color: r.alerta ? '#b45309' : colors.textSecondary }}>{r.sub}</span></span>
                         {r.alerta && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#eab308' }} />}
                         <ChevronRight size={16} style={{ color: colors.textSecondary }} />
@@ -284,25 +290,96 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             <StoreIuserCredits storeId={store.id} />
 
             {/* ===== DIGITAL E CLUBE ===== */}
-            <div className="mt-2"><StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 /></div>
+            {sec('Digital', undefined, 'Cursos, músicas e programas da loja')}
+            <StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 />
 
-            {/* ===== SEU PLANO ===== */}
+            {/* ===== VISITANTES, AVALIAÇÕES E PLANO: linhas que abrem a caixa de cada um ===== */}
+            {sec('Visitantes', undefined, 'Quem passou pela loja')}
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<Eye size={18} />} cor="#2563eb" t="Visitantes" sub={`${store.view_count ?? 0} visitas na página`} onClick={() => pagina.abrir('visitantes')} />
+            </div>
+
+            {sec('O que dizem da loja', undefined, 'Avaliações e comentários dos clientes')}
+            <div className="rounded-3xl overflow-hidden" style={card}>
+                <Linha primeira icon={<Star size={18} />} cor="#eab308" t="Avaliações e comentários"
+                    sub={Number(store.ratings_count) > 0 ? `${Number(store.ratings_avg || 0).toFixed(1).replace('.', ',')} de nota · ${store.ratings_count} avaliações` : 'Ainda sem avaliações'}
+                    onClick={() => pagina.abrir('avaliacoes')} />
+            </div>
+
             {plan && (
                 <>
-                    {sec('Seu plano')}
-                    <button onClick={() => router.push(plan.postpaid ? '/planos/pos-pago' : '/planos')} className="w-full text-left rounded-3xl p-3.5 active:scale-[.99] transition" style={card}>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 h-6 rounded-full text-[11px] font-black text-white flex items-center" style={{ background: plan.postpaid ? ORANGE : '#16a34a' }}>{plan.postpaid ? 'Pós-pago' : 'Pré-pago'}</span>
-                            <span className="text-[11.5px] font-semibold" style={{ color: colors.textSecondary }}>{plan.postpaid ? 'você paga só pelo que usa' : 'mensalidade, sem taxa por venda'}</span>
-                            <ChevronRight size={15} className="ml-auto" style={{ color: colors.textSecondary }} />
+                    {sec('Seu plano', undefined, 'Quanto a loja paga ao iUser')}
+                    <div className="rounded-3xl overflow-hidden" style={card}>
+                        <Linha primeira icon={<CreditCard size={18} />} cor={plan.postpaid ? ORANGE : '#16a34a'} t={plan.postpaid ? 'Pós-pago' : 'Pré-pago'}
+                            sub={plan.postpaid ? `${brl(plan.debt)} de ${limitText(limit)} de limite · você paga só pelo que usa` : 'Mensalidade de R$ 100 · sem taxa por venda, pedido ou agendamento'}
+                            onClick={() => pagina.abrir('plano')} />
+                    </div>
+                </>
+            )}
+
+            {/* ===== NOTIFICAÇÕES DO CELULAR: o dono escolhe quais avisos da loja chegam no aparelho ===== */}
+            {sec('Notificações do celular', undefined, 'Avisos da loja que chegam no seu celular')}
+            <StoreNotifications storeId={store.id} />
+
+            {/* ===== GERENCIAR A LOJA: a própria edição (grupos com o estado de cada coisa), no mesmo painel ===== */}
+            <div id="gerenciar" className="scroll-mt-24">{sec('Gerenciar a loja', undefined, 'Tudo que se configura, com o estado de cada coisa')}</div>
+            {gerenciar}
+
+            {pagina.secao === 'pedidos' && (
+                <PaginaPainel titulo="Pedidos na loja" sub={store.name} cor={ORANGE} icone={<ClipboardList size={18} />} onClose={pagina.fechar}>
+                    <StoreOrders storeId={store.id} storeName={store.name} storeSlug={slug} onOrderCountsChange={(c: any) => { onOrderCountsChange?.(c); loadAttention() }} />
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'dia' && (
+                <PaginaPainel titulo="Como está o dia" sub={store.name} cor="#16a34a" icone={<Wallet size={18} />} onClose={pagina.fechar}>
+                    <div className="rounded-3xl p-3" style={card}>
+                        <div className="flex gap-1.5 mb-2.5">
+                            {periodos.map((p) => (
+                                <button key={p.k} onClick={() => setPeriod(p.k)} className="h-8 px-3.5 rounded-full text-[12px] font-black active:scale-95" style={period === p.k ? { background: ORANGE, color: '#fff' } : { border: `1px solid ${colors.border}`, color: colors.textPrimary }}>{p.l}</button>
+                            ))}
                         </div>
-                        {plan.postpaid && (<>
+                        <div className="flex items-end justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-[24px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(atual.m.revenue)}</p>
+                                <p className="text-[11.5px] mt-1" style={{ color: colors.textSecondary }}>{atual.m.orders} {atual.m.orders === 1 ? 'venda' : 'vendas'}</p>
+                                <button onClick={() => pagina.abrir('agora')} className="mt-2.5 h-8 pl-2 pr-3 rounded-full text-[12px] font-black flex items-center gap-1.5 active:scale-95" style={{ background: '#16a34a1c', color: '#15803d' }}>
+                                    <span className="w-2 h-2 rounded-full" style={{ background: '#22c55e', boxShadow: '0 0 0 3px #22c55e33' }} />{online === null ? '…' : online} online agora<ChevronRight size={13} />
+                                </button>
+                            </div>
+                            <SalesChart orders={paidOrders} period={period} />
+                        </div>
+                        <button onClick={() => { setExtratoIni(period === 'mes' ? 'mes' : period); pagina.abrir('extrato') }} className="w-full mt-3 h-10 rounded-full text-[12.5px] font-black flex items-center justify-center gap-1.5 active:scale-95" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                            Abrir o extrato<ChevronRight size={14} />
+                        </button>
+                    </div>
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'missoes' && (
+                <PaginaPainel titulo="Missões da loja" sub={store.name} cor={ORANGE} icone={<Trophy size={18} />} onClose={pagina.fechar}>
+                    <StoreMissions storeId={store.id} storeSlug={slug} />
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'visitantes' && (
+                <PaginaPainel titulo="Visitantes" sub={store.name} cor="#2563eb" icone={<Eye size={18} />} onClose={pagina.fechar}>
+                    <StoreVisitors storeId={store.id} />
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'avaliacoes' && (
+                <PaginaPainel titulo="Avaliações e comentários" sub={store.name} cor="#eab308" icone={<Star size={18} />} onClose={pagina.fechar}>
+                    <StoreFeedback storeId={store.id} />
+                </PaginaPainel>
+            )}
+            {pagina.secao === 'plano' && plan && (
+                <PaginaPainel titulo="Seu plano" sub={store.name} cor={plan.postpaid ? ORANGE : '#16a34a'} icone={<CreditCard size={18} />} onClose={pagina.fechar}>
+                    <div className="rounded-3xl p-3.5" style={card}>
+                        <p className="text-[12.5px] font-black" style={{ color: colors.textPrimary }}>{plan.postpaid ? 'Pós-pago · você paga só pelo que usa' : 'Pré-pago · mensalidade'}</p>
+                        {plan.postpaid ? (<>
                             <div className="flex items-baseline justify-between mt-3"><p className="text-[22px] font-black leading-none" style={{ color: colors.textPrimary }}>{brl(plan.debt)}</p><p className="text-[11.5px] font-bold" style={{ color: colors.textSecondary }}>de {limitText(limit)} · limite</p></div>
                             <span className="block h-2.5 rounded-full overflow-hidden mt-2" style={{ background: `${colors.border}70` }}><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (plan.debt / limit) * 100)}%`, background: plan.debt >= limit ? '#ef4444' : 'linear-gradient(90deg,#f97316,#dc2626)' }} /></span>
                             {plan.byType.length > 0 && (
-                                <div className="mt-3 flex flex-col gap-1">
+                                <div className="mt-3 flex flex-col gap-1.5">
                                     <p className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>O que foi cobrado</p>
-                                    {plan.byType.slice(0, 4).map(([t, v]) => (
+                                    {plan.byType.map(([t, v]) => (
                                         <div key={t} className="flex items-center justify-between text-[12px]">
                                             <span style={{ color: colors.textPrimary }}>{v.n} × {(TYPE_INFO as any)[t]?.label?.toLowerCase() || t}</span>
                                             <span className="font-black" style={{ color: colors.textPrimary }}>{brl(v.total)}</span>
@@ -310,40 +387,13 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
                                     ))}
                                 </div>
                             )}
-                            <p className="text-[11.5px] font-black mt-2.5" style={{ color: ORANGE }}>Ver tudo e quitar agora →</p>
-                        </>)}
-                        {!plan.postpaid && <p className="text-[12px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>Mensalidade de R$ 100 · nenhuma taxa por venda, pedido ou agendamento.</p>}
-                    </button>
-                </>
-            )}
-
-            {/* ===== O QUE DIZEM DA LOJA ===== */}
-            <div className="mt-6"><StoreFeedback storeId={store.id} /></div>
-
-            {/* ===== VISITANTES ===== */}
-            <div className="mt-2"><StoreVisitors storeId={store.id} /></div>
-
-            {/* ===== GERENCIAR A LOJA (tudo que é configuração mora em Editar loja) ===== */}
-            {sec('Gerenciar a loja')}
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mb-2 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SELO.on }} />Ligado</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SELO.off }} />Desligado</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SELO.warn }} />Precisa de atenção</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-                {tiles.map((g) => {
-                    const apagado = g.est === 'off'
-                    return (
-                        <button key={g.k} onClick={() => router.push(rotaPropria(g.k, slug) || `${editar}?secao=${g.k}`)} className="relative rounded-3xl p-3 text-left active:scale-95 transition" style={{ background: apagado ? colors.surface : `${g.cor}14`, border: `1.5px solid ${apagado ? colors.border : `${g.cor}55`}`, opacity: apagado ? 0.75 : 1 }}>
-                            <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full" style={{ background: SELO[g.est] }} />
-                            <span className="w-9 h-9 rounded-2xl flex items-center justify-center" style={{ background: apagado ? `${colors.border}60` : `${g.cor}26`, color: apagado ? colors.textSecondary : g.cor }}>{g.ic}</span>
-                            <span className="block text-[12.5px] font-black leading-tight mt-2" style={{ color: colors.textPrimary }}>{g.t}</span>
-                            <span className="block text-[10.5px] leading-tight mt-0.5" style={{ color: g.est === 'warn' ? '#dc2626' : colors.textSecondary }}>{g.texto}</span>
+                        </>) : <p className="text-[12px] mt-2.5 leading-snug" style={{ color: colors.textSecondary }}>Mensalidade de R$ 100 · nenhuma taxa por venda, pedido ou agendamento.</p>}
+                        <button onClick={() => router.push(plan.postpaid ? '/planos/pos-pago' : '/planos')} className="w-full mt-4 h-10 rounded-full text-[12.5px] font-black text-white active:scale-95" style={{ background: ORANGE }}>
+                            {plan.postpaid ? 'Ver tudo e quitar agora' : 'Ver o plano'}
                         </button>
-                    )
-                })}
-            </div>
-
+                    </div>
+                </PaginaPainel>
+            )}
             {logoOpen && <LogoFolha storeId={store.id} storeName={store.name} logoUrl={logo} level={pub?.level || 0} onClose={() => setLogoOpen(false)} onSaved={(u) => { setLogo(u); setLogoOpen(false) }} />}
             {pagina.secao === 'extrato' && <ExtratoCompleto storeId={store.id} storeName={store.name} inicial={extratoIni} onClose={pagina.fechar} />}
             {pagina.secao === 'repasses' && (

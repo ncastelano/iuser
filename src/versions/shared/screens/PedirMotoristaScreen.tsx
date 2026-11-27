@@ -11,7 +11,8 @@ import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeol
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { formatBrazilianPhoneSpaced } from '@/lib/phone'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { toast } from '@/lib/toast'
+import { toast, useIslandMessage } from '@/lib/toast'
+import { TopToast, setTopToastSlot } from '@/components/IslandToastFallback'
 import { notifyNewRide } from '@/lib/notifyRideStatus'
 import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
@@ -430,6 +431,8 @@ async function fetchRoute(origin: [number, number], destination: [number, number
 
 /** Mesma lógica nas duas versões; `ui` só troca a moldura/visual (v3 = compacta, abaixo da navbar, com motoristas ativos no mapa). */
 export default function PedirMotoristaScreen() {
+    const { msg: topMsg } = useIslandMessage()
+    useEffect(() => { setTopToastSlot(true); return () => setTopToastSlot(false) }, [])
     const router = useRouter()
     const { colors } = useTheme()
     const { userId: contextUserId, loading: profileLoading } = useProfile()
@@ -1145,7 +1148,8 @@ export default function PedirMotoristaScreen() {
         if (map.getLayer(layerId)) map.removeLayer(layerId)
         if (map.getSource(sourceId)) map.removeSource(sourceId)
 
-        if (route) {
+        // com corrida ativa, o acompanhamento (vermelho → verde) é que desenha o trajeto: esta rota azul não fica por baixo
+        if (route && !activeRideId) {
             map.addSource(sourceId, {
                 type: 'geojson',
                 data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route.coords } },
@@ -1168,7 +1172,7 @@ export default function PedirMotoristaScreen() {
             )
             fitMapBounds(bounds, 80, 500)
         }
-    }, [mapReady, route, fitMapBounds])
+    }, [mapReady, route, fitMapBounds, activeRideId])
 
     // ===== BUSCA DE ENDEREÇO (autocomplete) =====
     const handleAddressChange = (field: 'origin' | 'destination' | 'stop0' | 'stop1', value: string) => {
@@ -1612,7 +1616,7 @@ export default function PedirMotoristaScreen() {
                 setCalledPrice(price)
                 setCalledMode(q.mode)
                 const key = `${calledDriver.id}:${price}`
-                if (calledPresetFor.current !== key) { calledPresetFor.current = key; setOfferMode('mine'); setOfferValue(price) }
+                if (calledPresetFor.current !== key) { calledPresetFor.current = key; setOfferMode('drivers'); setOfferValue(null) }   // sem oferta do passageiro: só valem as ofertas dos motoristas
             } else setCalledPrice(null)
         })()
         return () => { alive = false }
@@ -1815,9 +1819,11 @@ export default function PedirMotoristaScreen() {
                 >
                     <ArrowLeft size={20} />
                 </button>
+                {/* avisos (ex.: "o motorista começou a corrida") ficam na MESMA linha do botão voltar */}
+                <TopToast className="absolute top-3 left-16 right-3" />
 
                 {/* v3: motoristas ativos agora (carro / moto / bicicleta), os mesmos que aparecem no mapa */}
-                {(driversLoaded) && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending') && (
+                {!topMsg && (driversLoaded) && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending') && (
                     <div
                         role="status"
                         className="absolute top-3 right-3 z-30 flex items-center gap-2.5 px-3 h-11 rounded-full text-[12px] font-black shadow-xl"
@@ -1974,13 +1980,6 @@ export default function PedirMotoristaScreen() {
                                 </p>
                             ))}
                         </div>
-
-                        {calledDriver && calledPrice != null && (
-                            <div className="w-full rounded-xl px-3 py-2 text-left text-[12px] font-bold leading-snug" style={{ background: '#16a34a14', border: '1px solid #16a34a55', color: colors.textPrimary }}>
-                                {calledMode === 'platform' ? `Pela Tarifa iUser, que ${calledDriver.name?.split(' ')[0] || 'o motorista'} usa,` : `Pela tarifa ${calledMode === 'time' ? 'por tempo' : 'por km'} de ${calledDriver.name?.split(' ')[0] || 'o motorista'},`} esta corrida sai <b style={{ color: '#16a34a' }}>R$ {calledPrice.toFixed(2).replace('.', ',')}</b> — o valor já vai como a sua oferta, é só aceitar.
-                            </div>
-                        )}
-                        <PassengerOfferBox reference={referencePrice} min={tripFloor} mode={offerMode} onMode={setOfferMode} value={offerValue} onValue={setOfferValue} />
 
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.

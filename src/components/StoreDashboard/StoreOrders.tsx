@@ -1339,7 +1339,7 @@ export default function StoreOrders({
                     >
                         <div className="flex items-center gap-3 min-w-0">
                                 <div className="min-w-0">
-                                    <h3 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>Pedidos na loja</h3>
+                                    <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Pedidos na loja</p>
                                     <p className="text-[11px] mt-0.5" style={{ color: newOrders.length + svc.pending.length > 0 ? '#16a34a' : colors.textSecondary }}>
                                         {newOrders.length + svc.pending.length > 0
                                             ? [newOrders.length > 0 ? `${newOrders.length} ${newOrders.length === 1 ? 'pedido novo' : 'pedidos novos'}` : '', svc.pending.length > 0 ? `${svc.pending.length} ${svc.pending.length === 1 ? 'serviço para aceitar' : 'serviços para aceitar'}` : ''].filter(Boolean).join(' · ') + ' esperando'

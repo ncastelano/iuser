@@ -18,6 +18,7 @@ export const RESERVED_SLUGS = new Set([
     'carrinho',
     'cart',
     'criar-loja',
+    'todas-as-pessoas',
     'criar-loja-com-cadastro',
     'criar-produto',
     'editar-loja',

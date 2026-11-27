@@ -91,6 +91,24 @@ export function RideWaitBox({ rideId, role, rideStarted, rideActive, passengerNa
     // nada acontecendo e quem não pode pedir (motorista) não vê o cartão vazio
     if (!open && closed.length === 0 && role === 'driver') return null
 
+    // passageiro sem espera e sem nada para mostrar: uma linha só (título + botão do lado), para não ocupar a tela
+    if (!open && closed.length === 0 && role === 'passenger' && !asking) {
+        return (
+            <div className="rounded-2xl px-3 py-2.5 flex flex-col gap-2 min-w-0" style={frame} data-testid="ride-wait-box">
+                <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}22`, color: ORANGE }}><Hourglass size={13} /></span>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[12.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>Tempo de espera</p>
+                        <p className="text-[10.5px] font-semibold leading-tight" style={{ color: colors.textSecondary }}>{rideStarted ? 'Parada no caminho' : 'Pode esperar o embarque'}</p>
+                    </div>
+                </div>
+                <button onClick={() => setAsking(true)} className="w-full h-9 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition" style={{ border: `1.5px solid ${ORANGE}`, color: ORANGE }}>
+                    <Clock size={13} /> {rideStarted ? 'Pedir parada' : 'Pedir espera'}
+                </button>
+            </div>
+        )
+    }
+
     const secs = open?.status === 'active' ? waitSeconds(open, now, view.offsetMs) : 0
     const free = open?.status === 'active' ? graceLeft(secs, open.graceSeconds ?? 0) : 0
 

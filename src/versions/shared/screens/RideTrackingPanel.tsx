@@ -11,7 +11,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
 import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Store, MessageSquare, Share2, Bike, Motorbike } from 'lucide-react'
-import { fetchRoute } from '@/lib/mapboxRoute'
+import { fetchRoute, haversineKm, trimRouteFrom } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import RideChat from '@/components/RideChat'
 import { kindForRideType, VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
@@ -24,11 +24,41 @@ import CandidateNegotiation from '@/components/negotiation/CandidateNegotiation'
 import CarAmenities from '@/components/ride/CarAmenities'
 import RideDriverPix from '@/components/ride/RideDriverPix'
 import { loadOffers, type PriceOffer } from '@/modules/negotiation'
-import { platformFloor } from '@/modules/negotiation/domain'
+import { DEFAULT_MIN_PER_MINUTE, platformFloor } from '@/modules/negotiation/domain'
 import { useRideMinimum } from '@/hooks/useRideMinimum'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
+
+// Rumo e "frente da rua" — os mesmos do mapa de navegação do motorista (aceitar-corridas/mapa)
+const toDeg = (r: number) => (r * 180) / Math.PI
+function computeBearing(from: [number, number], to: [number, number]): number {
+    const toRad = (deg: number) => (deg * Math.PI) / 180
+    const lat1 = toRad(from[1]), lat2 = toRad(to[1]), dLng = toRad(to[0] - from[0])
+    const y = Math.sin(dLng) * Math.cos(lat2)
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng)
+    return toDeg(Math.atan2(y, x))
+}
+function smoothBearing(prev: number | null, raw: number, alpha: number): number {
+    if (prev == null) return raw
+    const toRad = (deg: number) => (deg * Math.PI) / 180
+    const x = (1 - alpha) * Math.cos(toRad(prev)) + alpha * Math.cos(toRad(raw))
+    const y = (1 - alpha) * Math.sin(toRad(prev)) + alpha * Math.sin(toRad(raw))
+    return toDeg(Math.atan2(y, x))
+}
+const AHEAD_METERS = 110
+function aheadBearing(pos: [number, number], coords: [number, number][]): number | null {
+    if (coords.length < 2) return null
+    let nearest = 0, best = Infinity
+    for (let i = 0; i < coords.length; i++) {
+        const d = haversineKm(pos, coords[i])
+        if (d < best) { best = d; nearest = i }
+    }
+    let acc = 0, j = nearest
+    while (j < coords.length - 1 && acc < AHEAD_METERS) { acc += haversineKm(coords[j], coords[j + 1]) * 1000; j++ }
+    if (haversineKm(pos, coords[j]) * 1000 < 15) return null
+    return computeBearing(pos, coords[j])
+}
 // Alto contraste entre si, e nenhuma perto do vermelho/rosa/roxo (o
 // vermelho já é do trajeto partida → chegada, e rosa/roxo confundem com ele).
 const CANDIDATE_COLORS = ['#eab308', '#3b82f6', '#06b6d4', '#14b8a6', '#84cc16']
@@ -139,7 +169,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     // propostas de cada motorista (histórico da negociação); as de agora definem o que a tela mostra
     const [offers, setOffers] = useState<PriceOffer[]>([])
     const minPerMinute = useRideMinimum()
-    const tripMinAmount = platformFloor(ride?.duration_min ?? null, minPerMinute, undefined, ride?.distance_km ?? null)
+    // o mínimo da corrida NUNCA pode ficar em zero: enquanto o mínimo por minuto carrega, vale o padrão da plataforma
+    const tripMinAmount = platformFloor(ride?.duration_min ?? null, minPerMinute ?? DEFAULT_MIN_PER_MINUTE, undefined, ride?.distance_km ?? null)
     const [tripRouteCoords, setTripRouteCoords] = useState<[number, number][] | null>(null)
     const [driver, setDriver] = useState<DriverInfo | null>(null)
     const [decidingId, setDecidingId] = useState<string | null>(null)
@@ -462,7 +493,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 id: 'my-trip-route',
                 type: 'line',
                 source: 'my-trip-route',
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                // a rota inteira some quando a corrida começa (o trajeto que fica é o verde, encolhendo): nasce já escondida nesse caso
+                layout: { 'line-join': 'round', 'line-cap': 'round', visibility: ride.ride_started_at ? 'none' : 'visible' },
                 paint: { 'line-color': TRIP_ROUTE_COLOR, 'line-width': 5, 'line-opacity': 0.9 },
             })
             candidateLayerIdsRef.current.push('my-trip-route')
@@ -514,7 +546,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
             })
         }
 
-        if (!bounds.isEmpty()) {
+        // com a corrida aceita e a câmera seguindo o carro, não reenquadra tudo a cada atualização
+        if (!bounds.isEmpty() && !(followCarRef.current && ride?.status === 'accepted')) {
             // O mapa agora tem sua própria área (a página divide a tela
             // entre mapa em cima e card embaixo, sem sobreposição), então a
             // margem só precisa ser um respiro normal — nada de reservar
@@ -580,6 +613,134 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
             clearInterval(poll)
         }
     }, [rideStatus, rideDriverId])
+
+    // ROTA AO VIVO do motorista até o próximo ponto (embarque antes de começar; destino depois), refeita a cada ~15 s ou quando o carro andou
+    // 120 m. Dela saem o tempo e os horários de chegada (que mudam quando o carro para) e a linha que o passageiro vê no mapa.
+    const [liveRoute, setLiveRoute] = useState<{ coords: [number, number][]; toNextMin: number } | null>(null)
+    const liveRouteAtRef = useRef(0)
+    const liveRouteFromRef = useRef<[number, number] | null>(null)
+    useEffect(() => {
+        if (!driverLiveCoords || !ride || ride.status !== 'accepted' || ride.origin_lat == null || ride.origin_lng == null || ride.destination_lat == null || ride.destination_lng == null) {
+            setLiveRoute(null)
+            return
+        }
+        const started = !!ride.ride_started_at
+        const target: [number, number] = started ? [ride.destination_lng, ride.destination_lat] : [ride.origin_lng, ride.origin_lat]
+        const from = liveRouteFromRef.current
+        const movedM = from ? haversineKm(from, driverLiveCoords) * 1000 : Infinity
+        const due = Date.now() - liveRouteAtRef.current > 15000 || movedM > 120
+        if (!due) return
+        liveRouteAtRef.current = Date.now()
+        liveRouteFromRef.current = driverLiveCoords
+        fetchRoute(driverLiveCoords, target)
+            .then((r) => setLiveRoute({ coords: r.coords, toNextMin: r.durationMin }))
+            .catch(() => {})
+    }, [driverLiveCoords, ride])
+
+    // a linha da rota ao vivo no mapa do passageiro (tracejada, azul): atualiza sem recriar o mapa
+    useEffect(() => {
+        if (!map || !mapReady) return
+        const id = 'live-driver-route'
+        // com a corrida começando, o trajeto vermelho inteiro sai do mapa: fica só o que falta (verde, encolhendo)
+        if (map.getLayer('my-trip-route')) map.setLayoutProperty('my-trip-route', 'visibility', liveRoute && ride?.ride_started_at ? 'none' : 'visible')
+        if (!liveRoute) {
+            if (map.getLayer(id)) map.removeLayer(id)
+            if (map.getSource(id)) map.removeSource(id)
+            return
+        }
+        const data = { type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: liveRoute.coords } }
+        const src = map.getSource(id)
+        if (src) { (src as unknown as { setData: (d: unknown) => void }).setData(data); return }
+        map.addSource(id, { type: 'geojson', data })
+        map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#16a34a', 'line-width': 6 } })
+    }, [map, mapReady, liveRoute, ride?.ride_started_at])
+
+    // a linha acompanha o carro a CADA posição nova (sem esperar a nova busca): o que já ficou para trás some
+    useEffect(() => {
+        if (!map || !mapReady || !liveRoute || !driverLiveCoords) return
+        const src = map.getSource('live-driver-route') as unknown as { setData?: (d: unknown) => void } | undefined
+        if (!src?.setData) return
+        src.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: trimRouteFrom(liveRoute.coords, driverLiveCoords) } })
+    }, [map, mapReady, liveRoute, driverLiveCoords])
+
+    // VOCÊ: o marcador é o seu GPS (só no seu aparelho, nunca é enviado) quando a permissão de localização já foi dada;
+    // sem permissão ou sem sinal, fica no ponto de partida, com o nome "Local de partida".
+    const [myGps, setMyGps] = useState<[number, number] | null>(null)
+    useEffect(() => {
+        if (!ride || ride.status !== 'accepted' || typeof navigator === 'undefined' || !navigator.geolocation) return
+        let watchId: number | null = null
+        let alive = true
+        const start = () => {
+            watchId = navigator.geolocation.watchPosition(
+                (pos) => { if (alive) setMyGps([pos.coords.longitude, pos.coords.latitude]) },
+                () => { if (alive) setMyGps(null) },
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+            )
+        }
+        // só liga o GPS se a permissão já foi dada (nunca pede de surpresa numa tela de acompanhamento)
+        navigator.permissions?.query({ name: 'geolocation' as PermissionName })
+            .then((st) => { if (st.state === 'granted') start() })
+            .catch(() => {})
+        return () => { alive = false; if (watchId != null) navigator.geolocation.clearWatch(watchId) }
+    }, [ride?.status])
+
+    const youMarkerRef = useRef<mapboxgl.Marker | null>(null)
+    const youLabelRef = useRef<HTMLDivElement | null>(null)
+    useEffect(() => {
+        if (!map || !mapReady || !ride || ride.origin_lat == null || ride.origin_lng == null || ride.status !== 'accepted') {
+            youMarkerRef.current?.remove(); youMarkerRef.current = null
+            return
+        }
+        const at: [number, number] = myGps ?? [ride.origin_lng, ride.origin_lat]
+        const label = myGps ? 'Você' : 'Local de partida'
+        if (youMarkerRef.current) {
+            youMarkerRef.current.setLngLat(at)
+            if (youLabelRef.current) youLabelRef.current.textContent = label
+            return
+        }
+        const el = document.createElement('div')
+        el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;"><div data-label style="background:#16a34a;color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);">${label}</div><div style="width:16px;height:16px;border-radius:50%;background:#16a34a;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div></div>`
+        youLabelRef.current = el.querySelector('[data-label]') as HTMLDivElement
+        youMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(at).addTo(map)
+    }, [map, mapReady, ride?.status, ride?.origin_lat, ride?.origin_lng, myGps])
+    useEffect(() => () => { youMarkerRef.current?.remove(); youMarkerRef.current = null }, [])
+
+    // CÂMERA QUE SEGUE O CARRO (como no mapa do motorista): fica no carro, inclinada e virada para a rota à frente.
+    // Arrastar o mapa solta a câmera; o botão "Centralizado / Recentralizar" liga de novo.
+    const [followCar, setFollowCar] = useState(true)
+    const followCarRef = useRef(true)
+    const bearingRef = useRef<number | null>(null)
+    useEffect(() => { followCarRef.current = followCar }, [followCar])
+    useEffect(() => {
+        if (!map || !mapReady) return
+        const off = () => setFollowCar(false)
+        map.on('dragstart', off)
+        return () => { map.off('dragstart', off) }
+    }, [map, mapReady])
+    useEffect(() => {
+        if (!map || !mapReady || !followCar || !driverLiveCoords || !ride || ride.status !== 'accepted') return
+        const origin: [number, number] | null = ride.origin_lat != null && ride.origin_lng != null ? [ride.origin_lng, ride.origin_lat] : null
+        if (!ride.ride_started_at && origin && haversineKm(driverLiveCoords, origin) > 0.4) {
+            // o carro ainda está longe: enquadra VOCÊ e o carro juntos (a rota verde entre os dois)
+            const b = new mapboxgl.LngLatBounds(driverLiveCoords, driverLiveCoords)
+            b.extend(origin)
+            map.fitBounds(b, { padding: { top: 90, bottom: 60, left: 50, right: 50 }, maxZoom: 16, duration: 700 })
+            return
+        }
+        const ahead = liveRoute ? aheadBearing(driverLiveCoords, liveRoute.coords) : null
+        if (ahead != null) bearingRef.current = smoothBearing(bearingRef.current, ahead, 0.5)
+        const h = map.getContainer().clientHeight
+        map.easeTo({
+            center: driverLiveCoords,
+            bearing: bearingRef.current ?? map.getBearing(),
+            pitch: 55,
+            zoom: map.getZoom() < 16 ? 17 : map.getZoom(),
+            padding: { top: Math.round(h * 0.38), bottom: 0, left: 0, right: 0 },
+            duration: 800,
+            essential: true,
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [map, mapReady, followCar, driverLiveCoords, liveRoute, ride?.status])
 
     // Marcador do motorista no mapa — separado do efeito principal acima pra
     // não reconstruir rotas/candidatos a cada atualização de posição.
@@ -793,6 +954,27 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         {bigStatus.label}
                     </span>
                 )}
+                {ride.status === 'accepted' && liveRoute && (() => {
+                    const agora = Date.now()
+                    const chega = formatClockTime(new Date(agora + liveRoute.toNextMin * 60000))
+                    const termina = ride.ride_started_at ? null : formatClockTime(new Date(agora + (liveRoute.toNextMin + (ride.duration_min ?? 0)) * 60000))
+                    return (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#3b82f61a', color: '#2563eb' }}>
+                            <Clock size={11} />
+                            {ride.ride_started_at ? `Chega ao destino às ${chega}` : `Motorista chega às ${chega}${termina ? ` · termina às ${termina}` : ''}`}
+                        </span>
+                    )
+                })()}
+                {ride.status === 'accepted' && map && (
+                    <button
+                        onClick={() => setFollowCar((v) => !v)}
+                        aria-pressed={followCar}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black active:scale-95 transition"
+                        style={followCar ? { background: '#22c55e22', color: '#16a34a', border: '1px solid #22c55e' } : { background: '#f97316', color: '#fff', border: '1px solid transparent' }}
+                    >
+                        {followCar ? 'Centralizado' : 'Recentralizar'}
+                    </button>
+                )}
                 {ride.status === 'accepted' && driver && driver.ratingCount > 0 && (
                     <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#f9731615', color: '#f97316' }} title={`${driver.ratingCount} avaliação${driver.ratingCount > 1 ? 'ões' : ''}`}>
                         {'★'.repeat(roundedDriverRating)}{'☆'.repeat(5 - roundedDriverRating)} {(driver.ratingAvg || 0).toFixed(1)}
@@ -810,8 +992,9 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 destaque, e o resto (tipo de veículo, duração, serviços)
                 só como ícone, tudo numa linha só. */}
             {ride.status === 'accepted' && driver && (
-                <div className="flex flex-col gap-2 px-3 py-2.5 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                    <div className="flex items-center gap-2">
+                <div className="grid grid-cols-2 gap-2 items-start">
+                <div className="flex flex-col gap-2 px-3 py-2.5 rounded-xl min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                         <PlanAvatarRing userId={ride.driver_id}>
                         {driver.avatarUrl ? (
                             <img src={driver.avatarUrl} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
@@ -833,7 +1016,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         </p>
                         {driver.carPlate && (
                             <span
-                                className="flex-shrink-0 text-[11px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                className="flex-shrink-0 whitespace-nowrap text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded"
                                 style={{ background: `${colors.border}60`, color: colors.textPrimary }}
                                 title="Confira a placa e a cor do carro antes de entrar"
                             >
@@ -886,6 +1069,9 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         </a>
                     )}
                 </div>
+                {/* Tempo de espera ao lado do motorista (sem rolar a tela): o passageiro pede, o motorista aprova */}
+                <RideWaitBox rideId={ride.id} role="passenger" rideStarted={!!ride.ride_started_at} rideActive basePrice={ride.agreed_price ?? driver?.proposedPrice ?? null} />
+                </div>
             )}
 
             {ride.extra_task_fee != null && (
@@ -901,10 +1087,6 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                 <RideDriverPix rideId={ride.id} driverName={driver.name} amount={ride.agreed_price ?? driver.proposedPrice ?? null} />
             )}
 
-            {/* Tempo de espera (embarque, parada, desembarque): o passageiro pede, o motorista aprova e o relógio anda para os dois */}
-            {ride.status === 'accepted' && driver && (
-                <RideWaitBox rideId={ride.id} role="passenger" rideStarted={!!ride.ride_started_at} rideActive basePrice={ride.agreed_price ?? driver?.proposedPrice ?? null} />
-            )}
 
             {/* Chat com o motorista, enquanto a corrida está aceita */}
             {ride.status === 'accepted' && driver && (
@@ -914,11 +1096,6 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
             {/* Candidatos, enquanto pendente */}
             {ride.status === 'pending' && (
                 <div>
-                    {ride.passenger_offer != null && (
-                        <p className="text-[11px] font-bold mb-2 px-2.5 py-1.5 rounded-lg w-fit" style={{ background: '#16a34a1a', color: '#15803d' }}>
-                            Sua oferta aos motoristas: R$ {Number(ride.passenger_offer).toFixed(2).replace('.', ',')}
-                        </p>
-                    )}
                     <h3 className="text-xs font-black mb-2" style={{ color: colors.textPrimary }}>
                         {candidates.length === 0 ? 'Aguardando candidatos...' : candidates.length === 1 ? '1 motorista se candidatou' : `${candidates.length} motoristas se candidataram`}
                     </h3>
@@ -931,7 +1108,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         <>
                         {/* Como na 99: cada candidato é um CARRO com nota, tempo e o(s) valor(es) — sem nome, foto, @ nem placa até o passageiro escolher
                             (depois de escolhido aparece a ficha completa do motorista). Se ele mandou mais de um valor, o passageiro toca no que quer. */}
-                        <div className="flex flex-col gap-2">
+                        <div className="flex gap-2.5 overflow-x-auto snap-x -mx-4 px-4 pb-1 scroll-pl-4" style={{ scrollbarWidth: 'none' }}>
                             {candidates.map((c, i) => {
                                 const pickupEtaMin = c.etaMin != null ? Math.max(1, Math.round(c.etaMin)) : null
                                 const destArrival = pickupEtaMin != null ? formatClockTime(new Date(Date.now() + (pickupEtaMin + (ride.duration_min ?? 0)) * 60000)) : null
@@ -942,11 +1119,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
                                 const deciding = decidingId === c.applicationId
                                 return (
-                                    <div key={c.applicationId} className="rounded-2xl p-3 flex flex-col gap-2.5 min-w-0" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${color}` }}>
+                                    <div key={c.applicationId} className="snap-start flex-shrink-0 w-[252px] rounded-2xl p-2.5 flex flex-col gap-2 min-w-0" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderLeft: `4px solid ${color}` }}>
                                         <div className="flex items-center gap-3 min-w-0">
                                             {c.carPhotoUrl
-                                                ? <img src={c.carPhotoUrl} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" alt="" />
-                                                : <span className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}><Car size={24} /></span>}
+                                                ? <img src={c.carPhotoUrl} className="w-11 h-11 rounded-xl object-cover flex-shrink-0" alt="" />
+                                                : <span className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}><Car size={24} /></span>}
                                             <div className="min-w-0 flex-1">
                                                 <p className="text-[14px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{car}</p>
                                                 <p className="text-[12px] font-bold mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5" style={{ color: colors.textSecondary }}>
@@ -990,7 +1167,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                                 </div>
                                             </div>
                                         )}
-                                        {c.status === 'pending' && <CandidateNegotiation applicationId={c.applicationId} proposedPrice={c.proposedPrice} offers={offers} rideOffer={ride.passenger_offer} minAmount={tripMinAmount} onChanged={load} />}
+                                        {/* o passageiro não faz oferta: aparecem só os valores dos motoristas (os botões Escolher) */}
                                     </div>
                                 )
                             })}

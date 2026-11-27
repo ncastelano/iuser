@@ -604,12 +604,12 @@ export default function ModeloInicialPage() {
 
     const [sellOpen, setSellOpen] = useState(false)
     const [sellMode, setSellMode] = useState<'all' | 'product'>('all')
-    // "Vender produto": produto precisa de loja — sem conta, cadastro; sem loja, criar loja; uma loja, direto; várias, escolher
+    // "Vender produto": produto precisa de loja — sem conta, cadastro; sem loja, criar loja; com loja, SEMPRE pergunta em qual
+    // (mesmo com uma só: o produto pode ser de outra loja, e a opção "Criar outra loja" fica na mesma tela)
     const sellProduct = async () => {
         if (!userId) return go('/criar-loja-com-cadastro')
         const { data } = await supabase.from('stores').select('storeSlug').eq('owner_id', userId)
         if (!data || data.length === 0) return go('/criar-loja')
-        if (data.length === 1) return go(`/${data[0].storeSlug}/criar-produto`)
         setSellMode('product')
         setSellOpen(true)
     }

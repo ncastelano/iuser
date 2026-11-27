@@ -36,7 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
 
     const { data: ride, error } = await supabaseAdmin
         .from('ride_requests')
-        .select('id, status, ride_type, order_id, requester_id, driver_id, origin_address, destination_address, origin_complement, destination_complement, vehicle_type, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, created_at, scheduled_for, share_closed_at')
+        .select('id, status, ride_type, order_id, requester_id, driver_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, vehicle_type, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, created_at, scheduled_for, share_closed_at')
         .eq('share_token', token)
         .maybeSingle()
 
@@ -103,8 +103,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
         }
     }
 
+    // posição AO VIVO do motorista (o link é segredo: quem tem o link acompanha o carro no mapa). Sem posição recente, não manda.
+    let driverPosition: { lat: number; lng: number; updatedAt: string | null } | null = null
+    if (ride.driver_id) {
+        const { data: live } = await supabaseAdmin
+            .from('driver_pricing')
+            .select('live_lat, live_lng, live_updated_at')
+            .eq('driver_id', ride.driver_id)
+            .maybeSingle()
+        if (live?.live_lat != null && live?.live_lng != null) {
+            driverPosition = { lat: Number(live.live_lat), lng: Number(live.live_lng), updatedAt: live.live_updated_at ?? null }
+        }
+    }
+
+    // Entrega de loja: a partida é a loja (já pública) e o destino fica só como região; coordenadas do cliente final não saem.
+    const destinationLat = ride.order_id ? null : ride.destination_lat
+    const destinationLng = ride.order_id ? null : ride.destination_lng
+
     return NextResponse.json({
         status: ride.status,
+        originLat: ride.origin_lat,
+        originLng: ride.origin_lng,
+        destinationLat,
+        destinationLng,
+        driverPosition,
         rideType: ride.ride_type,
         requesterFirstName,
         originAddress: ride.origin_address,

@@ -123,3 +123,13 @@ export async function loadStorePublications(limit = 10): Promise<StorePublicatio
         storeName: r.stores?.name || 'Loja', storeLogo: pub('store-logos', r.stores?.logo_url || null), createdAt: r.created_at,
     }))
 }
+
+/** TODAS as pessoas públicas (mais novas primeiro), em páginas. Busca por nome ou @ (o termo é limpo antes de ir à consulta). */
+export async function loadAllPeople({ offset = 0, limit = 30, q = '' }: { offset?: number; limit?: number; q?: string } = {}): Promise<Person[]> {
+    let query = supabase.from('profiles').select(PUBLIC).eq('is_active', true).not('profileSlug', 'is', null)
+    const term = q.replace(/[%_,()*]/g, ' ').trim()
+    if (term) query = query.or(`name.ilike.%${term}%,profileSlug.ilike.%${term}%`)
+    const { data, error } = await query.order('created_at', { ascending: false }).range(offset, offset + limit - 1)
+    if (error) throw error
+    return (data || []).map((r: any) => toPerson(r))
+}

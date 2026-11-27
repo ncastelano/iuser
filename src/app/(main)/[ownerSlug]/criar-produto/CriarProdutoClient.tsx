@@ -173,7 +173,7 @@ export function CriarProdutoClient() {
 
             <main className="relative z-10 min-h-dvh pb-28">
                 <Header
-                    title={productType === 'service' ? 'Criar Serviço' : 'Criar Produto'}
+                    title={productType === 'service' ? 'Criar Serviço' : productType === 'digital' ? 'Criar produto digital' : 'Criar Produto'}
                     showBack={true}
                     onBack={() => router.back()}
                 />
@@ -185,9 +185,17 @@ export function CriarProdutoClient() {
                         border: `1px solid ${colors.border}`
                     }}>
                         <div className="flex items-center justify-between mb-6">
-                            <h1 className="text-2xl font-black" style={{ color: colors.textPrimary }}>
-                                {productType === 'service' ? 'Criar Serviço' : 'Criar Produto'}
-                            </h1>
+                            <div>
+                                <h1 className="text-2xl font-black" style={{ color: colors.textPrimary }}>
+                                    {productType === 'service' ? 'Criar Serviço' : productType === 'digital' ? 'Criar produto digital' : 'Criar Produto'}
+                                </h1>
+                                {productType === 'service' && (
+                                    <p className="text-[13px] mt-1" style={{ color: colors.textSecondary }}>Descreva o que você faz. Quem precisar pode conversar com você ou marcar um horário.</p>
+                                )}
+                                {productType === 'digital' && (
+                                    <p className="text-[13px] mt-1" style={{ color: colors.textSecondary }}>Curso, música, audiolivro, e-book ou programa. Você sobe o conteúdo depois; o acesso abre quando o pagamento é confirmado (ou logo, se for grátis).</p>
+                                )}
+                            </div>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => router.back()}
@@ -225,7 +233,7 @@ export function CriarProdutoClient() {
                             {/* Imagem */}
                             <div className="space-y-2">
                                 <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                    Imagem
+                                    {productType === 'service' ? 'Foto do serviço (opcional)' : productType === 'digital' ? 'Capa (opcional)' : 'Imagem'}
                                 </label>
                                 <div className="flex items-center gap-4">
                                     <div
@@ -271,13 +279,13 @@ export function CriarProdutoClient() {
                             {/* Nome */}
                             <div className="space-y-2">
                                 <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                    Nome *
+                                    {productType === 'service' ? 'Nome do serviço *' : productType === 'digital' ? 'Nome do produto digital *' : 'Nome *'}
                                 </label>
                                 <input
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="Digite o nome do produto"
+                                    placeholder={productType === 'service' ? 'Ex.: Corte de cabelo, instalação de ar-condicionado' : productType === 'digital' ? 'Ex.: Curso de fotografia, álbum de estreia, e-book de receitas' : 'Digite o nome do produto'}
                                     className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 transition-all"
                                     style={{
                                         background: colors.surface,
@@ -291,12 +299,12 @@ export function CriarProdutoClient() {
                             {/* Descrição */}
                             <div className="space-y-2">
                                 <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                    Descrição
+                                    {productType === 'service' ? 'O que está incluso' : productType === 'digital' ? 'Sobre o conteúdo' : 'Descrição'}
                                 </label>
                                 <textarea
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
-                                    placeholder="Descreva seu produto..."
+                                    placeholder={productType === 'service' ? 'Ex.: o que é feito, o que está incluso, quanto tempo leva, onde atende...' : productType === 'digital' ? 'Ex.: quantas aulas ou faixas, formato, o que a pessoa vai receber...' : 'Descreva seu produto...'}
                                     rows={4}
                                     className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 transition-all resize-none"
                                     style={{
@@ -312,7 +320,7 @@ export function CriarProdutoClient() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                        {productType === 'service' ? 'Preço (R$) — opcional' : 'Preço (R$)'}
+                                        {productType === 'service' ? 'Valor (R$) — opcional, vazio = a combinar' : 'Preço (R$)'}
                                     </label>
                                     <MoneyInput
                                         value={price}
@@ -348,7 +356,7 @@ export function CriarProdutoClient() {
                             </div>
 
                             {/* Volume na entrega: quanto UMA unidade ocupa na mochila do motorista (a loja define; o motorista vê o total do pedido e só aceita o que cabe) */}
-                            {productType !== 'service' && (
+                            {productType === 'physical' && (
                                 <div className="space-y-2">
                                     <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                         Volume na entrega
@@ -383,7 +391,7 @@ export function CriarProdutoClient() {
                                         type="text"
                                         value={category}
                                         onChange={(e) => setCategory(e.target.value)}
-                                        placeholder="Ex: Lanches"
+                                        placeholder={productType === 'service' ? 'Ex: Beleza, reparos, consultoria' : productType === 'digital' ? 'Ex: Música, cursos, programas' : 'Ex: Lanches'}
                                         className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 transition-all"
                                         style={{
                                             background: colors.surface,

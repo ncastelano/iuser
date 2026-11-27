@@ -5,6 +5,9 @@
 export const LIVE_PUSH_KINDS: Record<string, { urgent: boolean }> = {
     store_client_request: { urgent: false },     // loja privada: alguém pediu para ser cliente
     store_client_approved: { urgent: false },    // a loja privada aceitou você
+    store_visit: { urgent: false },              // alguém visitou a loja (dono; no máximo 1 a cada 10 min)
+    store_product_view: { urgent: false },       // alguém está vendo um produto (dono)
+    store_cart_add: { urgent: false },           // alguém colocou um item na sacola (dono)
     delivery_driver_assigned: { urgent: false },
     delivery_picked_up: { urgent: false },
     delivery_at_door: { urgent: true },           // o entregador está na porta

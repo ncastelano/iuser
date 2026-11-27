@@ -124,8 +124,10 @@ const useCartStore = create<CartState>()(
             itemsByStore: {},
             storeDetails: {},
 
-            addItem: (storeSlug, store, product, comment, addons) =>
-                set((state) => {
+            addItem: (storeSlug, store, product, comment, addons) => {
+                // aviso ao DONO da loja (celular): alguém colocou o item na sacola. Sem esperar, sem erro para a pessoa.
+                void supabase.rpc('notify_store_cart_add', { p_store_slug: storeSlug, p_product_id: product.id }).then(() => {}, () => {})
+                return set((state) => {
                     const storeItems = state.itemsByStore[storeSlug] || []
                     const existingIndex = storeItems.findIndex(
                         (item) => item.product.id === product.id && lineKey(item.comment, item.addons) === lineKey(comment, addons)
@@ -142,7 +144,8 @@ const useCartStore = create<CartState>()(
                         itemsByStore: { ...state.itemsByStore, [storeSlug]: newItems },
                         storeDetails: { ...state.storeDetails, [storeSlug]: store },
                     }
-                }),
+                })
+            },
 
             // comment/addons omitidos (undefined) = compatibilidade com quem não
             // sabe de personalização (ex.: botão "remover todos" da grade de

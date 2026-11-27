@@ -920,7 +920,9 @@ function AceitarCorridasMapaContent() {
     const secondaryBtn = 'flex-1 py-3 rounded-xl font-black uppercase text-xs tracking-wider transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-1.5'
     const secondaryStyle = { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
     // "Indo para: Partida · 0.9 km · 2 min" no próprio card (no lugar do antigo "Indo até o ponto de partida" e da ilha que ficava no topo do mapa)
-    const navStats = routeKm != null ? ` · ${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min` : ''}` : ''
+    const hora = (m: number) => new Date(Date.now() + m * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    // o horário de chegada muda com o trânsito e com as paradas: é recalculado a cada posição nova da rota
+    const navStats = routeKm != null ? ` · ${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min · chega às ${hora(routeMin)}` : ''}` : ''
     const phaseTitle = isPreview
         ? 'Corrida disponível'
         : !acceptedRide.driver_en_route
