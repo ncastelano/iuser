@@ -1148,7 +1148,8 @@ export default function PedirMotoristaScreen() {
         if (map.getLayer(layerId)) map.removeLayer(layerId)
         if (map.getSource(sourceId)) map.removeSource(sourceId)
 
-        if (route) {
+        // com corrida ativa, o acompanhamento (vermelho → verde) é que desenha o trajeto: esta rota azul não fica por baixo
+        if (route && !activeRideId) {
             map.addSource(sourceId, {
                 type: 'geojson',
                 data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route.coords } },
@@ -1171,7 +1172,7 @@ export default function PedirMotoristaScreen() {
             )
             fitMapBounds(bounds, 80, 500)
         }
-    }, [mapReady, route, fitMapBounds])
+    }, [mapReady, route, fitMapBounds, activeRideId])
 
     // ===== BUSCA DE ENDEREÇO (autocomplete) =====
     const handleAddressChange = (field: 'origin' | 'destination' | 'stop0' | 'stop1', value: string) => {
