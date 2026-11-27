@@ -29,6 +29,36 @@ import { useRideMinimum } from '@/hooks/useRideMinimum'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
+
+// Rumo e "frente da rua" — os mesmos do mapa de navegação do motorista (aceitar-corridas/mapa)
+const toDeg = (r: number) => (r * 180) / Math.PI
+function computeBearing(from: [number, number], to: [number, number]): number {
+    const toRad = (deg: number) => (deg * Math.PI) / 180
+    const lat1 = toRad(from[1]), lat2 = toRad(to[1]), dLng = toRad(to[0] - from[0])
+    const y = Math.sin(dLng) * Math.cos(lat2)
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng)
+    return toDeg(Math.atan2(y, x))
+}
+function smoothBearing(prev: number | null, raw: number, alpha: number): number {
+    if (prev == null) return raw
+    const toRad = (deg: number) => (deg * Math.PI) / 180
+    const x = (1 - alpha) * Math.cos(toRad(prev)) + alpha * Math.cos(toRad(raw))
+    const y = (1 - alpha) * Math.sin(toRad(prev)) + alpha * Math.sin(toRad(raw))
+    return toDeg(Math.atan2(y, x))
+}
+const AHEAD_METERS = 110
+function aheadBearing(pos: [number, number], coords: [number, number][]): number | null {
+    if (coords.length < 2) return null
+    let nearest = 0, best = Infinity
+    for (let i = 0; i < coords.length; i++) {
+        const d = haversineKm(pos, coords[i])
+        if (d < best) { best = d; nearest = i }
+    }
+    let acc = 0, j = nearest
+    while (j < coords.length - 1 && acc < AHEAD_METERS) { acc += haversineKm(coords[j], coords[j + 1]) * 1000; j++ }
+    if (haversineKm(pos, coords[j]) * 1000 < 15) return null
+    return computeBearing(pos, coords[j])
+}
 // Alto contraste entre si, e nenhuma perto do vermelho/rosa/roxo (o
 // vermelho já é do trajeto partida → chegada, e rosa/roxo confundem com ele).
 const CANDIDATE_COLORS = ['#eab308', '#3b82f6', '#06b6d4', '#14b8a6', '#84cc16']
@@ -516,7 +546,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
             })
         }
 
-        if (!bounds.isEmpty()) {
+        // com a corrida aceita e a câmera seguindo o carro, não reenquadra tudo a cada atualização
+        if (!bounds.isEmpty() && !(followCarRef.current && ride?.status === 'accepted')) {
             // O mapa agora tem sua própria área (a página divide a tela
             // entre mapa em cima e card embaixo, sem sobreposição), então a
             // margem só precisa ser um respiro normal — nada de reservar
@@ -623,6 +654,35 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         map.addSource(id, { type: 'geojson', data })
         map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#16a34a', 'line-width': 6 } })
     }, [map, mapReady, liveRoute, ride?.ride_started_at])
+
+    // CÂMERA QUE SEGUE O CARRO (como no mapa do motorista): fica no carro, inclinada e virada para a rota à frente.
+    // Arrastar o mapa solta a câmera; o botão "Centralizado / Recentralizar" liga de novo.
+    const [followCar, setFollowCar] = useState(true)
+    const followCarRef = useRef(true)
+    const bearingRef = useRef<number | null>(null)
+    useEffect(() => { followCarRef.current = followCar }, [followCar])
+    useEffect(() => {
+        if (!map || !mapReady) return
+        const off = () => setFollowCar(false)
+        map.on('dragstart', off)
+        return () => { map.off('dragstart', off) }
+    }, [map, mapReady])
+    useEffect(() => {
+        if (!map || !mapReady || !followCar || !driverLiveCoords || !ride || ride.status !== 'accepted') return
+        const ahead = liveRoute ? aheadBearing(driverLiveCoords, liveRoute.coords) : null
+        if (ahead != null) bearingRef.current = smoothBearing(bearingRef.current, ahead, 0.5)
+        const h = map.getContainer().clientHeight
+        map.easeTo({
+            center: driverLiveCoords,
+            bearing: bearingRef.current ?? map.getBearing(),
+            pitch: 55,
+            zoom: map.getZoom() < 16 ? 17 : map.getZoom(),
+            padding: { top: Math.round(h * 0.38), bottom: 0, left: 0, right: 0 },
+            duration: 800,
+            essential: true,
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [map, mapReady, followCar, driverLiveCoords, liveRoute, ride?.status])
 
     // Marcador do motorista no mapa — separado do efeito principal acima pra
     // não reconstruir rotas/candidatos a cada atualização de posição.
@@ -847,6 +907,16 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         </span>
                     )
                 })()}
+                {ride.status === 'accepted' && map && (
+                    <button
+                        onClick={() => setFollowCar((v) => !v)}
+                        aria-pressed={followCar}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black active:scale-95 transition"
+                        style={followCar ? { background: '#22c55e22', color: '#16a34a', border: '1px solid #22c55e' } : { background: '#f97316', color: '#fff', border: '1px solid transparent' }}
+                    >
+                        {followCar ? 'Centralizado' : 'Recentralizar'}
+                    </button>
+                )}
                 {ride.status === 'accepted' && driver && driver.ratingCount > 0 && (
                     <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#f9731615', color: '#f97316' }} title={`${driver.ratingCount} avaliação${driver.ratingCount > 1 ? 'ões' : ''}`}>
                         {'★'.repeat(roundedDriverRating)}{'☆'.repeat(5 - roundedDriverRating)} {(driver.ratingAvg || 0).toFixed(1)}
