@@ -1088,11 +1088,6 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
             {/* Candidatos, enquanto pendente */}
             {ride.status === 'pending' && (
                 <div>
-                    {ride.passenger_offer != null && (
-                        <p className="text-[11px] font-bold mb-2 px-2.5 py-1.5 rounded-lg w-fit" style={{ background: '#16a34a1a', color: '#15803d' }}>
-                            Sua oferta aos motoristas: R$ {Number(ride.passenger_offer).toFixed(2).replace('.', ',')}
-                        </p>
-                    )}
                     <h3 className="text-xs font-black mb-2" style={{ color: colors.textPrimary }}>
                         {candidates.length === 0 ? 'Aguardando candidatos...' : candidates.length === 1 ? '1 motorista se candidatou' : `${candidates.length} motoristas se candidataram`}
                     </h3>
@@ -1164,7 +1159,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                                 </div>
                                             </div>
                                         )}
-                                        {c.status === 'pending' && <CandidateNegotiation applicationId={c.applicationId} proposedPrice={c.proposedPrice} offers={offers} rideOffer={ride.passenger_offer} minAmount={tripMinAmount} onChanged={load} />}
+                                        {/* o passageiro não faz oferta: aparecem só os valores dos motoristas (os botões Escolher) */}
                                     </div>
                                 )
                             })}

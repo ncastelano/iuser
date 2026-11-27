@@ -1616,7 +1616,7 @@ export default function PedirMotoristaScreen() {
                 setCalledPrice(price)
                 setCalledMode(q.mode)
                 const key = `${calledDriver.id}:${price}`
-                if (calledPresetFor.current !== key) { calledPresetFor.current = key; setOfferMode('mine'); setOfferValue(price) }
+                if (calledPresetFor.current !== key) { calledPresetFor.current = key; setOfferMode('drivers'); setOfferValue(null) }   // sem oferta do passageiro: só valem as ofertas dos motoristas
             } else setCalledPrice(null)
         })()
         return () => { alive = false }
@@ -1986,7 +1986,6 @@ export default function PedirMotoristaScreen() {
                                 {calledMode === 'platform' ? `Pela Tarifa iUser, que ${calledDriver.name?.split(' ')[0] || 'o motorista'} usa,` : `Pela tarifa ${calledMode === 'time' ? 'por tempo' : 'por km'} de ${calledDriver.name?.split(' ')[0] || 'o motorista'},`} esta corrida sai <b style={{ color: '#16a34a' }}>R$ {calledPrice.toFixed(2).replace('.', ',')}</b> — o valor já vai como a sua oferta, é só aceitar.
                             </div>
                         )}
-                        <PassengerOfferBox reference={referencePrice} min={tripFloor} mode={offerMode} onMode={setOfferMode} value={offerValue} onValue={setOfferValue} />
 
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.
