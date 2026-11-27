@@ -140,7 +140,6 @@ export default function DriverProfile(p: DriverProfileProps) {
     }, [p.driverId])
     const [reviews, setReviews] = useState<Review[] | null>(null)
     const [tariffsReady, setTariffsReady] = useState(false)
-    const [showAll, setShowAll] = useState(false)
     // a aba aberta embaixo do botão: as avaliações primeiro
     const [tab, setTab] = useState<'avaliacoes' | 'servicos' | 'info'>('avaliacoes')
     // ENQUADRAR A FOTO (só o dono): arrastar a foto do veículo até o ângulo certo; guarda o ponto que fica no centro (0 a 100, o object-position)
@@ -165,7 +164,7 @@ export default function DriverProfile(p: DriverProfileProps) {
                 supabase.rpc('get_driver_public_quote', { p_driver: p.driverId }),
                 supabase.from('driver_vehicles').select('vehicle_slug, vehicle_kind, car_brand, car_model, car_plate, car_color, car_photo_url, services, passenger_capacity, has_baby_seat, car_photo_pos_x, car_photo_pos_y, car_photo_zoom').eq('driver_id', p.driverId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
                 supabase.rpc('get_driver_public_stats', { p_driver: p.driverId }),
-                supabase.rpc('get_driver_reviews', { p_driver: p.driverId, p_limit: 20 }),
+                supabase.rpc('get_driver_reviews', { p_driver: p.driverId, p_limit: 30 }),
                 loadPlatformTariffs(supabase).then(() => { if (alive) setTariffsReady(true) }),
             ])
             if (!alive) return
@@ -232,10 +231,10 @@ export default function DriverProfile(p: DriverProfileProps) {
     const soft = `${colors.border}30`
     const Icon = kind === 'carro' ? Car : Bike
     const active = !!quote?.active
-    const withComment = (reviews || []).filter((r) => r.comment)
     const noChat = () => toast.message('Este motorista ainda não recebe mensagens pelo iUser. Peça a corrida: ele é avisado na hora.')
     const eta = etaFromViewer(viewerPos, quote?.live ?? null)
-    const list = showAll ? reviews || [] : (withComment.length ? withComment : reviews || []).slice(0, 4)
+    // todas as avaliações, da MAIS NOVA para a mais velha (a data da corrida; sem data, por último)
+    const list = [...(reviews || [])].sort((a, b) => (b.at ? new Date(b.at).getTime() : 0) - (a.at ? new Date(a.at).getTime() : 0))
 
     const saveFraming = async () => {
         if (!vehicle || !pos) return
@@ -506,11 +505,6 @@ export default function DriverProfile(p: DriverProfileProps) {
                                 </article>
                             ))}
                         </div>
-                        {(reviews.length > list.length || showAll) && reviews.length > 4 && (
-                            <button onClick={() => setShowAll((v) => !v)} className="mt-2.5 w-full h-11 rounded-full text-[13px] font-black" style={{ background: soft, color: colors.textPrimary }}>
-                                {showAll ? 'Ver menos' : `Ver todas as ${reviews.length} avaliações`}
-                            </button>
-                        )}
                     </>
                 )}
             </section>
