@@ -89,6 +89,7 @@ export async function POST(req: Request) {
             cleanup: cleanup.error ? null : cleanup.data,
             r2: (() => { const c = readR2Config(); return { configured: !!c, bucket: c?.bucket ?? null, publicBase: c?.publicBase ?? null, problems: c ? [] : r2ConfigProblems() } })(),
             r2Digital: (() => { const c = readR2Config(process.env, 'digital'); return { configured: !!c, bucket: c?.bucket ?? null, publicBase: null, problems: c ? [] : r2ConfigProblems(process.env, 'digital') } })(),
+            r2Chat: (() => { const c = readR2Config(process.env, 'chat'); return { configured: !!c, bucket: c?.bucket ?? null, publicBase: null, problems: c ? [] : r2ConfigProblems(process.env, 'chat') } })(),
         }, { headers: NO_STORE })
     }
 
@@ -176,7 +177,7 @@ export async function POST(req: Request) {
 
     if (action === 'r2_check') {
         // Teste de conexão com o R2 USANDO AS CHAVES DO SERVIDOR (elas nunca saem daqui): grava um arquivo de teste, confere o tamanho, lê por link assinado, apaga e confere que sumiu.
-        const scope = body.scope === 'digital' ? 'digital' : 'media'   // 'digital' = o bucket PRIVADO do conteúdo vendido (R2_DIGITAL_BUCKET)
+        const scope = body.scope === 'digital' ? 'digital' : body.scope === 'chat' ? 'chat' : 'media'   // 'digital' = bucket PRIVADO do conteúdo vendido (R2_DIGITAL_BUCKET); 'chat' = bucket PRIVADO das conversas (R2_CHAT_BUCKET)
         const cfg = readR2Config(process.env, scope)
         if (!cfg) return NextResponse.json({ ok: false, steps: [], problems: r2ConfigProblems(process.env, scope) }, { headers: NO_STORE })
         const key = `_healthcheck/${randomUUID()}.txt`

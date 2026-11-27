@@ -35,9 +35,10 @@ interface CleanupOverview {
     counts: { orphans: number; orphan_bytes: number; due: number; kept: number; deleted_total: number; freed_bytes: number }
     runs: RunRow[]; candidates: Candidate[]
 }
+type R2Scope = 'media' | 'digital' | 'chat'
 interface R2Info { configured: boolean; bucket: string | null; publicBase: string | null; problems: string[] }
 interface R2Check { ok: boolean; steps: { step: string; ok: boolean; detail: string; ms: number }[]; problems?: string[]; bucket?: string }
-interface Loaded { r2: R2Info | null; r2Digital: R2Info | null; overview: { enforced: boolean; totals: Totals; kinds: KindRow[] }; top: Owner[]; denials: Denial[]; blocks: BlockRow[]; audit: AuditRow[]; meters: Meter[]; cleanup: CleanupOverview | null }
+interface Loaded { r2: R2Info | null; r2Digital: R2Info | null; r2Chat: R2Info | null; overview: { enforced: boolean; totals: Totals; kinds: KindRow[] }; top: Owner[]; denials: Denial[]; blocks: BlockRow[]; audit: AuditRow[]; meters: Meter[]; cleanup: CleanupOverview | null }
 
 const ORANGE = '#f97316'
 const who = (p: { name: string | null; slug: string | null }) => (p.slug ? `@${p.slug}` : p.name || 'Pessoa')
@@ -80,7 +81,7 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
     const [cleanForm, setCleanForm] = useState<{ form: CleanupForm; errors: CleanupErrors } | null>(null)
     const [cleanConfirm, setCleanConfirm] = useState<'switch' | 'run' | null>(null)
     const [cleanResult, setCleanResult] = useState<CleanupResult | null>(null)
-    const [r2Check, setR2Check] = useState<(R2Check & { scope: 'media' | 'digital' }) | null>(null)
+    const [r2Check, setR2Check] = useState<(R2Check & { scope: R2Scope }) | null>(null)
 
     const load = useCallback(async () => {
         try { const r = await callAdminApi<Loaded>('/api/admin/uploads', { action: 'load' }); setData(r); setTop(r.top); setTopKind(null) }
@@ -103,12 +104,12 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
             await load()
         } catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(false) }
     }
-    const checkR2 = async (scope: 'media' | 'digital' = 'media') => {
+    const checkR2 = async (scope: R2Scope = 'media') => {
         setBusy(true); setR2Check(null)
         try { setR2Check({ ...(await callAdminApi<R2Check>('/api/admin/uploads', { action: 'r2_check', scope })), scope }) }
         catch (e: any) { toast.error(e?.message || 'Não deu certo.') } finally { setBusy(false) }
     }
-    const r2Card = (info: R2Info | null | undefined, scope: 'media' | 'digital', title: string, desc: string) => (
+    const r2Card = (info: R2Info | null | undefined, scope: R2Scope, title: string, desc: string) => (
         info && (
                 <div style={cardStyle} className="flex flex-col gap-2.5">
                     <div className="flex items-start justify-between gap-2">
@@ -119,9 +120,9 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
                         {chip(info.configured ? 'CONFIGURADO' : 'NÃO CONFIGURADO', info.configured ? '#22c55e' : '#f59e0b')}
                     </div>
                     {info.configured
-                        ? <p className="text-[12px]" style={{ color: colors.textSecondary }}>Bucket <b style={{ color: colors.textPrimary }}>{info.bucket}</b> · {scope === 'digital' ? <b style={{ color: colors.textPrimary }}>sem endereço público, de propósito: os arquivos só abrem por link assinado, depois de conferir quem comprou</b> : <>endereço público {info.publicBase ? <b style={{ color: colors.textPrimary }}>{info.publicBase}</b> : 'ainda não ligado (os arquivos só abrem por link assinado)'}</>}.</p>
+                        ? <p className="text-[12px]" style={{ color: colors.textSecondary }}>Bucket <b style={{ color: colors.textPrimary }}>{info.bucket}</b> · {scope !== 'media' ? <b style={{ color: colors.textPrimary }}>sem endereço público, de propósito: os arquivos só abrem por link assinado, depois de conferir quem comprou</b> : <>endereço público {info.publicBase ? <b style={{ color: colors.textPrimary }}>{info.publicBase}</b> : 'ainda não ligado (os arquivos só abrem por link assinado)'}</>}.</p>
                         : <ul className="flex flex-col gap-0.5">{info.problems.map((p) => <li key={p} className="text-[12px] font-bold" style={{ color: '#f59e0b' }}>{p}</li>)}</ul>}
-                    <button disabled={busy || !info.configured} onClick={() => checkR2(scope)} className={pill} style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}>{scope === 'digital' ? 'Testar o R2 privado' : 'Testar o R2'}</button>
+                    <button disabled={busy || !info.configured} onClick={() => checkR2(scope)} className={pill} style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}>{scope === 'chat' ? 'Testar o R2 do chat' : scope === 'digital' ? 'Testar o R2 privado' : 'Testar o R2'}</button>
                     {r2Check && r2Check.scope === scope && (
                         <div className="rounded-2xl p-3 flex flex-col gap-1" style={{ background: soft, border: `1.5px solid ${r2Check.ok ? '#22c55e' : '#ef4444'}` }}>
                             <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>{r2Check.ok ? (scope === 'digital' ? 'R2 privado funcionando' : 'R2 funcionando') : 'O teste não passou'}</p>
@@ -201,7 +202,7 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
                     <p className="text-[12px]" style={{ color: colors.textSecondary }}>
                         {overview.enforced
                             ? 'Quem tenta enviar sem a autorização do app é recusado pelo próprio armazenamento. Ritmo, cotas e bloqueios valem para todo mundo.'
-                            : 'Hoje o app pede autorização (ritmo, cotas e bloqueios valem para quem usa o app), mas quem pular o app ainda consegue enviar direto. Ligar fecha esse caminho.'}
+                            : 'Hoje o app pede autorização (ritmo, cotas e bloqueios valem para quem usa o app), mas quem pular o app ainda consegue enviar direto ao Supabase. Ligar fecha esse caminho. Os envios pelo R2 (conversas, conteúdo digital, vídeo) já passam pelo servidor e sempre pedem autorização.'}
                     </p>
                     {confirmSwitch ? (
                         <div className="rounded-2xl p-2.5 flex flex-col gap-2" style={{ background: colors.surface, border: `1.5px solid ${ORANGE}` }}>
@@ -224,6 +225,7 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
             {meters.length > 0 && (
                 <div style={cardStyle} className="flex flex-col gap-2.5">
                     <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>Cota do Supabase</h3>
+                    <p className="text-[12px]" style={{ color: colors.textSecondary }}>Só o que está no Supabase (banco e arquivos antigos). O Cloudflare R2 tem cota própria e não entra aqui.</p>
                     {meters.map((m) => {
                         const pct = meterPct(m); const tone = meterTone(pct); const color = tone === 'danger' ? '#ef4444' : tone === 'warn' ? '#f59e0b' : '#22c55e'
                         return (
@@ -244,7 +246,30 @@ export default function UploadsSection({ cardStyle, colors }: { cardStyle: React
             <DownloadBandwidthCard cardStyle={cardStyle} colors={colors} />
 
             {r2Card(data.r2, 'media', 'Cloudflare R2 (vídeo e música)', 'Armazenamento para arquivos pesados, fora da cota do Supabase. O tipo “Vídeo e música (R2)” só deve ser ligado depois de o teste abaixo passar.')}
+            {r2Card(data.r2Chat, 'chat', 'Cloudflare R2 privado do chat (fotos, vídeos e áudios)', 'Bucket PRIVADO das conversas (R2_CHAT_BUCKET), sem endereço público: as mídias só abrem por link assinado, para quem está na conversa. O tipo de cada mídia do chat só deve ser ligado depois de o teste abaixo passar.')}
             {r2Card(data.r2Digital, 'digital', 'Cloudflare R2 privado (conteúdo digital vendido)', 'Bucket PRIVADO e separado (R2_DIGITAL_BUCKET), sem endereço público: aula, música, e-book e programa do produto digital, sem cobrança de saída de dados. O tipo “Digital pesado (R2 privado)” só deve ser ligado depois de o teste abaixo passar.')}
+
+            {/* ===== onde estão os arquivos: Supabase × Cloudflare R2 ===== */}
+            {(() => {
+                const sumOf = (p: string) => overview.kinds.filter((k) => k.provider === p).reduce((a, k) => ({ files: a.files + k.files, bytes: a.bytes + k.bytes }), { files: 0, bytes: 0 })
+                const s = sumOf('supabase'), r = sumOf('r2')
+                const box = (title: string, v: { files: number; bytes: number }, note: string) => (
+                    <div className="rounded-2xl p-3 flex flex-col gap-0.5" style={{ background: soft }}>
+                        <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>{title}</p>
+                        <p className="text-[15px] font-black" style={{ color: colors.textPrimary }}>{v.files} arquivos · {formatBytes(v.bytes)}</p>
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>{note}</p>
+                    </div>
+                )
+                return (
+                    <div style={cardStyle} className="flex flex-col gap-2.5">
+                        <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>Onde estão os arquivos</h3>
+                        <div className="grid grid-cols-2 gap-2">
+                            {box('Supabase', s, 'Entra na cota e na banda do plano.')}
+                            {box('Cloudflare R2', r, 'Sem cobrança de saída de dados.')}
+                        </div>
+                    </div>
+                )
+            })()}
 
             {/* ===== por tipo ===== */}
             <div style={cardStyle} className="flex flex-col gap-2.5">
