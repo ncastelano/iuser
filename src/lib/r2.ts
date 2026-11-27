@@ -13,7 +13,7 @@
 import { createHash, createHmac } from 'node:crypto'
 import { MIME_EXT } from './r2Types.ts'
 
-export type R2Scope = 'media' | 'digital'
+export type R2Scope = 'media' | 'digital' | 'chat'
 export type R2Config = { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string; publicBase: string | null; host: string; origin: string; scope: R2Scope }
 
 const REGION = 'auto'
@@ -30,12 +30,15 @@ const BUCKET_RE = /^[a-z0-9][a-z0-9-]{2,62}$/
 export function readR2Config(env: Env = process.env, scope: R2Scope = 'media'): R2Config | null {
     const accountId = (env.R2_ACCOUNT_ID || '').trim()
     const digital = scope === 'digital'
+    const chat = scope === 'chat'
+    const priv = digital || chat   // buckets PRIVADOS: sem domínio público
     const accessKeyId = ((digital && (env.R2_DIGITAL_ACCESS_KEY_ID || '').trim()) || (env.R2_ACCESS_KEY_ID || '').trim())
     const secretAccessKey = ((digital && (env.R2_DIGITAL_SECRET_ACCESS_KEY || '').trim()) || (env.R2_SECRET_ACCESS_KEY || '').trim())
-    const bucket = (digital ? env.R2_DIGITAL_BUCKET : env.R2_BUCKET || '')?.toString().trim() || ''
+    const bucket = (digital ? env.R2_DIGITAL_BUCKET : chat ? env.R2_CHAT_BUCKET : env.R2_BUCKET || '')?.toString().trim() || ''
     if (!/^[0-9a-f]{32}$/i.test(accountId) || !accessKeyId || !secretAccessKey || !BUCKET_RE.test(bucket)) return null
-    if (digital && bucket === (env.R2_BUCKET || '').trim()) return null   // o conteúdo pago nunca divide bucket com o que tem domínio público
-    const base = digital ? '' : (env.R2_PUBLIC_BASE || '').trim().replace(/\/+$/, '')
+    if (priv && bucket === (env.R2_BUCKET || '').trim()) return null   // conteúdo privado nunca divide bucket com o que tem domínio público
+    if (chat && bucket === (env.R2_DIGITAL_BUCKET || '').trim()) return null   // nem com o conteúdo vendido
+    const base = priv ? '' : (env.R2_PUBLIC_BASE || '').trim().replace(/\/+$/, '')
     // Só para TESTE LOCAL: um "R2 de mentira" em http://127.0.0.1:<porta> (scripts/local/test-r2-flow.mjs). Ignorado em produção e para qualquer endereço que não seja o próprio computador.
     const fake = (env.R2_TEST_ENDPOINT || '').trim().match(/^http:\/\/(127\.0\.0\.1|localhost):(\d{2,5})$/)
     const testing = !!fake && env.NODE_ENV !== 'production' && env.VERCEL_ENV !== 'production'
@@ -45,7 +48,7 @@ export function readR2Config(env: Env = process.env, scope: R2Scope = 'media'): 
 
 /** A configuração (media ou digital) que corresponde a um bucket lógico do catálogo (`upload_kinds.bucket`). null = esse bucket não está configurado neste servidor. */
 export function r2ConfigForBucket(bucket: string, env: Env = process.env): R2Config | null {
-    for (const scope of ['media', 'digital'] as const) { const c = readR2Config(env, scope); if (c && c.bucket === bucket) return c }
+    for (const scope of ['media', 'digital', 'chat'] as const) { const c = readR2Config(env, scope); if (c && c.bucket === bucket) return c }
     return null
 }
 
@@ -57,7 +60,7 @@ export function r2ConfigProblems(env: Env = process.env, scope: R2Scope = 'media
     if (!v('R2_ACCOUNT_ID')) out.push('R2_ACCOUNT_ID não está definida.'); else if (!/^[0-9a-f]{32}$/i.test(v('R2_ACCOUNT_ID'))) out.push('R2_ACCOUNT_ID deve ter 32 letras/números (o Account ID da Cloudflare).')
     if (!(digital && v('R2_DIGITAL_ACCESS_KEY_ID')) && !v('R2_ACCESS_KEY_ID')) out.push('R2_ACCESS_KEY_ID não está definida.')
     if (!(digital && v('R2_DIGITAL_SECRET_ACCESS_KEY')) && !v('R2_SECRET_ACCESS_KEY')) out.push('R2_SECRET_ACCESS_KEY não está definida.')
-    const name = digital ? 'R2_DIGITAL_BUCKET' : 'R2_BUCKET'
+    const name = digital ? 'R2_DIGITAL_BUCKET' : scope === 'chat' ? 'R2_CHAT_BUCKET' : 'R2_BUCKET'
     if (!v(name)) out.push(`${name} não está definida.`); else if (!BUCKET_RE.test(v(name))) out.push(`${name} tem um nome inválido (só minúsculas, números e hífen).`)
     else if (digital && v(name) === v('R2_BUCKET')) out.push('R2_DIGITAL_BUCKET não pode ser o mesmo bucket de R2_BUCKET (esse tem domínio público): crie um bucket PRIVADO só para o conteúdo vendido.')
     return out
