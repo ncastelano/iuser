@@ -8,7 +8,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Eye, Image as ImageIcon, MapPin, MessageCircle, Mic, Plus, Send, Share2, Store as StoreIcon, User, Users, Video as VideoIcon, X } from 'lucide-react'
+import { ArrowLeft, Camera, Eye, Image as ImageIcon, MapPin, MessageCircle, Mic, Plus, Send, Share2, Store as StoreIcon, User, Users, Video, Video as VideoIcon, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from '@/lib/toast'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -123,6 +123,8 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     const [uploading, setUploading] = useState(false)
     const fileRef = useRef<HTMLInputElement>(null)
     const fileVideoRef = useRef<HTMLInputElement>(null)
+    const fileCamRef = useRef<HTMLInputElement>(null)
+    const fileCamVideoRef = useRef<HTMLInputElement>(null)
     const [onceMode, setOnceMode] = useState(false)
     const rec = useVoiceRecorder()
     const endRef = useRef<HTMLDivElement>(null)
@@ -197,8 +199,13 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     }
 
     // Envio de foto, vídeo ou áudio: o limite de tamanho e de duração é conferido aqui (cedo) e no banco (de verdade)
+    const sendingRef = useRef(false)
     const sendMedia = async (kind: ChatMediaKind, file: Blob, seconds: number | null, once: boolean) => {
-        if (uploading) return
+        if (uploading || sendingRef.current) return
+        sendingRef.current = true
+        try { await sendMediaOnce(kind, file, seconds, once) } finally { sendingRef.current = false }
+    }
+    const sendMediaOnce = async (kind: ChatMediaKind, file: Blob, seconds: number | null, once: boolean) => {
         const lim = CHAT_LIMITS[kind]
         if (file.size > lim.bytes) { toast.error('Arquivo grande demais', { description: `Envie um ${lim.label}.` }); return }
         if (lim.seconds != null && (seconds == null || seconds > lim.seconds)) { toast.error('Muito longo', { description: `Envie um ${lim.label}.` }); return }
@@ -396,10 +403,16 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                             <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Enviar</p>
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => { setAttachOpen(false); fileRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <ImageIcon size={15} style={{ color: '#f97316' }} /> Foto
+                                    <ImageIcon size={15} style={{ color: '#f97316' }} /> Foto da galeria
+                                </button>
+                                <button onClick={() => { setAttachOpen(false); fileCamRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                    <Camera size={15} style={{ color: '#f97316' }} /> Tirar foto
+                                </button>
+                                <button onClick={() => { setAttachOpen(false); fileCamVideoRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                    <Video size={15} style={{ color: '#f97316' }} /> Gravar vídeo
                                 </button>
                                 <button onClick={() => { setAttachOpen(false); fileVideoRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <VideoIcon size={15} style={{ color: '#f97316' }} /> Vídeo · até 1 min
+                                    <VideoIcon size={15} style={{ color: '#f97316' }} /> Vídeo da galeria · até 1 min
                                 </button>
                                 <button onClick={() => { setAttachOpen(false); void micPress() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
                                     <Mic size={15} style={{ color: '#f97316' }} /> Gravar áudio
@@ -429,6 +442,16 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                     if (!f) return
                     const secs = await mediaSeconds(f, 'video')
                     if (!secs) { toast.error('Não foi possível ler o vídeo', { description: 'Tente outro arquivo (MP4 ou WebM).' }); return }
+                    void sendMedia('video', f, Math.round(secs), onceMode)
+                }} />
+            <input ref={fileCamRef} type="file" accept={PHOTO_ACCEPT} capture="environment" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void sendMedia('photo', f, null, onceMode) }} />
+            <input ref={fileCamVideoRef} type="file" accept={VIDEO_ACCEPT} capture="environment" className="hidden"
+                onChange={async (e) => {
+                    const f = e.target.files?.[0]; e.target.value = ''
+                    if (!f) return
+                    const secs = await mediaSeconds(f, 'video')
+                    if (!secs) { toast.error('Não foi possível ler o vídeo', { description: 'Tente gravar de novo.' }); return }
                     void sendMedia('video', f, Math.round(secs), onceMode)
                 }} />
             {onceMode && !attachOpen && !rec.recording && (
