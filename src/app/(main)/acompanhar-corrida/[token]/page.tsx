@@ -15,7 +15,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { MapPin, Car, CheckCircle2, Clock, XCircle, Navigation, ShieldCheck } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
-import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
+import { fetchRoute, haversineKm, trimRouteFrom } from '@/lib/mapboxRoute'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -80,6 +80,7 @@ export default function AcompanharCorridaPage() {
     const routeFromRef = useRef<[number, number] | null>(null)
     const routeAtRef = useRef(0)
     const fittedRef = useRef(false)
+    const routeCoordsRef = useRef<[number, number][]>([])
 
     const load = useCallback(async () => {
         if (!id) return
@@ -186,6 +187,7 @@ export default function AcompanharCorridaPage() {
         fetchRoute(from, d).then((r) => {
             if (!r || !mapRef.current || !mapReadyRef.current) return
             const m = mapRef.current
+            routeCoordsRef.current = r.coords
             ;(m.getSource('route') as mapboxgl.GeoJSONSource).setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: r.coords } })
             m.setPaintProperty('route', 'line-color', color)
             setEtaMin(r.durationMin)
@@ -198,6 +200,13 @@ export default function AcompanharCorridaPage() {
             }
         }).catch(() => {})
     }, [data])
+
+    // a linha acompanha o carro a cada posição nova: corta o que já ficou para trás
+    useEffect(() => {
+        if (!mapRef.current || !mapReadyRef.current || !data?.driverPosition || routeCoordsRef.current.length < 2) return
+        const pos: [number, number] = [data.driverPosition.lng, data.driverPosition.lat]
+        ;(mapRef.current.getSource('route') as mapboxgl.GeoJSONSource).setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: trimRouteFrom(routeCoordsRef.current, pos) } })
+    }, [data?.driverPosition?.lat, data?.driverPosition?.lng])
 
     useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null; mapReadyRef.current = false }, [])
 

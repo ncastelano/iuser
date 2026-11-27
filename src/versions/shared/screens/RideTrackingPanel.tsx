@@ -11,7 +11,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
 import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Store, MessageSquare, Share2, Bike, Motorbike } from 'lucide-react'
-import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
+import { fetchRoute, haversineKm, trimRouteFrom } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import RideChat from '@/components/RideChat'
 import { kindForRideType, VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
@@ -654,6 +654,14 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         map.addSource(id, { type: 'geojson', data })
         map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#16a34a', 'line-width': 6 } })
     }, [map, mapReady, liveRoute, ride?.ride_started_at])
+
+    // a linha acompanha o carro a CADA posição nova (sem esperar a nova busca): o que já ficou para trás some
+    useEffect(() => {
+        if (!map || !mapReady || !liveRoute || !driverLiveCoords) return
+        const src = map.getSource('live-driver-route') as unknown as { setData?: (d: unknown) => void } | undefined
+        if (!src?.setData) return
+        src.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: trimRouteFrom(liveRoute.coords, driverLiveCoords) } })
+    }, [map, mapReady, liveRoute, driverLiveCoords])
 
     // VOCÊ: o marcador é o seu GPS (só no seu aparelho, nunca é enviado) quando a permissão de localização já foi dada;
     // sem permissão ou sem sinal, fica no ponto de partida, com o nome "Local de partida".
