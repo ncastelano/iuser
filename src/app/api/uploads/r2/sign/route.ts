@@ -54,6 +54,8 @@ export async function POST(req: Request) {
     const key = `${user.id}/${randomUUID()}.${ext}`
     const { data, error } = await supabase.rpc('authorize_upload', { p_bucket: k.bucket, p_path: key, p_bytes: bytes, p_mime: mime, p_upsert: false })
     if (error || !data) return fail(502, 'authorize_unavailable', 'Não foi possível autorizar o envio agora. Tente de novo.')
+    // o banco escolhe o tipo pelo formato (vários tipos podem dividir o bucket, ex.: foto/vídeo/áudio do chat): tem que ser o tipo PEDIDO
+    if ((data as { kind?: string }).kind !== k.kind) return fail(415, 'type_not_allowed', uploadDeniedMessage({ ok: false, error: 'type_not_allowed' }))
     const a = data as { ok?: boolean; error?: string; grant?: string; limit?: number; used?: number; retry_after?: number; reason?: string }
     if (!a.ok) return fail(STATUS[a.error || ''] ?? 403, a.error || 'denied', uploadDeniedMessage({ ...a, ok: false }), a.retry_after ? { retryAfter: a.retry_after } : {})
 

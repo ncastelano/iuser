@@ -8,7 +8,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, MessageCircle, Plus, Send, Store as StoreIcon, User, Users } from 'lucide-react'
+import { ArrowLeft, Eye, Image as ImageIcon, MapPin, MessageCircle, Mic, Plus, Send, Share2, Store as StoreIcon, User, Users, Video as VideoIcon, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from '@/lib/toast'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -29,6 +29,12 @@ import ShareCardView from '@/components/chat/ShareCardView'
 import ShareSheet from '@/components/chat/ShareSheet'
 import { SHARE_DEFAULT_TEXT, cardKeyOf, fetchShareCards, isDefaultShareText, refColumns, type ShareCard } from '@/lib/shareCards'
 import { usePageLoadBar } from '@/hooks/usePageLoadBar'
+import ChatLinkPreviews from '@/components/chat/ChatLinkPreviews'
+import LinkPreviewCard from '@/components/communities/LinkPreviewCard'
+import { urlsIn, iuserPath, isImageUrl } from '@/lib/chatLinks'
+import { uploadToR2, r2Availability } from '@/lib/r2Upload'
+import { PhotoBubble, VideoBubble, NormalAudio, OnceBubble, LocationBubble, LocationDurationSheet, useSenderLocation, useLocationRefresh, useVoiceRecorder, type MediaMessage } from '@/components/chat/DirectMediaParts'
+import { CHAT_LIMITS, CHAT_UPLOAD_KIND, VIDEO_ACCEPT, PHOTO_ACCEPT, baseMime, mediaSeconds, fmtTime, type ChatMediaKind } from '@/lib/chatMedia'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -57,7 +63,10 @@ function otherLabel(r: { other_name: string | null; other_slug: string | null; o
 
 interface MyStore { id: string; name: string; storeSlug: string; logoUrl: string | null }
 
-interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null; ref_request_id?: string | null; ref_store_id?: string | null; ref_profile_id?: string | null }
+interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null; ref_request_id?: string | null; ref_store_id?: string | null; ref_profile_id?: string | null; kind?: string; viewed_at?: string | null; loc_lat?: number | null; loc_lng?: number | null; loc_updated_at?: string | null; loc_expires_at?: string | null; loc_stopped?: boolean; view_once?: boolean; media_seconds?: number | null }
+// texto que o banco grava quando a foto/localização não tem legenda: não repete no balão
+const MEDIA_DEFAULT_TEXT = ['Foto', 'Vídeo', 'Áudio', 'Localização ao vivo']
+const MSG_COLS = 'id, conversation_id, sender_id, content, created_at, ref_product_id, ref_request_id, ref_store_id, ref_profile_id, kind, viewed_at, loc_lat, loc_lng, loc_updated_at, loc_expires_at, loc_stopped, view_once, media_seconds'
 
 interface ProductRef { id: string; name: string; slug: string | null; image_url: string | null; owner_slug: string | null }
 
@@ -109,6 +118,13 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     const [senderNames, setSenderNames] = useState<Record<string, string>>({})
     const [text, setText] = useState('')
     const [sending, setSending] = useState(false)
+    const [attachOpen, setAttachOpen] = useState(false)
+    const [locOpen, setLocOpen] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const fileRef = useRef<HTMLInputElement>(null)
+    const fileVideoRef = useRef<HTMLInputElement>(null)
+    const [onceMode, setOnceMode] = useState(false)
+    const rec = useVoiceRecorder()
     const endRef = useRef<HTMLDivElement>(null)
     const convId = conversation.id
 
@@ -141,7 +157,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
         setLoading(true)
         supabase
             .from('direct_messages')
-            .select('id, conversation_id, sender_id, content, created_at, ref_product_id, ref_request_id, ref_store_id, ref_profile_id')
+            .select(MSG_COLS)
             .eq('conversation_id', convId)
             .order('created_at', { ascending: true })
             .limit(300)
@@ -169,6 +185,66 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
 
     useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [messages])
 
+    // localização: quem envia atualiza a posição; quem recebe relê o mapa a cada 5 s
+    useSenderLocation(messages as MediaMessage[], userId)
+    useLocationRefresh(messages as MediaMessage[], (rows) => setMessages((prev) => prev.map((x) => { const r = rows.find((y) => y.id === x.id); return r ? { ...x, ...r } : x })))
+    const patchViewed = useCallback((id: string) => setMessages((prev) => prev.map((x) => (x.id === id ? { ...x, viewed_at: new Date().toISOString() } : x))), [])
+
+    const appendRow = async (id: string) => {
+        const { data: row } = await supabase.from('direct_messages').select(MSG_COLS).eq('id', id).single()
+        if (row) setMessages((prev) => (prev.some((x) => x.id === row.id) ? prev : [...prev, row as Message]))
+        onReadRef.current()
+    }
+
+    // Envio de foto, vídeo ou áudio: o limite de tamanho e de duração é conferido aqui (cedo) e no banco (de verdade)
+    const sendMedia = async (kind: ChatMediaKind, file: Blob, seconds: number | null, once: boolean) => {
+        if (uploading) return
+        const lim = CHAT_LIMITS[kind]
+        if (file.size > lim.bytes) { toast.error('Arquivo grande demais', { description: `Envie um ${lim.label}.` }); return }
+        if (lim.seconds != null && (seconds == null || seconds > lim.seconds)) { toast.error('Muito longo', { description: `Envie um ${lim.label}.` }); return }
+        setUploading(true)
+        const uploadKind = CHAT_UPLOAD_KIND[kind]
+        const av = await r2Availability(uploadKind)
+        if (!av.available) { setUploading(false); toast.info('O envio desse tipo ainda não está ligado.'); return }
+        const named = file instanceof File ? file : new File([file], `${kind}`, { type: baseMime(file.type) })
+        const up = await uploadToR2(named, uploadKind)
+        if (!up.ok) { setUploading(false); toast.error('Não foi possível enviar', { description: up.message }); return }
+        const caption = kind === 'audio' ? '' : text.trim()
+        const { data, error } = await supabase.rpc('chat_send_media', { p_conv: convId, p_kind: kind, p_key: up.key, p_caption: caption, p_once: once, p_seconds: seconds })
+        setUploading(false)
+        if (error || !data) { toast.error('Não foi possível enviar', { description: (error as any)?.hint === 'chat_media_limit' ? (error as any).message : undefined }); return }
+        if (kind !== 'audio') setText('')
+        setOnceMode(false)
+        await appendRow(data as string)
+    }
+
+    const stopAndSendAudio = async () => {
+        const r = await rec.stop()
+        if (r) await sendMedia('audio', r.blob, r.seconds, onceMode)
+    }
+    const micPress = async () => {
+        if (rec.recording) return stopAndSendAudio()
+        const ok = await rec.start()
+        if (!ok) toast.error('Permita o microfone', { description: 'Ative o microfone do navegador para gravar um áudio.' })
+    }
+
+    const startLocation = async (minutes: number) => {
+        setLocOpen(false)
+        const pos = await new Promise<GeolocationPosition | null>((resolve) => {
+            if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve(null)
+            navigator.geolocation.getCurrentPosition((p) => resolve(p), () => resolve(null), { enableHighAccuracy: true, timeout: 10000 })
+        })
+        if (!pos) { toast.error('Permita a localização para compartilhar', { description: 'Ative a localização do navegador e tente de novo.' }); return }
+        const { data, error } = await supabase.rpc('chat_start_location', { p_conv: convId, p_minutes: minutes, p_lat: pos.coords.latitude, p_lng: pos.coords.longitude })
+        if (error || !data) { toast.error('Não foi possível compartilhar a localização'); return }
+        await appendRow(data as string)
+    }
+
+    const stopLocation = async (id: string) => {
+        await supabase.rpc('chat_stop_location', { p_msg: id })
+        setMessages((prev) => prev.map((x) => (x.id === id ? { ...x, loc_stopped: true } : x)))
+    }
+
     // Grupo: busca o nome de quem escreveu (inclusive de quem já saiu do grupo)
     useEffect(() => {
         if (!conversation.is_group) return
@@ -191,7 +267,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
         const { data, error } = await supabase
             .from('direct_messages')
             .insert({ conversation_id: convId, sender_id: userId, content, ...(pending ? refColumns(pending) : {}) })
-            .select('id, conversation_id, sender_id, content, created_at, ref_product_id, ref_store_id, ref_profile_id')
+            .select(MSG_COLS)
             .single()
         setSending(false)
         if (error) return
@@ -284,7 +360,17 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                                 {m.ref_request_id && requestRefs[m.ref_request_id] && (
                                     <RequestCard r={requestRefs[m.ref_request_id]} mine={mine} colors={colors} />
                                 )}
-                                {(() => { const k = cardKeyOf(m); return k && shareCards[k] && isDefaultShareText(m.content) ? null : m.content })()}
+                                {m.kind === 'photo' && <PhotoBubble id={m.id} colors={colors} />}
+                                {(m.kind === 'photo' || m.kind === 'video' || m.kind === 'audio') && m.view_once && <OnceBubble m={m as MediaMessage} mine={mine} colors={colors} onOpened={patchViewed} />}
+                                {m.kind === 'photo' && !m.view_once && <PhotoBubble id={m.id} colors={colors} />}
+                                {m.kind === 'video' && !m.view_once && <VideoBubble id={m.id} colors={colors} />}
+                                {m.kind === 'audio' && !m.view_once && <NormalAudio id={m.id} mine={mine} colors={colors} seconds={m.media_seconds} />}
+                                {m.kind === 'location' && <LocationBubble m={m as MediaMessage} mine={mine} colors={colors} onStop={() => stopLocation(m.id)} />}
+                                {(() => { const k = cardKeyOf(m); if (m.kind && m.kind !== 'text' && MEDIA_DEFAULT_TEXT.includes(m.content)) return null; return k && shareCards[k] && isDefaultShareText(m.content) ? null : m.content })()}
+                                {(!m.kind || m.kind === 'text') && <ChatLinkPreviews content={m.content} colors={colors} compact />}
+                                {(!m.kind || m.kind === 'text') && urlsIn(m.content).filter((u) => !iuserPath(u) && !isImageUrl(u)).slice(0, 2).map((u) => (
+                                    <div key={u} className="mt-2"><LinkPreviewCard url={u} compact /></div>
+                                ))}
                                 <span className="block text-[10px] mt-0.5 text-right" style={{ opacity: 0.7 }}>
                                     {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                 </span>
@@ -303,31 +389,98 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                     <button onClick={() => setPending(null)} aria-label="Tirar o item" className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>×</button>
                 </div>
             )}
+            {(attachOpen || uploading) && (
+                <div className="px-3 pt-2 flex-shrink-0 flex flex-col gap-2">
+                    {uploading ? <span className="text-[12px] font-bold" style={{ color: colors.textSecondary }}>Enviando…</span> : (
+                        <>
+                            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Enviar</p>
+                            <div className="flex gap-2 flex-wrap">
+                                <button onClick={() => { setAttachOpen(false); fileRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                    <ImageIcon size={15} style={{ color: '#f97316' }} /> Foto
+                                </button>
+                                <button onClick={() => { setAttachOpen(false); fileVideoRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                    <VideoIcon size={15} style={{ color: '#f97316' }} /> Vídeo · até 1 min
+                                </button>
+                                <button onClick={() => { setAttachOpen(false); void micPress() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                    <Mic size={15} style={{ color: '#f97316' }} /> Gravar áudio
+                                </button>
+                                <button onClick={() => { setAttachOpen(false); setLocOpen(true) }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                    <MapPin size={15} style={{ color: '#f97316' }} /> Localização ao vivo
+                                </button>
+                                <button onClick={() => setOnceMode((o) => !o)} aria-pressed={onceMode} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: onceMode ? '#f97316' : `${colors.border}40`, color: onceMode ? '#fff' : colors.textPrimary }}>
+                                    <Eye size={15} /> Ver uma vez: {onceMode ? 'ligado' : 'desligado'}
+                                </button>
+                            </div>
+                            <p className="text-[11px] font-black uppercase tracking-wide mt-1" style={{ color: colors.textSecondary }}>Do iUser</p>
+                            <div className="flex gap-2 flex-wrap">
+                                <button onClick={() => { setAttachOpen(false); setShareOpen(true) }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                    <Share2 size={15} style={{ color: '#f97316' }} /> Compartilhar loja, serviço ou perfil
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+            <input ref={fileRef} type="file" accept={PHOTO_ACCEPT} className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void sendMedia('photo', f, null, onceMode) }} />
+            <input ref={fileVideoRef} type="file" accept={VIDEO_ACCEPT} className="hidden"
+                onChange={async (e) => {
+                    const f = e.target.files?.[0]; e.target.value = ''
+                    if (!f) return
+                    const secs = await mediaSeconds(f, 'video')
+                    if (!secs) { toast.error('Não foi possível ler o vídeo', { description: 'Tente outro arquivo (MP4 ou WebM).' }); return }
+                    void sendMedia('video', f, Math.round(secs), onceMode)
+                }} />
+            {onceMode && !attachOpen && !rec.recording && (
+                <div className="px-3 pt-2 flex-shrink-0">
+                    <button onClick={() => setOnceMode(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black" style={{ background: '#f97316', color: '#fff' }}>
+                        <Eye size={13} /> Ver uma vez ligado · toque para desligar
+                    </button>
+                </div>
+            )}
             <div className={`flex items-end gap-2 px-3 py-3 flex-shrink-0 ${modern ? '' : 'border-t'}`} style={modern ? undefined : { borderColor: colors.border }}>
-                <button onClick={() => setShareOpen(true)} aria-label="Compartilhar loja, serviço, publicação ou perfil" className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-lg font-black transition active:scale-95" style={{ background: `${colors.border}40`, color: '#f97316' }}>+</button>
-                <textarea
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                    rows={1}
-                    maxLength={2000}
-                    placeholder="Escreva uma mensagem..."
-                    className="flex-1 resize-none rounded-3xl px-4 py-2.5 text-sm outline-none max-h-32"
-                    style={modern
-                        ? { background: `${colors.border}40`, color: colors.textPrimary }
-                        : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                />
-                <button
-                    onClick={send}
-                    disabled={(!text.trim() && !pending) || sending}
-                    className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40 transition-transform active:scale-95"
-                    style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
-                    aria-label="Enviar"
-                >
-                    <Send size={18} />
+                <button onClick={() => setAttachOpen((o) => !o)} disabled={uploading} aria-label="Enviar foto, vídeo, áudio, localização ou compartilhar do iUser" aria-expanded={attachOpen} className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-lg font-black transition active:scale-95" style={{ background: attachOpen ? '#f97316' : `${colors.border}40`, color: attachOpen ? '#fff' : '#f97316' }}>
+                    {attachOpen ? '×' : '+'}
                 </button>
+                {rec.recording ? (
+                    <div className="flex-1 flex items-center gap-2 rounded-3xl px-3 py-2.5" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                        <span className="text-sm font-black tabular-nums">{fmtTime(rec.seconds)}</span>
+                        <span className="text-xs opacity-70 flex-1">Gravando áudio · máx. 5 min</span>
+                        <button onClick={() => rec.cancel()} aria-label="Cancelar gravação" className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: `${colors.border}60` }}><X size={16} /></button>
+                    </div>
+                ) : (
+                    <textarea
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+                        rows={1}
+                        maxLength={2000}
+                        placeholder="Escreva uma mensagem..."
+                        className="flex-1 resize-none rounded-3xl px-4 py-2.5 text-sm outline-none max-h-32"
+                        style={modern
+                            ? { background: `${colors.border}40`, color: colors.textPrimary }
+                            : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                    />
+                )}
+                {!rec.recording && !text.trim() && !pending ? (
+                    <button onClick={micPress} disabled={uploading} aria-label="Gravar áudio" className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40 transition-transform active:scale-95" style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>
+                        <Mic size={18} />
+                    </button>
+                ) : (
+                    <button
+                        onClick={rec.recording ? stopAndSendAudio : send}
+                        disabled={(!rec.recording && !text.trim() && !pending) || sending || uploading}
+                        className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40 transition-transform active:scale-95"
+                        style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
+                        aria-label="Enviar"
+                    >
+                        <Send size={18} />
+                    </button>
+                )}
             </div>
             <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} onPick={setPending} colors={colors} />
+            <LocationDurationSheet open={locOpen} onClose={() => setLocOpen(false)} onPick={startLocation} colors={colors} />
         </div>
     )
 }

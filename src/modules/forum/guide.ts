@@ -52,7 +52,7 @@ export const GUIDE: GuideGroup[] = [
                 steps: [
                     'Explorar: procure lojas, serviços, pessoas e produtos, ou use os atalhos "Preciso de" e "Quero ganhar".',
                     'Itens: tem duas partes. Carrinho, com o que você vai comprar, e Itens, com tudo o que já é seu, nas abas Tudo, Histórico, Produtos, Serviços e Digitais. No Histórico dá para repetir um pedido inteiro e marcar pedidos favoritos (estrela), que ficam no alto para pedir com um toque.',
-                    'Conversas: fale com lojas, profissionais e motoristas sem passar seu telefone.',
+                    'Conversas: fale com lojas, profissionais e motoristas sem passar seu telefone. No botão + ao lado da mensagem dá para mandar foto, vídeo (até 1 minuto), áudio gravado pelo microfone, sua localização ao vivo (15 minutos, 1 hora ou até desligar) e, com o botão "Ver uma vez" ligado, foto, vídeo ou áudio que só abre uma vez.',
                     'A faixa em cima da barra mostra avisos e o que está acontecendo agora (pedido, corrida, carrinho).',
                 ],
             },
