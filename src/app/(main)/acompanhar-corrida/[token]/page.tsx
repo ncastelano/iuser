@@ -171,8 +171,8 @@ export default function AcompanharCorridaPage() {
         // o que desenhar agora
         const fromCar = data.status === 'accepted' && started && car !== null
         const from = fromCar ? car! : o
-        // vermelho até o motorista começar a corrida; azul quando começa (e o trajeto vai encolhendo até o destino)
-        const color = started ? BLUE : RED
+        // uma cor só para o trajeto, igual à tela de pedir motorista (sem trocar de cor); ele vai encolhendo conforme o carro anda
+        const color = BLUE
         const key = `${data.status}|${started ? 'run' : 'pre'}`
 
         // refaz a rota quando muda a fase, ou quando o carro andou (a cada 60 m ou 20 s): é isso que faz o trajeto ENCOLHER

@@ -263,10 +263,9 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
                     </span>
                     <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', fontSize: 15, fontWeight: 900, lineHeight: 1.25 }}>{title}</span>
-                        {text && text.trim() !== title.trim() && (
-                            <span style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontSize: 12.5, lineHeight: 1.35, color: colors.textSecondary, marginTop: 3 }}>{text}</span>
-                        )}
-                        <span style={{ display: 'block', fontSize: 11, color: colors.textSecondary, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>{url.replace(/^https?:\/\//, '')}</span>
+                        {/* o endereço inteiro, para copiar e colar sem cortar */}
+                        <span style={{ display: 'block', fontSize: 11.5, color: colors.textSecondary, marginTop: 6, wordBreak: 'break-all', lineHeight: 1.35, userSelect: 'all' }}>{url}</span>
+                        <button type="button" onClick={() => copyText(url)} style={{ marginTop: 8, height: 30, padding: '0 14px', borderRadius: 999, border: 'none', background: '#f97316', color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>Copiar</button>
                     </span>
                 </div>
 

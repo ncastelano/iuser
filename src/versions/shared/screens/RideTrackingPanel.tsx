@@ -655,19 +655,46 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#16a34a', 'line-width': 6 } })
     }, [map, mapReady, liveRoute, ride?.ride_started_at])
 
-    // VOCÊ: o passageiro espera na partida — marcador próprio, para ver a rota do motorista até você
+    // VOCÊ: o marcador é o seu GPS (só no seu aparelho, nunca é enviado) quando a permissão de localização já foi dada;
+    // sem permissão ou sem sinal, fica no ponto de partida, com o nome "Local de partida".
+    const [myGps, setMyGps] = useState<[number, number] | null>(null)
+    useEffect(() => {
+        if (!ride || ride.status !== 'accepted' || typeof navigator === 'undefined' || !navigator.geolocation) return
+        let watchId: number | null = null
+        let alive = true
+        const start = () => {
+            watchId = navigator.geolocation.watchPosition(
+                (pos) => { if (alive) setMyGps([pos.coords.longitude, pos.coords.latitude]) },
+                () => { if (alive) setMyGps(null) },
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+            )
+        }
+        // só liga o GPS se a permissão já foi dada (nunca pede de surpresa numa tela de acompanhamento)
+        navigator.permissions?.query({ name: 'geolocation' as PermissionName })
+            .then((st) => { if (st.state === 'granted') start() })
+            .catch(() => {})
+        return () => { alive = false; if (watchId != null) navigator.geolocation.clearWatch(watchId) }
+    }, [ride?.status])
+
     const youMarkerRef = useRef<mapboxgl.Marker | null>(null)
+    const youLabelRef = useRef<HTMLDivElement | null>(null)
     useEffect(() => {
         if (!map || !mapReady || !ride || ride.origin_lat == null || ride.origin_lng == null || ride.status !== 'accepted') {
             youMarkerRef.current?.remove(); youMarkerRef.current = null
             return
         }
-        const at: [number, number] = [ride.origin_lng, ride.origin_lat]
-        if (youMarkerRef.current) { youMarkerRef.current.setLngLat(at); return }
+        const at: [number, number] = myGps ?? [ride.origin_lng, ride.origin_lat]
+        const label = myGps ? 'Você' : 'Local de partida'
+        if (youMarkerRef.current) {
+            youMarkerRef.current.setLngLat(at)
+            if (youLabelRef.current) youLabelRef.current.textContent = label
+            return
+        }
         const el = document.createElement('div')
-        el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;"><div style="background:#16a34a;color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);">Você</div><div style="width:16px;height:16px;border-radius:50%;background:#16a34a;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div></div>`
+        el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;"><div data-label style="background:#16a34a;color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);">${label}</div><div style="width:16px;height:16px;border-radius:50%;background:#16a34a;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div></div>`
+        youLabelRef.current = el.querySelector('[data-label]') as HTMLDivElement
         youMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(at).addTo(map)
-    }, [map, mapReady, ride?.status, ride?.origin_lat, ride?.origin_lng])
+    }, [map, mapReady, ride?.status, ride?.origin_lat, ride?.origin_lng, myGps])
     useEffect(() => () => { youMarkerRef.current?.remove(); youMarkerRef.current = null }, [])
 
     // CÂMERA QUE SEGUE O CARRO (como no mapa do motorista): fica no carro, inclinada e virada para a rota à frente.
@@ -959,7 +986,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
             {ride.status === 'accepted' && driver && (
                 <div className="grid grid-cols-2 gap-2 items-start">
                 <div className="flex flex-col gap-2 px-3 py-2.5 rounded-xl min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                         <PlanAvatarRing userId={ride.driver_id}>
                         {driver.avatarUrl ? (
                             <img src={driver.avatarUrl} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
@@ -981,7 +1008,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                         </p>
                         {driver.carPlate && (
                             <span
-                                className="flex-shrink-0 text-[11px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                className="flex-shrink-0 whitespace-nowrap text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded"
                                 style={{ background: `${colors.border}60`, color: colors.textPrimary }}
                                 title="Confira a placa e a cor do carro antes de entrar"
                             >
