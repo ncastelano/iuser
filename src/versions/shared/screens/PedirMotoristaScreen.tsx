@@ -11,7 +11,8 @@ import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeol
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { formatBrazilianPhoneSpaced } from '@/lib/phone'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { toast } from '@/lib/toast'
+import { toast, useIslandMessage } from '@/lib/toast'
+import { TopToast, setTopToastSlot } from '@/components/IslandToastFallback'
 import { notifyNewRide } from '@/lib/notifyRideStatus'
 import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
@@ -430,6 +431,8 @@ async function fetchRoute(origin: [number, number], destination: [number, number
 
 /** Mesma lógica nas duas versões; `ui` só troca a moldura/visual (v3 = compacta, abaixo da navbar, com motoristas ativos no mapa). */
 export default function PedirMotoristaScreen() {
+    const { msg: topMsg } = useIslandMessage()
+    useEffect(() => { setTopToastSlot(true); return () => setTopToastSlot(false) }, [])
     const router = useRouter()
     const { colors } = useTheme()
     const { userId: contextUserId, loading: profileLoading } = useProfile()
@@ -1815,9 +1818,11 @@ export default function PedirMotoristaScreen() {
                 >
                     <ArrowLeft size={20} />
                 </button>
+                {/* avisos (ex.: "o motorista começou a corrida") ficam na MESMA linha do botão voltar */}
+                <TopToast className="absolute top-3 left-16 right-3" />
 
                 {/* v3: motoristas ativos agora (carro / moto / bicicleta), os mesmos que aparecem no mapa */}
-                {(driversLoaded) && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending') && (
+                {!topMsg && (driversLoaded) && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending') && (
                     <div
                         role="status"
                         className="absolute top-3 right-3 z-30 flex items-center gap-2.5 px-3 h-11 rounded-full text-[12px] font-black shadow-xl"

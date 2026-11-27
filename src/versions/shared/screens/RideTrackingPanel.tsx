@@ -609,6 +609,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     useEffect(() => {
         if (!map || !mapReady) return
         const id = 'live-driver-route'
+        // com a corrida começando, o trajeto vermelho inteiro sai do mapa: fica só o que falta (verde, encolhendo)
+        if (map.getLayer('my-trip-route')) map.setLayoutProperty('my-trip-route', 'visibility', liveRoute && ride?.ride_started_at ? 'none' : 'visible')
         if (!liveRoute) {
             if (map.getLayer(id)) map.removeLayer(id)
             if (map.getSource(id)) map.removeSource(id)
@@ -618,8 +620,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
         const src = map.getSource(id)
         if (src) { (src as unknown as { setData: (d: unknown) => void }).setData(data); return }
         map.addSource(id, { type: 'geojson', data })
-        map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#3b82f6', 'line-width': 5, 'line-dasharray': [1.2, 1.4] } })
-    }, [map, mapReady, liveRoute])
+        map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#16a34a', 'line-width': 6 } })
+    }, [map, mapReady, liveRoute, ride?.ride_started_at])
 
     // Marcador do motorista no mapa — separado do efeito principal acima pra
     // não reconstruir rotas/candidatos a cada atualização de posição.

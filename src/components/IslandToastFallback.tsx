@@ -56,15 +56,41 @@ function BottomSheet({ children }: { children: ReactNode }) {
     )
 }
 
+/** Uma tela (ex.: pedir motorista) pode pôr o aviso na própria linha do botão de voltar: avisa com este evento. */
+export function setTopToastSlot(on: boolean) {
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('iuser-toast-top', { detail: on }))
+}
+
+/** O aviso na faixa de cima (cartões com botões ficam embaixo, como antes). */
+export function TopToast({ className = '' }: { className?: string }) {
+    const { msg } = useIslandMessage()
+    if (!msg || msg.custom) return null
+    const st = toastStyle(msg.kind)
+    return (
+        <button onClick={() => toast.dismiss(msg.id)} aria-label="Dispensar aviso" className={`z-30 h-11 flex items-center gap-2.5 pl-2 pr-3 rounded-full shadow-xl text-left min-w-0 ${className}`}
+            style={{ background: '#fff', color: '#0f172a', border: `1.5px solid ${st.color}` }}>
+            <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0" style={{ background: st.color }}>{msg.icon || st.glyph}</span>
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-black">{msg.text}</span>
+        </button>
+    )
+}
+
 export function IslandToastFallback() {
     const hasIsland = useHasIsland()
     const { msg } = useIslandMessage()
+    const [topOn, setTopOn] = useState(false)
+    useEffect(() => {
+        const on = (e: Event) => setTopOn(!!(e as CustomEvent).detail)
+        window.addEventListener('iuser-toast-top', on)
+        return () => window.removeEventListener('iuser-toast-top', on)
+    }, [])
     useEffect(() => {
         if (hasIsland || !msg) return
         const t = setTimeout(() => toast.dismiss(msg.id), msg.duration)
         return () => clearTimeout(t)
     }, [hasIsland, msg?.id])   // eslint-disable-line react-hooks/exhaustive-deps
     if (hasIsland || !msg) return null
+    if (topOn && !msg.custom) return null   // a tela mostra este aviso na linha do voltar
     if (msg.custom) return <BottomSheet key={String(msg.id)}>{msg.custom(msg.id)}</BottomSheet>
     return <BottomPill key={String(msg.id)} msg={msg} />
 }
