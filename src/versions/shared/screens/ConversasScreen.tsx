@@ -8,7 +8,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Eye, Image as ImageIcon, MapPin, MessageCircle, Mic, Plus, Send, Share2, Store as StoreIcon, User, Users, Video as VideoIcon, X } from 'lucide-react'
+import { ArrowLeft, Camera, Eye, Film, Image as ImageIcon, MapPin, MessageCircle, Mic, Plus, Send, Share2, Store as StoreIcon, User, Users, Video, Video as VideoIcon, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from '@/lib/toast'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -123,6 +123,8 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     const [uploading, setUploading] = useState(false)
     const fileRef = useRef<HTMLInputElement>(null)
     const fileVideoRef = useRef<HTMLInputElement>(null)
+    const fileCamRef = useRef<HTMLInputElement>(null)
+    const fileCamVideoRef = useRef<HTMLInputElement>(null)
     const [onceMode, setOnceMode] = useState(false)
     const rec = useVoiceRecorder()
     const endRef = useRef<HTMLDivElement>(null)
@@ -197,8 +199,13 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     }
 
     // Envio de foto, vídeo ou áudio: o limite de tamanho e de duração é conferido aqui (cedo) e no banco (de verdade)
+    const sendingRef = useRef(false)
     const sendMedia = async (kind: ChatMediaKind, file: Blob, seconds: number | null, once: boolean) => {
-        if (uploading) return
+        if (uploading || sendingRef.current) return
+        sendingRef.current = true
+        try { await sendMediaOnce(kind, file, seconds, once) } finally { sendingRef.current = false }
+    }
+    const sendMediaOnce = async (kind: ChatMediaKind, file: Blob, seconds: number | null, once: boolean) => {
         const lim = CHAT_LIMITS[kind]
         if (file.size > lim.bytes) { toast.error('Arquivo grande demais', { description: `Envie um ${lim.label}.` }); return }
         if (lim.seconds != null && (seconds == null || seconds > lim.seconds)) { toast.error('Muito longo', { description: `Envie um ${lim.label}.` }); return }
@@ -390,35 +397,52 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 </div>
             )}
             {(attachOpen || uploading) && (
-                <div className="px-3 pt-2 flex-shrink-0 flex flex-col gap-2">
-                    {uploading ? <span className="text-[12px] font-bold" style={{ color: colors.textSecondary }}>Enviando…</span> : (
-                        <>
-                            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Enviar</p>
-                            <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => { setAttachOpen(false); fileRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <ImageIcon size={15} style={{ color: '#f97316' }} /> Foto
+                <div className="fixed inset-0 z-[90] flex flex-col justify-end" onClick={() => { if (!uploading) setAttachOpen(false) }}>
+                    <div className="absolute inset-0" style={{ background: 'rgba(8,8,10,0.45)', backdropFilter: 'blur(3px)' }} />
+                    <div className="relative rounded-t-[24px] px-3 pt-2 shadow-2xl" style={{ background: colors.background, color: colors.textPrimary, borderTop: `1px solid ${colors.border}`, paddingBottom: 'max(20px, env(safe-area-inset-bottom, 0px))' }} onClick={(e) => e.stopPropagation()}>
+                        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full" style={{ background: `${colors.border}` }} />
+                        {uploading ? (
+                            <p className="py-8 text-center text-sm font-black">Enviando…</p>
+                        ) : (
+                            <>
+                                <div className="mb-3 flex items-center justify-between">
+                                    <button onClick={() => setAttachOpen(false)} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                        <ArrowLeft size={15} /> Voltar
+                                    </button>
+                                    <p className="text-[11px] font-black uppercase tracking-wider opacity-60">Enviar</p>
+                                </div>
+                                <div className="grid grid-cols-4 gap-1.5">
+                                    {([
+                                        { key: 'gal', label: 'Foto da galeria', icon: ImageIcon, color: '#3b82f6', onPick: () => { setAttachOpen(false); fileRef.current?.click() } },
+                                        { key: 'cam', label: 'Tirar foto', icon: Camera, color: '#8b5cf6', onPick: () => { setAttachOpen(false); fileCamRef.current?.click() } },
+                                        { key: 'vgal', label: 'Vídeo da galeria', hint: 'até 1 min', icon: Film, color: '#ef4444', onPick: () => { setAttachOpen(false); fileVideoRef.current?.click() } },
+                                        { key: 'vcam', label: 'Gravar vídeo', hint: 'até 1 min', icon: Video, color: '#dc2626', onPick: () => { setAttachOpen(false); fileCamVideoRef.current?.click() } },
+                                        { key: 'mic', label: 'Gravar áudio', hint: 'até 5 min', icon: Mic, color: '#f97316', onPick: () => { setAttachOpen(false); void micPress() } },
+                                        { key: 'loc', label: 'Localização', hint: 'ao vivo', icon: MapPin, color: '#10b981', onPick: () => { setAttachOpen(false); setLocOpen(true) } },
+                                    ] as const).map((t) => {
+                                        const Icon = t.icon
+                                        return (
+                                            <button key={t.key} onClick={t.onPick} className="flex flex-col items-center gap-1 rounded-xl px-1 py-2 transition active:scale-95" style={{ background: `${t.color}1a` }}>
+                                                <span className="flex h-9 w-9 items-center justify-center rounded-full text-white" style={{ background: t.color }}><Icon size={17} /></span>
+                                                <span className="text-center text-[10.5px] font-black leading-tight">{t.label}</span>
+                                                {'hint' in t && t.hint && <span className="text-[9px] font-bold opacity-60">{t.hint}</span>}
+                                            </button>
+                                        )
+                                    })}
+                                    <button onClick={() => setOnceMode((o) => !o)} aria-pressed={onceMode} className="flex flex-col items-center gap-1 rounded-xl px-1 py-2 transition active:scale-95" style={{ background: onceMode ? '#ec4899' : '#ec48991a', color: onceMode ? '#fff' : colors.textPrimary }}>
+                                        <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: '#ec4899', color: '#fff' }}><Eye size={17} /></span>
+                                        <span className="text-center text-[10.5px] font-black leading-tight">Ver uma vez</span>
+                                        <span className="text-[9px] font-bold opacity-70">{onceMode ? 'ligado' : 'desligado'}</span>
+                                    </button>
+                                </div>
+                                <p className="mb-1.5 mt-3 text-[10px] font-black uppercase tracking-wider opacity-60">Do iUser</p>
+                                <button onClick={() => { setAttachOpen(false); setShareOpen(true) }} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition active:scale-[0.99]" style={{ background: '#14b8a61a' }}>
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-full text-white" style={{ background: '#14b8a6' }}><Share2 size={15} /></span>
+                                    <span className="text-[12px] font-black">Compartilhar loja, serviço ou perfil</span>
                                 </button>
-                                <button onClick={() => { setAttachOpen(false); fileVideoRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <VideoIcon size={15} style={{ color: '#f97316' }} /> Vídeo · até 1 min
-                                </button>
-                                <button onClick={() => { setAttachOpen(false); void micPress() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <Mic size={15} style={{ color: '#f97316' }} /> Gravar áudio
-                                </button>
-                                <button onClick={() => { setAttachOpen(false); setLocOpen(true) }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <MapPin size={15} style={{ color: '#f97316' }} /> Localização ao vivo
-                                </button>
-                                <button onClick={() => setOnceMode((o) => !o)} aria-pressed={onceMode} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: onceMode ? '#f97316' : `${colors.border}40`, color: onceMode ? '#fff' : colors.textPrimary }}>
-                                    <Eye size={15} /> Ver uma vez: {onceMode ? 'ligado' : 'desligado'}
-                                </button>
-                            </div>
-                            <p className="text-[11px] font-black uppercase tracking-wide mt-1" style={{ color: colors.textSecondary }}>Do iUser</p>
-                            <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => { setAttachOpen(false); setShareOpen(true) }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <Share2 size={15} style={{ color: '#f97316' }} /> Compartilhar loja, serviço ou perfil
-                                </button>
-                            </div>
-                        </>
-                    )}
+                            </>
+                        )}
+                    </div>
                 </div>
             )}
             <input ref={fileRef} type="file" accept={PHOTO_ACCEPT} className="hidden"
@@ -429,6 +453,16 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                     if (!f) return
                     const secs = await mediaSeconds(f, 'video')
                     if (!secs) { toast.error('Não foi possível ler o vídeo', { description: 'Tente outro arquivo (MP4 ou WebM).' }); return }
+                    void sendMedia('video', f, Math.round(secs), onceMode)
+                }} />
+            <input ref={fileCamRef} type="file" accept={PHOTO_ACCEPT} capture="environment" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void sendMedia('photo', f, null, onceMode) }} />
+            <input ref={fileCamVideoRef} type="file" accept={VIDEO_ACCEPT} capture="environment" className="hidden"
+                onChange={async (e) => {
+                    const f = e.target.files?.[0]; e.target.value = ''
+                    if (!f) return
+                    const secs = await mediaSeconds(f, 'video')
+                    if (!secs) { toast.error('Não foi possível ler o vídeo', { description: 'Tente gravar de novo.' }); return }
                     void sendMedia('video', f, Math.round(secs), onceMode)
                 }} />
             {onceMode && !attachOpen && !rec.recording && (
