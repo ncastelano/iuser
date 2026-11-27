@@ -8,7 +8,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Camera, Eye, Image as ImageIcon, MapPin, MessageCircle, Mic, Plus, Send, Share2, Store as StoreIcon, User, Users, Video, Video as VideoIcon, X } from 'lucide-react'
+import { ArrowLeft, Camera, Eye, Film, Image as ImageIcon, MapPin, MessageCircle, Mic, Plus, Send, Share2, Store as StoreIcon, User, Users, Video, Video as VideoIcon, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from '@/lib/toast'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -397,41 +397,47 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 </div>
             )}
             {(attachOpen || uploading) && (
-                <div className="px-3 pt-2 flex-shrink-0 flex flex-col gap-2">
-                    {uploading ? <span className="text-[12px] font-bold" style={{ color: colors.textSecondary }}>Enviando…</span> : (
-                        <>
-                            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Enviar</p>
-                            <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => { setAttachOpen(false); fileRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <ImageIcon size={15} style={{ color: '#f97316' }} /> Foto da galeria
+                <div className="fixed inset-0 z-[90] flex flex-col justify-end" onClick={() => { if (!uploading) setAttachOpen(false) }}>
+                    <div className="absolute inset-0" style={{ background: 'rgba(8,8,10,0.45)', backdropFilter: 'blur(3px)' }} />
+                    <div className="relative rounded-t-[28px] px-4 pt-3 shadow-2xl" style={{ background: colors.background, color: colors.textPrimary, borderTop: `1px solid ${colors.border}`, paddingBottom: 'max(20px, env(safe-area-inset-bottom, 0px))' }} onClick={(e) => e.stopPropagation()}>
+                        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full" style={{ background: `${colors.border}` }} />
+                        {uploading ? (
+                            <p className="py-8 text-center text-sm font-black">Enviando…</p>
+                        ) : (
+                            <>
+                                <p className="mb-2 text-[11px] font-black uppercase tracking-wider opacity-60">Enviar</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {([
+                                        { key: 'gal', label: 'Foto da galeria', icon: ImageIcon, color: '#3b82f6', onPick: () => { setAttachOpen(false); fileRef.current?.click() } },
+                                        { key: 'cam', label: 'Tirar foto', icon: Camera, color: '#8b5cf6', onPick: () => { setAttachOpen(false); fileCamRef.current?.click() } },
+                                        { key: 'vgal', label: 'Vídeo da galeria', hint: 'até 1 min', icon: Film, color: '#ef4444', onPick: () => { setAttachOpen(false); fileVideoRef.current?.click() } },
+                                        { key: 'vcam', label: 'Gravar vídeo', hint: 'até 1 min', icon: Video, color: '#dc2626', onPick: () => { setAttachOpen(false); fileCamVideoRef.current?.click() } },
+                                        { key: 'mic', label: 'Gravar áudio', hint: 'até 5 min', icon: Mic, color: '#f97316', onPick: () => { setAttachOpen(false); void micPress() } },
+                                        { key: 'loc', label: 'Localização', hint: 'ao vivo', icon: MapPin, color: '#10b981', onPick: () => { setAttachOpen(false); setLocOpen(true) } },
+                                    ] as const).map((t) => {
+                                        const Icon = t.icon
+                                        return (
+                                            <button key={t.key} onClick={t.onPick} className="flex flex-col items-center gap-2 rounded-2xl px-2 py-3 transition active:scale-95" style={{ background: `${t.color}1a` }}>
+                                                <span className="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-md" style={{ background: t.color }}><Icon size={20} /></span>
+                                                <span className="text-center text-[12px] font-black leading-tight">{t.label}</span>
+                                                {'hint' in t && t.hint && <span className="text-[10px] font-bold opacity-60">{t.hint}</span>}
+                                            </button>
+                                        )
+                                    })}
+                                    <button onClick={() => setOnceMode((o) => !o)} aria-pressed={onceMode} className="flex flex-col items-center gap-2 rounded-2xl px-2 py-3 transition active:scale-95" style={{ background: onceMode ? '#ec4899' : '#ec48991a', color: onceMode ? '#fff' : colors.textPrimary }}>
+                                        <span className="flex h-11 w-11 items-center justify-center rounded-full shadow-md" style={{ background: '#ec4899', color: '#fff' }}><Eye size={20} /></span>
+                                        <span className="text-center text-[12px] font-black leading-tight">Ver uma vez</span>
+                                        <span className="text-[10px] font-bold opacity-70">{onceMode ? 'ligado' : 'desligado'}</span>
+                                    </button>
+                                </div>
+                                <p className="mb-2 mt-4 text-[11px] font-black uppercase tracking-wider opacity-60">Do iUser</p>
+                                <button onClick={() => { setAttachOpen(false); setShareOpen(true) }} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition active:scale-[0.99]" style={{ background: '#14b8a61a' }}>
+                                    <span className="flex h-10 w-10 items-center justify-center rounded-full text-white" style={{ background: '#14b8a6' }}><Share2 size={18} /></span>
+                                    <span className="text-[13px] font-black">Compartilhar loja, serviço ou perfil</span>
                                 </button>
-                                <button onClick={() => { setAttachOpen(false); fileCamRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <Camera size={15} style={{ color: '#f97316' }} /> Tirar foto
-                                </button>
-                                <button onClick={() => { setAttachOpen(false); fileCamVideoRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <Video size={15} style={{ color: '#f97316' }} /> Gravar vídeo
-                                </button>
-                                <button onClick={() => { setAttachOpen(false); fileVideoRef.current?.click() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <VideoIcon size={15} style={{ color: '#f97316' }} /> Vídeo da galeria · até 1 min
-                                </button>
-                                <button onClick={() => { setAttachOpen(false); void micPress() }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <Mic size={15} style={{ color: '#f97316' }} /> Gravar áudio
-                                </button>
-                                <button onClick={() => { setAttachOpen(false); setLocOpen(true) }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <MapPin size={15} style={{ color: '#f97316' }} /> Localização ao vivo
-                                </button>
-                                <button onClick={() => setOnceMode((o) => !o)} aria-pressed={onceMode} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: onceMode ? '#f97316' : `${colors.border}40`, color: onceMode ? '#fff' : colors.textPrimary }}>
-                                    <Eye size={15} /> Ver uma vez: {onceMode ? 'ligado' : 'desligado'}
-                                </button>
-                            </div>
-                            <p className="text-[11px] font-black uppercase tracking-wide mt-1" style={{ color: colors.textSecondary }}>Do iUser</p>
-                            <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => { setAttachOpen(false); setShareOpen(true) }} className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
-                                    <Share2 size={15} style={{ color: '#f97316' }} /> Compartilhar loja, serviço ou perfil
-                                </button>
-                            </div>
-                        </>
-                    )}
+                            </>
+                        )}
+                    </div>
                 </div>
             )}
             <input ref={fileRef} type="file" accept={PHOTO_ACCEPT} className="hidden"
