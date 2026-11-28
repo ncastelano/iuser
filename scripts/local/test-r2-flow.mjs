@@ -34,12 +34,29 @@ let lenient = false
 let deny = false             // true = recusa tudo (chave errada), para ver o teste do painel acusar o erro
 let _unused = false          // true = aceita qualquer corpo (simula um R2 que não confere o tamanho assinado) para testar a conferência do servidor
 const log = []
+const SERVE = process.argv.includes('--serve') // modo para o navegador local: aceita o envio assinado e responde com CORS
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://127.0.0.1:${FAKE.port}`)
     const host = `127.0.0.1:${FAKE.port}`
     const chunks = []; for await (const c of req) chunks.push(c); const body = Buffer.concat(chunks)
     const reply = (code, headers = {}) => { res.writeHead(code, headers); res.end() }
     const objKey = decodeURIComponent(url.pathname.replace(/^\//, ''))
+    if (SERVE) {
+        res.setHeader('Access-Control-Allow-Origin', '*')
+        res.setHeader('Access-Control-Allow-Headers', '*')
+        res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,HEAD,OPTIONS')
+        res.setHeader('Access-Control-Expose-Headers', 'ETag, Content-Length, Content-Type')
+        if (req.method === 'OPTIONS') return reply(204)
+        if (req.method === 'PUT' && url.searchParams.has('X-Amz-Signature')) {
+            store.set(objKey, { body, type: String(req.headers['content-type'] || ''), lm: new Date() })
+            return reply(200, { ETag: '"' + crypto.createHash('md5').update(body).digest('hex') + '"' })
+        }
+        if ((req.method === 'GET' || req.method === 'HEAD') && store.has(objKey)) {
+            const o = store.get(objKey)
+            res.writeHead(200, { 'content-type': o.type || 'application/octet-stream', 'content-length': o.body.length })
+            return res.end(req.method === 'HEAD' ? undefined : o.body)
+        }
+    }
     if (url.pathname === '/__plant') { store.set(`iuser-media/${url.searchParams.get('key')}`, { body: Buffer.alloc(Number(url.searchParams.get('size') || 100)), type: 'video/mp4', lm: new Date(Date.now() - Number(url.searchParams.get('days') || 0) * 86_400_000) }); return reply(204) }
     if (url.pathname === '/__deny') { deny = url.searchParams.get('on') === '1'; return reply(204) }
     if (deny && !url.pathname.startsWith('/__')) return reply(403)
@@ -96,6 +113,8 @@ const server = http.createServer(async (req, res) => {
     } catch (e) { log.push('erro ' + e.message); reply(500) }
 })
 await new Promise((r) => server.listen(FAKE.port, '127.0.0.1', r))
+// --serve: só deixa o R2 de mentira no ar (para o app local enviar fotos/vídeos); Ctrl-C para parar
+if (process.argv.includes('--serve')) { console.log(`R2 de mentira no ar em http://127.0.0.1:${FAKE.port} (Ctrl-C para parar)`); await new Promise(() => {}) }
 
 // ---------- a pessoa de teste (login real; cookie de sessão como o navegador mandaria) ----------
 const PASSWORD = 'Teste-local-24h'

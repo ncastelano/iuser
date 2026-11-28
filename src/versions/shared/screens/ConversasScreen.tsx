@@ -65,6 +65,8 @@ function otherLabel(r: { other_name: string | null; other_slug: string | null; o
 
 interface MyStore { id: string; name: string; storeSlug: string; logoUrl: string | null }
 
+type StagedMedia = { kind: ChatMediaKind; file: Blob; seconds: number | null; once: boolean; url: string }
+
 interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null; ref_request_id?: string | null; ref_store_id?: string | null; ref_profile_id?: string | null; kind?: string; viewed_at?: string | null; loc_lat?: number | null; loc_lng?: number | null; loc_updated_at?: string | null; loc_expires_at?: string | null; loc_stopped?: boolean; view_once?: boolean; media_seconds?: number | null; reply_to_id?: string | null; edited_at?: string | null; deleted_at?: string | null }
 // texto que o banco grava quando a foto/localização não tem legenda: não repete no balão
 const MEDIA_DEFAULT_TEXT = ['Foto', 'Vídeo', 'Áudio', 'Localização ao vivo']
@@ -260,37 +262,50 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
 
     // Envio de foto, vídeo ou áudio: o limite de tamanho e de duração é conferido aqui (cedo) e no banco (de verdade)
     const sendingRef = useRef(false)
-    const sendMedia = async (kind: ChatMediaKind, file: Blob, seconds: number | null, once: boolean) => {
-        if (uploading || sendingRef.current) return
-        sendingRef.current = true
-        try { await sendMediaOnce(kind, file, seconds, once) } finally { sendingRef.current = false }
-    }
-    const sendMediaOnce = async (kind: ChatMediaKind, file: Blob, seconds: number | null, once: boolean) => {
+    // Mídia escolhida NÃO vai na hora: fica num cartão acima da caixa (com legenda opcional) até a pessoa tocar em enviar
+    const [staged, setStaged] = useState<StagedMedia | null>(null)
+    useEffect(() => () => { if (staged) URL.revokeObjectURL(staged.url) }, [staged])
+    const stageMedia = (kind: ChatMediaKind, file: Blob, seconds: number | null) => {
         const lim = CHAT_LIMITS[kind]
         if (file.size > lim.bytes) { toast.error('Arquivo grande demais', { description: `Envie um ${lim.label}.` }); return }
         if (lim.seconds != null && (seconds == null || seconds > lim.seconds)) { toast.error('Muito longo', { description: `Envie um ${lim.label}.` }); return }
+        setAttachOpen(false)
+        setStaged({ kind, file, seconds, once: onceMode, url: URL.createObjectURL(file) })
+    }
+    const sendMedia = async (s: StagedMedia, caption: string): Promise<boolean> => {
+        if (uploading || sendingRef.current) return false
+        sendingRef.current = true
+        try { return await sendMediaOnce(s, caption) } finally { sendingRef.current = false }
+    }
+    const sendMediaOnce = async (s: StagedMedia, caption: string): Promise<boolean> => {
+        const { kind, file, seconds, once } = s
         setUploading(true)
         const uploadKind = CHAT_UPLOAD_KIND[kind]
         const av = await r2Availability(uploadKind)
-        if (!av.available) { setUploading(false); toast.info('O envio desse tipo ainda não está ligado.'); return }
+        if (!av.available) { setUploading(false); toast.info('O envio desse tipo ainda não está ligado.'); return false }
         const named = file instanceof File ? file : new File([file], `${kind}`, { type: baseMime(file.type) })
         const up = await uploadToR2(named, uploadKind)
-        if (!up.ok) { setUploading(false); toast.error('Não foi possível enviar', { description: up.message }); return }
-        const caption = kind === 'audio' ? '' : text.trim()
+        if (!up.ok) { setUploading(false); toast.error('Não foi possível enviar', { description: up.message }); return false }
         const { data, error } = await supabase.rpc('chat_send_media', { p_conv: convId, p_kind: kind, p_key: up.key, p_caption: caption, p_once: once, p_seconds: seconds })
         setUploading(false)
-        if (error || !data) { toast.error('Não foi possível enviar', { description: (error as any)?.hint === 'chat_media_limit' ? (error as any).message : undefined }); return }
-        if (kind !== 'audio') setText('')
+        if (error || !data) { toast.error('Não foi possível enviar', { description: (error as any)?.hint === 'chat_media_limit' ? (error as any).message : undefined }); return false }
         setOnceMode(false)
         await appendRow(data as string)
+        return true
+    }
+    // envia o que está no cartão, com a legenda escrita; se falhar, o cartão fica para tentar de novo
+    const sendStaged = async () => {
+        if (!staged) return
+        const ok = await sendMedia(staged, staged.kind === 'audio' ? '' : text.trim())
+        if (ok) { setStaged(null); setText('') }
     }
 
-    const stopAndSendAudio = async () => {
+    const stopAndStageAudio = async () => {
         const r = await rec.stop()
-        if (r) await sendMedia('audio', r.blob, r.seconds, onceMode)
+        if (r) stageMedia('audio', r.blob, r.seconds)
     }
     const micPress = async () => {
-        if (rec.recording) return stopAndSendAudio()
+        if (rec.recording) return stopAndStageAudio()
         const ok = await rec.start()
         if (!ok) toast.error('Permita o microfone', { description: 'Ative o microfone do navegador para gravar um áudio.' })
     }
@@ -392,6 +407,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     const cancelPress = () => { if (pressTimer.current) clearTimeout(pressTimer.current) }
 
     const send = async () => {
+        if (staged) { await sendStaged(); return }
         if (editing) {
             const content = text.trim()
             if (!content || sending) return
@@ -616,29 +632,50 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 </div>
             )}
             <input ref={fileRef} type="file" accept={PHOTO_ACCEPT} className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void sendMedia('photo', f, null, onceMode) }} />
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) stageMedia('photo', f, null) }} />
             <input ref={fileVideoRef} type="file" accept={VIDEO_ACCEPT} className="hidden"
                 onChange={async (e) => {
                     const f = e.target.files?.[0]; e.target.value = ''
                     if (!f) return
                     const secs = await mediaSeconds(f, 'video')
                     if (!secs) { toast.error('Não foi possível ler o vídeo', { description: 'Tente outro arquivo (MP4 ou WebM).' }); return }
-                    void sendMedia('video', f, Math.round(secs), onceMode)
+                    stageMedia('video', f, Math.round(secs))
                 }} />
             <input ref={fileCamRef} type="file" accept={PHOTO_ACCEPT} capture="environment" className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void sendMedia('photo', f, null, onceMode) }} />
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) stageMedia('photo', f, null) }} />
             <input ref={fileCamVideoRef} type="file" accept={VIDEO_ACCEPT} capture="environment" className="hidden"
                 onChange={async (e) => {
                     const f = e.target.files?.[0]; e.target.value = ''
                     if (!f) return
                     const secs = await mediaSeconds(f, 'video')
                     if (!secs) { toast.error('Não foi possível ler o vídeo', { description: 'Tente gravar de novo.' }); return }
-                    void sendMedia('video', f, Math.round(secs), onceMode)
+                    stageMedia('video', f, Math.round(secs))
                 }} />
             {onceMode && !attachOpen && !rec.recording && (
                 <div className="px-3 pt-2 flex-shrink-0">
                     <button onClick={() => setOnceMode(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black" style={{ background: '#f97316', color: '#fff' }}>
                         <Eye size={13} /> Ver uma vez ligado · toque para desligar
+                    </button>
+                </div>
+            )}
+            {staged && (
+                <div className="px-3 pt-2 flex items-start gap-2 flex-shrink-0">
+                    <div className="flex-1 min-w-0 rounded-xl p-2 flex items-center gap-3" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                        {staged.kind === 'photo' && <img src={staged.url} alt="Foto escolhida" className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />}
+                        {staged.kind === 'video' && <video src={staged.url} muted playsInline controls preload="metadata" className="w-28 h-20 rounded-lg object-cover flex-shrink-0" />}
+                        {staged.kind === 'audio' && <audio src={staged.url} controls preload="metadata" className="h-10 max-w-[200px]" />}
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs font-black">{staged.kind === 'photo' ? 'Foto' : staged.kind === 'video' ? 'Vídeo' : 'Áudio'}{staged.seconds != null ? ` · ${fmtTime(staged.seconds)}` : ''}</p>
+                            <button onClick={() => setStaged((x) => (x ? { ...x, once: !x.once } : x))} aria-pressed={staged.once}
+                                className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full"
+                                style={{ background: staged.once ? `${colors.accent}30` : `${colors.border}50`, color: staged.once ? colors.accent : colors.textSecondary }}>
+                                <Eye size={11} /> {staged.once ? 'Ver uma vez: sim' : 'Ver uma vez: não'}
+                            </button>
+                            <p className="text-[11px] mt-1 opacity-70">Escreva uma legenda abaixo, se quiser, e toque em enviar.</p>
+                        </div>
+                    </div>
+                    <button onClick={() => setStaged(null)} aria-label="Tirar do envio" className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>
+                        <X size={16} />
                     </button>
                 </div>
             )}
@@ -676,21 +713,21 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
                         rows={1}
                         maxLength={2000}
-                        placeholder="Escreva uma mensagem..."
+                        placeholder={staged ? 'Legenda (opcional)...' : 'Escreva uma mensagem...'}
                         className="flex-1 resize-none rounded-3xl px-4 py-2.5 text-sm outline-none max-h-32"
                         style={modern
                             ? { background: `${colors.border}40`, color: colors.textPrimary }
                             : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                     />
                 )}
-                {!rec.recording && !text.trim() && !pending ? (
+                {!rec.recording && !text.trim() && !pending && !staged ? (
                     <button onClick={micPress} disabled={uploading} aria-label="Gravar áudio" className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40 transition-transform active:scale-95" style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>
                         <Mic size={18} />
                     </button>
                 ) : (
                     <button
-                        onClick={rec.recording ? stopAndSendAudio : send}
-                        disabled={(!rec.recording && !text.trim() && !pending) || sending || uploading}
+                        onClick={rec.recording ? stopAndStageAudio : send}
+                        disabled={(!rec.recording && !text.trim() && !pending && !staged) || sending || uploading}
                         className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40 transition-transform active:scale-95"
                         style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
                         aria-label="Enviar"
