@@ -52,7 +52,7 @@ export const GUIDE: GuideGroup[] = [
                 steps: [
                     'Explorar: procure lojas, serviços, pessoas e produtos, ou use os atalhos "Preciso de" e "Quero ganhar".',
                     'Itens: tem duas partes. Carrinho, com o que você vai comprar, e Itens, com tudo o que já é seu, nas abas Tudo, Histórico, Produtos, Serviços e Digitais. No Histórico dá para repetir um pedido inteiro e marcar pedidos favoritos (estrela), que ficam no alto para pedir com um toque.',
-                    'Conversas: fale com lojas, profissionais e motoristas sem passar seu telefone. No botão + ao lado da mensagem dá para mandar foto, vídeo (até 1 minuto), áudio gravado pelo microfone, sua localização ao vivo (15 minutos, 1 hora ou até desligar) e, com o botão "Ver uma vez" ligado, foto, vídeo ou áudio que só abre uma vez.',
+                    'Conversas: fale com lojas, profissionais e motoristas sem passar seu telefone. No botão + ao lado da mensagem dá para mandar foto, vídeo (até 1 minuto), áudio gravado pelo microfone, sua localização ao vivo (15 minutos, 1 hora ou até desligar) e, com o botão "Ver uma vez" ligado, foto, vídeo ou áudio que só abre uma vez. Toque e segure uma mensagem para responder (a resposta cita a mensagem), reagir com 👍 ❤️ 😂 😮 😢 🙏, editar (até 15 minutos depois de enviar), apagar para você ou apagar para todos (até 48 horas). Você vê ✓ quando a mensagem foi enviada e ✓✓ azul quando a outra pessoa leu, e "digitando…" aparece no topo. O ícone de lupa busca dentro da conversa.',
                     'A faixa em cima da barra mostra avisos e o que está acontecendo agora (pedido, corrida, carrinho).',
                 ],
             },
