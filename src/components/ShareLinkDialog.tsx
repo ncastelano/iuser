@@ -96,6 +96,9 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
     const [recents, setRecents] = useState<RecentTarget[]>([])
     const [panel, setPanel] = useState<null | 'community' | 'chat'>(null)
     const [q, setQ] = useState('')
+    // enviar pede confirmação: o 1º toque arma o destino, o 2º envia (sem isso, um toque sem querer mandava na hora)
+    const [armed, setArmed] = useState<string | null>(null)
+    useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(null), 4000); return () => clearTimeout(t) }, [armed])
     const [found, setFound] = useState<ShareCard[]>([])
     const [state, setState] = useState<Record<string, 'sending' | 'sent'>>({})
 
@@ -224,11 +227,12 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
                 {sub && <span style={{ display: 'block', fontSize: 11, color: colors.textSecondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</span>}
             </span>
             <button
-                onClick={onSend}
+                onClick={() => { if (state[key]) return; if (armed !== key) { setArmed(key); return } setArmed(null); onSend() }}
+                aria-label={armed === key ? `Confirmar envio para ${name}` : `Enviar para ${name}`}
                 disabled={!!state[key]}
                 style={{ border: 'none', borderRadius: 999, padding: '7px 14px', fontSize: 12, fontWeight: 900, cursor: state[key] ? 'default' : 'pointer', background: state[key] === 'sent' ? '#10b981' : '#f97316', color: '#fff', opacity: state[key] === 'sending' ? 0.6 : 1 }}
             >
-                {state[key] === 'sent' ? 'Enviado' : state[key] === 'sending' ? '…' : 'Enviar'}
+                {state[key] === 'sent' ? 'Enviado' : state[key] === 'sending' ? '…' : armed === key ? 'Confirmar' : 'Enviar'}
             </button>
         </div>
     )

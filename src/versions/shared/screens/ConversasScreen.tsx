@@ -137,6 +137,8 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     const [otherReadAt, setOtherReadAt] = useState<string | null>(null)
     const [typingNow, setTypingNow] = useState(false)
     const [searchOpen, setSearchOpen] = useState(false)
+    // visualização única que EU já abri (por pessoa; no grupo cada um tem a sua)
+    const [viewedIds, setViewedIds] = useState<Set<string>>(() => new Set())
     const [q, setQ] = useState('')
     const channelRef = useRef<any>(null)
     const lastTypingSent = useRef(0)
@@ -187,6 +189,10 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 loadRefs()
                 loadShareCards((data as Message[]) || [])
             })
+        supabase.from('direct_message_views').select('message_id').eq('profile_id', userId).eq('conversation_id', convId).then(({ data }) => {
+            if (cancelled) return
+            setViewedIds(new Set(((data as { message_id: string }[]) || []).map((r) => r.message_id)))
+        })
         // apagadas para mim (só as minhas) e reações da conversa
         supabase.from('direct_message_hidden').select('message_id').eq('profile_id', userId).then(({ data }) => {
             if (cancelled) return
@@ -526,7 +532,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                                 {m.ref_request_id && requestRefs[m.ref_request_id] && (
                                     <RequestCard r={requestRefs[m.ref_request_id]} mine={mine} colors={colors} />
                                 )}
-                                {(m.kind === 'photo' || m.kind === 'video' || m.kind === 'audio') && m.view_once && <OnceBubble m={m as MediaMessage} mine={mine} colors={colors} onOpened={patchViewed} />}
+                                {(m.kind === 'photo' || m.kind === 'video' || m.kind === 'audio') && m.view_once && <OnceBubble m={m as MediaMessage} mine={mine} colors={colors} viewedByMe={viewedIds.has(m.id)} onOpened={(id) => { patchViewed(id); setViewedIds((prev) => new Set(prev).add(id)) }} />}
                                 {m.kind === 'photo' && !m.view_once && <PhotoBubble id={m.id} colors={colors} />}
                                 {m.kind === 'video' && !m.view_once && <VideoBubble id={m.id} colors={colors} />}
                                 {m.kind === 'audio' && !m.view_once && <NormalAudio id={m.id} mine={mine} colors={colors} seconds={m.media_seconds} />}

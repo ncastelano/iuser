@@ -94,19 +94,21 @@ export function NormalAudio({ id, mine, colors, seconds }: { id: string; mine: b
 }
 
 /** Foto, vídeo ou áudio de VISUALIZAÇÃO ÚNICA. Quem recebe abre uma vez (o banco marca); quem envia só vê o estado. */
-export function OnceBubble({ m, mine, colors, onOpened }: { m: MediaMessage; mine: boolean; colors: any; onOpened: (id: string) => void }) {
+export function OnceBubble({ m, mine, colors, onOpened, viewedByMe = false }: { m: MediaMessage; mine: boolean; colors: any; onOpened: (id: string) => void; viewedByMe?: boolean }) {
     const kind = m.kind
     const label = KIND_LABEL[kind] || 'Mídia'
     const [state, setState] = useState<'idle' | 'loading' | 'open' | 'used' | 'error'>('idle')
+    const [errMsg, setErrMsg] = useState('Não foi possível abrir agora')
     const [url, setUrl] = useState<string | null>(null)
-    const used = state === 'used' || (state === 'idle' && !!m.viewed_at)
+    // visualização única é POR PESSOA: quem já abriu vê "já visualizada"; quem não abriu ainda pode abrir
+    const used = state === 'used' || (state === 'idle' && viewedByMe)
 
     const open = async () => {
         setState('loading')
         const r = await fetch('/api/chat/view-once', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: m.id }) })
         if (r.status === 409) { setState('used'); return }
         const j = r.ok ? await r.json() : null
-        if (!j?.url) { setState('error'); return }
+        if (!j?.url) { setErrMsg(r.status === 503 ? 'Envio de mídia indisponível agora. Tente de novo mais tarde.' : 'Não foi possível abrir agora'); setState('error'); return }
         setUrl(j.url)
         setState('open')
         onOpened(m.id)
@@ -115,7 +117,7 @@ export function OnceBubble({ m, mine, colors, onOpened }: { m: MediaMessage; min
 
     const line = (txt: string) => <p className="flex items-center gap-1.5 text-xs font-bold"><Eye size={14} />{txt}</p>
     if (mine) return line(`${label} de visualização única · ${m.viewed_at ? 'já visualizada' : 'ainda não visualizada'}`)
-    if (state === 'error') return line('Não foi possível abrir agora')
+    if (state === 'error') return line(errMsg)
     if (used) return line(`${label} de visualização única · já ${kind === 'audio' ? 'ouvida' : 'visualizada'}`)
     if (state === 'open' && url && kind === 'audio') return <AudioBubble src={url} mine={false} colors={colors} seconds={m.media_seconds} autoPlay />
     if (state === 'open' && url) {
@@ -123,8 +125,8 @@ export function OnceBubble({ m, mine, colors, onOpened }: { m: MediaMessage; min
             <div className="fixed inset-0 z-[120] bg-black/90 flex flex-col items-center justify-center p-4" onClick={close}>
                 <button onClick={close} aria-label="Fechar" className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center text-white bg-white/15"><X size={20} /></button>
                 {kind === 'photo'
-                    ? <img src={url} alt="Foto de visualização única" className="max-h-[80vh] max-w-full rounded-xl" onClick={(e) => e.stopPropagation()} />
-                    : <video src={url} controls autoPlay playsInline className="max-h-[80vh] max-w-full rounded-xl" onClick={(e) => e.stopPropagation()} />}
+                    ? <img src={url} alt="Foto de visualização única" className="max-h-[80vh] max-w-full rounded-xl" onClick={(e) => e.stopPropagation()} onError={() => { setErrMsg("Não deu para mostrar. Esta visualização já foi usada."); setState("error"); setUrl(null) }} />
+                    : <video src={url} controls autoPlay playsInline className="max-h-[80vh] max-w-full rounded-xl" onClick={(e) => e.stopPropagation()} onError={() => { setErrMsg("Não deu para tocar. Esta visualização já foi usada."); setState("error"); setUrl(null) }} />}
                 <p className="mt-3 text-xs text-white/80">Isto só abre uma vez. Ao fechar, some.</p>
             </div>
         )

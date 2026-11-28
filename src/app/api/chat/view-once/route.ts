@@ -14,6 +14,9 @@ export async function POST(req: Request) {
     const supabase = await createServerSupabase()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'auth' }, { status: 401 })
+    // Antes de gastar a visualização: sem o R2 do chat configurado, nada é marcado como visto
+    const cfg = readR2Config(process.env, 'chat')
+    if (!cfg) return NextResponse.json({ error: 'unavailable' }, { status: 503 })
     const { data: key, error } = await supabase.rpc('chat_open_view_once', { p_msg: id })
     if (error) {
         const hint = (error as any).hint || ''
@@ -21,7 +24,6 @@ export async function POST(req: Request) {
         if (hint === 'view_once_recipient_only') return NextResponse.json({ error: 'forbidden' }, { status: 403 })
         return NextResponse.json({ error: 'not_found' }, { status: 404 })
     }
-    const cfg = readR2Config(process.env, 'chat')
-    if (!cfg || !isSafeR2Key(key)) return NextResponse.json({ error: 'unavailable' }, { status: 503 })
+    if (!isSafeR2Key(key)) return NextResponse.json({ error: 'unavailable' }, { status: 503 })
     return NextResponse.json({ url: r2PresignGet(cfg, key as string, { expiresSec: 300 }) }, { headers: { 'Cache-Control': 'no-store' } })
 }
