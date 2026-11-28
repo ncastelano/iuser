@@ -87,7 +87,7 @@ export default function CampaignsSection({ cardStyle, colors }: { cardStyle: Rea
     return (
         <div className="flex flex-col gap-3">
             <div style={cardStyle} className="rounded-3xl p-4 flex flex-col gap-3">
-                <p className="text-sm font-black flex items-center gap-2" style={{ color: colors.textPrimary }}><Send size={17} style={{ color: ORANGE }} /> Novo aviso</p>
+                <p className="text-sm font-black flex items-center gap-2" style={{ color: colors.textPrimary }}><Send size={17} style={{ color: ORANGE }} /> Buzina</p>
                 <p className="text-xs" style={{ color: colors.textSecondary }}>Vai para a barra do aparelho de quem ligou "Ofertas e promoções". O link tem que ser uma página do iUser (começa com /).</p>
 
                 <div className="flex gap-2 flex-wrap">
@@ -121,7 +121,7 @@ export default function CampaignsSection({ cardStyle, colors }: { cardStyle: Rea
 
                 <button disabled={!!busy || count === null || count === 0} onClick={send}
                     className="h-12 rounded-full text-sm font-black text-white disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: ORANGE }}>
-                    {busy === 'send' && progress ? `Enviando… ${progress.sent} · faltam ${progress.remaining}` : busy === 'send' ? 'Enviando…' : 'Enviar aviso'}
+                    {busy === 'send' && progress ? `Enviando… ${progress.sent} · faltam ${progress.remaining}` : busy === 'send' ? 'Enviando…' : 'Tocar a buzina'}
                 </button>
                 {count === null && <p className="text-[11px]" style={{ color: colors.textSecondary }}>Veja quantas pessoas recebem antes de enviar.</p>}
             </div>

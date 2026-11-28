@@ -67,8 +67,8 @@ export default function StoreCampaigns({ storeId, colors, card }: { storeId: str
 
     return (
         <section className="rounded-3xl p-4 flex flex-col gap-3" style={card ?? { background: colors.surface, border: `1px solid ${colors.border}` }}>
-            <p className="text-sm font-black flex items-center gap-2" style={{ color: colors.textPrimary }}><Send size={16} style={{ color: ORANGE }} /> Mandar um aviso</p>
-            <p className="text-xs" style={{ color: colors.textSecondary }}>Chega na barra do aparelho de quem ligou "Ofertas e promoções". Um aviso por dia.</p>
+            <p className="text-sm font-black flex items-center gap-2" style={{ color: colors.textPrimary }}><Send size={16} style={{ color: ORANGE }} /> Buzina</p>
+            <p className="text-xs" style={{ color: colors.textSecondary }}>Chega na barra do aparelho de quem ligou "Ofertas e promoções". Uma buzina por dia.</p>
             <div className="flex gap-2 flex-wrap">
                 {AUDIENCES.map((a) => (
                     <button key={a.id} onClick={() => { setAudience(a.id); setCount(null) }} title={a.hint}
@@ -87,7 +87,7 @@ export default function StoreCampaigns({ storeId, colors, card }: { storeId: str
             </div>
             <button disabled={!!busy || count === null || count === 0} onClick={send}
                 className="h-12 rounded-full text-sm font-black text-white disabled:opacity-50" style={{ background: ORANGE }}>
-                {busy === 'send' && progress ? `Enviando… ${progress.sent} · faltam ${progress.remaining}` : busy === 'send' ? 'Enviando…' : 'Enviar aviso'}
+                {busy === 'send' && progress ? `Enviando… ${progress.sent} · faltam ${progress.remaining}` : busy === 'send' ? 'Enviando…' : 'Tocar a buzina'}
             </button>
         </section>
     )

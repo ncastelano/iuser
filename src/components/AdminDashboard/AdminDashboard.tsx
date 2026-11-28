@@ -43,7 +43,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'brinde', label: 'Brinde', icon: Gift },
     { id: 'creditos', label: 'Créditos', icon: Gift },
     { id: 'forum', label: 'Fórum', icon: MessageCircle },
-    { id: 'avisos', label: 'Avisos', icon: Send },
+    { id: 'avisos', label: 'Buzina', icon: Send },
     { id: 'bordas', label: 'Bordas', icon: CircleDashed },
     { id: 'graduacao', label: 'Graduação', icon: Award },
     { id: 'pontuacao', label: 'Pontuação', icon: Trophy },

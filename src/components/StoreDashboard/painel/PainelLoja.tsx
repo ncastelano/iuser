@@ -295,7 +295,7 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             <StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 />
 
             {/* ===== AVISOS PARA SEUS SEGUIDORES E COMPRADORES ===== */}
-            {sec('Avisos', undefined, 'Mande uma novidade para quem segue ou comprou')}
+            {sec('Buzina', undefined, 'Mande um aviso para quem segue ou comprou')}
             <StoreCampaigns storeId={store.id} colors={colors} />
 
             {/* ===== VISITANTES, AVALIAÇÕES E PLANO: linhas que abrem a caixa de cada um ===== */}
