@@ -4,6 +4,9 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
+import { sendPushToUser } from '@/lib/serverPush'
+
+export const maxDuration = 60
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const NO_STORE = { 'Cache-Control': 'no-store' }
@@ -57,6 +60,37 @@ export async function POST(req: Request) {
         if (!UUID.test(String(b.comment || ''))) return fail('Dados inválidos.')
         const { error } = await supabaseAdmin.rpc('admin_forum_hide_comment', { p_comment: b.comment, p_hidden: b.hidden !== false, p_admin: admin.id })
         return error ? fail(error.message) : NextResponse.json({ ok: true }, { headers: NO_STORE })
+    }
+    // Aviso na barra do aparelho (push) para quem tem notificação ligada e não desligou as novidades.
+    // announce: enfileira a versão. announce_batch: manda um lote (cada um marcado antes de enviar); repetir até restar 0.
+    if (action === 'announce' || action === 'announce_batch') {
+        if (!UUID.test(String(b.id || ''))) return fail('Dados inválidos.')
+        const release = String(b.id)
+        const { data: rel } = await supabaseAdmin.from('forum_releases').select('version, title, summary').eq('id', release).maybeSingle()
+        if (!rel) return fail('Novidade não encontrada.', 404)
+        if (action === 'announce') {
+            const { data: pending, error } = await supabaseAdmin.rpc('admin_forum_announce', { p_release: release })
+            return error ? fail(error.message) : NextResponse.json({ pending: pending ?? 0, version: rel.version }, { headers: NO_STORE })
+        }
+        const started = Date.now()
+        let sent = 0
+        // cabe no tempo do servidor: manda lotes até acabar a fila ou se aproximar do limite; o que sobrar vai no próximo toque
+        while (Date.now() - started < 40_000) {
+            const { data: ids, error } = await supabaseAdmin.rpc('admin_forum_announce_claim', { p_release: release, p_limit: 100 })
+            if (error) return fail(error.message, 500)
+            const batch = (ids || []) as string[]
+            if (batch.length === 0) break
+            const payload = {
+                title: `Novidade no iUser · ${rel.version}`,
+                body: `${rel.title}${rel.summary ? ` — ${rel.summary}` : ''}`.slice(0, 220),
+                url: '/forum',
+                tag: `app-update-${rel.version}`,
+            }
+            const results = await Promise.allSettled(batch.map((uid) => sendPushToUser(uid, payload)))
+            sent += results.reduce((n, r) => n + (r.status === 'fulfilled' ? r.value.sent : 0), 0)
+        }
+        const { data: remaining } = await supabaseAdmin.rpc('admin_forum_announce_remaining', { p_release: release })
+        return NextResponse.json({ sent, remaining: remaining ?? 0 }, { headers: NO_STORE })
     }
     return fail('Ação desconhecida.')
 }

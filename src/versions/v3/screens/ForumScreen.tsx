@@ -4,6 +4,7 @@
 // A aba vai na URL (?aba=ideias) e ?ideia=<id> abre uma ideia.
 'use client'
 
+import UpdateAlertsCard from '@/components/forum/UpdateAlertsCard'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -96,6 +97,7 @@ export default function ForumScreen() {
             {tab === 'guia' ? <ForumGuide /> : tab === 'novidades' ? (
                 releases === null ? <Loading /> : releases.length === 0 ? <Empty text="Nenhuma novidade publicada ainda." /> : (
                     <div className="flex flex-col gap-3 mt-1">
+                        {userId && <UpdateAlertsCard colors={colors} card={card} />}
                         {releases.map((r) => <ReleaseCard key={r.id} r={r} card={card} userId={userId || null} onNeedLogin={needLogin} />)}
                     </div>
                 )
