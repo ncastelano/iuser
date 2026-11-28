@@ -41,19 +41,17 @@ export default function UpdateAlertsCard({ colors, card }: { colors: any; card: 
         return true
     }
 
-    // Toque: se este aparelho não recebe, libera o aparelho (e liga); se recebe, troca a preferência.
+    // Interruptor: ligar pede a permissão do aparelho quando ele ainda não recebe; desligar só troca a preferência.
     const toggle = async () => {
         if (on === null || busy) return
         setBusy(true)
         try {
-            if (device !== true) {
+            const next = !on
+            if (next && device !== true) {
                 const ok = await subscribe()
                 if (!ok) { toast.error('Libere as notificações deste aparelho', { description: 'Permita as notificações para receber as novidades fora do iUser.' }); return }
                 setDevice(true)
-                if (await saveOn(true)) toast.success('Este aparelho vai receber as novidades')
-                return
             }
-            const next = !on
             if (await saveOn(next)) toast.success(next ? 'Você vai receber as novidades' : 'Novidades desligadas')
         } finally {
             setBusy(false)
@@ -69,7 +67,6 @@ export default function UpdateAlertsCard({ colors, card }: { colors: any; card: 
             : on
                 ? 'O aviso chega na barra do aparelho quando sair uma versão nova, mesmo com o iUser fechado.'
                 : 'Ligue para saber das novidades pela barra do aparelho, mesmo com o iUser fechado.'
-    const needsDevice = !!on && device === false
     return (
         <section className="rounded-3xl p-4" style={{ ...card, boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
             <div className="flex items-start gap-3">
@@ -99,13 +96,6 @@ export default function UpdateAlertsCard({ colors, card }: { colors: any; card: 
                     <span className="absolute top-[3px] w-6 h-6 rounded-full bg-white transition-all duration-200" style={{ left: on ? '25px' : '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }} />
                 </button>
             </div>
-            {needsDevice && (
-                <button onClick={toggle} disabled={busy}
-                    className="mt-3 w-full h-10 rounded-full text-[13px] font-black disabled:opacity-60"
-                    style={{ background: `${ORANGE}1f`, color: ORANGE }}>
-                    Liberar notificações neste aparelho
-                </button>
-            )}
         </section>
     )
 }
