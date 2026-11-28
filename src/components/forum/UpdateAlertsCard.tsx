@@ -61,33 +61,51 @@ export default function UpdateAlertsCard({ colors, card }: { colors: any; card: 
     }
 
     const Icon = on ? Bell : BellOff
+    const ORANGE = '#f97316'
     const text = !isSupported
         ? 'Este aparelho não recebe avisos pelo navegador. Pelo app instalado, o aviso chega na barra do celular.'
         : on && device === false
-            ? 'Ligado, mas este aparelho ainda não recebe avisos. Toque para liberar aqui.'
+            ? 'Ligado, mas este aparelho ainda não recebe avisos.'
             : on
-                ? 'Quando sair uma versão nova, o aviso chega na barra do aparelho, mesmo com o iUser fechado.'
-                : 'Desligado. Ligue para saber das novidades pela barra do aparelho, mesmo com o iUser fechado.'
+                ? 'O aviso chega na barra do aparelho quando sair uma versão nova, mesmo com o iUser fechado.'
+                : 'Ligue para saber das novidades pela barra do aparelho, mesmo com o iUser fechado.'
+    const needsDevice = !!on && device === false
     return (
-        <div style={card} className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: on ? '#f9731620' : `${colors.border}55`, color: on ? '#f97316' : colors.textSecondary }}>
-                <Icon size={18} />
-            </span>
-            <div className="flex-1 min-w-0">
-                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Avisar fora do iUser</p>
-                <p className="text-xs leading-snug" style={{ color: colors.textSecondary }}>{text}</p>
+        <section className="rounded-3xl p-4" style={{ ...card, boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
+            <div className="flex items-start gap-3">
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: on ? `${ORANGE}1f` : `${colors.border}55`, color: on ? ORANGE : colors.textSecondary }}>
+                    <Icon size={20} />
+                </span>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[14.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>Avisar fora do iUser</p>
+                        <span className="px-2 h-5 rounded-full text-[10.5px] font-black inline-flex items-center"
+                            style={{ background: on ? `${ORANGE}1f` : `${colors.border}66`, color: on ? ORANGE : colors.textSecondary }}>
+                            {on === null ? '…' : on ? 'Ligado' : 'Desligado'}
+                        </span>
+                    </div>
+                    <p className="text-[12.5px] mt-1 leading-snug" style={{ color: colors.textSecondary }}>{text}</p>
+                </div>
+                <button
+                    onClick={toggle}
+                    disabled={on === null || device === null || busy || !isSupported}
+                    role="switch"
+                    aria-checked={!!on}
+                    aria-label="Avisar fora do iUser quando sair novidade"
+                    className="relative w-[52px] h-[30px] rounded-full flex-shrink-0 transition-colors duration-200 disabled:opacity-50 active:scale-95"
+                    style={{ background: on ? ORANGE : `${colors.border}aa` }}
+                >
+                    <span className="absolute top-[3px] w-6 h-6 rounded-full bg-white transition-all duration-200" style={{ left: on ? '25px' : '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }} />
+                </button>
             </div>
-            <button
-                onClick={toggle}
-                disabled={on === null || device === null || busy || !isSupported}
-                role="switch"
-                aria-checked={!!on}
-                aria-label="Avisar fora do iUser quando sair novidade"
-                className="relative w-12 h-7 rounded-full transition-colors flex-shrink-0 disabled:opacity-50"
-                style={{ background: on ? '#f97316' : `${colors.border}90` }}
-            >
-                <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-all" style={{ left: on ? '22px' : '2px' }} />
-            </button>
-        </div>
+            {needsDevice && (
+                <button onClick={toggle} disabled={busy}
+                    className="mt-3 w-full h-10 rounded-full text-[13px] font-black disabled:opacity-60"
+                    style={{ background: `${ORANGE}1f`, color: ORANGE }}>
+                    Liberar notificações neste aparelho
+                </button>
+            )}
+        </section>
     )
 }
