@@ -3,7 +3,7 @@
 // (em análise, planejada, fazendo, já entrou, não vai entrar), a resposta do iUser, ligar à versão em que entrou e esconder.
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { MessageSquare, Megaphone, EyeOff, Eye } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -12,7 +12,7 @@ import type { ThemeColors } from '@/app/contexts/theme'
 import { STATUS_INFO, score, type IdeaStatus } from '@/modules/forum/domain'
 
 const ORANGE = '#f97316'
-type Rel = { id: string; version: string; title: string; summary: string | null; added: string[]; improved: string[]; removed: string[]; released_at: string }
+type Rel = { id: string; version: string; title: string; summary: string | null; added: string[]; improved: string[]; removed: string[]; released_at: string; announced_at?: string | null }
 type AdminIdea = { id: string; title: string; body: string | null; status: IdeaStatus; status_note: string | null; release_id: string | null; up_count: number; down_count: number; comment_count: number; hidden: boolean; created_at: string; profiles: { name: string; profileSlug: string | null } | null }
 
 export default function ForumAdminSection({ cardStyle, colors }: { cardStyle: React.CSSProperties; colors: ThemeColors }) {
@@ -31,6 +31,31 @@ export default function ForumAdminSection({ cardStyle, colors }: { cardStyle: Re
         try { await callAdminApi('/api/admin/forum', body); toast.success(ok); await load(); return true }
         catch (e: any) { toast.error(e?.message || 'Não deu certo'); return false }
         finally { setBusy(null) }
+    }
+
+    // Aviso na barra do aparelho: enfileira e manda em lotes até acabar (o servidor marca cada um antes de enviar)
+    const [announce, setAnnounce] = useState<{ id: string; sent: number; remaining: number } | null>(null)
+    const announceAll = async (r: Rel) => {
+        if (!window.confirm(`Mandar o aviso da versão ${r.version} para todas as pessoas com notificação ligada no aparelho?`)) return
+        try {
+            const first: any = await callAdminApi('/api/admin/forum', { action: 'announce', id: r.id })
+            let total = 0
+            let remaining: number = first.pending ?? 0
+            setAnnounce({ id: r.id, sent: 0, remaining })
+            while (remaining > 0) {
+                const step: any = await callAdminApi('/api/admin/forum', { action: 'announce_batch', id: r.id })
+                total += step.sent ?? 0
+                remaining = step.remaining ?? 0
+                setAnnounce({ id: r.id, sent: total, remaining })
+                if ((step.sent ?? 0) === 0 && remaining > 0) break
+            }
+            toast.success(remaining === 0 ? `Aviso enviado: ${total} aparelho(s)` : `Enviado ${total}; faltam ${remaining}. Toque de novo para continuar.`)
+            await load()
+        } catch (e: any) {
+            toast.error(e?.message || 'Não foi possível avisar')
+        } finally {
+            setAnnounce(null)
+        }
     }
 
     const input = { background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }
@@ -60,10 +85,18 @@ export default function ForumAdminSection({ cardStyle, colors }: { cardStyle: Re
                 {data.releases.length > 0 && (
                     <div className="mt-1 flex flex-col gap-1">
                         {data.releases.map((r) => (
-                            <button key={r.id} onClick={() => setRel({ id: r.id, version: r.version, title: r.title, summary: r.summary || '', added: r.added.join('\n'), improved: r.improved.join('\n'), removed: r.removed.join('\n') })}
+                            <Fragment key={r.id}>
+                            <button onClick={() => setRel({ id: r.id, version: r.version, title: r.title, summary: r.summary || '', added: r.added.join('\n'), improved: r.improved.join('\n'), removed: r.removed.join('\n') })}
                                 className="text-left text-xs px-3 py-2 rounded-xl" style={{ background: `${colors.border}20`, color: colors.textPrimary }}>
                                 <b>v{r.version}</b> · {r.title} <span style={{ color: colors.textSecondary }}>· {new Date(r.released_at).toLocaleDateString('pt-BR')} · editar</span>
                             </button>
+                            <div className="flex items-center gap-2 px-1">
+                                <button disabled={!!announce} onClick={() => announceAll(r)} className="text-[11px] font-black px-3 h-8 rounded-full text-white disabled:opacity-60" style={{ background: ORANGE }}>
+                                    {announce?.id === r.id ? `Enviando… ${announce.sent} · faltam ${announce.remaining}` : r.announced_at ? 'Avisar de novo' : 'Avisar todo mundo (barra do aparelho)'}
+                                </button>
+                                {r.announced_at && <span className="text-[11px]" style={{ color: colors.textSecondary }}>avisado em {new Date(r.announced_at).toLocaleDateString('pt-BR')}</span>}
+                            </div>
+                            </Fragment>
                         ))}
                     </div>
                 )}
