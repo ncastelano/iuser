@@ -8,7 +8,9 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Camera, Eye, Film, Image as ImageIcon, MapPin, MessageCircle, Mic, Plus, Send, Share2, Store as StoreIcon, User, Users, Video, Video as VideoIcon, X } from 'lucide-react'
+import { ArrowLeft, Camera, Eye, Film, Image as ImageIcon, MapPin, MessageCircle, Mic, Plus, Search, Send, Share2, Store as StoreIcon, User, Users, Video, Video as VideoIcon, X } from 'lucide-react'
+import { canEdit as canEditMsg, canDeleteForAll, quotePreview, tickOf, reactionChips, matchesSearch, type ReactionRow } from '@/modules/chat/messageActions'
+import { MessageMenu, QuoteBlock, ReactionChips, TickIcon } from '@/components/chat/MessageActions'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from '@/lib/toast'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -63,10 +65,10 @@ function otherLabel(r: { other_name: string | null; other_slug: string | null; o
 
 interface MyStore { id: string; name: string; storeSlug: string; logoUrl: string | null }
 
-interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null; ref_request_id?: string | null; ref_store_id?: string | null; ref_profile_id?: string | null; kind?: string; viewed_at?: string | null; loc_lat?: number | null; loc_lng?: number | null; loc_updated_at?: string | null; loc_expires_at?: string | null; loc_stopped?: boolean; view_once?: boolean; media_seconds?: number | null }
+interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null; ref_request_id?: string | null; ref_store_id?: string | null; ref_profile_id?: string | null; kind?: string; viewed_at?: string | null; loc_lat?: number | null; loc_lng?: number | null; loc_updated_at?: string | null; loc_expires_at?: string | null; loc_stopped?: boolean; view_once?: boolean; media_seconds?: number | null; reply_to_id?: string | null; edited_at?: string | null; deleted_at?: string | null }
 // texto que o banco grava quando a foto/localização não tem legenda: não repete no balão
 const MEDIA_DEFAULT_TEXT = ['Foto', 'Vídeo', 'Áudio', 'Localização ao vivo']
-const MSG_COLS = 'id, conversation_id, sender_id, content, created_at, ref_product_id, ref_request_id, ref_store_id, ref_profile_id, kind, viewed_at, loc_lat, loc_lng, loc_updated_at, loc_expires_at, loc_stopped, view_once, media_seconds'
+const MSG_COLS = 'id, conversation_id, sender_id, content, created_at, ref_product_id, ref_request_id, ref_store_id, ref_profile_id, kind, viewed_at, loc_lat, loc_lng, loc_updated_at, loc_expires_at, loc_stopped, view_once, media_seconds, reply_to_id, edited_at, deleted_at'
 
 interface ProductRef { id: string; name: string; slug: string | null; image_url: string | null; owner_slug: string | null }
 
@@ -126,6 +128,20 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     const fileCamRef = useRef<HTMLInputElement>(null)
     const fileCamVideoRef = useRef<HTMLInputElement>(null)
     const [onceMode, setOnceMode] = useState(false)
+    // ações de mensagem: reações, apagadas para mim, resposta, edição, folha aberta, visto, digitando e busca
+    const [reactions, setReactions] = useState<Record<string, ReactionRow[]>>({})
+    const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set())
+    const [replyTo, setReplyTo] = useState<Message | null>(null)
+    const [editing, setEditing] = useState<Message | null>(null)
+    const [menuMsg, setMenuMsg] = useState<Message | null>(null)
+    const [otherReadAt, setOtherReadAt] = useState<string | null>(null)
+    const [typingNow, setTypingNow] = useState(false)
+    const [searchOpen, setSearchOpen] = useState(false)
+    const [q, setQ] = useState('')
+    const channelRef = useRef<any>(null)
+    const lastTypingSent = useRef(0)
+    const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const rec = useVoiceRecorder()
     const endRef = useRef<HTMLDivElement>(null)
     const convId = conversation.id
@@ -171,6 +187,17 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 loadRefs()
                 loadShareCards((data as Message[]) || [])
             })
+        // apagadas para mim (só as minhas) e reações da conversa
+        supabase.from('direct_message_hidden').select('message_id').eq('profile_id', userId).then(({ data }) => {
+            if (cancelled) return
+            setHiddenIds(new Set(((data as { message_id: string }[]) || []).map((r) => r.message_id)))
+        })
+        supabase.from('message_reactions').select('message_id, profile_id, emoji').eq('conversation_id', convId).then(({ data }) => {
+            if (cancelled) return
+            const grouped: Record<string, ReactionRow[]> = {}
+            for (const r of (data as ReactionRow[]) || []) (grouped[r.message_id] ??= []).push(r)
+            setReactions(grouped)
+        })
 
         const channel = supabase
             .channel(`dm-${convId}`)
@@ -181,8 +208,35 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 if (m.ref_product_id || m.ref_store_id || m.ref_profile_id) loadShareCards([m])
                 if (m.sender_id !== userId) markRead()
             })
+            // edição e "apagada para todos" da outra pessoa chegam aqui
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'direct_messages', filter: `conversation_id=eq.${convId}` }, (payload) => {
+                const m = payload.new as Message
+                setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)))
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions', filter: `conversation_id=eq.${convId}` }, (payload) => {
+                if (payload.eventType === 'DELETE') {
+                    const o = payload.old as ReactionRow
+                    setReactions((prev) => ({ ...prev, [o.message_id]: (prev[o.message_id] || []).filter((r) => r.profile_id !== o.profile_id) }))
+                    return
+                }
+                const r = payload.new as ReactionRow
+                setReactions((prev) => ({ ...prev, [r.message_id]: [...(prev[r.message_id] || []).filter((x) => x.profile_id !== r.profile_id), r] }))
+            })
+            // "digitando…": só um aviso efêmero entre os dois, sem gravar nada no banco
+            .on('broadcast', { event: 'typing' }, ({ payload }) => {
+                if (payload?.id === userId) return
+                setTypingNow(true)
+                if (typingTimer.current) clearTimeout(typingTimer.current)
+                typingTimer.current = setTimeout(() => setTypingNow(false), 3500)
+            })
             .subscribe()
-        return () => { cancelled = true; supabase.removeChannel(channel) }
+        channelRef.current = channel
+        return () => {
+            cancelled = true
+            if (typingTimer.current) clearTimeout(typingTimer.current)
+            channelRef.current = null
+            supabase.removeChannel(channel)
+        }
     }, [convId, userId, markRead, loadRefs, loadShareCards])
 
     useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [messages])
@@ -267,25 +321,101 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messages, conversation.is_group, userId, infoVersion])
 
+    // visto (✓✓ azul): quando a outra pessoa leu a conversa. Só 1 a 1 (no grupo não há marca de leitura).
+    useEffect(() => {
+        if (conversation.is_group) return
+        let live = true
+        const pull = async () => {
+            const { data } = await supabase.rpc('chat_other_read_at', { p_conv: convId })
+            if (live) setOtherReadAt((data as string | null) ?? null)
+        }
+        pull()
+        const t = setInterval(pull, 15000)
+        return () => { live = false; clearInterval(t) }
+    }, [convId, conversation.is_group])
+
+    // "digitando…" para a outra pessoa, no máximo a cada 2,5 s
+    const sendTyping = () => {
+        const now = Date.now()
+        if (now - lastTypingSent.current < 2500) return
+        lastTypingSent.current = now
+        channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { id: userId } })
+    }
+
+    const reactTo = async (msgId: string, emoji: string) => {
+        const { data, error } = await supabase.rpc('chat_react', { p_msg: msgId, p_emoji: emoji })
+        if (error) { toast.error('Não foi possível reagir'); return }
+        setReactions((prev) => {
+            const rest = (prev[msgId] || []).filter((r) => r.profile_id !== userId)
+            return { ...prev, [msgId]: data ? [...rest, { message_id: msgId, profile_id: userId, emoji: data as string }] : rest }
+        })
+    }
+
+    const deleteMine = async (m: Message) => {
+        const { error } = await supabase.rpc('chat_delete_message', { p_msg: m.id, p_for_all: false })
+        if (error) { toast.error('Não foi possível apagar'); return }
+        setHiddenIds((prev) => new Set(prev).add(m.id))
+    }
+
+    const deleteForAll = async (m: Message) => {
+        const { error } = await supabase.rpc('chat_delete_message', { p_msg: m.id, p_for_all: true })
+        if (error) {
+            toast.error('Não foi possível apagar para todos', { description: (error as any)?.hint === 'delete_too_old' ? 'Passou o prazo de 48 horas.' : undefined })
+            return
+        }
+        setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, deleted_at: new Date().toISOString(), content: '' } : x)))
+        setReactions((prev) => { const n = { ...prev }; delete n[m.id]; return n })
+    }
+
+    const editSave = async (m: Message, content: string): Promise<boolean> => {
+        const { error } = await supabase.rpc('chat_edit_message', { p_msg: m.id, p_content: content })
+        if (error) {
+            toast.error('Não foi possível editar', { description: (error as any)?.hint === 'edit_too_old' ? 'Passou o prazo de 15 minutos.' : undefined })
+            return false
+        }
+        setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, content, edited_at: new Date().toISOString() } : x)))
+        return true
+    }
+
+    // toque longo abre as ações (o celular cancela se a pessoa rolar a tela)
+    const startPress = (m: Message) => {
+        if (m.deleted_at) return
+        if (pressTimer.current) clearTimeout(pressTimer.current)
+        pressTimer.current = setTimeout(() => setMenuMsg(m), 450)
+    }
+    const cancelPress = () => { if (pressTimer.current) clearTimeout(pressTimer.current) }
+
     const send = async () => {
+        if (editing) {
+            const content = text.trim()
+            if (!content || sending) return
+            setSending(true)
+            const ok = await editSave(editing, content)
+            setSending(false)
+            if (ok) { setEditing(null); setText('') }
+            return
+        }
         const content = text.trim() || (pending ? SHARE_DEFAULT_TEXT[pending.kind] : '')
         if (!content || sending) return
         setSending(true)
         const { data, error } = await supabase
             .from('direct_messages')
-            .insert({ conversation_id: convId, sender_id: userId, content, ...(pending ? refColumns(pending) : {}) })
+            .insert({ conversation_id: convId, sender_id: userId, content, reply_to_id: replyTo?.id ?? null, ...(pending ? refColumns(pending) : {}) })
             .select(MSG_COLS)
             .single()
         setSending(false)
         if (error) return
         if (pending) setShareCards((prev) => ({ ...prev, [`${pending.kind === 'store' ? 'store' : pending.kind === 'profile' ? 'profile' : 'product'}:${pending.id}`]: pending }))
         setPending(null)
+        setReplyTo(null)
         setText('')
         setMessages((prev) => (prev.some((x) => x.id === data.id) ? prev : [...prev, data as Message]))
         onReadRef.current()
         notifyChatMessage(convId)
     }
 
+    // o que aparece: tudo menos o que eu apaguei para mim; com busca aberta, só o que bate com o termo
+    const visibleMessages = messages.filter((m) => !hiddenIds.has(m.id) && (!q.trim() || matchesSearch(m, q)))
     const avatar = otherAvatarUrl(conversation)
     const profileHref = conversation.other_slug ? `/${conversation.other_slug}` : null
 
@@ -308,39 +438,68 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                         <Avatar url={avatar} name={conversation.other_name} isStore={conversation.other_is_store} userId={conversation.other_is_store ? undefined : conversation.other_id} size={40} round={modern} />
                         <div className="min-w-0">
                             <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{otherLabel(conversation)}</p>
-                            <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{conversation.other_is_store ? `@${conversation.other_slug} · ver loja` : 'ver perfil'}</p>
+                            <p className="text-[11px] truncate font-bold" style={{ color: typingNow ? colors.accent : colors.textSecondary }}>{typingNow ? 'digitando…' : (conversation.other_is_store ? `@${conversation.other_slug} · ver loja` : 'ver perfil')}</p>
                         </div>
                     </Link>
                 ) : (
                     <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{otherLabel(conversation)}</p>
                 )}
+                <button onClick={() => { setSearchOpen((o) => !o); setQ('') }} aria-label="Buscar nesta conversa" aria-pressed={searchOpen}
+                    className="ml-auto w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: searchOpen ? colors.accent : colors.textPrimary, background: searchOpen ? `${colors.accent}20` : 'transparent' }}>
+                    <Search size={18} />
+                </button>
             </div>
+            {searchOpen && (
+                <div className="px-3 pt-2 flex items-center gap-2 flex-shrink-0">
+                    <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar nesta conversa"
+                        className="flex-1 rounded-3xl px-4 py-2 text-sm outline-none" style={{ background: `${colors.border}40`, color: colors.textPrimary }} />
+                    <span className="text-[11px] font-bold tabular-nums" style={{ color: colors.textSecondary }}>
+                        {q.trim() ? `${messages.filter((m) => !hiddenIds.has(m.id) && matchesSearch(m, q)).length} achadas` : ''}
+                    </span>
+                </div>
+            )}
 
             <div className="flex-1 min-h-0 overflow-y-auto px-3 py-4 flex flex-col gap-2">
                 {loading ? (
                     <div className="flex justify-center py-10"><Spinner size={22} color={colors.accent} /></div>
                 ) : messages.length === 0 ? (
                     <p className="text-center text-sm py-10" style={{ color: colors.textSecondary }}>Nenhuma mensagem ainda. Diga um oi 👋</p>
-                ) : messages.map((m, i) => {
+                ) : visibleMessages.map((m, i) => {
                     const mine = m.sender_id === userId
-                    const prev = messages[i - 1]
+                    const prev = visibleMessages[i - 1]
                     const newDay = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString()
                     return (
-                        <div key={m.id} className="flex flex-col">
+                        <div key={m.id} id={`msg-${m.id}`} className="flex flex-col">
                             {newDay && (
                                 <p className="text-center text-[11px] font-bold my-2" style={{ color: colors.textSecondary }}>
                                     {new Date(m.created_at).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
                                 </p>
                             )}
                             <div className={`max-w-[80%] px-3.5 py-2 rounded-2xl text-sm break-words whitespace-pre-wrap ${mine ? 'self-end rounded-br-md text-white' : 'self-start rounded-bl-md'}`}
+                                onPointerDown={() => startPress(m)} onPointerUp={cancelPress} onPointerLeave={cancelPress} onPointerCancel={cancelPress}
+                                onContextMenu={(e) => { if (!m.deleted_at) { e.preventDefault(); setMenuMsg(m) } }}
                                 style={mine
                                     ? { background: GRADIENT }
                                     : modern
                                         ? { background: `${colors.border}55`, color: colors.textPrimary }
                                         : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+                                {m.deleted_at ? (
+                                    <span className="italic text-sm opacity-80">🚫 Mensagem apagada</span>
+                                ) : (<>
                                 {conversation.is_group && !mine && (
                                     <span className="block text-[11px] font-black mb-0.5" style={{ color: colors.accent }}>{senderNames[m.sender_id] || 'Alguém'}</span>
                                 )}
+                                {m.reply_to_id && (() => {
+                                    const o = messages.find((x) => x.id === m.reply_to_id)
+                                    return (
+                                        <QuoteBlock
+                                            name={o ? (o.sender_id === userId ? 'Você' : (senderNames[o.sender_id] || otherLabel(conversation))) : 'Mensagem'}
+                                            text={o ? quotePreview(o) : 'Mensagem não carregada'}
+                                            mine={mine} colors={colors}
+                                            onClick={() => document.getElementById(`msg-${m.reply_to_id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                                        />
+                                    )
+                                })()}
                                 {(() => {
                                     const key = cardKeyOf(m)
                                     const card = key ? shareCards[key] : null
@@ -377,10 +536,16 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                                 {(!m.kind || m.kind === 'text') && urlsIn(m.content).filter((u) => !iuserPath(u) && !isImageUrl(u)).slice(0, 2).map((u) => (
                                     <div key={u} className="mt-2"><LinkPreviewCard url={u} compact /></div>
                                 ))}
-                                <span className="block text-[10px] mt-0.5 text-right" style={{ opacity: 0.7 }}>
-                                    {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </>)}
+                                <span className="flex items-center justify-end gap-1 text-[10px] mt-0.5" style={{ opacity: 0.7 }}>
+                                    {m.edited_at && !m.deleted_at && <span>editada ·</span>}
+                                    <span>{new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    {mine && <TickIcon state={tickOf(m, userId, conversation.is_group ? null : otherReadAt)} />}
                                 </span>
                             </div>
+                            {!m.deleted_at && (
+                                <ReactionChips chips={reactionChips(reactions[m.id] || [], userId)} onToggle={(e) => reactTo(m.id, e)} mine={mine} colors={colors} />
+                            )}
                         </div>
                     )
                 })}
@@ -471,6 +636,22 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                     </button>
                 </div>
             )}
+            {(replyTo || editing) && (() => {
+                const ref = (editing || replyTo) as Message
+                const who = editing ? '' : (replyTo!.sender_id === userId ? 'você' : (senderNames[replyTo!.sender_id] || otherLabel(conversation)))
+                return (
+                    <div className="px-3 pt-2 flex items-center gap-2 flex-shrink-0">
+                        <div className="flex-1 min-w-0 rounded-xl px-3 py-2 border-l-4" style={{ background: `${colors.border}30`, borderColor: colors.accent, color: colors.textPrimary }}>
+                            <span className="block text-[11px] font-black" style={{ color: colors.accent }}>{editing ? 'Editando mensagem' : `Respondendo a ${who}`}</span>
+                            <span className="block text-xs truncate opacity-85">{quotePreview(ref)}</span>
+                        </div>
+                        <button onClick={() => { setReplyTo(null); if (editing) { setEditing(null); setText('') } }} aria-label="Cancelar"
+                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>
+                            <X size={16} />
+                        </button>
+                    </div>
+                )
+            })()}
             <div className={`flex items-end gap-2 px-3 py-3 flex-shrink-0 ${modern ? '' : 'border-t'}`} style={modern ? undefined : { borderColor: colors.border }}>
                 <button onClick={() => setAttachOpen((o) => !o)} disabled={uploading} aria-label="Enviar foto, vídeo, áudio, localização ou compartilhar do iUser" aria-expanded={attachOpen} className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-lg font-black transition active:scale-95" style={{ background: attachOpen ? '#f97316' : `${colors.border}40`, color: attachOpen ? '#fff' : '#f97316' }}>
                     {attachOpen ? '×' : '+'}
@@ -485,7 +666,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 ) : (
                     <textarea
                         value={text}
-                        onChange={(e) => setText(e.target.value)}
+                        onChange={(e) => { setText(e.target.value); if (e.target.value.trim()) sendTyping() }}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
                         rows={1}
                         maxLength={2000}
@@ -514,6 +695,21 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
             </div>
             <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} onPick={setPending} colors={colors} />
             <LocationDurationSheet open={locOpen} onClose={() => setLocOpen(false)} onPick={startLocation} colors={colors} />
+            <MessageMenu
+                open={!!menuMsg}
+                onClose={() => setMenuMsg(null)}
+                canEdit={!!menuMsg && canEditMsg(menuMsg, userId, Date.now())}
+                canDeleteAll={!!menuMsg && canDeleteForAll(menuMsg, userId, Date.now())}
+                canCopy={!!menuMsg && !menuMsg.deleted_at && (!menuMsg.kind || menuMsg.kind === 'text')}
+                myReaction={menuMsg ? (reactions[menuMsg.id] || []).find((r) => r.profile_id === userId)?.emoji ?? null : null}
+                onReact={(e) => { if (menuMsg) reactTo(menuMsg.id, e) }}
+                onReply={() => { if (menuMsg) { setReplyTo(menuMsg); setEditing(null) } }}
+                onCopy={() => { if (menuMsg) void navigator.clipboard?.writeText(menuMsg.content) }}
+                onEdit={() => { if (menuMsg) { setEditing(menuMsg); setReplyTo(null); setText(menuMsg.content) } }}
+                onDeleteMe={() => { if (menuMsg) void deleteMine(menuMsg) }}
+                onDeleteAll={() => { if (menuMsg) void deleteForAll(menuMsg) }}
+                colors={colors}
+            />
         </div>
     )
 }
