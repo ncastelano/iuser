@@ -51,7 +51,7 @@ export function VideoBubble({ id, colors }: { id: string; colors: any }) {
     return <video src={url} controls playsInline preload="metadata" className="rounded-xl max-w-[260px] max-h-80 bg-black" />
 }
 
-/** Reprodução de áudio no estilo do WhatsApp: botão redondo, barras que enchem conforme toca, tempo. */
+/** Reprodução de áudio: botão redondo, barras que enchem conforme toca, tempo. */
 export function AudioBubble({ src, mine, colors, seconds, autoPlay = false }: { src: string; mine: boolean; colors: any; seconds?: number | null; autoPlay?: boolean }) {
     const ref = useRef<HTMLAudioElement>(null)
     const [playing, setPlaying] = useState(false)
@@ -85,7 +85,7 @@ export function AudioBubble({ src, mine, colors, seconds, autoPlay = false }: { 
     )
 }
 
-/** Áudio normal: pede o link e toca no estilo do WhatsApp. */
+/** Áudio normal: pede o link e toca. */
 export function NormalAudio({ id, mine, colors, seconds }: { id: string; mine: boolean; colors: any; seconds?: number | null }) {
     const { url, failed } = useMediaUrl(id)
     if (failed) return <p className="text-xs italic opacity-80">Áudio indisponível</p>

@@ -93,7 +93,7 @@ export function ReactionChips({ chips, onToggle, mine, colors }: { chips: Reacti
     )
 }
 
-/** ✓ enviada · ✓✓ azul lida (a mesma marca do WhatsApp). */
+/** ✓ enviada · ✓✓ azul lida. */
 export function TickIcon({ state }: { state: Tick }) {
     if (state === 'none') return null
     if (state === 'read') return <CheckCheck size={14} color="#53bdeb" aria-label="Lida" className="inline-block align-[-2px]" />
