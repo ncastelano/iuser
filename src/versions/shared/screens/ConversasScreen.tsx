@@ -367,7 +367,6 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                                 {m.ref_request_id && requestRefs[m.ref_request_id] && (
                                     <RequestCard r={requestRefs[m.ref_request_id]} mine={mine} colors={colors} />
                                 )}
-                                {m.kind === 'photo' && <PhotoBubble id={m.id} colors={colors} />}
                                 {(m.kind === 'photo' || m.kind === 'video' || m.kind === 'audio') && m.view_once && <OnceBubble m={m as MediaMessage} mine={mine} colors={colors} onOpened={patchViewed} />}
                                 {m.kind === 'photo' && !m.view_once && <PhotoBubble id={m.id} colors={colors} />}
                                 {m.kind === 'video' && !m.view_once && <VideoBubble id={m.id} colors={colors} />}
