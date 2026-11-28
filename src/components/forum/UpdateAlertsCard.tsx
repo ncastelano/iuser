@@ -5,7 +5,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bell, BellOff } from 'lucide-react'
+import { Bell, BellOff, Tag } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from '@/lib/toast'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
@@ -15,12 +15,20 @@ export default function UpdateAlertsCard({ colors, card }: { colors: any; card: 
     const [on, setOn] = useState<boolean | null>(null)     // preferência da pessoa (padrão: ligado)
     const [device, setDevice] = useState<boolean | null>(null) // este aparelho recebe o aviso?
     const [busy, setBusy] = useState(false)
+    // Ofertas e promoções: interruptor separado, DESLIGADO por padrão (só recebe quem pediu)
+    const [promo, setPromo] = useState<boolean | null>(null)
 
     useEffect(() => {
         let live = true
         supabase.rpc('get_update_notifications').then(({ data, error }) => {
             if (live) setOn(error ? true : data !== false)
         })
+        return () => { live = false }
+    }, [])
+
+    useEffect(() => {
+        let live = true
+        supabase.rpc('get_promo_notifications').then(({ data, error }) => { if (live) setPromo(!error && data === true) })
         return () => { live = false }
     }, [])
 
@@ -33,6 +41,23 @@ export default function UpdateAlertsCard({ colors, card }: { colors: any; card: 
         }).catch(() => { if (live) setDevice(false) })
         return () => { live = false }
     }, [isSupported])
+
+    const togglePromo = async () => {
+        if (promo === null || busy) return
+        const next = !promo
+        if (next && device !== true) {
+            const ok = await subscribe()
+            if (!ok) { toast.error('Libere as notificações deste aparelho', { description: 'Permita as notificações para receber as ofertas.' }); return }
+            setDevice(true)
+        }
+        setBusy(true)
+        try {
+            const { data, error } = await supabase.rpc('set_promo_notifications', { p_enabled: next })
+            if (error) { toast.error('Não foi possível salvar'); return }
+            setPromo(data === true)
+            toast.success(next ? 'Você vai receber ofertas e promoções' : 'Ofertas desligadas')
+        } finally { setBusy(false) }
+    }
 
     const saveOn = async (next: boolean) => {
         const { data, error } = await supabase.rpc('set_update_notifications', { p_enabled: next })
@@ -94,6 +119,35 @@ export default function UpdateAlertsCard({ colors, card }: { colors: any; card: 
                     style={{ background: on ? ORANGE : `${colors.border}aa` }}
                 >
                     <span className="absolute top-[3px] w-6 h-6 rounded-full bg-white transition-all duration-200" style={{ left: on ? '25px' : '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }} />
+                </button>
+            </div>
+            <div className="mt-4 pt-4 flex items-start gap-3" style={{ borderTop: `1px solid ${colors.border}` }}>
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: promo ? `${ORANGE}1f` : `${colors.border}55`, color: promo ? ORANGE : colors.textSecondary }}>
+                    <Tag size={20} />
+                </span>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[14.5px] font-black leading-tight" style={{ color: colors.textPrimary }}>Ofertas e promoções</p>
+                        <span className="px-2 h-5 rounded-full text-[10.5px] font-black inline-flex items-center"
+                            style={{ background: promo ? `${ORANGE}1f` : `${colors.border}66`, color: promo ? ORANGE : colors.textSecondary }}>
+                            {promo === null ? '…' : promo ? 'Ligado' : 'Desligado'}
+                        </span>
+                    </div>
+                    <p className="text-[12.5px] mt-1 leading-snug" style={{ color: colors.textSecondary }}>
+                        Avisos de lojas e de pessoas que você segue ou com quem já comprou. Você pode desligar quando quiser.
+                    </p>
+                </div>
+                <button
+                    onClick={togglePromo}
+                    disabled={promo === null || busy || !isSupported}
+                    role="switch"
+                    aria-checked={!!promo}
+                    aria-label="Receber ofertas e promoções"
+                    className="relative w-[52px] h-[30px] rounded-full flex-shrink-0 transition-colors duration-200 disabled:opacity-50 active:scale-95"
+                    style={{ background: promo ? ORANGE : `${colors.border}aa` }}
+                >
+                    <span className="absolute top-[3px] w-6 h-6 rounded-full bg-white transition-all duration-200" style={{ left: promo ? '25px' : '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }} />
                 </button>
             </div>
         </section>

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from '@/lib/toast'
 import { hexToRgb } from '@/lib/color'
+import CampaignsSection from './CampaignsSection'
 import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed, Handshake, Award, Trophy, Truck, BarChart3, BookLock, Gavel, Flag, UploadCloud } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
 import ActivitySection from './ActivitySection'
@@ -28,7 +29,7 @@ import CreditsSection from './CreditsSection'
 import ForumAdminSection from './ForumAdminSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro' | 'status' | 'manual' | 'disputas' | 'denuncias' | 'uploads' | 'creditos' | 'forum'
+type Section = 'avisos' | 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro' | 'status' | 'manual' | 'disputas' | 'denuncias' | 'uploads' | 'creditos' | 'forum'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
@@ -42,6 +43,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'brinde', label: 'Brinde', icon: Gift },
     { id: 'creditos', label: 'Créditos', icon: Gift },
     { id: 'forum', label: 'Fórum', icon: MessageCircle },
+    { id: 'avisos', label: 'Avisos', icon: Send },
     { id: 'bordas', label: 'Bordas', icon: CircleDashed },
     { id: 'graduacao', label: 'Graduação', icon: Award },
     { id: 'pontuacao', label: 'Pontuação', icon: Trophy },
@@ -135,6 +137,7 @@ export default function AdminDashboard() {
             {section === 'uploads' && <UploadsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'creditos' && <CreditsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'forum' && <ForumAdminSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'avisos' && <CampaignsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'disputas' && <DeliveryDisputesSection cardStyle={cardStyle} colors={colors} />}
             {section === 'manual' && <ManualSection cardStyle={cardStyle} colors={colors} />}
             {section === 'pontuacao' && <PointsSection cardStyle={cardStyle} colors={colors} />}

@@ -28,6 +28,7 @@ import StoreDeliveryDues from '../StoreDeliveryDues'
 import StoreIuserCredits from '../StoreIuserCredits'
 import StoreMissions from '../StoreMissions'
 import StoreDigital from '../StoreDigital'
+import StoreCampaigns from '../StoreCampaigns'
 import StoreNotifications from '../StoreNotifications'
 import StoreFeedback from '../StoreFeedback'
 import StoreVisitors from '../StoreVisitors'
@@ -292,6 +293,10 @@ export default function PainelLoja({ store, storeSlug, profileSlug, userId, metr
             {/* ===== DIGITAL E CLUBE ===== */}
             {sec('Digital', undefined, 'Cursos, músicas e programas da loja')}
             <StoreDigital storeId={store.id} storeSlug={slug} hasPix={!!store.pix_key} v3 />
+
+            {/* ===== AVISOS PARA SEUS SEGUIDORES E COMPRADORES ===== */}
+            {sec('Avisos', undefined, 'Mande uma novidade para quem segue ou comprou')}
+            <StoreCampaigns storeId={store.id} colors={colors} />
 
             {/* ===== VISITANTES, AVALIAÇÕES E PLANO: linhas que abrem a caixa de cada um ===== */}
             {sec('Visitantes', undefined, 'Quem passou pela loja')}
